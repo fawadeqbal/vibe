@@ -1,0 +1,1253 @@
+import 'dart:ui' show ImageFilter;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/api/api_exception.dart';
+import '../../core/mock/mock_data.dart';
+import '../../core/theme/vibe_theme.dart';
+import '../../core/theme/vibe_widgets.dart';
+import '../../core/util/format.dart';
+import '../../models/models.dart';
+import '../../providers/match_provider.dart';
+import '../../providers/session_provider.dart';
+import '../../providers/wallet_provider.dart';
+import '../store/store_screen.dart';
+import '../store/vip_screen.dart';
+import 'filters_sheet.dart';
+import 'gift_sheet.dart';
+import 'report_sheet.dart';
+import 'safety_sheet.dart';
+
+/// The app. Four looks on one screen: lobby (idle), searching, connected,
+/// ended. Your own camera fills the lobby clearly (scrims, not a dim);
+/// during a match the partner takes the stage and you shrink to a corner.
+class MatchScreen extends StatefulWidget {
+  const MatchScreen({super.key, required this.onOpenStore, required this.onOpenChats});
+  final VoidCallback onOpenStore;
+  final VoidCallback onOpenChats;
+
+  @override
+  State<MatchScreen> createState() => _MatchScreenState();
+}
+
+class _MatchScreenState extends State<MatchScreen> {
+  final _message = TextEditingController();
+  final _chatScroll = ScrollController();
+  Gift? _burst;
+  bool _burstReceived = false;
+  int _burstSeq = 0;
+  int _seenChat = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Warm the camera so the lobby shows you straight away.
+    WidgetsBinding.instance.addPostFrameCallback((_) => context.read<MatchProvider>().ensureCamera());
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    _chatScroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _needCoins(String why) async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Not enough coins'),
+        content: Text('$why\n\nTop up, or earn free coins in the store.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Not now', style: TextStyle(color: V.text2))),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Get coins')),
+        ],
+      ),
+    );
+    if (go == true && mounted) Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StoreScreen(asPage: true)));
+  }
+
+  /// After a failed action: coins → offer the store; anything else → toast.
+  Future<void> _explainFailure(MatchProvider m, String coinsWhy) async {
+    if (!mounted) return;
+    if (m.needsCoins) {
+      await _needCoins(coinsWhy);
+    } else if (m.lastError != null) {
+      toast(context, m.lastError!, error: true);
+    }
+  }
+
+  /// Server calls can fail for network reasons; never let them crash a tap.
+  Future<void> _safely(Future<void> Function() fn) async {
+    try {
+      await fn();
+    } on ApiException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+    }
+  }
+
+  Future<void> _start() async {
+    final m = context.read<MatchProvider>();
+    if (!await m.start()) await _explainFailure(m, 'These filters cost ${m.filterCost} coins per match.');
+  }
+
+  Future<void> _next() async {
+    final m = context.read<MatchProvider>();
+    HapticFeedback.mediumImpact();
+    if (m.inCooldown) {
+      final pay = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Slow down a second'),
+          content: Text('Five quick skips in a row. Wait ${m.cooldownSeconds}s, or skip now for ${Economy.skipCooldownBypassCost} coins.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Wait', style: TextStyle(color: V.text2))),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text('Skip for ${Economy.skipCooldownBypassCost}')),
+          ],
+        ),
+      );
+      if (pay != true) return;
+      if (!await m.bypassCooldown()) await _explainFailure(m, 'Skipping the cooldown costs ${Economy.skipCooldownBypassCost} coins.');
+      return;
+    }
+    if (await m.next()) return;
+    // The server can answer "slow down" — then offer the same choice.
+    if (m.inCooldown && mounted) return _next();
+    await _explainFailure(m, 'These filters cost ${m.filterCost} coins per match.');
+  }
+
+  Future<void> _gift() async {
+    final m = context.read<MatchProvider>();
+    final p = m.partner;
+    if (p == null) return;
+    final g = await showGiftSheet(context, toName: p.name);
+    if (g == null || !mounted) return;
+    if (await m.sendGift(g)) {
+      setState(() {
+        _burst = g;
+        _burstReceived = false;
+        _burstSeq++;
+      });
+    } else if (mounted) {
+      if (m.lastError != null && !m.needsCoins) {
+        toast(context, m.lastError!, error: true);
+      } else {
+        await _needCoins('A ${g.name} costs ${g.coins} coins.');
+      }
+    }
+  }
+
+  Future<void> _addFriend() async {
+    final m = context.read<MatchProvider>();
+    final wallet = context.read<WalletProvider>();
+    final free = wallet.freeFriendRequestsLeft;
+    if (free == 0) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Send a friend request?'),
+          content: Text('Your ${Economy.freeFriendRequestsPerDay} free requests for today are used. This one costs ${Economy.friendRequestCost} coins.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel', style: TextStyle(color: V.text2))),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text('Send for ${Economy.friendRequestCost}')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    if (!await m.addFriend() && mounted) {
+      await _needCoins('A friend request costs ${Economy.friendRequestCost} coins once your free ones are used.');
+    } else if (mounted) {
+      toast(context, 'Request sent');
+    }
+  }
+
+  Future<void> _report() async {
+    final m = context.read<MatchProvider>();
+    final p = m.partner;
+    if (p == null) return;
+    final choice = await showReportSheet(context, name: p.name);
+    if (choice == null || !mounted) return;
+    await _safely(() async {
+      await m.report(choice.reason, note: choice.note, block: choice.block);
+      if (mounted) toast(context, 'Thanks. ${p.name} was reported${choice.block ? ' and blocked' : ''}.');
+    });
+  }
+
+  Future<void> _reportLast() async {
+    final m = context.read<MatchProvider>();
+    final p = m.lastPartner;
+    if (p == null) return;
+    final choice = await showReportSheet(context, name: p.name, afterCall: true);
+    if (choice == null || !mounted) return;
+    await _safely(() async {
+      await m.reportLast(choice.reason, note: choice.note, block: choice.block);
+      if (mounted) toast(context, 'Thanks. ${p.name} was reported${choice.block ? ' and blocked' : ''}.');
+    });
+  }
+
+  Future<void> _reconnect() async {
+    final m = context.read<MatchProvider>();
+    if (!await m.reconnect()) await _explainFailure(m, 'Reconnecting costs ${Economy.reconnectCost} coins.');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = context.watch<MatchProvider>();
+    // A new incoming gift → burst.
+    if (m.chat.length > _seenChat) {
+      final fresh = m.chat.skip(_seenChat).where((c) => !c.fromMe && c.gift != null).toList();
+      _seenChat = m.chat.length;
+      if (fresh.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _burst = fresh.last.gift;
+              _burstReceived = true;
+              _burstSeq++;
+            });
+          }
+        });
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_chatScroll.hasClients) _chatScroll.animateTo(_chatScroll.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      });
+    }
+    if (m.state == MatchState.idle || m.state == MatchState.ended) _seenChat = 0;
+
+    return Scaffold(
+      backgroundColor: V.bg,
+      resizeToAvoidBottomInset: false,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            switch (m.state) {
+              MatchState.connected => _Connected(m: m, onNext: _next, onGift: _gift, onAddFriend: _addFriend, onReport: _report, message: _message, chatScroll: _chatScroll),
+              MatchState.searching => _Searching(m: m),
+              MatchState.ended when m.lastPartner != null => _Ended(m: m, onReconnect: _reconnect, onFindAnother: _start, onReport: _reportLast),
+              _ => _Lobby(m: m, onStart: _start, onOpenStore: widget.onOpenStore),
+            },
+            if (_burst != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(
+                    child: GiftBurst(key: ValueKey('${_burst!.id}-$_burstSeq'), gift: _burst!, received: _burstReceived),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Asks before spending on a boost; shared by the lobby and the search.
+Future<void> confirmBoost(BuildContext context) async {
+  final wallet = context.read<WalletProvider>();
+  if (wallet.isBoosted) return;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Boost for 30 minutes?'),
+      content: Text('You go to the front of the queue — faster matches, more of them. ${Economy.boostCost} coins.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Not now', style: TextStyle(color: V.text2))),
+        TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text('Boost · ${Economy.boostCost}', style: const TextStyle(color: V.gold))),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    if (!await wallet.boost() && context.mounted) toast(context, 'Not enough coins for a boost', error: true);
+  } on ApiException catch (e) {
+    if (context.mounted) toast(context, e.message, error: true);
+  }
+}
+
+String _genderLabel(GenderFilter g) => switch (g) { GenderFilter.anyone => 'Anyone', GenderFilter.women => 'Women', GenderFilter.men => 'Men' };
+
+String _countryLabel(String? code) {
+  if (code == null) return 'Anywhere';
+  final c = MockData.country(code);
+  return '${c.flag} ${c.name}';
+}
+
+// ── lobby ──────────────────────────────────────────────────────────────
+
+class _Lobby extends StatelessWidget {
+  const _Lobby({required this.m, required this.onStart, required this.onOpenStore});
+  final MatchProvider m;
+  final VoidCallback onStart;
+  final VoidCallback onOpenStore;
+
+  @override
+  Widget build(BuildContext context) {
+    final wallet = context.watch<WalletProvider>();
+    final me = context.watch<SessionProvider>().me;
+    final cost = m.filterCost;
+    final f = m.filters;
+    final camLive = m.hasLocalVideo && m.camOn;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _SelfVideo(m: m),
+        const VideoScrims(top: 200, bottom: 500),
+        SafeArea(
+          child: Column(
+            children: [
+              // Who you are + balance.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Row(
+                  children: [
+                    if (me != null) VAvatar(url: me.avatarUrl, name: me.name, size: 40, border: Colors.white.withValues(alpha: 0.25)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(me == null ? 'Vibe' : 'Hi ${me.name.split(' ').first}', overflow: TextOverflow.ellipsis, style: VT.title(16, weight: FontWeight.w600)),
+                          const SizedBox(height: 1),
+                          Row(
+                            children: [
+                              Icon(camLive ? Icons.lock_rounded : Icons.videocam_off_rounded, size: 13, color: Colors.white.withValues(alpha: 0.72)),
+                              const SizedBox(width: 4),
+                              Flexible(child: Text(camLive ? 'Preview · only you can see this' : 'Camera is off', overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.72), height: 1.2))),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (wallet.isVip) const Padding(padding: EdgeInsets.only(right: 8), child: Tag('VIP', color: V.gold, icon: Icons.workspace_premium_rounded)),
+                    CoinChip(coins: wallet.coins, onTap: onOpenStore, glass: true),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const OnlineDot(),
+                    const SizedBox(width: 8),
+                    Text('${Fmt.thousands(_online())} people online now', style: VT.label(13, color: Colors.white.withValues(alpha: 0.82), weight: FontWeight.w500)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    GlassPill(
+                      height: 40,
+                      fontSize: 13,
+                      icon: switch (f.gender) { GenderFilter.women => Icons.female_rounded, GenderFilter.men => Icons.male_rounded, _ => Icons.group_rounded },
+                      label: _genderLabel(f.gender),
+                      trailing: const Icon(Icons.expand_more_rounded, size: 16, color: V.text2),
+                      onTap: () => showFiltersSheet(context),
+                    ),
+                    GlassPill(
+                      height: 40,
+                      fontSize: 13,
+                      icon: Icons.public_rounded,
+                      label: _countryLabel(f.countryCode),
+                      trailing: const Icon(Icons.expand_more_rounded, size: 16, color: V.text2),
+                      onTap: () => showFiltersSheet(context),
+                    ),
+                    GlassPill(
+                      height: 40,
+                      fontSize: 13,
+                      icon: f.safeMode ? Icons.verified_rounded : Icons.verified_outlined,
+                      label: 'Verified only',
+                      tint: f.safeMode ? V.trust : null,
+                      textColor: f.safeMode ? V.trust : Colors.white,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        m.setFilters(f.copyWith(safeMode: !f.safeMode));
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 38),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _SideAction(
+                      icon: Icons.bolt_rounded,
+                      iconColor: V.gold,
+                      tint: wallet.isBoosted ? V.gold : null,
+                      label: wallet.isBoosted
+                          ? Text(Fmt.until(wallet.wallet.boostUntil!), style: VT.label(11.5, color: V.gold))
+                          : Text.rich(TextSpan(children: [TextSpan(text: 'Boost · ', style: VT.label(11.5, color: Colors.white.withValues(alpha: 0.85))), TextSpan(text: '${Economy.boostCost}', style: VT.label(11.5, color: V.gold))])),
+                      semantics: wallet.isBoosted ? 'Boosted' : 'Boost for ${Economy.boostCost} coins',
+                      onTap: () => confirmBoost(context),
+                    ),
+                    _Shutter(onTap: onStart, cost: cost),
+                    _SideAction(
+                      icon: Icons.shield_rounded,
+                      iconColor: V.trust,
+                      label: Text('Safety', style: VT.label(11.5, color: Colors.white.withValues(alpha: 0.85))),
+                      semantics: 'Safety settings',
+                      onTap: () => showSafetySheet(context),
+                    ),
+                  ],
+                ),
+              ),
+              if (m.lastError != null) ...[
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Glass(
+                    radius: 16,
+                    child: Row(children: [const Icon(Icons.error_outline_rounded, size: 16, color: V.bad), const SizedBox(width: 8), Expanded(child: Text(m.lastError!, style: VT.body(12, color: Colors.white)))]),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static int _online() {
+    final h = DateTime.now().hour;
+    final base = h >= 20 || h < 2 ? 2400 : h >= 12 ? 1500 : 700;
+    return base + DateTime.now().minute * 7;
+  }
+}
+
+/// The big round "shutter" Start button in the thumb zone.
+class _Shutter extends StatelessWidget {
+  const _Shutter({required this.onTap, required this.cost});
+  final VoidCallback onTap;
+  final int cost;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: cost > 0 ? 'Start matching, $cost coins' : 'Start matching',
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          onTap();
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 108,
+              height: 108,
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 1.5)),
+              child: Container(
+                decoration: BoxDecoration(shape: BoxShape.circle, gradient: V.brand, boxShadow: [BoxShadow(color: V.pink.withValues(alpha: 0.45), blurRadius: 36, offset: const Offset(0, 14))]),
+                child: const Icon(Icons.videocam_rounded, size: 40, color: Colors.white),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Start', style: VT.title(15)),
+                if (cost > 0) ...[Text(' · ', style: VT.title(15, color: V.text2)), CoinAmount(cost, size: 13)],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SideAction extends StatelessWidget {
+  const _SideAction({required this.icon, required this.iconColor, required this.label, required this.onTap, required this.semantics, this.tint});
+  final IconData icon;
+  final Color iconColor;
+  final Widget label;
+  final VoidCallback onTap;
+  final String semantics;
+  final Color? tint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semantics,
+      excludeSemantics: true,
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RoundControl(icon: icon, color: iconColor, size: 56, tint: tint, onTap: onTap),
+            const SizedBox(height: 8),
+            label,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── ended ──────────────────────────────────────────────────────────────
+
+/// A recap, not an alert: their portrait blurs behind, the numbers become a
+/// readable row, and reporting stays reachable after the call.
+class _Ended extends StatelessWidget {
+  const _Ended({required this.m, required this.onReconnect, required this.onFindAnother, required this.onReport});
+  final MatchProvider m;
+  final VoidCallback onReconnect;
+  final VoidCallback onFindAnother;
+  final VoidCallback onReport;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = m.lastPartner!;
+    final reported = m.endReason == EndReason.reported;
+    final why = switch (m.endReason) {
+      EndReason.partnerLeft => '${p.name} left',
+      EndReason.skipped => 'You skipped ${p.name}',
+      EndReason.reported => 'Reported',
+      _ => 'Call ended',
+    };
+    final last = m.history.isEmpty ? null : m.history.first;
+    final (likeIcon, likeColor, likeLabel) = last?.likedMe == true
+        ? (Icons.favorite_rounded, V.pink, 'Liked you')
+        : last?.liked == true
+            ? (Icons.favorite_rounded, V.pinkSoft, 'You liked')
+            : (Icons.favorite_border_rounded, V.muted, 'No likes');
+    final gifts = last?.giftsReceived ?? 0;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 36, sigmaY: 36, tileMode: TileMode.clamp),
+          child: Image.network(p.avatarUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF2B1B4D), V.bg], begin: Alignment.topCenter, end: Alignment.bottomCenter)))),
+        ),
+        ColoredBox(color: V.bg.withValues(alpha: 0.7)),
+        SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Row(
+                  children: [
+                    CircleIconButton(icon: Icons.close_rounded, onTap: m.dismissEnded, tooltip: 'Close'),
+                    Expanded(child: Text('CALL ENDED', textAlign: TextAlign.center, style: VT.overline(color: V.text2).copyWith(fontSize: 12, letterSpacing: 1.2))),
+                    const SizedBox(width: 40),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    child: Glass(
+                      radius: 30,
+                      color: V.surface.withValues(alpha: 0.88),
+                      border: Colors.white.withValues(alpha: 0.1),
+                      padding: const EdgeInsets.fromLTRB(22, 28, 22, 20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              VAvatar(url: p.avatarUrl, name: p.name, size: 92, ring: true, gapColor: V.surface),
+                              if (p.verified)
+                                Positioned(
+                                  right: -2,
+                                  bottom: 2,
+                                  child: Container(width: 26, height: 26, decoration: const BoxDecoration(shape: BoxShape.circle, color: V.surface), child: const Icon(Icons.verified_rounded, size: 20, color: V.trust)),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(why, textAlign: TextAlign.center, style: VT.display(26, height: 1.1)),
+                          const SizedBox(height: 4),
+                          Text('${p.country.flag} ${p.country.name} · ${p.age}', style: VT.body(13, color: V.text2)),
+                          const SizedBox(height: 22),
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: const BoxDecoration(border: Border.symmetric(horizontal: BorderSide(color: V.line))),
+                            child: IntrinsicHeight(
+                              child: Row(
+                                children: [
+                                  _stat(Text(last == null ? '—' : Fmt.duration(last.length), style: VT.mono(18, color: V.text)), 'Call length'),
+                                  const VerticalDivider(width: 1, color: V.line),
+                                  _stat(Icon(likeIcon, size: 22, color: likeColor), likeLabel),
+                                  const VerticalDivider(width: 1, color: V.line),
+                                  _stat(
+                                    Row(mainAxisSize: MainAxisSize.min, children: [Text('$gifts', style: VT.number(18, weight: FontWeight.w600)), const SizedBox(width: 4), Icon(Icons.redeem_rounded, size: 18, color: gifts > 0 ? V.gold : V.muted)]),
+                                    gifts == 1 ? 'Gift received' : 'Gifts received',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          GradientButton(label: 'Find someone else', onTap: onFindAnother, icon: Icons.videocam_rounded),
+                          if (!reported) ...[
+                            const SizedBox(height: 10),
+                            GhostButton(
+                              label: 'Reconnect with ${p.name}',
+                              icon: Icons.replay_rounded,
+                              expand: true,
+                              onTap: onReconnect,
+                              trailing: Container(
+                                height: 22,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                decoration: BoxDecoration(color: V.gold.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
+                                child: CoinAmount(Economy.reconnectCost, size: 12),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextButton.icon(
+                              onPressed: onReport,
+                              icon: const Icon(Icons.outlined_flag_rounded, size: 16, color: V.text2),
+                              label: Text('Something wrong? Report ${p.name}', style: VT.label(13, color: V.text2, weight: FontWeight.w500)),
+                            ),
+                          ] else ...[
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.check_circle_rounded, size: 16, color: V.trust),
+                                const SizedBox(width: 6),
+                                Flexible(child: Text('Thanks — our team reviews every report.', style: VT.label(13, color: V.text2, weight: FontWeight.w500))),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stat(Widget value, String label) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [SizedBox(height: 24, child: Center(child: value)), const SizedBox(height: 4), Text(label, style: VT.body(11, color: V.muted, height: 1.2))],
+      ),
+    );
+  }
+}
+
+// ── searching ──────────────────────────────────────────────────────────
+
+/// The brand's two rings become the loader; the wait sets expectations
+/// about blur and reporting.
+class _Searching extends StatelessWidget {
+  const _Searching({required this.m});
+  final MatchProvider m;
+
+  @override
+  Widget build(BuildContext context) {
+    final wallet = context.watch<WalletProvider>();
+    final f = m.filters;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _SelfVideo(m: m, blur: 28),
+        ColoredBox(color: V.bg.withValues(alpha: 0.62)),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Column(
+              children: [
+                const Spacer(),
+                SizedBox(
+                  width: 240,
+                  height: 240,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.06)))),
+                      Padding(padding: const EdgeInsets.all(36), child: Container(decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.09))))),
+                      const VibeMark(size: 120, animate: true, stroke: 0.075),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Semantics(
+                  liveRegion: true,
+                  child: wallet.isBoosted
+                      ? const Headline('Boosted · finding someone ', accent: 'fast', size: 28, textAlign: TextAlign.center)
+                      : const Headline('Finding someone ', accent: 'for you', size: 28, textAlign: TextAlign.center),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _miniChip(_genderLabel(f.gender)),
+                    _miniChip(_countryLabel(f.countryCode)),
+                    if (f.safeMode) _miniChip('Verified only', trust: true),
+                  ],
+                ),
+                const Spacer(),
+                Glass(
+                  radius: 22,
+                  color: V.bg2.withValues(alpha: 0.55),
+                  border: Colors.white.withValues(alpha: 0.1),
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
+                        child: const Icon(Icons.shield_rounded, size: 20, color: V.trust),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(m.autoBlur && !wallet.isVip ? 'Both videos start blurred' : 'Report is one tap away', style: VT.title(14, weight: FontWeight.w600)),
+                            const SizedBox(height: 3),
+                            Text(
+                              m.autoBlur && !wallet.isVip ? 'The first 3 seconds stay soft. Report and block are always top-right, one tap away.' : 'Report and block are always top-right. Turn on blur in Safety if you want a softer start.',
+                              style: VT.body(12.5, color: V.text2, height: 1.45),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                GhostButton(label: 'Cancel', expand: true, fill: Colors.white.withValues(alpha: 0.08), onTap: m.stop),
+                const SizedBox(height: 14),
+                if (wallet.isBoosted)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.bolt_rounded, size: 15, color: V.gold),
+                      const SizedBox(width: 6),
+                      Text('Boosted · ${Fmt.until(wallet.wallet.boostUntil!)}', style: VT.label(12.5, weight: FontWeight.w500)),
+                    ],
+                  )
+                else
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => confirmBoost(context),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.bolt_rounded, size: 15, color: V.gold),
+                          const SizedBox(width: 6),
+                          Text('Boost to the front of the queue · ', style: VT.label(12.5, weight: FontWeight.w500)),
+                          Text('${Economy.boostCost}', style: VT.label(12.5, color: V.gold)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniChip(String label, {bool trust = false}) {
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(color: trust ? V.trust.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
+      child: Center(widthFactor: 1, child: Text(label, style: VT.label(12, color: trust ? V.trust : V.text2, weight: FontWeight.w500))),
+    );
+  }
+}
+
+// ── connected ──────────────────────────────────────────────────────────
+
+class _Connected extends StatelessWidget {
+  const _Connected({required this.m, required this.onNext, required this.onGift, required this.onAddFriend, required this.onReport, required this.message, required this.chatScroll});
+  final MatchProvider m;
+  final VoidCallback onNext;
+  final VoidCallback onGift;
+  final VoidCallback onAddFriend;
+  final VoidCallback onReport;
+  final TextEditingController message;
+  final ScrollController chatScroll;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = m.partner!;
+    final me = context.watch<SessionProvider>().me;
+    final friendState = m.friendState;
+    final media = MediaQuery.of(context);
+    final bottomInset = media.viewInsets.bottom;
+    final topRow = media.padding.top + 64;
+    final shared = [for (final i in p.interests) if (me?.interests.contains(i) == true) i];
+    final opener = shared.isNotEmpty ? 'You both like ${shared.take(2).join(' · ')}' : (p.interests.isEmpty ? null : 'Into ${p.interests.take(2).join(' · ')}');
+    final likeText = m.mutualLike ? 'You both liked each other' : (m.partnerLikedMe ? '${p.name} liked you' : null);
+
+    void send() {
+      m.sendMessage(message.text);
+      message.clear();
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _PartnerStage(m: m, partner: p, blurred: m.blurred),
+        const VideoScrims(top: 220, bottom: 460, topAlpha: 0.75, bottomAlpha: 0.92, bottomMid: 0.6),
+        // Top: who, timer, report.
+        Positioned(
+          left: 0,
+          right: 0,
+          top: media.padding.top,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Glass(
+                    radius: 24,
+                    color: V.bg2.withValues(alpha: 0.45),
+                    padding: const EdgeInsets.fromLTRB(5, 5, 14, 5),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        VAvatar(url: p.avatarUrl, name: p.name, size: 36),
+                        const SizedBox(width: 10),
+                        Flexible(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(child: Text('${p.name}, ${p.age}', overflow: TextOverflow.ellipsis, style: VT.title(15, weight: FontWeight.w600))),
+                                  if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified_rounded, size: 16, color: V.trust, semanticLabel: 'Verified')),
+                                  if (p.vip) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.workspace_premium_rounded, size: 15, color: V.gold, semanticLabel: 'VIP')),
+                                ],
+                              ),
+                              Text('${p.country.flag} ${p.country.name}', overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.72), height: 1.2)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Glass(
+                  radius: 16,
+                  height: 32,
+                  color: V.bg2.withValues(alpha: 0.45),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: V.bad)),
+                      const SizedBox(width: 6),
+                      Text(Fmt.clock(m.elapsed), style: VT.mono(12, color: V.text)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GlassPill(label: 'Report', icon: Icons.flag_rounded, tint: V.bad, height: 36, onTap: onReport),
+              ],
+            ),
+          ),
+        ),
+        // Openers and likes, under the identity pill.
+        Positioned(
+          left: 12,
+          top: topRow,
+          right: 12 + 100 + 10,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (opener != null) GlassPill(label: opener, icon: Icons.interests_rounded, iconColor: V.lavender, height: 30, fontSize: 12),
+              if (likeText != null) ...[
+                const SizedBox(height: 8),
+                GlassPill(label: likeText, icon: Icons.favorite_rounded, iconColor: V.pinkSoft, tint: V.pink, height: 30, fontSize: 12),
+              ],
+            ],
+          ),
+        ),
+        // Self PiP
+        Positioned(
+          right: 12,
+          top: topRow,
+          child: Container(
+            width: 100,
+            height: 140,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.28), width: 1.5),
+              color: V.surface2,
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 30, offset: const Offset(0, 12))],
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (m.hasLocalVideo && m.camOn) RTCVideoView(m.localRenderer, mirror: m.frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover) else const Center(child: Icon(Icons.videocam_off_rounded, color: V.muted)),
+                if (m.blurred) BackdropFilter(filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12), child: const SizedBox.expand()),
+                Positioned(
+                  left: 6,
+                  bottom: 6,
+                  child: GestureDetector(
+                    onTap: m.toggleMic,
+                    child: Glass(
+                      radius: 12,
+                      padding: EdgeInsets.zero,
+                      border: Colors.transparent,
+                      color: V.bg2.withValues(alpha: 0.55),
+                      child: SizedBox(width: 24, height: 24, child: Icon(m.micOn ? Icons.mic_rounded : Icons.mic_off_rounded, size: 14, color: m.micOn ? Colors.white : V.bad)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Bottom stack: chat, controls, composer
+        Positioned(
+          left: 12,
+          right: 12,
+          bottom: bottomInset > 0 ? bottomInset + 8 : media.padding.bottom + 16,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ChatOverlay(m: m, controller: chatScroll),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    RoundControl(
+                      icon: m.likedPartner ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      color: m.likedPartner ? V.pink : Colors.white,
+                      tint: m.likedPartner ? V.pink : null,
+                      onTap: m.like,
+                      label: m.likedPartner ? 'Liked' : 'Like',
+                    ),
+                    RoundControl(icon: Icons.redeem_rounded, onTap: onGift, label: 'Gift', color: V.gold),
+                    _NextButton(m: m, onTap: onNext),
+                    RoundControl(
+                      icon: switch (friendState) { FriendState.friends => Icons.how_to_reg_rounded, FriendState.requested => Icons.hourglass_top_rounded, _ => Icons.person_add_rounded },
+                      onTap: friendState == FriendState.none || friendState == FriendState.incoming ? onAddFriend : null,
+                      label: switch (friendState) { FriendState.friends => 'Friends', FriendState.requested => 'Sent', FriendState.incoming => 'Accept', _ => 'Add' },
+                      color: friendState == FriendState.friends ? V.ok : Colors.white,
+                      tint: friendState == FriendState.incoming ? V.violet : null,
+                    ),
+                    RoundControl(icon: Icons.more_horiz_rounded, onTap: () => _more(context), label: 'More'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Glass(
+                radius: 26,
+                height: 52,
+                border: Colors.white.withValues(alpha: 0.14),
+                padding: const EdgeInsets.only(left: 18, right: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: message,
+                        style: VT.body(15, color: Colors.white),
+                        textInputAction: TextInputAction.send,
+                        cursorColor: V.pinkSoft,
+                        decoration: InputDecoration(
+                          hintText: 'Say something…',
+                          hintStyle: VT.body(15, color: Colors.white.withValues(alpha: 0.55)),
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                          isDense: true,
+                        ),
+                        onSubmitted: (_) => send(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Semantics(
+                      button: true,
+                      label: 'Send',
+                      child: Material(
+                        color: V.violet,
+                        shape: const CircleBorder(),
+                        child: InkWell(customBorder: const CircleBorder(), onTap: send, child: const SizedBox(width: 40, height: 40, child: Icon(Icons.send_rounded, size: 19, color: Colors.white))),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _more(BuildContext context) {
+    showVibeSheet(
+      context,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Call options', style: VT.title(20)),
+            const SizedBox(height: 16),
+            GroupCard(
+              children: [
+                GroupRow(icon: m.micOn ? Icons.mic_rounded : Icons.mic_off_rounded, title: m.micOn ? 'Mute microphone' : 'Unmute', onTap: () {
+                  m.toggleMic();
+                  Navigator.of(context).pop();
+                }),
+                GroupRow(icon: m.camOn ? Icons.videocam_rounded : Icons.videocam_off_rounded, title: m.camOn ? 'Turn camera off' : 'Turn camera on', onTap: () {
+                  m.toggleCam();
+                  Navigator.of(context).pop();
+                }),
+                GroupRow(icon: Icons.cameraswitch_rounded, title: 'Switch camera', onTap: () {
+                  m.switchCamera();
+                  Navigator.of(context).pop();
+                }),
+              ],
+            ),
+            const SizedBox(height: 10),
+            GroupCard(
+              children: [
+                GroupRow(icon: Icons.block_rounded, iconColor: V.bad, iconBg: V.bad.withValues(alpha: 0.12), title: 'Block and end', titleColor: V.bad, onTap: () {
+                  m.blockPartner();
+                  Navigator.of(context).pop();
+                }),
+                GroupRow(icon: Icons.call_end_rounded, title: 'End and go back', onTap: () {
+                  m.stop();
+                  Navigator.of(context).pop();
+                }),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NextButton extends StatelessWidget {
+  const _NextButton({required this.m, required this.onTap});
+  final MatchProvider m;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cd = m.cooldownSeconds;
+    return Semantics(
+      button: true,
+      label: cd > 0 ? 'Next, wait $cd seconds or skip for ${Economy.skipCooldownBypassCost} coins' : 'Next person',
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: cd > 0 ? const LinearGradient(colors: [V.surface3, V.surface2]) : V.brand,
+                boxShadow: [BoxShadow(color: (cd > 0 ? Colors.black : V.pink).withValues(alpha: 0.42), blurRadius: 30, offset: const Offset(0, 12))],
+              ),
+              child: cd > 0 ? Center(child: Text('${cd}s', style: VT.number(20, color: Colors.white))) : const Icon(Icons.skip_next_rounded, size: 38, color: Colors.white),
+            ),
+            const SizedBox(height: 6),
+            cd > 0
+                ? Row(mainAxisSize: MainAxisSize.min, children: [Text('Skip · ', style: VT.label(11, color: Colors.white.withValues(alpha: 0.85))), CoinAmount(Economy.skipCooldownBypassCost, size: 11)])
+                : Text('Next', style: VT.label(11, color: Colors.white.withValues(alpha: 0.85))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatOverlay extends StatelessWidget {
+  const _ChatOverlay({required this.m, required this.controller});
+  final MatchProvider m;
+  final ScrollController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = m.chat;
+    if (items.isEmpty) return const SizedBox.shrink();
+    final maxW = MediaQuery.of(context).size.width * 0.72;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 168),
+      child: ShaderMask(
+        // Fade the oldest lines out at the top edge.
+        shaderCallback: (r) => const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0, 0.18], colors: [Colors.transparent, Colors.black]).createShader(r),
+        blendMode: BlendMode.dstIn,
+        child: ListView.builder(
+          controller: controller,
+          padding: EdgeInsets.zero,
+          shrinkWrap: true,
+          itemCount: items.length,
+          itemBuilder: (context, i) {
+            final c = items[i];
+            final mine = c.fromMe;
+            final text = c.gift != null ? '${c.gift!.emoji}  ${c.text}' : c.text;
+            final bubble = mine
+                ? Container(
+                    constraints: BoxConstraints(maxWidth: maxW),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: c.gift != null ? V.gold.withValues(alpha: 0.28) : V.violet.withValues(alpha: 0.6),
+                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(18), topRight: Radius.circular(18), bottomLeft: Radius.circular(18), bottomRight: Radius.circular(6)),
+                    ),
+                    child: Text(text, style: VT.body(14, color: Colors.white, height: 1.35)),
+                  )
+                : ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxW),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(18), topRight: Radius.circular(18), bottomLeft: Radius.circular(6), bottomRight: Radius.circular(18)),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: c.gift != null ? V.gold.withValues(alpha: 0.2) : V.glass,
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                            borderRadius: const BorderRadius.only(topLeft: Radius.circular(18), topRight: Radius.circular(18), bottomLeft: Radius.circular(6), bottomRight: Radius.circular(18)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(m.partner?.name ?? 'Them', style: VT.label(11, color: V.pinkSoft)),
+                              Text(text, style: VT.body(14, color: Colors.white, height: 1.35)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Align(alignment: mine ? Alignment.centerRight : Alignment.centerLeft, child: bubble),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// The partner's video: the live WebRTC stream in server mode, or their
+/// portrait (offline mock, dev bots, or while the connection comes up).
+class _PartnerStage extends StatelessWidget {
+  const _PartnerStage({required this.m, required this.partner, required this.blurred});
+  final MatchProvider m;
+  final Profile partner;
+  final bool blurred;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (m.hasRemoteVideo)
+          RTCVideoView(m.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+        else
+          Image.network(
+          partner.avatarUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF2B1B4D), V.bg], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
+            alignment: Alignment.center,
+            child: VAvatar(url: '', name: partner.name, size: 120, ring: true),
+          ),
+        ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 600),
+          child: blurred
+              ? BackdropFilter(
+                  key: const ValueKey('blur'),
+                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    alignment: Alignment.center,
+                    child: GlassPill(label: 'Starts blurred · clearing in a moment', icon: Icons.blur_on_rounded, iconColor: V.trust, height: 34),
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('clear')),
+        ),
+      ],
+    );
+  }
+}
+
+/// Your own camera as a full-bleed background (lobby, searching).
+class _SelfVideo extends StatelessWidget {
+  const _SelfVideo({required this.m, this.blur = 0});
+  final MatchProvider m;
+  final double blur;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget video = m.hasLocalVideo && m.camOn
+        ? RTCVideoView(m.localRenderer, mirror: m.frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+        : const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(center: Alignment(0, -0.35), radius: 1.1, colors: [Color(0xFF3A1D5C), Color(0xFF1A1030), V.bg]),
+            ),
+          );
+    if (blur <= 0) return video;
+    return ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur, tileMode: TileMode.clamp), child: video);
+  }
+}
+
+/// Small helper for a "Get VIP" nudge.
+class VipNudge extends StatelessWidget {
+  const VipNudge({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return GhostButton(label: 'Get VIP', icon: Icons.workspace_premium_rounded, color: V.gold, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen())));
+  }
+}

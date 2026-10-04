@@ -1,0 +1,3 @@
+ssh -i "c:\Users\Tauseef\Desktop\Kids Coding Platform\repo\scripts\ssh-key-2026-10-02.key" -o StrictHostKeyChecking=no opc@145.241.156.60 "cd /opt/vibe-turn && docker compose ps && docker compose logs --tail=10"
+
+ssh -i "c:\Users\Tauseef\Desktop\Kids Coding Platform\repo\scripts\ssh-key-2026-10-02.key" opc@145.241.156.60

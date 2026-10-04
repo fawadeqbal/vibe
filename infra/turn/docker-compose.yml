@@ -1,0 +1,27 @@
+# TURN relay for Vibe video calls (coturn). Runs on its own server with a
+# public IP. Setup: see README.md in this folder.
+#
+#   cp .env.example .env     # fill in TURN_DOMAIN and TURN_SECRET
+#   sudo sh install-cert.sh  # TLS certificate (once; renews by itself)
+#   docker compose up -d
+#   docker compose logs -f
+services:
+  coturn:
+    image: coturn/coturn:4.18-alpine
+    restart: unless-stopped
+    # Host networking: coturn needs thousands of UDP ports, which Docker's
+    # port mapping handles badly. It also lets coturn see the real IPs.
+    network_mode: host
+    env_file: .env
+    entrypoint: ["sh", "/etc/coturn/start.sh"]
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./start.sh:/etc/coturn/start.sh:ro
+      - ./certs:/etc/coturn/certs:ro
+    tmpfs:
+      - /var/lib/coturn
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }

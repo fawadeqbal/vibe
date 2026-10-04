@@ -1,0 +1,683 @@
+// Vibe data model.
+//
+// Money rules this schema protects:
+// * Every coin or gem that moves is a LedgerEntry; Wallet holds the running
+//   balance and is only ever changed in the same transaction as its entry.
+// * Balances can never go negative (CHECK constraints in the migration).
+// * External payments are idempotent per (user, idempotencyKey) and per
+//   provider reference.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── identity ───────────────────────────────────────────────────────────
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+/// Back-office access uses StaffUser + StaffRole (see "back office" below).
+/// ADMIN is kept only for compatibility with existing rows.
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  DELETED
+}
+
+model User {
+  id               String     @id @default(cuid())
+  role             UserRole   @default(USER)
+  status           UserStatus @default(ACTIVE)
+  /// Sign-in e-mail, lower-cased. Null for Google/Apple-only and deleted accounts.
+  email            String?    @unique
+  googleSub        String?    @unique
+  appleSub         String?    @unique
+  name             String     @default("")
+  age              Int?
+  gender           Gender     @default(OTHER)
+  countryCode      String     @default("PK") @db.VarChar(2)
+  avatarUrl        String     @default("")
+  bio              String     @default("") @db.VarChar(160)
+  interests        String[]   @default([])
+  verified         Boolean    @default(false)
+  verifiedAt       DateTime?
+  /// Development-only scripted partners (see DevBotsService). Never true in production.
+  isBot            Boolean    @default(false)
+  /// Newsletters and announcements by e-mail (sign-in codes and service notices always go).
+  marketingEmails  Boolean    @default(true)
+  onboardedAt      DateTime?
+  bannedUntil      DateTime?
+  inviteCode       String     @unique
+  invitedById      String?
+  inviteRewardedAt DateTime?
+  matchesCount     Int        @default(0)
+  likesCount       Int        @default(0)
+  lastSeenAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
+
+  invitedBy     User?          @relation("Invites", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitees      User[]         @relation("Invites")
+  wallet        Wallet?
+  sessions      Session[]
+  ledger        LedgerEntry[]
+  purchases     Purchase[]
+  subscriptions Subscription[]
+  cashouts      Cashout[]
+  blocksMade    Block[]        @relation("BlocksMade")
+  blocksGot     Block[]        @relation("BlocksGot")
+  reportsMade   Report[]       @relation("ReportsMade")
+  reportsGot    Report[]       @relation("ReportsGot")
+  staffNotes    StaffNote[]
+  inbox         UserMessage[]
+
+  @@index([createdAt])
+  @@index([bannedUntil])
+  @@index([lastSeenAt])
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  userId      String
+  /// sha256 of the opaque refresh token; the token itself is never stored.
+  refreshHash String    @unique
+  /// All rotations of one login share a family; reuse of a rotated token
+  /// revokes the whole family.
+  family      String
+  userAgent   String?
+  ip          String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([family])
+}
+
+// ── money ──────────────────────────────────────────────────────────────
+
+model Wallet {
+  userId                  String    @id
+  coins                   Int       @default(0)
+  gems                    Int       @default(0)
+  vipUntil                DateTime?
+  boostUntil              DateTime?
+  streakDay               Int       @default(0)
+  lastCheckInAt           DateTime?
+  adsDay                  DateTime? @db.Date
+  adsWatchedToday         Int       @default(0)
+  friendRequestsDay       DateTime? @db.Date
+  freeFriendRequestsToday Int       @default(0)
+  profileBonusClaimed     Boolean   @default(false)
+  updatedAt               DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum LedgerKind {
+  PURCHASE
+  SPEND
+  EARN
+  GIFT_SENT
+  GIFT_RECEIVED
+  CASHOUT
+  CASHOUT_REVERSAL
+  VIP
+  REFUND
+  ADJUSTMENT
+}
+
+enum PaymentMethod {
+  GOOGLE_PLAY
+  APP_STORE
+  JAZZCASH
+  EASYPAISA
+  CARD
+  BANK
+}
+
+model LedgerEntry {
+  id             String         @id @default(cuid())
+  userId         String
+  kind           LedgerKind
+  title          String
+  coins          Int            @default(0)
+  gems           Int            @default(0)
+  usdCents       Int            @default(0)
+  method         PaymentMethod?
+  reference      String?
+  /// Balance after this entry — makes audits a single query.
+  balanceCoins   Int
+  balanceGems    Int
+  idempotencyKey String?
+  createdAt      DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([kind, createdAt])
+}
+
+enum ProductType {
+  COIN_PACK
+  VIP_PLAN
+}
+
+enum PurchaseStatus {
+  PENDING
+  REQUIRES_ACTION
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model Purchase {
+  id             String         @id @default(cuid())
+  userId         String
+  productType    ProductType
+  productId      String
+  method         PaymentMethod
+  usdCents       Int
+  status         PurchaseStatus @default(PENDING)
+  /// The provider's id for this charge (order id, transaction id).
+  providerRef    String?
+  nextAction     String?
+  failureReason  String?
+  idempotencyKey String
+  metadata       Json?
+  createdAt      DateTime       @default(now())
+  completedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@unique([method, providerRef])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  userId           String
+  planId           String
+  status           SubscriptionStatus
+  startedAt        DateTime           @default(now())
+  currentPeriodEnd DateTime
+  trialEndsAt      DateTime?
+  canceledAt       DateTime?
+  lastBonusAt      DateTime?
+  purchaseId       String?            @unique
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, currentPeriodEnd])
+  @@index([createdAt])
+}
+
+enum CashoutStatus {
+  /// Held for a human (above the review threshold, or payouts paused).
+  REVIEW
+  REQUESTED
+  PROCESSING
+  PAID
+  REJECTED
+}
+
+model Cashout {
+  id            String        @id @default(cuid())
+  userId        String
+  gems          Int
+  usdCents      Int
+  method        PaymentMethod
+  /// Stored masked; the full account goes straight to the payout provider.
+  accountMasked String
+  status        CashoutStatus @default(REQUESTED)
+  providerRef   String?
+  failureReason String?
+  createdAt     DateTime      @default(now())
+  processedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+// ── matching ───────────────────────────────────────────────────────────
+
+enum MatchEndReason {
+  SKIPPED
+  LEFT
+  STOPPED
+  REPORTED
+  BLOCKED
+  DISCONNECTED
+}
+
+model Match {
+  id          String          @id @default(cuid())
+  userAId     String
+  userBId     String
+  startedAt   DateTime        @default(now())
+  endedAt     DateTime?
+  endedById   String?
+  endReason   MatchEndReason?
+  coinsSpentA Int             @default(0)
+  coinsSpentB Int             @default(0)
+  reconnect   Boolean         @default(false)
+
+  likes MatchLike[]
+  gifts GiftTransfer[]
+
+  @@index([userAId, startedAt])
+  @@index([userBId, startedAt])
+  @@index([startedAt])
+}
+
+model MatchLike {
+  matchId   String
+  fromId    String
+  toId      String
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, fromId])
+  @@index([toId, createdAt])
+}
+
+model GiftTransfer {
+  id        String   @id @default(cuid())
+  giftId    String
+  fromId    String
+  toId      String
+  coins     Int
+  gems      Int
+  matchId   String?
+  createdAt DateTime @default(now())
+
+  match Match? @relation(fields: [matchId], references: [id], onDelete: SetNull)
+
+  @@index([toId, createdAt])
+  @@index([fromId, createdAt])
+}
+
+// ── social ─────────────────────────────────────────────────────────────
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+}
+
+/// One row per pair. userLowId < userHighId keeps the pair unique no matter
+/// who asked first.
+model Friendship {
+  id            String           @id @default(cuid())
+  userLowId     String
+  userHighId    String
+  requesterId   String
+  status        FriendshipStatus @default(PENDING)
+  createdAt     DateTime         @default(now())
+  acceptedAt    DateTime?
+  lastMessageAt DateTime?
+
+  messages Message[]
+
+  @@unique([userLowId, userHighId])
+  @@index([userLowId, status])
+  @@index([userHighId, status])
+}
+
+model Message {
+  id           String    @id @default(cuid())
+  friendshipId String
+  senderId     String
+  text         String    @db.VarChar(1000)
+  giftId       String?
+  createdAt    DateTime  @default(now())
+  readAt       DateTime?
+
+  friendship Friendship @relation(fields: [friendshipId], references: [id], onDelete: Cascade)
+
+  @@index([friendshipId, createdAt])
+}
+
+model Block {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlocksGot", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+// ── safety ─────────────────────────────────────────────────────────────
+
+enum ReportReason {
+  NUDITY
+  HARASSMENT
+  UNDERAGE
+  SPAM
+  SCAM
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  ACTIONED
+  DISMISSED
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  reportedId String
+  matchId    String?
+  reason     ReportReason
+  note       String?      @db.VarChar(500)
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+  reviewedAt DateTime?
+
+  reporter User @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported User @relation("ReportsGot", fields: [reportedId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, reportedId, matchId])
+  @@index([reportedId, createdAt])
+  @@index([status, createdAt])
+}
+
+// ── back office ────────────────────────────────────────────────────────
+//
+// Staff are separate from app users: own credentials (password + TOTP),
+// own sessions and a role whose permission list the API enforces per
+// endpoint. Every staff write lands in AuditLog.
+
+enum StaffStatus {
+  ACTIVE
+  DISABLED
+}
+
+model StaffRole {
+  id          String   @id @default(cuid())
+  /// Stable slug ("owner", "moderator", or a custom one).
+  key         String   @unique
+  name        String
+  description String   @default("")
+  /// Permission keys from src/modules/admin/core/permissions.ts ("*" = all).
+  permissions String[]
+  /// Built-in roles can't be deleted or renamed.
+  system      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staff StaffUser[]
+}
+
+model StaffUser {
+  id                 String      @id @default(cuid())
+  email              String      @unique
+  name               String
+  passwordHash       String
+  roleId             String
+  status             StaffStatus @default(ACTIVE)
+  /// AES-GCM encrypted TOTP secret; null until 2FA is set up.
+  totpSecret         String?
+  totpEnabledAt      DateTime?
+  /// sha256 of unused one-time recovery codes.
+  recoveryCodes      String[]    @default([])
+  mustChangePassword Boolean     @default(false)
+  passwordChangedAt  DateTime?
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+  createdById        String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  role     StaffRole      @relation(fields: [roleId], references: [id])
+  sessions StaffSession[]
+  notes    StaffNote[]
+
+  @@index([roleId])
+}
+
+model StaffSession {
+  id          String    @id @default(cuid())
+  staffId     String
+  refreshHash String    @unique
+  family      String
+  userAgent   String?
+  ip          String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  lastUsedAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  staff StaffUser @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([family])
+}
+
+/// Append-only record of every staff action.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String
+  action     String
+  targetType String?
+  targetId   String?
+  summary    String?
+  data       Json?
+  ip         String?
+  userAgent  String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([action, createdAt])
+}
+
+model StaffNote {
+  id        String   @id @default(cuid())
+  userId    String
+  authorId  String
+  text      String   @db.VarChar(2000)
+  createdAt DateTime @default(now())
+
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  author StaffUser @relation(fields: [authorId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+/// Runtime settings (maintenance mode, payout review…); typed in code.
+model AppSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
+
+enum AnnouncementAudience {
+  ALL
+  VIP
+  NON_VIP
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  LIVE
+  ARCHIVED
+}
+
+model Announcement {
+  id          String               @id @default(cuid())
+  title       String               @db.VarChar(80)
+  body        String               @db.VarChar(500)
+  audience    AnnouncementAudience @default(ALL)
+  status      AnnouncementStatus   @default(DRAFT)
+  createdById String
+  publishedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([status, publishedAt])
+}
+
+// ── messaging ──────────────────────────────────────────────────────────
+//
+// E-mail templates are structured (subject, heading, body…) and rendered
+// into one branded layout, so staff can edit wording without breaking
+// e-mail clients. Campaigns send a message by e-mail and/or to the in-app
+// inbox, to picked people, a segment or everyone, in resumable batches.
+
+/// Staff edits of built-in templates, and custom templates. Built-in
+/// defaults live in code (mail-templates.registry.ts); a row overrides them.
+model MailTemplate {
+  key         String   @id
+  name        String
+  description String   @default("")
+  subject     String   @db.VarChar(200)
+  preheader   String   @default("") @db.VarChar(200)
+  heading     String   @db.VarChar(200)
+  body        String   @db.VarChar(5000)
+  highlight   String   @default("") @db.VarChar(100)
+  buttonLabel String   @default("") @db.VarChar(60)
+  buttonUrl   String   @default("") @db.VarChar(500)
+  footer      String   @default("") @db.VarChar(500)
+  custom      Boolean  @default(false)
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum CampaignAudience {
+  USERS
+  SEGMENT
+  ALL
+}
+
+enum CampaignStatus {
+  QUEUED
+  SENDING
+  SENT
+  CANCELED
+  FAILED
+}
+
+model Campaign {
+  id           String           @id @default(cuid())
+  /// Internal name, shown in the admin panel only.
+  name         String           @db.VarChar(120)
+  sendEmail    Boolean
+  sendInApp    Boolean
+  /// Service notice: also e-mails people who turned off e-mail updates.
+  important    Boolean          @default(false)
+  audience     CampaignAudience
+  userIds      String[]         @default([])
+  segment      Json?
+  templateKey  String?
+  subject      String           @db.VarChar(200)
+  preheader    String           @default("") @db.VarChar(200)
+  heading      String           @db.VarChar(200)
+  body         String           @db.VarChar(5000)
+  buttonLabel  String           @default("") @db.VarChar(60)
+  buttonUrl    String           @default("") @db.VarChar(500)
+  footer       String           @default("") @db.VarChar(500)
+  status       CampaignStatus   @default(QUEUED)
+  /// Recipients when queued (estimate for segments; they're resolved while sending).
+  total        Int              @default(0)
+  processed    Int              @default(0)
+  emailSent    Int              @default(0)
+  emailFailed  Int              @default(0)
+  emailSkipped Int              @default(0)
+  inAppSent    Int              @default(0)
+  /// Resume point: the last user id handled (users are walked in id order).
+  cursor       String?
+  lastError    String?
+  createdById  String
+  createdAt    DateTime         @default(now())
+  startedAt    DateTime?
+  finishedAt   DateTime?
+
+  deliveries MessageDelivery[]
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+enum DeliveryStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// One row per recipient e-mail: makes resends impossible and failures visible.
+model MessageDelivery {
+  id         String         @id @default(cuid())
+  campaignId String
+  userId     String
+  email      String?
+  status     DeliveryStatus
+  error      String?        @db.VarChar(300)
+  createdAt  DateTime       @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([campaignId, status])
+}
+
+/// The in-app inbox ("Messages from Vibe").
+model UserMessage {
+  id          String    @id @default(cuid())
+  userId      String
+  campaignId  String?
+  title       String    @db.VarChar(200)
+  body        String    @db.VarChar(5000)
+  buttonLabel String    @default("") @db.VarChar(60)
+  buttonUrl   String    @default("") @db.VarChar(500)
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userId])
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}

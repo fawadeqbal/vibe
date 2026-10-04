@@ -1,0 +1,131 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'core/api/api_client.dart';
+import 'core/api/realtime_client.dart';
+import 'core/api/system_notices.dart';
+import 'core/theme/vibe_theme.dart';
+import 'providers/catalog_provider.dart';
+import 'providers/inbox_provider.dart';
+import 'providers/match_provider.dart';
+import 'providers/session_provider.dart';
+import 'providers/social_provider.dart';
+import 'providers/wallet_provider.dart';
+import 'screens/home/home_shell.dart';
+import 'screens/onboarding/permissions_screen.dart';
+import 'screens/onboarding/profile_setup_screen.dart';
+import 'screens/onboarding/signin_screen.dart';
+import 'screens/onboarding/welcome_screen.dart';
+import 'screens/splash_screen.dart';
+
+class VibeApp extends StatefulWidget {
+  const VibeApp({super.key, this.realtime});
+
+  /// Present in server mode: connected while someone is signed in.
+  final RealtimeClient? realtime;
+
+  @override
+  State<VibeApp> createState() => _VibeAppState();
+}
+
+class _VibeAppState extends State<VibeApp> {
+  bool _sawWelcome = false;
+  bool _sessionLive = false;
+  late final SessionProvider _session = context.read<SessionProvider>();
+  late final CatalogProvider _catalog = context.read<CatalogProvider>();
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
+  SystemNotices? _notices;
+
+  @override
+  void initState() {
+    super.initState();
+    final rt = widget.realtime;
+    if (rt != null) _notices = SystemNotices(context.read<ApiClient>(), rt, _messenger)..start();
+    _catalog.addListener(_redrawPrices);
+    // Restore everything once; the splash shows meanwhile.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _session.restore();
+      _session.addListener(_onSessionChanged);
+      if (widget.realtime == null) {
+        // Offline mock: everything is local, load it all now.
+        await _loadAll();
+      } else {
+        _onSessionChanged();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _session.removeListener(_onSessionChanged);
+    _catalog.removeListener(_redrawPrices);
+    _notices?.stop();
+    super.dispose();
+  }
+
+  /// Server mode: open the socket and load the user's data on sign-in;
+  /// close it on sign-out.
+  void _onSessionChanged() {
+    final rt = widget.realtime;
+    if (rt == null) return;
+    if (_session.signedIn && !_sessionLive) {
+      _sessionLive = true;
+      rt.connect();
+      _loadAll();
+      _notices?.catchUp();
+    } else if (!_session.signedIn && _sessionLive) {
+      _sessionLive = false;
+      rt.disconnect();
+    }
+  }
+
+  /// Staff changed prices: redraw every screen (and open sheet) once, so no
+  /// screen has to remember to listen. Rare, so a full rebuild is fine.
+  void _redrawPrices() {
+    if (!mounted) return;
+    void redraw(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(redraw);
+    }
+
+    (context as Element).visitChildren(redraw);
+  }
+
+  Future<void> _loadAll() async {
+    await _catalog.load();
+    if (!mounted) return;
+    await context.read<WalletProvider>().load();
+    if (!mounted) return;
+    await context.read<SocialProvider>().load();
+    if (!mounted) return;
+    await context.read<MatchProvider>().load();
+    if (!mounted) return;
+    await context.read<InboxProvider>().load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Vibe',
+      debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: _messenger,
+      theme: V.theme(),
+      home: Consumer<SessionProvider>(
+        // The animated splash stays up until boot is done and its entrance
+        // has played, then fades out into the first real screen.
+        builder: (context, session, _) => SplashGate(
+          ready: !session.booting,
+          builder: (context) {
+            if (!session.signedIn) {
+              if (!_sawWelcome) return WelcomeScreen(onContinue: () => setState(() => _sawWelcome = true));
+              return const SignInScreen();
+            }
+            if (!session.profileReady) return const ProfileSetupScreen();
+            if (!session.onboarded) return const PermissionsScreen();
+            return const HomeShell();
+          },
+        ),
+      ),
+    );
+  }
+}

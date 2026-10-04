@@ -1,0 +1,57 @@
+name: vibe_app
+description: "Vibe — meet someone new on video. Random 1:1 video chat with coins, gifts and VIP."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.5+1
+  shared_preferences: ^2.5.4
+  # A fresh `flutter create` on Flutter 3.44 pins AGP 9, which rejects any
+  # plugin module compiled against an SDK lower than what the Flutter
+  # embedding's AndroidX libraries require (34). flutter_webrtc 0.12.x
+  # hard-codes compileSdk 31 and permission_handler 11.x (android 12.x)
+  # 33, so both need the versions that compile against 35/36.
+  flutter_webrtc: ^1.6.2
+  permission_handler: ^12.0.3
+  http: ^1.6.0
+  socket_io_client: ^3.1.6
+  flutter_secure_storage: ^11.2.0
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Redesign typography (SIL Open Font License, see assets/fonts/OFL.txt).
+  fonts:
+    - family: Geist
+      fonts:
+        - asset: assets/fonts/Geist-Regular.ttf
+        - asset: assets/fonts/Geist-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Geist-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Geist-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Geist-ExtraBold.ttf
+          weight: 800
+    - family: GeistMono
+      fonts:
+        - asset: assets/fonts/GeistMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/GeistMono-SemiBold.ttf
+          weight: 600
+    - family: InstrumentSerif
+      fonts:
+        - asset: assets/fonts/InstrumentSerif-Regular.ttf
+        - asset: assets/fonts/InstrumentSerif-Italic.ttf
+          style: italic

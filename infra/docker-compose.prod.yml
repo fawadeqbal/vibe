@@ -1,0 +1,107 @@
+# Vibe Production Stack
+# Completely isolated from KCP. Shares only the global-proxy network for routing.
+services:
+  vibe-postgres:
+    image: postgres:16-alpine
+    container_name: vibe-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vibe
+      POSTGRES_PASSWORD: ${VIBE_DB_PASSWORD}
+      POSTGRES_DB: vibe
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - vibe-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vibe"]
+      interval: 5s
+      retries: 10
+
+  vibe-redis:
+    image: redis:7-alpine
+    container_name: vibe-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    networks:
+      - vibe-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  vibe-api:
+    build:
+      context: ./backend
+    container_name: vibe-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://vibe:${VIBE_DB_PASSWORD}@vibe-postgres:5432/vibe?schema=public
+      REDIS_URL: redis://vibe-redis:6379
+    depends_on:
+      vibe-postgres: { condition: service_healthy }
+      vibe-redis: { condition: service_healthy }
+    networks:
+      vibe-internal: {}
+      global-proxy:
+        
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health/live || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+
+  vibe-admin:
+    build:
+      context: ./admin
+    container_name: vibe-admin
+    restart: unless-stopped
+    environment:
+      VIBE_API_URL: http://vibe-api:3000
+      NODE_ENV: production
+    depends_on:
+      vibe-api: { condition: service_healthy }
+    networks:
+      vibe-internal: {}
+      global-proxy:
+        
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/login >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+
+  vibe-turn:
+    image: coturn/coturn:4.18-alpine
+    container_name: vibe-turn
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    entrypoint: ["sh", "/etc/coturn/start.sh"]
+    volumes:
+      - ./infra/turn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./infra/turn/start.sh:/etc/coturn/start.sh:ro
+      - ./infra/turn/certs:/etc/coturn/certs:ro
+    tmpfs:
+      - /var/lib/coturn
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+networks:
+  vibe-internal:
+    driver: bridge
+  global-proxy:
+    external: true
+
+volumes:
+  pgdata:
+  redisdata:
+
+
