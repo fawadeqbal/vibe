@@ -29,16 +29,24 @@ Future<VerificationState?> startSelfieVerification(BuildContext context) async {
       if (go != true || !context.mounted) return null;
       final challenge = await session.verificationChallenge();
       if (!context.mounted) return null;
-      v = await showVibeSheet<VerificationState>(
-        context,
-        scrollable: true,
-        child: LivenessSheet(
-          camera: camera,
-          steps: challenge.steps,
-          shared: _openFrontCamera(context),
-          check: (frames) => session.verifySelfie(SelfieCheck(challengeId: challenge.id, frames: frames)),
-        ),
-      );
+      final shared = _openFrontCamera(context);
+      // A borrowed lobby camera must stay open for the whole check (the lobby's
+      // idle timeout would otherwise close it under the sheet).
+      final unpin = shared == null ? null : context.read<MatchProvider>().pinCamera();
+      try {
+        v = await showVibeSheet<VerificationState>(
+          context,
+          scrollable: true,
+          child: LivenessSheet(
+            camera: camera,
+            steps: challenge.steps,
+            shared: shared,
+            check: (frames) => session.verifySelfie(SelfieCheck(challengeId: challenge.id, frames: frames)),
+          ),
+        );
+      } finally {
+        unpin?.call();
+      }
       if (v == null) return null;
     } else if (remote && !kDebugMode) {
       toast(context, 'Selfie verification needs a camera.', error: true);

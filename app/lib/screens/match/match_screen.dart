@@ -25,7 +25,8 @@ import 'report_sheet.dart';
 import 'safety_sheet.dart';
 
 /// The app. Four looks on one screen: lobby (idle), searching, connected,
-/// ended. Your own camera fills the lobby clearly (scrims, not a dim);
+/// ended. In the lobby your camera stays off until you ask for a preview
+/// (battery); then it fills the screen clearly (scrims, not a dim);
 /// during a match the partner takes the stage and you shrink to a corner.
 class MatchScreen extends StatefulWidget {
   const MatchScreen({super.key, required this.onOpenStore, required this.onOpenChats});
@@ -44,12 +45,8 @@ class _MatchScreenState extends State<MatchScreen> {
   int _burstSeq = 0;
   int _seenChat = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    // Warm the camera so the lobby shows you straight away.
-    WidgetsBinding.instance.addPostFrameCallback((_) => context.read<MatchProvider>().ensureCamera());
-  }
+  // The camera is not opened here: the lobby preview is opt-in and the
+  // provider opens/closes it (see MatchProvider "camera").
 
   @override
   void dispose() {
@@ -283,6 +280,54 @@ String _countryLabel(String? code) {
 
 // ── lobby ──────────────────────────────────────────────────────────────
 
+/// The lobby with the camera off: one tap opens the preview. The camera is
+/// never opened just because the app was opened.
+class _PreviewPrompt extends StatelessWidget {
+  const _PreviewPrompt({required this.m});
+  final MatchProvider m;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Turn on camera preview',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          if (!m.camOn) m.toggleCam();
+          m.startPreview();
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.08),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+              ),
+              child: const Icon(Icons.videocam_rounded, size: 30, color: Colors.white),
+            ),
+            const SizedBox(height: 12),
+            Text('Tap to preview your camera', style: VT.label(14, color: Colors.white, weight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text('It stays off until you need it — saves battery.', textAlign: TextAlign.center, style: VT.body(12, color: Colors.white.withValues(alpha: 0.62))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraStarting extends StatelessWidget {
+  const _CameraStarting();
+  @override
+  Widget build(BuildContext context) => SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white.withValues(alpha: 0.7)));
+}
+
 class _Lobby extends StatelessWidget {
   const _Lobby({required this.m, required this.onStart, required this.onOpenStore});
   final MatchProvider m;
@@ -321,18 +366,23 @@ class _Lobby extends StatelessWidget {
                             children: [
                               Icon(camLive ? Icons.lock_rounded : Icons.videocam_off_rounded, size: 13, color: Colors.white.withValues(alpha: 0.72)),
                               const SizedBox(width: 4),
-                              Flexible(child: Text(camLive ? 'Preview · only you can see this' : 'Camera is off', overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.72), height: 1.2))),
+                              Flexible(child: Text(camLive ? 'Preview · only you can see this' : 'Camera off · saving battery', overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.72), height: 1.2))),
                             ],
                           ),
                         ],
                       ),
                     ),
                     if (wallet.isVip) const Padding(padding: EdgeInsets.only(right: 8), child: Tag('VIP', color: V.gold, icon: Icons.workspace_premium_rounded)),
+                    if (m.previewOn)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: CircleIconButton(icon: Icons.videocam_off_rounded, iconSize: 20, onTap: m.stopPreview, tooltip: 'Turn off preview', background: Colors.black.withValues(alpha: 0.35)),
+                      ),
                     CoinChip(coins: wallet.coins, onTap: onOpenStore, glass: true),
                   ],
                 ),
               ),
-              const Spacer(),
+              Expanded(child: Center(child: camLive ? const SizedBox.shrink() : (m.previewOn && m.cameraActive ? const _CameraStarting() : _PreviewPrompt(m: m)))),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(

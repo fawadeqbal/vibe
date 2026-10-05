@@ -128,6 +128,7 @@ class _VibeAppState extends State<VibeApp> {
       title: 'Vibe',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: _messenger,
+      navigatorObservers: [vibeRouteObserver],
       theme: V.theme(),
       home: Consumer<SessionProvider>(
         // The animated splash stays up until boot is done and its entrance

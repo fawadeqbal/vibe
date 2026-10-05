@@ -172,7 +172,7 @@ class LocalMatchProvider extends MatchProvider {
     _lastPartner = _partner;
     _endReason = reason;
     _state = keepGoing ? MatchState.searching : MatchState.ended;
-    if (!keepGoing) unawaited(releaseCamera());
+    // Not going on: the state change below closes the camera (see _syncCamera).
     notifyListeners();
   }
 

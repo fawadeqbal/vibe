@@ -34,6 +34,8 @@ export function Lobby({ onStart }: { onStart: () => void }) {
   const boostCost = useCatalog((s) => s.economy.boostCost);
   const filters = useMatch((s) => s.filters);
   const camLive = useMatch((s) => !!s.localStream && s.camOn);
+  const previewOn = useMatch((s) => s.previewOn);
+  const cameraActive = useMatch((s) => s.cameraActive);
   const lastError = useMatch((s) => s.lastError);
   const setFilters = useMatch((s) => s.setFilters);
   const vip = isVip(wallet);
@@ -52,7 +54,7 @@ export function Lobby({ onStart }: { onStart: () => void }) {
             <p className="type-title truncate text-[16px] font-semibold">{me ? `Hi ${me.name.split(" ")[0]}` : "Vibe"}</p>
             <p className="mt-px flex items-center text-white/72">
               <Icon name={camLive ? "lock" : "videocam_off"} size={13} />
-              <span className="type-body ml-1 truncate text-[11.5px] leading-[1.2]">{camLive ? "Preview · only you can see this" : "Camera is off"}</span>
+              <span className="type-body ml-1 truncate text-[11.5px] leading-[1.2]">{camLive ? "Preview · only you can see this" : "Camera off · saving battery"}</span>
             </p>
           </div>
           {vip ? (
@@ -60,10 +62,21 @@ export function Lobby({ onStart }: { onStart: () => void }) {
               <Tag text="VIP" tone="gold" icon="workspace_premium" />
             </span>
           ) : null}
+          {previewOn ? (
+            <span className="mr-2">
+              <RoundControl icon="videocam_off" size={40} onClick={() => useMatch.getState().stopPreview()} ariaLabel="Turn off preview" />
+            </span>
+          ) : null}
           <CoinChip coins={wallet.coins} glass onClick={() => router.push("/store")} />
         </div>
 
-        <div className="flex-1" />
+        <div className="flex flex-1 items-center justify-center">
+          {camLive ? null : previewOn && cameraActive ? (
+            <span role="status" aria-label="Starting camera" className="size-7 animate-spin rounded-full border-[2.5px] border-white/25 border-t-white/80" />
+          ) : (
+            <PreviewPrompt />
+          )}
+        </div>
 
         <div className="mx-auto w-full max-w-[560px]">
           <div className="flex items-center justify-center px-4">
@@ -126,6 +139,19 @@ export function Lobby({ onStart }: { onStart: () => void }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** The lobby with the camera off: one tap opens the preview. Opening the page never turns the camera on. */
+function PreviewPrompt() {
+  return (
+    <button type="button" onClick={() => useMatch.getState().startPreview()} aria-label="Turn on camera preview" className="group flex flex-col items-center px-6 text-center">
+      <span className="flex size-[72px] items-center justify-center rounded-full border border-white/22 bg-white/8 transition-colors group-hover:bg-white/14">
+        <Icon name="videocam" size={30} className="text-white" />
+      </span>
+      <span className="type-label mt-3 text-[14px] font-semibold text-white">Tap to preview your camera</span>
+      <span className="type-body mt-1 text-[12px] text-white/62">It stays off until you need it — saves battery.</span>
+    </button>
   );
 }
 

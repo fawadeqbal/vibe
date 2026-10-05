@@ -222,6 +222,7 @@ class RemoteMatchProvider extends MatchProvider {
     } on ApiException catch (e) {
       _needsCoins = e.isInsufficientCoins;
       _lastError = e.isInsufficientCoins ? null : e.message;
+      _syncCamera(); // didn't happen: don't leave the camera open
       notifyListeners();
       return false;
     }
@@ -309,7 +310,7 @@ class RemoteMatchProvider extends MatchProvider {
     // Skipping puts you straight back in the queue; anything else ends here.
     final keepGoing = byMe && reason == 'skipped';
     _state = keepGoing ? MatchState.searching : MatchState.ended;
-    if (!keepGoing) unawaited(releaseCamera());
+    // Not going on: the state change below closes the camera (see _syncCamera).
     notifyListeners();
     _session.refreshMe();
   }

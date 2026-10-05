@@ -14,7 +14,7 @@ import { useMatchActions } from "./use-match-actions";
 
 /**
  * The app. Four looks on one screen: lobby (idle), searching, connected,
- * ended. Your own camera fills the lobby; during a match the partner takes
+ * ended. In the lobby your camera stays off until you tap to preview it; during a match the partner takes
  * the stage and you shrink to a corner.
  */
 export function MatchScreen() {
@@ -25,9 +25,20 @@ export function MatchScreen() {
   const seen = useRef(0);
   const actions = useMatchActions((g) => setBurst((b) => ({ gift: g, received: false, seq: (b?.seq ?? 0) + 1 })));
 
-  // Warm the camera so the lobby shows you straight away.
+  // The lobby camera may only run while this page is open (the store also
+  // watches the tab's visibility). It is not opened here: the preview is
+  // opt-in, see the camera rules in stores/match.ts.
   useEffect(() => {
-    void useMatch.getState().ensureCamera();
+    const m = useMatch.getState();
+    m.setLobbyVisible(true);
+    const touch = () => useMatch.getState().touchPreview();
+    window.addEventListener("pointerdown", touch, { passive: true });
+    window.addEventListener("keydown", touch);
+    return () => {
+      window.removeEventListener("pointerdown", touch);
+      window.removeEventListener("keydown", touch);
+      useMatch.getState().setLobbyVisible(false);
+    };
   }, []);
 
   // A new incoming gift → burst.

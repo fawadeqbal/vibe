@@ -141,20 +141,185 @@ abstract class MatchProvider extends ChangeNotifier {
   Future<void> load();
 
   // ── camera ────────────────────────────────────────────────────────────
+  //
+  // The camera is the biggest battery drain in the app, so it is only open
+  // while someone is actually using it:
+  //  • searching or in a call → on (the match needs it);
+  //  • the lobby → off until you tap "Turn on preview", and only while the
+  //    Match tab is on screen, the app is in the foreground and you have
+  //    touched the screen in the last [previewIdleTimeout];
+  //  • another tab, a page on top (store, chat, profile…), the app in the
+  //    background, the screen locked → off (hardware released, no green dot);
+  //  • a search/call that ends → off again (the preview is not reopened).
+  // In the background a search is left at once and a call ends after
+  // [backgroundGrace] (your video pauses meanwhile).
+
+  /// The lobby preview turns itself off after this long without a touch.
+  static const previewIdleTimeout = Duration(seconds: 60);
+
+  /// A call survives this long with the app in the background (a quick look
+  /// at a notification), then ends.
+  static const backgroundGrace = Duration(seconds: 30);
 
   Future<void>? _cameraOpening;
+  int _cameraGen = 0;
+  int _openingGen = -1;
+  bool _previewOn = false;
+  bool _lobbyVisible = false;
+  bool _inBackground = false;
+  int _cameraPins = 0;
+  Timer? _idleTimer;
+  Timer? _backgroundTimer;
+  MatchState _syncedState = MatchState.idle;
+
+  /// You asked for the lobby preview (it may still be paused, e.g. on another tab).
+  bool get previewOn => _previewOn;
+
+  /// The camera hardware is open, or opening.
+  bool get cameraActive => _localStream != null || _cameraOpening != null;
+
+  /// The app is in the background (the call's video is paused).
+  bool get inBackground => _inBackground;
+
+  bool get _live => _state == MatchState.searching || _state == MatchState.connected;
+
+  /// Whether the camera should be open right now (see the rules above).
+  bool get cameraWanted => _cameraEnabled && (_live || _cameraPins > 0 || (_previewOn && _lobbyVisible && !_inBackground));
+
+  /// "Turn on preview" in the lobby.
+  void startPreview() {
+    _previewOn = true;
+    _armIdleTimer();
+    _syncCamera();
+    notifyListeners();
+  }
+
+  /// Turns the lobby preview off (the camera closes unless a match needs it).
+  void stopPreview() {
+    if (!_previewOn) return;
+    _previewOn = false;
+    _idleTimer?.cancel();
+    _syncCamera();
+    notifyListeners();
+  }
+
+  /// Any touch on the Match tab: keeps the preview alive.
+  void touchPreview() {
+    if (_previewOn && _lobbyVisible && !_live) _armIdleTimer();
+  }
+
+  /// The Match tab is (or isn't) what the user is looking at: right tab,
+  /// no page pushed on top, app in the foreground.
+  void setLobbyVisible(bool visible) {
+    if (visible == _lobbyVisible) return;
+    _lobbyVisible = visible;
+    if (visible) {
+      _armIdleTimer();
+    } else {
+      _idleTimer?.cancel();
+    }
+    _syncCamera();
+    notifyListeners();
+  }
+
+  /// The app went to (or came back from) the background / lock screen.
+  void setAppInBackground(bool background) {
+    if (background == _inBackground) return;
+    _inBackground = background;
+    _backgroundTimer?.cancel();
+    _backgroundTimer = null;
+    if (background) {
+      // Coming back should not silently switch the camera on again.
+      _previewOn = false;
+      _idleTimer?.cancel();
+      if (_state == MatchState.searching) {
+        stop(); // nobody is watching: don't get matched
+      } else if (_state == MatchState.connected) {
+        _backgroundTimer = Timer(backgroundGrace, () {
+          if (_inBackground && _state == MatchState.connected) stop();
+        });
+      }
+    }
+    _applyTracks();
+    _syncCamera();
+    notifyListeners();
+  }
+
+  /// Keeps the camera open while a screen borrows it (the selfie check reuses
+  /// the lobby's stream). Call the returned function when done.
+  VoidCallback pinCamera() {
+    _cameraPins++;
+    var done = false;
+    return () {
+      if (done) return;
+      done = true;
+      _cameraPins--;
+      _syncCamera();
+    };
+  }
+
+  void _armIdleTimer() {
+    _idleTimer?.cancel();
+    if (!_previewOn) return;
+    _idleTimer = Timer(previewIdleTimeout, () {
+      if (_live || _cameraPins > 0) return;
+      _previewOn = false;
+      _syncCamera();
+      notifyListeners();
+    });
+  }
+
+  /// Opens or closes the camera to match [cameraWanted].
+  void _syncCamera() {
+    if (cameraWanted) {
+      unawaited(ensureCamera());
+    } else if (cameraActive) {
+      unawaited(releaseCamera());
+    }
+  }
+
+  /// Every state change re-checks the camera. Leaving a search or a call
+  /// turns the preview off, so the camera closes when the match is over.
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    final was = _syncedState;
+    if (was != _state) {
+      _syncedState = _state;
+      final wasLive = was == MatchState.searching || was == MatchState.connected;
+      if (wasLive && !_live) {
+        _previewOn = false;
+        _backgroundTimer?.cancel();
+        _backgroundTimer = null;
+      }
+      _syncCamera();
+    }
+    super.notifyListeners();
+  }
 
   /// Opens the camera once. The lobby, `start()` and the peer setup all ask
   /// for it, often at the same moment (a match can be found before the first
   /// getUserMedia returns): they share the one in-flight request, so the
   /// camera is never opened twice (on Android the second open evicts the
-  /// first, leaving a dead track on the call or in the preview).
+  /// first, leaving a dead track on the call or in the preview). An open that
+  /// was cancelled by [releaseCamera] finishes (and is closed) before the
+  /// next one starts.
   Future<void> ensureCamera() {
     if (!_cameraEnabled || _localStream != null) return Future.value();
-    return _cameraOpening ??= _openCamera().whenComplete(() => _cameraOpening = null);
+    final inFlight = _cameraOpening;
+    if (inFlight != null && _openingGen == _cameraGen) return inFlight;
+    final gen = _openingGen = _cameraGen;
+    late final Future<void> opening;
+    opening = (inFlight ?? Future<void>.value()).then((_) => _openCamera(gen)).whenComplete(() {
+      if (identical(_cameraOpening, opening)) _cameraOpening = null;
+    });
+    return _cameraOpening = opening;
   }
 
-  Future<void> _openCamera() async {
+  Future<void> _openCamera(int gen) async {
+    if (gen != _cameraGen || _localStream != null) return;
     try {
       if (!_rendererReady) {
         await localRenderer.initialize();
@@ -162,8 +327,18 @@ abstract class MatchProvider extends ChangeNotifier {
       }
       final stream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
-        'video': {'facingMode': 'user', 'width': 720, 'height': 1280},
+        'video': {
+          'facingMode': _frontCamera ? 'user' : 'environment',
+          'width': 720,
+          'height': 1280,
+          'frameRate': 24,
+        },
       });
+      if (gen != _cameraGen) {
+        // Released while it was opening (tab switched, app backgrounded…).
+        await _stopStream(stream);
+        return;
+      }
       _localStream = stream;
       localRenderer.srcObject = stream;
       _applyTracks();
@@ -174,17 +349,25 @@ abstract class MatchProvider extends ChangeNotifier {
     }
   }
 
+  /// Closes the camera hardware (and cancels an open in flight).
   Future<void> releaseCamera() async {
+    _cameraGen++;
     final s = _localStream;
     _localStream = null;
     if (_rendererReady) localRenderer.srcObject = null;
-    if (s != null) {
-      for (final t in s.getTracks()) {
-        await t.stop();
-      }
-      await s.dispose();
-    }
+    if (s != null) await _stopStream(s);
     notifyListeners();
+  }
+
+  static Future<void> _stopStream(MediaStream s) async {
+    for (final t in s.getTracks()) {
+      try {
+        await t.stop();
+      } catch (_) {}
+    }
+    try {
+      await s.dispose();
+    } catch (_) {}
   }
 
   void toggleMic() {
@@ -223,7 +406,8 @@ abstract class MatchProvider extends ChangeNotifier {
       t.enabled = _micOn;
     }
     for (final t in s.getVideoTracks()) {
-      t.enabled = _camOn;
+      // Paused in the background: the partner sees "camera off", not a frozen frame.
+      t.enabled = _camOn && !_inBackground;
     }
   }
 
@@ -282,7 +466,10 @@ abstract class MatchProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _ticker?.cancel();
+    _idleTimer?.cancel();
+    _backgroundTimer?.cancel();
     releaseCamera();
     if (_rendererReady) localRenderer.dispose();
     if (_remoteRendererReady) remoteRenderer.dispose();

@@ -54,10 +54,23 @@ interface MatchState {
   camOn: boolean;
   frontCamera: boolean;
   cameraError: string | null;
+  /** You asked for the lobby preview (it may be paused while the page is hidden). */
+  previewOn: boolean;
+  /** The camera is open or opening. */
+  cameraActive: boolean;
 
   load: () => Promise<void>;
   ensureCamera: () => Promise<void>;
   releaseCamera: () => void;
+  /** "Tap to preview" in the lobby. */
+  startPreview: () => void;
+  stopPreview: () => void;
+  /** Any touch / key on the match screen: keeps the preview from timing out. */
+  touchPreview: () => void;
+  /** The match screen is mounted (you're on /match). */
+  setLobbyVisible: (visible: boolean) => void;
+  /** The browser tab is hidden / the window minimised / the phone locked. */
+  setPageHidden: (hidden: boolean) => void;
   toggleMic: () => void;
   toggleCam: () => void;
   switchCamera: () => Promise<void>;
@@ -95,6 +108,26 @@ let iceServers: RTCIceServer[] | null = null;
 let iceFetchedAt = 0;
 let iceReuseMs = 30 * 60_000;
 let cameraOpening: Promise<void> | null = null;
+let cameraGen = 0;
+let openingGen = -1;
+let lobbyVisible = false;
+let pageHidden = false;
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+let hiddenTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Battery: the camera is only open while it is actually used.
+ *  • searching / in a call → on;
+ *  • the lobby → off until "Tap to preview", and only while /match is open,
+ *    the tab is visible and there was a touch in the last PREVIEW_IDLE_MS;
+ *  • another page, a hidden tab, a minimised window, a locked phone → off
+ *    (tracks stopped, so the browser's camera light goes out);
+ *  • a search / call that ends → off again.
+ * A hidden tab leaves a search at once and ends a call after HIDDEN_GRACE_MS
+ * (your video pauses meanwhile).
+ */
+export const PREVIEW_IDLE_MS = 60_000;
+export const HIDDEN_GRACE_MS = 30_000;
 let ticker: ReturnType<typeof setInterval> | undefined;
 let blurTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -114,20 +147,50 @@ export const useMatch = create<MatchState>()((set, get) => {
   const applyTracks = () => {
     const { localStream, micOn, camOn } = get();
     localStream?.getAudioTracks().forEach((t) => (t.enabled = micOn));
-    localStream?.getVideoTracks().forEach((t) => (t.enabled = camOn));
+    // Paused while the tab is hidden: the partner sees "camera off", not a frozen frame.
+    localStream?.getVideoTracks().forEach((t) => (t.enabled = camOn && !pageHidden));
   };
 
-  const openCamera = async (facing: "user" | "environment") => {
+  const openCamera = async (gen: number) => {
+    if (gen !== cameraGen || get().localStream) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
-        video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: get().frontCamera ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
       });
+      if (gen !== cameraGen) {
+        // Released while it was opening (left the page, hid the tab…).
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       set({ localStream: stream, cameraError: null });
       applyTracks();
     } catch (e) {
-      set({ cameraError: `Camera unavailable: ${e instanceof Error ? e.message : String(e)}` });
+      if (gen === cameraGen) set({ cameraError: `Camera unavailable: ${e instanceof Error ? e.message : String(e)}` });
     }
+  };
+
+  const isLive = () => {
+    const st = get().status;
+    return st === "searching" || st === "connected";
+  };
+
+  /** Whether the camera should be open right now (see the rules above). */
+  const cameraWanted = () => isLive() || (get().previewOn && lobbyVisible && !pageHidden);
+
+  const syncCamera = () => {
+    if (cameraWanted()) void get().ensureCamera();
+    else if (get().cameraActive) get().releaseCamera();
+  };
+
+  const armIdle = () => {
+    clearTimeout(idleTimer);
+    if (!get().previewOn) return;
+    idleTimer = setTimeout(() => {
+      if (isLive()) return;
+      set({ previewOn: false });
+      syncCamera();
+    }, PREVIEW_IDLE_MS);
   };
 
   return {
@@ -154,6 +217,8 @@ export const useMatch = create<MatchState>()((set, get) => {
     camOn: true,
     frontCamera: true,
     cameraError: null,
+    previewOn: false,
+    cameraActive: false,
 
     async load() {
       if (!api.hasSession) return;
@@ -173,13 +238,71 @@ export const useMatch = create<MatchState>()((set, get) => {
      */
     ensureCamera() {
       if (get().localStream || typeof navigator === "undefined" || !navigator.mediaDevices) return Promise.resolve();
-      cameraOpening ??= openCamera(get().frontCamera ? "user" : "environment").finally(() => (cameraOpening = null));
-      return cameraOpening;
+      const inFlight = cameraOpening;
+      if (inFlight && openingGen === cameraGen) return inFlight;
+      // An open cancelled by releaseCamera() finishes (and is stopped) first:
+      // never two getUserMedia calls at once.
+      const gen = (openingGen = cameraGen);
+      const opening: Promise<void> = (inFlight ?? Promise.resolve())
+        .then(() => openCamera(gen))
+        .finally(() => {
+          if (cameraOpening === opening) {
+            cameraOpening = null;
+            set({ cameraActive: !!get().localStream });
+          }
+        });
+      cameraOpening = opening;
+      set({ cameraActive: true });
+      return opening;
     },
 
     releaseCamera() {
+      cameraGen++;
       get().localStream?.getTracks().forEach((t) => t.stop());
-      set({ localStream: null });
+      set({ localStream: null, cameraActive: cameraOpening != null });
+    },
+
+    startPreview() {
+      set({ previewOn: true, camOn: true, cameraError: null });
+      armIdle();
+      syncCamera();
+    },
+
+    stopPreview() {
+      clearTimeout(idleTimer);
+      set({ previewOn: false });
+      syncCamera();
+    },
+
+    touchPreview() {
+      if (get().previewOn && lobbyVisible && !isLive()) armIdle();
+    },
+
+    setLobbyVisible(visible) {
+      if (visible === lobbyVisible) return;
+      lobbyVisible = visible;
+      if (visible) armIdle();
+      else clearTimeout(idleTimer);
+      syncCamera();
+    },
+
+    setPageHidden(hidden) {
+      if (hidden === pageHidden) return;
+      pageHidden = hidden;
+      clearTimeout(hiddenTimer);
+      if (hidden) {
+        // Coming back should not silently switch the camera on again.
+        clearTimeout(idleTimer);
+        set({ previewOn: false });
+        const st = get().status;
+        if (st === "searching") get().stop(); // nobody is watching: don't get matched
+        else if (st === "connected")
+          hiddenTimer = setTimeout(() => {
+            if (pageHidden && get().status === "connected") get().stop();
+          }, HIDDEN_GRACE_MS);
+      }
+      applyTracks();
+      syncCamera();
     },
 
     toggleMic() {
@@ -342,6 +465,7 @@ export const useMatch = create<MatchState>()((set, get) => {
       } catch (e) {
         const err = e instanceof ApiError ? e : ApiError.network(e);
         set({ needsCoins: err.isInsufficientCoins, lastError: err.isInsufficientCoins ? null : err.message });
+        if (get().status !== "searching" && get().status !== "connected" && !get().previewOn) get().releaseCamera(); // didn't happen
         return false;
       }
     },
@@ -355,14 +479,44 @@ export const useMatch = create<MatchState>()((set, get) => {
     reset() {
       clearInterval(ticker);
       clearTimeout(blurTimer);
+      clearTimeout(idleTimer);
+      clearTimeout(hiddenTimer);
       void closePeer();
       matchId = null;
       lastMatchId = null;
       get().releaseCamera();
-      set({ status: "idle", partner: null, lastPartner: null, current: null, history: [], chat: [], endReason: null, lastError: null, needsCoins: false });
+      set({ status: "idle", partner: null, lastPartner: null, current: null, history: [], chat: [], endReason: null, lastError: null, needsCoins: false, previewOn: false });
     },
   };
 });
+
+// Every status change re-checks the camera. Leaving a search or a call turns
+// the preview off, so the camera closes when the match is over.
+useMatch.subscribe((s, prev) => {
+  if (s.status === prev.status) return;
+  const wasLive = prev.status === "searching" || prev.status === "connected";
+  const live = s.status === "searching" || s.status === "connected";
+  if (wasLive && !live) {
+    clearTimeout(hiddenTimer);
+    if (s.previewOn) useMatch.setState({ previewOn: false });
+  }
+  const st = useMatch.getState();
+  if (live || (st.previewOn && lobbyVisible && !pageHidden)) void st.ensureCamera();
+  else if (st.cameraActive) st.releaseCamera();
+});
+
+// The tab / window / phone screen: the camera never runs where nobody can see it.
+if (typeof document !== "undefined") {
+  const onVisibility = () => useMatch.getState().setPageHidden(document.visibilityState === "hidden");
+  document.addEventListener("visibilitychange", onVisibility);
+  // Closing the tab or the page going into the back/forward cache.
+  window.addEventListener("pagehide", () => {
+    useMatch.getState().setPageHidden(true);
+    useMatch.getState().releaseCamera();
+  });
+  window.addEventListener("pageshow", onVisibility);
+  onVisibility();
+}
 
 // ── derived values ─────────────────────────────────────────────────────────
 
@@ -487,7 +641,7 @@ realtime.on(Ev.matchEnded, (e) => {
   // Skipping puts you straight back in the queue; anything else ends here.
   const keepGoing = byMe && reason === "skipped";
   set({ history: [...s.history, rec], current: null, lastPartner: s.partner, endReason, status: keepGoing ? "searching" : "ended", blurred: false });
-  if (!keepGoing) get().releaseCamera();
+  // Not going on: the status change closes the camera (see useMatch.subscribe).
   void useSession.getState().refreshMe();
 });
 

@@ -23,6 +23,11 @@ import '../social/inbox_screen.dart';
 import '../store/store_screen.dart';
 import '../store/wallet_screen.dart';
 
+/// Tells [HomeShell] when a page is pushed over it (so the lobby camera can
+/// close). Dialogs and bottom sheets are not pages: the preview stays on
+/// behind the filters sheet.
+final vibeRouteObserver = RouteObserver<PageRoute<dynamic>>();
+
 /// Four tabs. Match is the app; the other three exist to keep people
 /// coming back to it (friends), to pay (store) and to trust it (profile).
 class HomeShell extends StatefulWidget {
@@ -32,16 +37,73 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with RouteAware {
   int _index = 0;
   StreamSubscription<PushRoute>? _taps;
   StreamSubscription<FollowNotice>? _followNotices;
+  late final MatchProvider _match;
+  late final AppLifecycleListener _lifecycle;
+  PageRoute<dynamic>? _route;
+  bool _covered = false; // a page (store, chat, profile…) is on top of the tabs
+  bool _foreground = true;
 
-  void go(int i) => setState(() => _index = i);
+  void go(int i) {
+    setState(() => _index = i);
+    _syncCamera();
+  }
+
+  /// The lobby camera may only run while you're looking at it: Match tab,
+  /// nothing pushed on top, app in the foreground.
+  void _syncCamera() => _match.setLobbyVisible(_index == 0 && !_covered && _foreground);
+
+  void _onLifecycle(AppLifecycleState s) {
+    switch (s) {
+      case AppLifecycleState.resumed:
+        _foreground = true;
+      case AppLifecycleState.hidden || AppLifecycleState.paused || AppLifecycleState.detached:
+        _foreground = false;
+      case AppLifecycleState.inactive:
+        // A permission prompt, the notification shade, an incoming-call banner:
+        // the app is still on screen, keep things as they are.
+        return;
+    }
+    _match.setAppInBackground(!_foreground);
+    _syncCamera();
+  }
+
+  @override
+  void didPushNext() {
+    _covered = true;
+    _syncCamera();
+  }
+
+  @override
+  void didPopNext() {
+    _covered = false;
+    _syncCamera();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute<dynamic> && route != _route) {
+      if (_route != null) vibeRouteObserver.unsubscribe(this);
+      _route = route;
+      vibeRouteObserver.subscribe(this, route);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _match = context.read<MatchProvider>();
+    _lifecycle = AppLifecycleListener(onStateChange: _onLifecycle);
+    final life = WidgetsBinding.instance.lifecycleState;
+    _foreground = life == null || life == AppLifecycleState.resumed || life == AppLifecycleState.inactive;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncCamera();
+    });
     final push = context.read<AppServices>().push;
     _taps = push.taps.listen(_open);
     final launch = push.takeLaunchRoute();
@@ -55,6 +117,12 @@ class _HomeShellState extends State<HomeShell> {
   void dispose() {
     _taps?.cancel();
     _followNotices?.cancel();
+    _lifecycle.dispose();
+    vibeRouteObserver.unsubscribe(this);
+    // Signed out / left the tabs: close the lobby camera (after this frame,
+    // listeners can't rebuild while the tree is being torn down).
+    final match = _match;
+    scheduleMicrotask(() => match.setLobbyVisible(false));
     super.dispose();
   }
 
@@ -93,14 +161,19 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       // On Match the bar floats, frosted, over your camera.
       extendBody: onVideo,
-      body: IndexedStack(
-        index: _index,
-        children: [
-          MatchScreen(onOpenStore: () => go(2), onOpenChats: () => go(1)),
-          ChatsScreen(onFindPeople: () => go(0)),
-          const StoreScreen(),
-          ProfileScreen(onOpenStore: () => go(2)),
-        ],
+      // Any touch keeps the lobby preview from timing out.
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _match.touchPreview(),
+        child: IndexedStack(
+          index: _index,
+          children: [
+            MatchScreen(onOpenStore: () => go(2), onOpenChats: () => go(1)),
+            ChatsScreen(onFindPeople: () => go(0)),
+            const StoreScreen(),
+            ProfileScreen(onOpenStore: () => go(2)),
+          ],
+        ),
       ),
       bottomNavigationBar: live && onVideo
           ? null
