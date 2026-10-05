@@ -11,6 +11,8 @@ import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../match/safety_sheet.dart' show VerifyPill;
 import '../onboarding/profile_setup_screen.dart';
+import 'sign_in_methods.dart';
+import 'verification_flow.dart';
 import '../store/vip_screen.dart';
 import '../store/wallet_screen.dart';
 
@@ -62,15 +64,12 @@ class ProfileScreen extends StatelessWidget {
                         iconColor: V.trust,
                         iconBg: V.trust.withValues(alpha: 0.12),
                         title: me.verified ? 'Verified profile' : 'Verify your profile',
-                        subtitle: me.verified ? 'People in safe mode can match with you.' : 'Quick selfie check. More matches, and you show up in safe mode.',
+                        subtitle: verificationSubtitle(session.verification, verified: me.verified),
                         trailing: me.verified
                             ? const Icon(Icons.check_circle_rounded, color: V.trust)
                             : VerifyPill(
                                 busy: session.busy,
-                                onTap: () async {
-                                  final ok = await session.verifySelfie();
-                                  if (context.mounted) toast(context, ok ? 'Verified — badge added' : 'Could not verify, try again', error: !ok);
-                                },
+                                onTap: () => startSelfieVerification(context),
                               ),
                       ),
                       GroupRow(
@@ -160,6 +159,8 @@ class ProfileScreen extends StatelessWidget {
                     Padding(padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2), child: Text('Your last matches will show up here.', style: VT.body(13, color: V.text2)))
                   else
                     for (final (i, r) in match.history.take(8).indexed) _matchRow(r, last: i == (match.history.length.clamp(0, 8) - 1)),
+                  const SectionTitle('Sign-in methods', top: 22),
+                  const SignInMethodsCard(),
                   const SectionTitle('Account', top: 22),
                   GroupCard(
                     dividerInset: 52,

@@ -6,6 +6,7 @@ import '../core/api/api_exception.dart';
 import '../core/api/mappers.dart';
 import '../core/mock/mock_backend.dart';
 import '../models/models.dart';
+import '../models/payments.dart';
 
 part 'session_provider_local.dart';
 part 'session_provider_remote.dart';
@@ -30,6 +31,8 @@ abstract class SessionProvider extends ChangeNotifier {
   bool _cameraGranted = false;
   bool _micGranted = false;
   bool _emailUpdates = true;
+  VerificationState _verification = VerificationState.none;
+  final List<Future<void> Function()> _signOutHooks = [];
 
   Profile? get me => _me;
   bool get booting => _booting;
@@ -50,19 +53,56 @@ abstract class SessionProvider extends ChangeNotifier {
   /// Server mode only: the code to share in invite links.
   String? get inviteCode => null;
 
+  /// The latest selfie check (pending review, rejected with a reason…).
+  VerificationState get verification => me?.verified == true ? const VerificationState(VerificationStatus.approved) : _verification;
+
+  /// Runs before the session is dropped on sign-out (while the token still
+  /// works): unregister the push token, forget SDK sessions.
+  void addSignOutHook(Future<void> Function() hook) => _signOutHooks.add(hook);
+
+  Future<void> _runSignOutHooks() async {
+    for (final h in _signOutHooks) {
+      try {
+        await h();
+      } catch (_) {}
+    }
+  }
+
   Future<void> restore();
 
   /// E-mails the sign-in code (no-op in the mock: any 4 digits work).
   Future<void> requestCode(String email);
 
-  /// `method`: 'email' (with [email] and [code]), 'google' or 'apple'.
+  /// `method`: 'email' (with [email] and [code]), or a social provider name
+  /// (the offline mock signs straight in; the server needs [signInWith]).
   Future<void> signIn({required String method, String? email, String? code});
+
+  /// Social providers the server can verify now ('google', 'apple', 'facebook').
+  Future<List<String>> socialProviders();
+
+  /// Sign in (or sign up) with a token from a provider SDK.
+  Future<void> signInWith(SocialCredential credential);
+
+  /// Sign-in methods on this account.
+  Future<IdentitiesView> identities();
+  Future<IdentitiesView> linkIdentity(SocialCredential credential);
+
+  /// Throws [ApiException] 409 when it is the last way to sign in.
+  Future<IdentitiesView> unlinkIdentity(String provider);
+
+  /// New profile photo (JPEG/PNG/WebP bytes, already resized).
+  Future<void> uploadAvatar(List<int> bytes, {String contentType = 'image/jpeg'});
 
   Future<void> saveProfile(Profile p);
 
   Future<void> finishOnboarding();
 
-  Future<bool> verifySelfie();
+  /// Selfie check against the profile photo. APPROVED adds the badge;
+  /// PENDING waits for staff; REJECTED carries a readable reason.
+  Future<VerificationState> verifySelfie(List<int> jpeg);
+
+  /// Re-reads the latest verification (profile screen).
+  Future<void> loadVerification() async {}
 
   /// False when the change could not be saved (the switch flips back).
   Future<bool> setEmailUpdates(bool on);

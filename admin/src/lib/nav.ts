@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Banknote, BookOpen, CreditCard, FileClock, Flag, LayoutDashboard, type LucideIcon, Mail, Megaphone, Send, Receipt, Settings, ShieldCheck, Sparkles, UserCog, Users, Wallet } from "lucide-react";
+import { Activity, BarChart3, Banknote, BookOpen, CreditCard, FileClock, Flag, Layers, LayoutDashboard, type LucideIcon, Mail, Megaphone, Plug, ScanFace, Send, Receipt, Settings, ShieldCheck, Sparkles, UserCog, Users, Wallet, Webhook } from "lucide-react";
 
 import { P, type Permission } from "./permissions";
 
@@ -36,6 +36,7 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/users", label: "Users", icon: Users, permission: P.UsersView },
       { href: "/moderation", label: "Reports", icon: Flag, permission: P.ModerationView, badge: "openReports" },
+      { href: "/verifications", label: "Verifications", icon: ScanFace, permission: P.UsersVerify },
     ],
   },
   {
@@ -44,6 +45,7 @@ export const NAV: NavGroup[] = [
       { href: "/finance", label: "Revenue", icon: BarChart3, permission: P.FinanceView },
       { href: "/finance/purchases", label: "Purchases", icon: CreditCard, permission: P.FinanceView, badge: "pendingPurchases" },
       { href: "/finance/cashouts", label: "Cash-outs", icon: Banknote, permission: P.FinanceView, badge: "cashoutsReview" },
+      { href: "/finance/payout-batches", label: "Payout batches", icon: Layers, permission: P.FinanceView },
       { href: "/finance/subscriptions", label: "VIP", icon: Sparkles, permission: P.FinanceView },
       { href: "/finance/ledger", label: "Ledger", icon: Receipt, permission: P.WalletView },
     ],
@@ -61,6 +63,8 @@ export const NAV: NavGroup[] = [
       { href: "/announcements", label: "Announcements", icon: Megaphone, permission: P.OpsAnnouncements },
       { href: "/settings", label: "Settings", icon: Settings, permission: P.OpsSettings },
       { href: "/economy", label: "Economy", icon: Wallet, permission: P.DashboardView },
+      { href: "/integrations", label: "Integrations", icon: Plug, permission: P.OpsIntegrations },
+      { href: "/webhooks", label: "Webhooks", icon: Webhook, permission: P.OpsIntegrations },
     ],
   },
   {

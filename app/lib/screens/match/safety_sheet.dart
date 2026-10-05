@@ -6,6 +6,7 @@ import '../../core/theme/vibe_widgets.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../profile/verification_flow.dart';
 
 /// The lobby's Safety shortcut: every trust control in one place, in teal.
 Future<void> showSafetySheet(BuildContext context) {
@@ -74,10 +75,7 @@ class _SafetySheet extends StatelessWidget {
                     ? const Icon(Icons.check_circle_rounded, color: V.trust)
                     : VerifyPill(
                         busy: session.busy,
-                        onTap: () async {
-                          final ok = await session.verifySelfie();
-                          if (context.mounted) toast(context, ok ? 'Verified — badge added' : 'Could not verify, try again', error: !ok);
-                        },
+                        onTap: () => startSelfieVerification(context),
                       ),
               ),
               GroupRow(

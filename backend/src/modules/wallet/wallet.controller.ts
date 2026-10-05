@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 
@@ -7,8 +7,10 @@ import { Idempotent } from '../../common/decorators/idempotent.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CursorQueryDto } from '../../common/dto/pagination.dto';
 import { CashoutService } from './cashout.service';
-import { AdRewardDto, CashoutDto } from './dto/wallet.dto';
-import { AdMobAdVerifier, AdVerifier } from './providers/ad-verifier';
+import { AdRewardDto, CashoutDto, PayoutAccountDto } from './dto/wallet.dto';
+import { PayoutAccountsService } from './payouts/payout-accounts.service';
+import { PayoutGateway } from './payouts/payout-gateway.service';
+import { AdsService } from './ads/ads.service';
 import { RewardsService } from './rewards.service';
 import { WalletService } from './wallet.service';
 import { SkipMaintenance } from '../settings/maintenance.guard';
@@ -21,6 +23,8 @@ export class WalletController {
     private readonly wallet: WalletService,
     private readonly rewards: RewardsService,
     private readonly cashouts: CashoutService,
+    private readonly payoutAccounts: PayoutAccountsService,
+    private readonly payoutGateway: PayoutGateway,
   ) {}
 
   @Get()
@@ -70,12 +74,36 @@ export class WalletController {
   @Idempotent({ required: true })
   async cashout(@CurrentUser('id') userId: string, @Body() dto: CashoutDto) {
     const c = await this.cashouts.request(userId, dto);
-    return { cashout: c, wallet: await this.wallet.view(userId) };
+    return { cashout: this.cashouts.view(c), wallet: await this.wallet.view(userId) };
   }
 
   @Get('cashouts')
   listCashouts(@CurrentUser('id') userId: string) {
     return this.cashouts.list(userId);
+  }
+
+  @Get('payout-accounts')
+  @ApiOperation({ summary: 'Saved cash-out destinations (masked) and which rails are available' })
+  async payoutAccountsList(@CurrentUser('id') userId: string) {
+    return { accounts: await this.payoutAccounts.list(userId), methods: this.payoutGateway.available() };
+  }
+
+  @Post('payout-accounts')
+  @ApiOperation({ summary: 'Save a JazzCash / Easypaisa number or bank IBAN for cash-outs' })
+  async addPayoutAccount(@CurrentUser('id') userId: string, @Body() dto: PayoutAccountDto) {
+    return this.payoutAccounts.view(await this.payoutAccounts.add(userId, dto));
+  }
+
+  @Post('payout-accounts/:id/default')
+  @HttpCode(200)
+  makeDefaultPayoutAccount(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.payoutAccounts.makeDefault(userId, id);
+  }
+
+  @Delete('payout-accounts/:id')
+  async removePayoutAccount(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    await this.payoutAccounts.remove(userId, id);
+    return { ok: true };
   }
 }
 
@@ -84,13 +112,13 @@ export class WalletController {
 @SkipMaintenance()
 @Controller('webhooks/admob')
 export class AdMobWebhookController {
-  constructor(private readonly verifier: AdVerifier) {}
+  constructor(private readonly ads: AdsService) {}
 
   @Public()
   @Get('ssv')
   async ssv(@Req() req: Request) {
     const raw = req.originalUrl.split('?')[1] ?? '';
-    const ok = this.verifier instanceof AdMobAdVerifier ? await this.verifier.acceptCallback(raw) : false;
+    const ok = await this.ads.acceptCallback(raw);
     return { ok };
   }
 }

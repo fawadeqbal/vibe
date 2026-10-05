@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiOperation, ApiPropertyOptional } from '@nestjs/swagger';
 import { CashoutStatus, LedgerKind, PaymentMethod, ProductType, SubscriptionStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -6,10 +7,12 @@ import { IsEnum, IsIn, IsInt, IsOptional, IsString, Length, Max, Min } from 'cla
 
 import { OK } from '../../../common/dto/ok.dto';
 import { PaymentsService } from '../../payments/payments.service';
+import { PaymentEvents } from '../../../integrations/core/payment-events.service';
 import { CashoutService } from '../../wallet/cashout.service';
+import { PayoutBatchesService } from '../../wallet/payouts/payout-batches.service';
 import { AdminListQuery, QueryList } from '../core/admin-query';
 import { P } from '../core/permissions';
-import { Audit, RequirePermissions, StaffApi } from '../core/staff-api.decorator';
+import { Audit, CurrentStaff, RequirePermissions, StaffApi } from '../core/staff-api.decorator';
 import { FinanceService } from './finance.service';
 
 class FinanceQuery extends AdminListQuery {
@@ -22,8 +25,8 @@ class FinanceQuery extends AdminListQuery {
 class PurchaseQuery extends FinanceQuery {
   @IsOptional()
   @QueryList()
-  @IsIn(['PENDING', 'REQUIRES_ACTION', 'SUCCEEDED', 'FAILED', 'REFUNDED'], { each: true })
-  status?: ('PENDING' | 'REQUIRES_ACTION' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED')[];
+  @IsIn(['PENDING', 'REQUIRES_ACTION', 'SUCCEEDED', 'FAILED', 'REFUNDED', 'EXPIRED'], { each: true })
+  status?: ('PENDING' | 'REQUIRES_ACTION' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED' | 'EXPIRED')[];
 
   @IsOptional()
   @QueryList()
@@ -94,7 +97,81 @@ export class FinanceController {
     private readonly finance: FinanceService,
     private readonly payments: PaymentsService,
     private readonly cashoutService: CashoutService,
+    private readonly batches: PayoutBatchesService,
+    private readonly events: PaymentEvents,
   ) {}
+
+  // ── provider trail ────────────────────────────────────────────────────────
+
+  @Get('purchases/:id/events')
+  @RequirePermissions(P.FinanceView)
+  @ApiOperation({ summary: 'Every provider step for a purchase (charge, pending, checks, webhooks, refund)' })
+  purchaseEvents(@Param('id') id: string) {
+    return this.events.list({ purchaseId: id });
+  }
+
+  @Get('cashouts/:id/events')
+  @RequirePermissions(P.FinanceView)
+  cashoutEvents(@Param('id') id: string) {
+    return this.events.list({ cashoutId: id });
+  }
+
+  // ── bank payout batches ───────────────────────────────────────────────────
+
+  @Get('payout-batches/waiting')
+  @RequirePermissions(P.FinanceView)
+  async waitingForBatch() {
+    const rows = await this.batches.waiting();
+    return { count: rows.length, totalPkr: rows.reduce((a, c) => a + (c.amountPkr ?? 0), 0), totalUsd: rows.reduce((a, c) => a + c.usdCents, 0) / 100 };
+  }
+
+  @Get('payout-batches')
+  @RequirePermissions(P.FinanceView)
+  listBatches() {
+    return this.batches.list();
+  }
+
+  @Post('payout-batches')
+  @RequirePermissions(P.FinanceCashouts)
+  @Audit('payout_batch.created', { target: 'payout_batch' })
+  @ApiOperation({ summary: 'Collect bank cash-outs waiting for payment into a batch' })
+  createBatch(@CurrentStaff('id') staffId: string) {
+    return this.batches.create(staffId);
+  }
+
+  @Get('payout-batches/:id')
+  @RequirePermissions(P.FinanceView)
+  batch(@Param('id') id: string) {
+    return this.batches.get(id);
+  }
+
+  @Get('payout-batches/:id/export')
+  @RequirePermissions(P.FinanceCashouts)
+  @Audit('payout_batch.exported', { target: 'payout_batch', param: 'id' })
+  @ApiOperation({ summary: 'CSV for the bank bulk-transfer upload (full IBANs)' })
+  async exportBatch(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
+    const { filename, csv } = await this.batches.exportCsv(id);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    return csv;
+  }
+
+  @Post('payout-batches/:id/paid')
+  @HttpCode(200)
+  @RequirePermissions(P.FinanceCashouts)
+  @Audit('payout_batch.paid', { target: 'payout_batch', param: 'id', summary: ({ body }) => `ref ${String(body.ref)}` })
+  batchPaid(@Param('id') id: string, @Body() dto: RefDto) {
+    return this.batches.markPaid(id, dto.ref);
+  }
+
+  @Post('payout-batches/:id/cancel')
+  @HttpCode(200)
+  @RequirePermissions(P.FinanceCashouts)
+  @Audit('payout_batch.cancelled', { target: 'payout_batch', param: 'id' })
+  cancelBatch(@Param('id') id: string) {
+    return this.batches.cancel(id);
+  }
 
   @Get('finance/summary')
   @RequirePermissions(P.FinanceView)

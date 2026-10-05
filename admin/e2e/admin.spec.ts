@@ -249,6 +249,64 @@ test.describe("admin panel", () => {
     await expect(page.getByText("Changed")).toHaveCount(0);
   });
 
+  test("integrations: modes, missing keys and endpoints; webhook log with a detail panel", async ({ page }) => {
+    await page.goto("/integrations");
+    await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible();
+    await expect(page.getByText(/Dev = built-in test stand-in/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Payments" })).toBeVisible();
+    const jazz = page.locator("[data-integration='payments.jazzcash']");
+    await expect(jazz.getByRole("heading", { name: "JazzCash" })).toBeVisible();
+    await expect(jazz.getByText(/^(Live|Test mode|Off)$/)).toBeVisible();
+    await expect(jazz.getByText("/v1/webhooks/jazzcash")).toBeVisible();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Webhooks" }).click();
+    await expect(page).toHaveURL(/\/webhooks$/);
+    await expect(page.getByRole("heading", { name: "Webhooks" })).toBeVisible();
+    await page.getByRole("button", { name: /^Status/ }).click();
+    await page.getByRole("menuitemcheckbox", { name: "Failed" }).click();
+    await expect(page).toHaveURL(/status=FAILED/);
+    const row = page.locator("tbody tr[tabindex]").first();
+    await page.locator("tbody tr[tabindex], :text('No webhooks match')").first().waitFor();
+    test.skip((await row.count()) === 0, "No failed webhooks to open");
+    await row.click();
+    const sheet = page.getByRole("dialog");
+    await expect(sheet.getByText("Payload (secrets hidden)")).toBeVisible();
+    await sheet.getByRole("button", { name: "Retry" }).click();
+    await expect(page.getByRole("dialog", { name: "Process this webhook again?" })).toBeVisible();
+    await page.getByRole("dialog", { name: "Process this webhook again?" }).getByRole("button", { name: "Cancel" }).click();
+  });
+
+  test("payout batches: waiting banner, create a batch, CSV download, cancel puts them back", async ({ page }) => {
+    await page.goto("/finance/payout-batches");
+    await expect(page.getByRole("heading", { name: "Payout batches" })).toBeVisible();
+    await expect(page.getByText(/upload it to your bank's bulk transfer/).first()).toBeVisible();
+    const create = page.getByRole("button", { name: "Create batch" });
+    await expect(page.getByText(/bank cash-outs? waiting|No bank cash-outs waiting/)).toBeVisible();
+    test.skip(await create.isDisabled(), "No bank cash-outs waiting (run scripts/demo-data.mjs)");
+    await create.click();
+    await expect(page).toHaveURL(/\/finance\/payout-batches\/c/);
+    await expect(page.getByRole("heading", { name: /Batch of/ })).toBeVisible();
+    await expect(page.locator("tbody tr[tabindex]").first()).toContainText("PKR");
+
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download CSV" }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^vibe-payouts-.*\.csv$/);
+    const csv = await (await file.createReadStream()).toArray();
+    expect(Buffer.concat(csv).toString("utf8")).toContain("Beneficiary name");
+    await expect(page.getByText("Exported", { exact: true })).toBeVisible();
+
+    // Opening a cash-out shows its provider trail.
+    await page.locator("tbody tr[tabindex]").first().click();
+    await expect(page.getByRole("dialog").getByText("Provider trail")).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Cancel batch" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel batch" }).click();
+    await expect(page.getByText(/This batch was cancelled/)).toBeVisible();
+    await page.goto("/finance/payout-batches");
+    await expect(page.getByRole("button", { name: "Create batch" })).toBeEnabled();
+  });
+
   test("command palette finds a user", async ({ page }) => {
     await page.keyboard.press("Control+k");
     await page.getByPlaceholder(/Search users/).fill("Sofia");

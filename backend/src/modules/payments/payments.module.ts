@@ -1,22 +1,24 @@
 import { Module } from '@nestjs/common';
 
-import { AppConfig } from '../../config/app-config.service';
 import { WalletModule } from '../wallet/wallet.module';
-import { PaymentsController, PaymentWebhookController, VipController } from './payments.controller';
+import { PaymentGateway } from './payment-gateway.service';
+import { DevCheckoutController, PaymentWebhooksController } from './payment-webhooks.controller';
+import { PaymentWebhookHandlers } from './payment-webhooks.service';
+import { PaymentsController, VipController } from './payments.controller';
 import { PaymentsService } from './payments.service';
-import { DevPaymentProvider } from './providers/dev-payment.provider';
-import { LivePaymentProvider } from './providers/live-payment.provider';
-import { PaymentProvider } from './providers/payment.provider';
+import { StoreSubscriptionsService } from './store-subscriptions.service';
 import { VipService } from './vip.service';
 
+/**
+ * Money in: purchases (PaymentsService) over per-method adapters
+ * (PaymentGateway), store subscription life (StoreSubscriptionsService),
+ * provider callbacks (PaymentWebhooksController → WebhookInbox →
+ * PaymentWebhookHandlers) and VIP.
+ */
 @Module({
   imports: [WalletModule],
-  controllers: [PaymentsController, VipController, PaymentWebhookController],
-  providers: [
-    PaymentsService,
-    VipService,
-    { provide: PaymentProvider, inject: [AppConfig], useFactory: (c: AppConfig) => (c.get('PAYMENTS_PROVIDER') === 'live' ? new LivePaymentProvider() : new DevPaymentProvider(c)) },
-  ],
-  exports: [PaymentsService, VipService],
+  controllers: [PaymentsController, VipController, PaymentWebhooksController, DevCheckoutController],
+  providers: [PaymentsService, VipService, PaymentGateway, StoreSubscriptionsService, PaymentWebhookHandlers],
+  exports: [PaymentsService, VipService, PaymentGateway],
 })
 export class PaymentsModule {}

@@ -40,10 +40,8 @@ model User {
   id               String     @id @default(cuid())
   role             UserRole   @default(USER)
   status           UserStatus @default(ACTIVE)
-  /// Sign-in e-mail, lower-cased. Null for Google/Apple-only and deleted accounts.
+  /// Sign-in e-mail, lower-cased. Null for social-only and deleted accounts.
   email            String?    @unique
-  googleSub        String?    @unique
-  appleSub         String?    @unique
   name             String     @default("")
   age              Int?
   gender           Gender     @default(OTHER)
@@ -69,24 +67,55 @@ model User {
   updatedAt        DateTime   @updatedAt
   deletedAt        DateTime?
 
-  invitedBy     User?          @relation("Invites", fields: [invitedById], references: [id], onDelete: SetNull)
-  invitees      User[]         @relation("Invites")
-  wallet        Wallet?
-  sessions      Session[]
-  ledger        LedgerEntry[]
-  purchases     Purchase[]
-  subscriptions Subscription[]
-  cashouts      Cashout[]
-  blocksMade    Block[]        @relation("BlocksMade")
-  blocksGot     Block[]        @relation("BlocksGot")
-  reportsMade   Report[]       @relation("ReportsMade")
-  reportsGot    Report[]       @relation("ReportsGot")
-  staffNotes    StaffNote[]
-  inbox         UserMessage[]
+  invitedBy      User?                 @relation("Invites", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitees       User[]                @relation("Invites")
+  wallet         Wallet?
+  sessions       Session[]
+  ledger         LedgerEntry[]
+  purchases      Purchase[]
+  subscriptions  Subscription[]
+  cashouts       Cashout[]
+  blocksMade     Block[]               @relation("BlocksMade")
+  blocksGot      Block[]               @relation("BlocksGot")
+  reportsMade    Report[]              @relation("ReportsMade")
+  reportsGot     Report[]              @relation("ReportsGot")
+  staffNotes     StaffNote[]
+  inbox          UserMessage[]
+  identities     AuthIdentity[]
+  payoutAccounts PayoutAccount[]
+  pushTokens     PushToken[]
+  verifications  VerificationRequest[]
 
   @@index([createdAt])
   @@index([bannedUntil])
   @@index([lastSeenAt])
+}
+
+enum AuthProvider {
+  GOOGLE
+  APPLE
+  FACEBOOK
+}
+
+/// A social login linked to a user. One user can have several (Google +
+/// Apple + Facebook); each provider account belongs to one user.
+model AuthIdentity {
+  id           String       @id @default(cuid())
+  userId       String
+  provider     AuthProvider
+  /// The provider's stable user id (`sub`, or Facebook's app-scoped id).
+  subject      String
+  email        String?
+  /// Sealed (SecretBox) provider refresh token. Apple: needed to revoke
+  /// access when the account is deleted (App Store rule 5.1.1(v)).
+  refreshToken String?
+  createdAt    DateTime     @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, subject])
+  @@index([userId])
 }
 
 model Session {
@@ -186,6 +215,8 @@ enum PurchaseStatus {
   SUCCEEDED
   FAILED
   REFUNDED
+  /// Checkout abandoned: the user never finished (wallet approval, card page, bank transfer).
+  EXPIRED
 }
 
 model Purchase {
@@ -198,20 +229,36 @@ model Purchase {
   status         PurchaseStatus @default(PENDING)
   /// The provider's id for this charge (order id, transaction id).
   providerRef    String?
+  /// What the user must do next: otp | approve_in_app | redirect | bank_transfer.
   nextAction     String?
+  /// Data for that step (redirect URL + form fields, bank instructions…).
+  actionData     Json?
   failureReason  String?
   idempotencyKey String
+  /// Currency and amount actually charged (PKR for local methods, in minor units).
+  currency       String         @default("USD") @db.VarChar(3)
+  amountMinor    Int?
+  /// Store subscription/purchase handle (Play purchase token, Apple original transaction id).
+  storeRef       String?
+  /// Unfinished checkouts expire at this time.
+  expiresAt      DateTime?
+  /// Status polling for pending charges.
+  lastCheckedAt  DateTime?
+  checkAttempts  Int            @default(0)
   metadata       Json?
   createdAt      DateTime       @default(now())
   completedAt    DateTime?
+  refundedAt     DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events PaymentEvent[]
 
   @@unique([userId, idempotencyKey])
   @@unique([method, providerRef])
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([createdAt])
+  @@index([storeRef])
 }
 
 enum SubscriptionStatus {
@@ -232,6 +279,11 @@ model Subscription {
   canceledAt       DateTime?
   lastBonusAt      DateTime?
   purchaseId       String?            @unique
+  /// How it's paid; store subscriptions renew through store notifications.
+  method           PaymentMethod?
+  /// Play purchase token / Apple original transaction id of the store subscription.
+  storeRef         String?            @unique
+  autoRenew        Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -252,23 +304,183 @@ enum CashoutStatus {
 }
 
 model Cashout {
-  id            String        @id @default(cuid())
-  userId        String
-  gems          Int
-  usdCents      Int
-  method        PaymentMethod
-  /// Stored masked; the full account goes straight to the payout provider.
-  accountMasked String
-  status        CashoutStatus @default(REQUESTED)
-  providerRef   String?
-  failureReason String?
-  createdAt     DateTime      @default(now())
-  processedAt   DateTime?
+  id              String        @id @default(cuid())
+  userId          String
+  gems            Int
+  usdCents        Int
+  method          PaymentMethod
+  /// PKR (whole rupees) fixed when requested, at the rate of that day.
+  amountPkr       Int?
+  /// Stored masked; the full account lives sealed on the PayoutAccount.
+  accountMasked   String
+  payoutAccountId String?
+  status          CashoutStatus @default(REQUESTED)
+  providerRef     String?
+  /// Provider's own status text/code for the last attempt (e.g. awaiting_manual).
+  providerStatus  String?
+  failureReason   String?
+  /// Bank payouts are paid by staff in batches (CSV export).
+  batchId         String?
+  attempts        Int           @default(0)
+  lastCheckedAt   DateTime?
+  createdAt       DateTime      @default(now())
+  processedAt     DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payoutAccount PayoutAccount? @relation(fields: [payoutAccountId], references: [id], onDelete: SetNull)
+  batch         PayoutBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  events        PaymentEvent[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([batchId])
+}
+
+/// Where a user's cash-outs go. Details are sealed (AES-GCM); only the masked
+/// number is readable. Soft-deleted so old cash-outs keep their link.
+model PayoutAccount {
+  id            String        @id @default(cuid())
+  userId        String
+  method        PaymentMethod
+  /// SecretBox-sealed JSON: { account, holderName, bankName?, cnic? }.
+  details       String
+  accountMasked String
+  holderName    String        @db.VarChar(80)
+  bankName      String?       @db.VarChar(80)
+  isDefault     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cashouts Cashout[]
+
+  @@index([userId])
+}
+
+enum PayoutBatchStatus {
+  OPEN
+  EXPORTED
+  PAID
+  CANCELED
+}
+
+/// A group of bank cash-outs staff pay together (bulk transfer file).
+model PayoutBatch {
+  id            String            @id @default(cuid())
+  method        PaymentMethod
+  status        PayoutBatchStatus @default(OPEN)
+  count         Int               @default(0)
+  totalUsdCents Int               @default(0)
+  totalPkr      Int               @default(0)
+  /// Bank's reference for the bulk transfer, entered when marked paid.
+  reference     String?
+  createdById   String
+  createdAt     DateTime          @default(now())
+  exportedAt    DateTime?
+  paidAt        DateTime?
+
+  cashouts Cashout[]
+
+  @@index([status, createdAt])
+}
+
+/// Audit trail of every provider step for a purchase or cash-out
+/// (charge sent, pending, status checked, webhook, refund…).
+model PaymentEvent {
+  id         String   @id @default(cuid())
+  purchaseId String?
+  cashoutId  String?
+  provider   String
+  type       String
+  /// The provider's own status/response code, when there is one.
+  code       String?
+  message    String?
+  /// Redacted request/response details.
+  data       Json?
+  createdAt  DateTime @default(now())
+
+  purchase Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  cashout  Cashout?  @relation(fields: [cashoutId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseId, createdAt])
+  @@index([cashoutId, createdAt])
+  @@index([createdAt])
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+/// Every callback from a provider, stored before it is acted on: duplicates
+/// are dropped by (provider, eventId), failures can be retried from the admin panel.
+model WebhookEvent {
+  id          String        @id @default(cuid())
+  provider    String
+  /// The provider's event id, or a hash of the body when it has none.
+  eventId     String
+  eventType   String?
+  status      WebhookStatus @default(RECEIVED)
+  payload     Json
+  headers     Json?
+  error       String?
+  attempts    Int           @default(0)
+  /// What it was about, once processed (purchase / cashout / user / subscription).
+  subjectType String?
+  subjectId   String?
+  receivedAt  DateTime      @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, eventId])
+  @@index([status, receivedAt])
+  @@index([provider, receivedAt])
+  @@index([subjectType, subjectId])
+}
+
+/// Device tokens for push notifications (FCM; covers Android and iOS).
+model PushToken {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  platform   String   @db.VarChar(16)
+  appVersion String?  @db.VarChar(32)
+  locale     String?  @db.VarChar(16)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Selfie verification attempts. Automatic providers decide at once;
+/// the manual provider leaves them PENDING for staff.
+model VerificationRequest {
+  id           String             @id @default(cuid())
+  userId       String
+  status       VerificationStatus @default(PENDING)
+  provider     String
+  /// Private storage key of the selfie (kept only while it needs review).
+  selfieKey    String?
+  similarity   Float?
+  reason       String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }
 
 // ── matching ───────────────────────────────────────────────────────────

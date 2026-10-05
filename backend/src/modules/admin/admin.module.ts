@@ -26,6 +26,8 @@ import { TeamController } from './team/team.controller';
 import { TeamService } from './team/team.service';
 import { AdminUsersController } from './users/admin-users.controller';
 import { AdminUsersService } from './users/admin-users.service';
+import { IntegrationsController } from './ops/integrations.controller';
+import { AdminVerificationsController } from './users/admin-verifications.controller';
 
 /**
  * The back office, under /v1/admin. Each feature is a controller + service
@@ -34,7 +36,7 @@ import { AdminUsersService } from './users/admin-users.service';
  */
 @Module({
   imports: [AdminCoreModule, UsersModule, WalletModule, PaymentsModule, ModerationModule, MatchingModule, AnnouncementsModule, MessagingModule],
-  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, FinanceController, OpsController, AdminTemplatesController, AdminMessagesController, AdminEconomyController],
+  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, FinanceController, OpsController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController],
   providers: [StaffTokenService, StaffAuthService, TeamService, DashboardService, AdminUsersService, AdminReportsService, FinanceService],
 })
 export class AdminModule {}

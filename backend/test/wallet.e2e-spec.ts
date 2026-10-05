@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { createTestApp, resetState, signUp, TestApp } from './helpers';
+import { createTestApp, resetState, signUp, TestApp, payByCard } from './helpers';
 
 describe('wallet, payments and VIP', () => {
   let t: TestApp;
@@ -81,7 +81,7 @@ describe('wallet, payments and VIP', () => {
 
   it('VIP: trial, bonus coins, free filters, cancel keeps it until period end', async () => {
     const u = await signUp(t);
-    const p = await buy(u.auth, { productType: 'VIP_PLAN', productId: 'vip_month', method: 'CARD', cardToken: 'tok_visa' }).expect(201);
+    const p = await payByCard(t, u.auth, { productType: 'VIP_PLAN', productId: 'vip_month' });
     expect(p.body.wallet.vip.active).toBe(true);
     expect(p.body.wallet.coins).toBe(230);
     const days = (new Date(p.body.wallet.vip.until).getTime() - Date.now()) / 86400000;
@@ -96,7 +96,7 @@ describe('wallet, payments and VIP', () => {
     expect(low.body.error.code).toBe('CASHOUT_BELOW_MINIMUM');
     await t.prisma.wallet.update({ where: { userId: u.id }, data: { gems: 6000 } });
     const ok = await t.http.post('/v1/wallet/cashouts').set(u.auth).set('Idempotency-Key', randomUUID()).send({ gems: 5000, method: 'EASYPAISA', account: '03001234567' }).expect(201);
-    expect(ok.body.cashout).toMatchObject({ gems: 5000, usdCents: 2500, accountMasked: '•••••••4567' });
+    expect(ok.body.cashout).toMatchObject({ gems: 5000, usdCents: 2500, accountMasked: '0300•••567' });
     expect(ok.body.wallet.gems).toBe(1000);
     await new Promise((r) => setTimeout(r, 200));
     const list = await t.http.get('/v1/wallet/cashouts').set(u.auth).expect(200);

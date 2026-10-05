@@ -38,6 +38,8 @@ export enum ErrorCode {
   ALREADY_CLAIMED = 'ALREADY_CLAIMED',
   DAILY_LIMIT_REACHED = 'DAILY_LIMIT_REACHED',
   CASHOUT_BELOW_MINIMUM = 'CASHOUT_BELOW_MINIMUM',
+  /** Selfie verification needed before this cash-out (monthly limit). */
+  KYC_REQUIRED = 'KYC_REQUIRED',
   AD_NOT_VERIFIED = 'AD_NOT_VERIFIED',
 
   // payments

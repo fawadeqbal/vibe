@@ -47,10 +47,16 @@ export class MeController {
   @Post('verification')
   @HttpCode(200)
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Selfie verification; grants the verified badge' })
+  @ApiOperation({ summary: 'Selfie verification: badge at once, a reason, or `verification.status = PENDING` while staff review' })
   @UseInterceptors(FileInterceptor('selfie', { limits: { fileSize: MAX_IMAGE } }))
   verify(@CurrentUser('id') id: string, @UploadedFile() selfie?: Express.Multer.File) {
     return this.users.verifySelfie(id, selfie?.buffer ?? null);
+  }
+
+  @Get('verification')
+  @ApiOperation({ summary: 'Latest selfie verification status (NONE, PENDING, APPROVED, REJECTED)' })
+  verification(@CurrentUser('id') id: string) {
+    return this.users.verificationStatus(id);
   }
 
   @Get('stats')

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { connect, createTestApp, next, resetState, signUp, staffLogin, TestApp, TestStaff } from './helpers';
+import { connect, createTestApp, next, resetState, signUp, staffLogin, TestApp, TestStaff, payByCard } from './helpers';
 
 describe('economy (editable prices and rules)', () => {
   let t: TestApp;
@@ -86,9 +86,9 @@ describe('economy (editable prices and rules)', () => {
 
     const done = await t.http.post(`/v1/payments/purchases/${pending.body.id}/confirm`).set(u.auth).send({ otp: '4321' }).expect(200);
     expect(done.body.wallet.coins).toBe(30 + 100); // the old pack
-    const fresh = await buy(u.auth, { productType: 'COIN_PACK', productId: 'starter', method: 'CARD', cardToken: 'tok_visa' }).expect(201);
+    const fresh = await payByCard(t, u.auth, { productType: 'COIN_PACK', productId: 'starter' });
     expect(fresh.body.wallet.coins).toBe(130 + 150);
-    const mega = await buy(u.auth, { productType: 'COIN_PACK', productId: 'mega', method: 'CARD', cardToken: 'tok_visa' }).expect(201);
+    const mega = await payByCard(t, u.auth, { productType: 'COIN_PACK', productId: 'mega' });
     expect(mega.body.wallet.coins).toBe(280 + 30000);
     const catalog = (await t.http.get('/v1/catalog').expect(200)).body;
     expect(catalog.packs.find((p: { id: string }) => p.id === 'mega')).toMatchObject({ totalCoins: 30000 });

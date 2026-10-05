@@ -1,0 +1,6 @@
+// Copy to Flutter/Integrations.xcconfig (git-ignored) and fill in.
+ADMOB_APP_ID_IOS = ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY
+FACEBOOK_APP_ID = 123456789012345
+FACEBOOK_CLIENT_TOKEN = 0123456789abcdef0123456789abcdef
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.123456789012-abcdefghijklmnopqrstuvwxyz012345
+CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements

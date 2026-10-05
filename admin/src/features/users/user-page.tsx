@@ -168,7 +168,8 @@ function UserView({ user }: { user: UserDetail }) {
                         )}
                         {user.signIn.google && <Badge tone="outline">Google</Badge>}
                         {user.signIn.apple && <Badge tone="outline">Apple</Badge>}
-                        {!user.signIn.email && !user.signIn.google && !user.signIn.apple && "—"}
+                        {user.signIn.facebook && <Badge tone="outline">Facebook</Badge>}
+                        {!user.signIn.email && !user.signIn.google && !user.signIn.apple && !user.signIn.facebook && "—"}
                       </span>
                     ),
                   },

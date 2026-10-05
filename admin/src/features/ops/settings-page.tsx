@@ -27,6 +27,7 @@ const CONFIRM: Record<string, (v: unknown) => string | null> = {
   "matching.enabled": (v) => (!v ? "Nobody can start a new video match until you turn this back on." : null),
   "payouts.paused": (v) => (v ? "Every new cash-out waits for someone to approve it." : null),
   "security.require2fa": (v) => (v ? "Staff without two-factor must set it up before they can use the panel." : null),
+  "payments.localMethodsInStoreApps": (v) => (v ? "Store builds will offer JazzCash, Easypaisa, card and bank too. Google Play and the App Store may reject or remove the app for this." : null),
 };
 
 /**
@@ -128,7 +129,7 @@ function SettingRow({ setting: s }: { setting: Setting }) {
               void save(s.type === "number" ? Number(draft) : draft);
             }}
           >
-            <Input type={s.type === "number" ? "number" : "text"} value={draft} onChange={(e) => setDraft(e.target.value)} className={cn(s.type === "number" ? "w-28" : "w-64")} aria-label={s.label} />
+            <Input type={s.type === "number" ? "number" : "text"} step={s.type === "number" ? "any" : undefined} value={draft} onChange={(e) => setDraft(e.target.value)} className={cn(s.type === "number" ? "w-28" : "w-64")} aria-label={s.label} />
             {changed && (
               <Button type="submit" size="sm" variant="primary" loading={busy}>
                 Save

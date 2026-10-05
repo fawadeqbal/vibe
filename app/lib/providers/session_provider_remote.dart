@@ -46,18 +46,53 @@ class RemoteSessionProvider extends SessionProvider {
   Future<void> requestCode(String email) => _busyWhile(() => _api.post('/auth/otp/request', {'email': email.trim().toLowerCase()}));
 
   @override
-  Future<void> signIn({required String method, String? email, String? code}) => _busyWhile(() async {
-    final Map res;
-    if (method == 'email') {
-      res = await _api.post('/auth/otp/verify', {'email': email?.trim().toLowerCase(), 'code': code}) as Map;
-    } else {
-      // Debug builds sign in with a dev token; release builds pass the
-      // ID token from google_sign_in / sign_in_with_apple here.
-      res = await _api.post('/auth/social', {'provider': method, 'idToken': 'dev:$method-${ApiClient.newIdempotencyKey().substring(0, 12)}'}) as Map;
+  Future<void> signIn({required String method, String? email, String? code}) {
+    if (method != 'email') {
+      // A server in dev mode accepts dev tokens; real tokens come through [signInWith].
+      return signInWith(SocialCredential(provider: method, idToken: 'dev:$method-${ApiClient.newIdempotencyKey().substring(0, 12)}'));
     }
+    return _busyWhile(() async => _signedIn(await _api.post('/auth/otp/verify', {'email': email?.trim().toLowerCase(), 'code': code}) as Map));
+  }
+
+  @override
+  Future<void> signInWith(SocialCredential credential) => _busyWhile(() async => _signedIn(await _api.post('/auth/social', credential.toJson()) as Map));
+
+  Future<void> _signedIn(Map res) async {
     await _api.setTokens(Map<String, dynamic>.from(res['tokens'] as Map));
     _applyMe(Map<String, dynamic>.from(res['user'] as Map));
-  });
+    _verification = VerificationState.none;
+  }
+
+  List<String>? _providers;
+
+  @override
+  Future<List<String>> socialProviders() async {
+    try {
+      final res = Map<String, dynamic>.from(await _api.get('/auth/providers') as Map);
+      return _providers = [for (final p in (res['providers'] as List? ?? const [])) '$p'.toLowerCase()];
+    } on ApiException catch (_) {
+      return _providers ?? const [];
+    }
+  }
+
+  @override
+  Future<IdentitiesView> identities() async => IdentitiesView.fromJson(Map<String, dynamic>.from(await _api.get('/me/identities') as Map));
+
+  @override
+  Future<IdentitiesView> linkIdentity(SocialCredential c) async {
+    final body = c.toJson()..remove('name');
+    return IdentitiesView.fromJson(Map<String, dynamic>.from(await _api.post('/me/identities', body) as Map));
+  }
+
+  @override
+  Future<IdentitiesView> unlinkIdentity(String provider) async => IdentitiesView.fromJson(Map<String, dynamic>.from(await _api.delete('/me/identities/$provider') as Map));
+
+  @override
+  Future<void> uploadAvatar(List<int> bytes, {String contentType = 'image/jpeg'}) async {
+    final ext = switch (contentType) { 'image/png' => 'png', 'image/webp' => 'webp', _ => 'jpg' };
+    _applyMe(Map<String, dynamic>.from(await _api.upload('/me/avatar', field: 'file', bytes: bytes, filename: 'avatar.$ext', contentType: contentType) as Map));
+    notifyListeners();
+  }
 
   @override
   Future<void> saveProfile(Profile p) async {
@@ -81,14 +116,27 @@ class RemoteSessionProvider extends SessionProvider {
   }
 
   @override
-  Future<bool> verifySelfie() => _busyWhile(() async {
+  Future<VerificationState> verifySelfie(List<int> jpeg) => _busyWhile(() async {
     try {
-      _applyMe(Map<String, dynamic>.from(await _api.post('/me/verification') as Map));
-      return _me?.verified ?? false;
-    } on ApiException {
-      return false;
+      final res = Map<String, dynamic>.from(await _api.upload('/me/verification', field: 'selfie', bytes: jpeg, filename: 'selfie.jpg', contentType: 'image/jpeg') as Map);
+      _applyMe(res);
+      _verification = VerificationState.fromJson(Map<String, dynamic>.from(res['verification'] as Map? ?? const {}));
+    } on ApiException catch (e) {
+      // A rejected selfie comes back as a 400 with the reason to show.
+      if (e.code != 'VALIDATION_FAILED') rethrow;
+      _verification = VerificationState(VerificationStatus.rejected, reason: e.message, at: DateTime.now());
     }
+    return verification;
   });
+
+  @override
+  Future<void> loadVerification() async {
+    if (!_api.hasSession) return;
+    try {
+      _verification = VerificationState.fromJson(Map<String, dynamic>.from(await _api.get('/me/verification') as Map));
+      notifyListeners();
+    } on ApiException catch (_) {}
+  }
 
   @override
   Future<bool> setEmailUpdates(bool on) async {
@@ -121,6 +169,7 @@ class RemoteSessionProvider extends SessionProvider {
 
   @override
   Future<void> signOut() async {
+    await _runSignOutHooks();
     final t = await _api.tokens.read();
     if (t != null) {
       try {
@@ -130,6 +179,7 @@ class RemoteSessionProvider extends SessionProvider {
     await _api.clearSession();
     _me = null;
     _onboarded = false;
+    _verification = VerificationState.none;
     notifyListeners();
   }
 }

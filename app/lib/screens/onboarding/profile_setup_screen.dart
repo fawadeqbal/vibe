@@ -7,9 +7,10 @@ import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/models.dart';
 import '../../providers/session_provider.dart';
+import '../../services/app_services.dart';
 
-/// Name, age, gender, country, a few interests. Age gates 18+. Photo is a
-/// mocked picker (cycles through portraits); the real one uses image_picker.
+/// Name, age, gender, country, a few interests. Age gates 18+. The photo is
+/// taken or picked with image_picker and uploaded (`POST /me/avatar`).
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key, this.editing = false});
   final bool editing;
@@ -76,9 +77,46 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     if (widget.editing) Navigator.of(context).pop(true);
   }
 
-  void _newPhoto() {
-    _avatarSeed = (_avatarSeed + 1) % 70;
-    setState(() => _avatar = 'https://i.pravatar.cc/400?img=${_avatarSeed + 1}');
+  bool _uploading = false;
+
+  /// Camera or gallery → resized on the device → uploaded right away (the
+  /// server stores it and returns the URL). Without a picker (desktop,
+  /// tests) the demo cycles stock portraits.
+  Future<void> _newPhoto() async {
+    final media = context.read<AppServices>().media;
+    if (!media.available) {
+      _avatarSeed = (_avatarSeed + 1) % 70;
+      setState(() => _avatar = 'https://i.pravatar.cc/400?img=${_avatarSeed + 1}');
+      return;
+    }
+    final camera = await showVibeSheet<bool>(
+      context,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(leading: const Icon(Icons.photo_camera_rounded, color: V.text), title: Text('Take a photo', style: VT.body(15)), onTap: () => Navigator.of(context).pop(true)),
+          ListTile(leading: const Icon(Icons.photo_library_rounded, color: V.text), title: Text('Choose from gallery', style: VT.body(15)), onTap: () => Navigator.of(context).pop(false)),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+    if (camera == null || !mounted) return;
+    final session = context.read<SessionProvider>();
+    try {
+      final photo = await media.pickPhoto(camera: camera);
+      if (photo == null || !mounted) return;
+      setState(() => _uploading = true);
+      await session.uploadAvatar(photo.bytes, contentType: photo.contentType);
+      if (mounted) setState(() => _avatar = session.me?.avatarUrl ?? _avatar);
+    } on ApiException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+    } on FormatException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) toast(context, "Couldn't open the camera or gallery. Check Vibe's permissions.", error: true);
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
   }
 
   @override
@@ -97,10 +135,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ],
             Center(
               child: GestureDetector(
-                onTap: _newPhoto,
+                onTap: _uploading ? null : _newPhoto,
                 child: Stack(
                   children: [
                     VAvatar(url: _avatar, name: _name.text, size: 112, ring: true),
+                    if (_uploading) const Positioned.fill(child: Center(child: CircularProgressIndicator(color: V.pink))),
                     Positioned(
                       right: 0,
                       bottom: 0,
@@ -116,7 +155,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               ),
             ),
             const SizedBox(height: 6),
-            Center(child: Text('Tap to change photo (mock picker)', style: VT.body(12, color: V.muted))),
+            Center(child: Text(context.read<AppServices>().media.available ? 'Tap to change photo' : 'Tap to change photo (demo portraits)', style: VT.body(12, color: V.muted))),
             const SizedBox(height: 24),
             _label('Name'),
             TextField(controller: _name, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(hintText: 'What should people call you?'), onChanged: (_) => setState(() {})),

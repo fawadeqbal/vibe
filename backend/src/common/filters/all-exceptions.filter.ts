@@ -55,7 +55,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const res = ctx.getResponse<Response>();
     const req = ctx.getRequest<Request & { id?: string }>();
     const { status, body } = toErrorBody(exception);
-    if (status >= 500) this.logger.error({ err: exception, path: req.url }, 'Unhandled error');
+    if (status >= 500 && !(exception instanceof AppError)) this.logger.error({ err: exception, path: req.url }, 'Unhandled error');
+    else if (status >= 500) this.logger.warn({ code: (exception as AppError).code, path: req.url }, (exception as AppError).message);
     const payload: ErrorBody = { error: body, requestId: req.id ? String(req.id) : undefined };
     res.status(status).json(payload);
   }

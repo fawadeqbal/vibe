@@ -6,6 +6,7 @@ import type { Column } from "@/components/data-table/data-table";
 import { Badge } from "@/components/ui/badge";
 import type { Cashout, LedgerEntry, Purchase, Subscription } from "@/lib/api/types";
 import { format } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 /**
  * Column sets shared by the finance screens and the user profile tabs —
@@ -47,7 +48,7 @@ export function purchaseColumns(withUser: boolean): Column<Purchase>[] {
   return [
     ...(withUser ? [user<Purchase>()] : []),
     { id: "product", header: "Product", cell: (p) => <span className="font-medium text-text">{productLabel(p)}</span> },
-    { id: "amount", header: "Amount", cell: (p) => <span className="tabular">{format.usd(p.usdCents / 100)}</span>, align: "right" },
+    { id: "amount", header: "Amount", cell: (p) => <PurchaseAmount p={p} />, align: "right" },
     { id: "method", header: "Method", cell: (p) => <span className="text-text-2">{format.enum(p.method)}</span>, className: "hidden md:table-cell" },
     { id: "status", header: "Status", cell: (p) => <StatusBadge status={p.status} /> },
     { id: "ref", header: "Reference", cell: (p) => (p.providerRef ? <IdChip id={p.providerRef} label="Reference" className="max-w-40" /> : <span className="text-muted">—</span>), className: "hidden xl:table-cell" },
@@ -55,13 +56,55 @@ export function purchaseColumns(withUser: boolean): Column<Purchase>[] {
   ];
 }
 
+/** USD price, plus what was actually charged when it was another currency (PKR for local methods). */
+export function PurchaseAmount({ p }: { p: Pick<Purchase, "usdCents" | "currency" | "amountMinor"> }) {
+  const local = p.currency && p.currency !== "USD" && p.amountMinor != null;
+  return (
+    <span className="block whitespace-nowrap">
+      <span className="tabular">{format.usd(p.usdCents / 100)}</span>
+      {local && <span className="block text-xs text-muted tabular">{format.money(p.amountMinor, p.currency)}</span>}
+    </span>
+  );
+}
+
+const PROVIDER_STATUS: Record<string, string> = { awaiting_bank_batch: "Waiting for a bank batch", awaiting_manual: "Waiting for manual payout", paid_by_staff: "Paid by staff", pending: "Pending with provider", paid: "Paid" };
+
+/** A payout provider's status: plain words where we know the code, the raw code otherwise. */
+export function ProviderStatusText({ value, className }: { value: string; className?: string }) {
+  const known = PROVIDER_STATUS[value];
+  return (
+    <span className={cn("text-muted", !known && "font-mono", className)} title={value}>
+      {known ?? value}
+    </span>
+  );
+}
+
 export function cashoutColumns(withUser: boolean): Column<Cashout>[] {
   return [
     ...(withUser ? [user<Cashout>()] : []),
-    { id: "amount", header: "Amount", cell: (c) => <span className="font-medium tabular">{format.usd(c.usdCents / 100)}</span>, align: "right" },
+    {
+      id: "amount",
+      header: "Amount",
+      cell: (c) => (
+        <span className="block whitespace-nowrap">
+          <span className="font-medium tabular">{format.usd(c.usdCents / 100)}</span>
+          {c.amountPkr != null && <span className="block text-xs text-muted tabular">{format.pkr(c.amountPkr)}</span>}
+        </span>
+      ),
+      align: "right",
+    },
     { id: "gems", header: "Gems", cell: (c) => <Gems value={c.gems} />, align: "right", className: "hidden sm:table-cell" },
     { id: "to", header: "To", cell: (c) => <span className="text-text-2">{format.enum(c.method)} <span className="font-mono text-xs">{c.accountMasked}</span></span>, className: "hidden md:table-cell" },
-    { id: "status", header: "Status", cell: (c) => <StatusBadge status={c.status} /> },
+    {
+      id: "status",
+      header: "Status",
+      cell: (c) => (
+        <span className="flex flex-col items-start gap-0.5">
+          <StatusBadge status={c.status} />
+          {c.providerStatus && c.status === "PROCESSING" && <ProviderStatusText value={c.providerStatus} className="max-w-40 truncate text-[11px]" />}
+        </span>
+      ),
+    },
     { id: "note", header: "Note", cell: (c) => <span className="text-xs text-muted">{c.failureReason ?? c.providerRef ?? ""}</span>, className: "hidden xl:table-cell max-w-56 truncate" },
     { id: "at", header: "Requested", cell: (c) => <Time iso={c.createdAt} className="text-text-2" /> },
   ];

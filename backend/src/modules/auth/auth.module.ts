@@ -3,10 +3,10 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { AppConfig } from '../../config/app-config.service';
 import { UsersModule } from '../users/users.module';
-import { AuthController } from './auth.controller';
+import { AuthController, IdentitiesController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { OtpService } from './otp.service';
-import { DevSocialVerifier, JwksSocialVerifier, SocialVerifier } from './providers/social-verifier';
+import { IdentityService } from './identity/identity.service';
 import { TokenService } from './token.service';
 
 @Global()
@@ -19,12 +19,12 @@ import { TokenService } from './token.service';
       useFactory: (config: AppConfig) => ({ secret: config.get('JWT_ACCESS_SECRET'), signOptions: { issuer: 'vibe' }, verifyOptions: { issuer: 'vibe' } }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, IdentitiesController],
   providers: [
     AuthService,
     OtpService,
     TokenService,
-    { provide: SocialVerifier, inject: [AppConfig], useFactory: (c: AppConfig) => (c.get('SOCIAL_VERIFIER') === 'jwks' ? new JwksSocialVerifier(c) : new DevSocialVerifier()) },
+    IdentityService,
   ],
   exports: [TokenService],
 })

@@ -38,6 +38,7 @@ export const P = {
   OpsTemplates: 'ops.templates',
   OpsMessages: 'ops.messages',
   OpsEconomy: 'ops.economy',
+  OpsIntegrations: 'ops.integrations',
 
   StaffView: 'staff.view',
   StaffManage: 'staff.manage',
@@ -114,6 +115,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: P.OpsTemplates, label: 'E-mail templates', description: 'Edit, preview and test the e-mails Vibe sends.' },
       { key: P.OpsMessages, label: 'Send messages', description: 'Message users by e-mail and in the app — one person, a segment or everyone.', sensitive: true },
       { key: P.OpsEconomy, label: 'Edit prices and rules', description: 'Coin packs, VIP plans, gifts, rewards and costs. Changes reach every app at once.', sensitive: true },
+      { key: P.OpsIntegrations, label: 'Integrations', description: 'See which providers are live and which keys are missing; read and retry provider webhooks.' },
     ],
   },
   {
@@ -163,7 +165,7 @@ export const SYSTEM_ROLES: SystemRole[] = [
     key: 'finance',
     name: 'Finance',
     description: 'Payments, refunds, payouts and VIP.',
-    permissions: [P.DashboardView, P.UsersView, P.UsersPii, P.UsersNotes, P.WalletView, P.WalletAdjust, P.FinanceView, P.FinancePurchases, P.FinanceRefunds, P.FinanceCashouts, P.FinanceVip, P.OpsEconomy],
+    permissions: [P.DashboardView, P.UsersView, P.UsersPii, P.UsersNotes, P.WalletView, P.WalletAdjust, P.FinanceView, P.FinancePurchases, P.FinanceRefunds, P.FinanceCashouts, P.FinanceVip, P.OpsEconomy, P.OpsIntegrations],
   },
   {
     key: 'support',

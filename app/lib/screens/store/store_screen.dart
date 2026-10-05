@@ -1,11 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/api_exception.dart';
-import '../../core/mock/mock_backend.dart';
 import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -13,6 +10,8 @@ import '../../core/util/format.dart';
 import '../../models/models.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../../services/ads/rewarded_ads.dart';
+import '../../services/app_services.dart';
 import 'checkout_screen.dart';
 import 'vip_screen.dart';
 import 'wallet_screen.dart';
@@ -70,7 +69,13 @@ class StoreScreen extends StatelessWidget {
                   SectionTitle('Free coins', note: wallet.checkedInToday ? 'Done for today' : 'Day ${wallet.nextCheckInDay + 1} of 7'),
                   const _EarnSection(),
                   const SizedBox(height: 18),
-                  Text('Prices in USD; JazzCash, Easypaisa and bank charge the PKR equivalent.', style: VT.body(11, color: V.muted, height: 1.45), textAlign: TextAlign.center),
+                  Text(
+                    context.read<AppServices>().config.isStoreBuild
+                        ? 'Prices in USD; your store may show them in your currency.'
+                        : 'Prices in USD; JazzCash, Easypaisa and bank charge the PKR equivalent.',
+                    style: VT.body(11, color: V.muted, height: 1.45),
+                    textAlign: TextAlign.center,
+                  ),
                 ],
               ),
             ),
@@ -254,25 +259,29 @@ class _EarnSectionState extends State<_EarnSection> {
 
   Future<void> _watchAd() async {
     final wallet = context.read<WalletProvider>();
+    final ads = context.read<AppServices>().ads;
     if (wallet.adsLeftToday <= 0) {
       toast(context, 'You have watched all of today\'s ads', error: true);
       return;
     }
     setState(() => _adBusy = true);
-    final filled = await context.read<MockBackend>().loadRewardedAd();
+    final r = await ads.show(context, userId: context.read<SessionProvider>().me?.id ?? '');
     if (!mounted) return;
     setState(() => _adBusy = false);
-    if (!filled) {
-      toast(context, 'No ad available right now. Try again in a minute.', error: true);
-      return;
+    switch (r.outcome) {
+      case AdOutcome.dismissed:
+        return;
+      case AdOutcome.noFill:
+      case AdOutcome.unavailable:
+        toast(context, r.message ?? 'No ad available right now. Try again in a minute.', error: true);
+        return;
+      case AdOutcome.rewarded:
+        await _guard(() async {
+          // The token is the nonce AdMob echoes to the server in its signed callback.
+          final coins = await wallet.rewardAd(adToken: r.token);
+          if (mounted) toast(context, coins == null ? 'Daily ad limit reached' : '+$coins coins', error: coins == null);
+        });
     }
-    final watched = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => const _MockAd());
-    if (watched != true || !mounted) return;
-    await _guard(() async {
-      // In production this is the AdMob SSV transaction id of the ad just shown.
-      final r = await wallet.rewardAd(adToken: 'ad-${DateTime.now().microsecondsSinceEpoch}');
-      if (mounted) toast(context, r == null ? 'Daily ad limit reached' : '+$r coins', error: r == null);
-    });
   }
 
   Future<void> _invite() async {
@@ -383,7 +392,8 @@ class _EarnSectionState extends State<_EarnSection> {
         const SizedBox(height: 10),
         GroupCard(
           children: [
-            GroupRow(
+            if (context.read<AppServices>().ads.available)
+              GroupRow(
               icon: Icons.play_circle_rounded,
               iconColor: V.gold,
               iconBg: V.gold.withValues(alpha: 0.12),
@@ -472,74 +482,6 @@ class _EarnSectionState extends State<_EarnSection> {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(color: (active ? V.gold : V.muted).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)),
       child: Center(widthFactor: 1, child: Text(text, style: VT.number(12.5, color: active ? V.gold : V.muted))),
-    );
-  }
-}
-
-/// A 5-second "video ad" with a skip lock, the way rewarded ads behave.
-class _MockAd extends StatefulWidget {
-  const _MockAd();
-
-  @override
-  State<_MockAd> createState() => _MockAdState();
-}
-
-class _MockAdState extends State<_MockAd> {
-  int _left = 5;
-  Timer? _t;
-
-  @override
-  void initState() {
-    super.initState();
-    _t = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) return;
-      setState(() => _left--);
-      if (_left <= 0) t.cancel();
-    });
-  }
-
-  @override
-  void dispose() {
-    _t?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.black,
-      insetPadding: const EdgeInsets.all(16),
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      child: AspectRatio(
-        aspectRatio: 9 / 14,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF3A1D70), Color(0xFF0B0A10)], begin: Alignment.topLeft, end: Alignment.bottomRight))),
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.local_pizza_rounded, size: 72, color: V.gold),
-                  const SizedBox(height: 12),
-                  Text('Mock advertiser', style: VT.title(20, color: Colors.white)),
-                  const SizedBox(height: 4),
-                  Text('A real rewarded ad plays here (AdMob).', style: VT.body(13, color: Colors.white70)),
-                ],
-              ),
-            ),
-            Positioned(
-              top: 12,
-              right: 12,
-              child: _left > 0
-                  ? GlassPill(label: 'Reward in ${_left}s', height: 32)
-                  : GlassPill(label: 'Claim reward', icon: Icons.check_rounded, tint: V.gold, textColor: V.gold, height: 32, onTap: () => Navigator.of(context).pop(true)),
-            ),
-            const Positioned(bottom: 12, left: 12, child: GlassPill(label: 'Ad', height: 26, fontSize: 10.5)),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -1,18 +1,14 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { createHmac } from 'node:crypto';
-import type { Request } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Public } from '../../common/decorators/public.decorator';
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
-import { safeEqual } from '../../common/utils/crypto';
-import { AppConfig } from '../../config/app-config.service';
-import { ConfirmPurchaseDto, CreatePurchaseDto } from './dto/purchase.dto';
+import { BankReferenceDto, ConfirmPurchaseDto, CreatePurchaseDto } from './dto/purchase.dto';
 import { PaymentsService } from './payments.service';
 import { VipService } from './vip.service';
-import { SkipMaintenance } from '../settings/maintenance.guard';
+
+const storeOf = (h?: string): 'play' | 'appstore' | undefined => (h === 'play' || h === 'appstore' ? h : undefined);
 
 @ApiTags('payments')
 @ApiBearerAuth()
@@ -20,24 +16,58 @@ import { SkipMaintenance } from '../settings/maintenance.guard';
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
+  @Get('methods')
+  @ApiHeader({ name: 'X-App-Store', required: false, description: '"play" or "appstore" when the app was installed from that store (limits methods to store billing, per store rules)' })
+  @ApiOperation({ summary: 'Payment methods to offer, store account tokens and store SKUs' })
+  methods(@CurrentUser('id') userId: string, @Headers('x-app-store') store?: string) {
+    return this.payments.methods(userId, storeOf(store));
+  }
+
   @Post('purchases')
   @ApiHeader({ name: 'Idempotency-Key', required: true, description: 'One key per checkout attempt; retries reuse it' })
-  @ApiOperation({ summary: 'Buy a coin pack or VIP plan' })
+  @ApiOperation({ summary: 'Buy a coin pack or VIP plan. The response says what to do next (`action`) if the payment needs a step.' })
   create(@CurrentUser('id') userId: string, @Body() dto: CreatePurchaseDto, @Headers('idempotency-key') key?: string) {
     if (!key || key.length > 100) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Idempotency-Key header is required', HttpStatus.BAD_REQUEST);
     return this.payments.create(userId, dto, key);
   }
 
-  @Post('purchases/:id/confirm')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Complete a wallet payment with the OTP the user received' })
-  confirm(@CurrentUser('id') userId: string, @Param('id') id: string, @Body() dto: ConfirmPurchaseDto) {
-    return this.payments.confirm(userId, id, dto.otp);
+  @Get('purchases')
+  @ApiOperation({ summary: 'My recent purchases' })
+  list(@CurrentUser('id') userId: string) {
+    return this.payments.list(userId);
   }
 
   @Get('purchases/:id')
   get(@CurrentUser('id') userId: string, @Param('id') id: string) {
     return this.payments.get(userId, id);
+  }
+
+  @Post('purchases/:id/confirm')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Complete a payment step with a code (OTP)' })
+  confirm(@CurrentUser('id') userId: string, @Param('id') id: string, @Body() dto: ConfirmPurchaseDto) {
+    return this.payments.confirm(userId, id, dto.otp);
+  }
+
+  @Post('purchases/:id/check')
+  @HttpCode(200)
+  @ApiOperation({ summary: '"I approved / paid": ask the provider now (also happens automatically)' })
+  check(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.payments.check(userId, id);
+  }
+
+  @Post('purchases/:id/cancel')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Give up on a pending payment' })
+  cancel(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.payments.cancel(userId, id);
+  }
+
+  @Post('purchases/:id/bank-reference')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Bank transfer: tell us the reference from your bank app' })
+  bankReference(@CurrentUser('id') userId: string, @Param('id') id: string, @Body() dto: BankReferenceDto) {
+    return this.payments.bankReference(userId, id, dto.reference);
   }
 }
 
@@ -54,32 +84,8 @@ export class VipController {
 
   @Post('cancel')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Stop renewal; VIP lasts until the end of the period' })
+  @ApiOperation({ summary: 'Stop renewal; VIP lasts until the end of the period (store subscriptions are cancelled in the store)' })
   cancel(@CurrentUser('id') userId: string) {
     return this.vip.cancel(userId);
-  }
-}
-
-/**
- * Generic gateway callback: `X-Vibe-Signature: hex(hmac-sha256(secret, rawBody))`.
- * Each real gateway adapter translates its own webhook into this call.
- */
-@ApiTags('webhooks')
-@SkipMaintenance()
-@Controller('webhooks/payments')
-export class PaymentWebhookController {
-  constructor(
-    private readonly payments: PaymentsService,
-    private readonly config: AppConfig,
-  ) {}
-
-  @Public()
-  @Post()
-  @HttpCode(200)
-  async handle(@Req() req: Request & { rawBody?: Buffer }, @Headers('x-vibe-signature') signature: string | undefined, @Body() body: { purchaseId: string; providerRef: string; status: 'succeeded' }) {
-    const expected = createHmac('sha256', this.config.get('PAYMENT_WEBHOOK_SECRET')).update(req.rawBody ?? Buffer.from(JSON.stringify(body))).digest('hex');
-    if (!signature || !safeEqual(signature, expected)) throw AppError.unauthenticated('Bad signature');
-    if (body.status === 'succeeded') await this.payments.markPaid(body.purchaseId, body.providerRef);
-    return { ok: true };
   }
 }

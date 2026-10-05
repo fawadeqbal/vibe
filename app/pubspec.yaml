@@ -19,14 +19,39 @@ dependencies:
   flutter_webrtc: ^1.6.2
   permission_handler: ^12.0.3
   http: ^1.6.0
+  http_parser: ^4.1.2 # MediaType for multipart uploads
   socket_io_client: ^3.1.6
   flutter_secure_storage: ^11.2.0
   url_launcher: ^6.3.2
+
+  # Integrations (all off until their keys are set — see INTEGRATIONS_APP.md).
+  # Versions picked for Flutter 3.44+/AGP 9: each compiles against SDK 35/36
+  # and none pins an old AGP.
+  crypto: ^3.0.7 # SHA-256 nonces (Apple, Facebook Limited Login)
+  in_app_purchase: ^3.3.1 # Google Play Billing / StoreKit
+  google_sign_in: ^7.2.0
+  sign_in_with_apple: ^8.2.0
+  flutter_facebook_auth: ^7.2.0
+  google_mobile_ads: ^9.1.0 # rewarded ads with server-side verification
+  firebase_core: ^4.15.0 # initialised from --dart-define options, no google-services.json
+  firebase_messaging: ^16.7.0
+  image_picker: ^1.2.3
+  image: ^4.10.1 # pure-Dart re-encode fallback for oversized/odd photos
+  app_links: ^7.2.1 # vibe://payment-return deep link
+  webview_flutter: ^4.14.1 # form-POST hosted payment pages (JazzCash)
+  package_info_plus: ^10.2.2 # app version sent with the push token
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+dependency_overrides:
+  # flutter_facebook_auth's desktop implementation (facebook_auth_desktop,
+  # unused on Android/iOS) still asks for flutter_secure_storage ^10; the app
+  # is on 11 (Android compileSdk fix). Its read/write/delete calls are the
+  # same in 11. Drop this once facebook_auth_desktop allows ^11.
+  flutter_secure_storage: ^11.2.0
 
 flutter:
   uses-material-design: true

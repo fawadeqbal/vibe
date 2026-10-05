@@ -18,6 +18,7 @@ import { RealtimeModule } from './infra/realtime/realtime.module';
 import { MailModule } from './infra/mail/mail.module';
 import { RedisModule } from './infra/redis/redis.module';
 import { StorageModule } from './infra/storage/storage.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { StaffAuthGuard } from './modules/admin/core/staff-auth.guard';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
@@ -27,6 +28,7 @@ import { HealthModule } from './modules/health/health.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { PushModule } from './modules/push/push.module';
 import { MailTemplatesModule } from './modules/messaging/mail-templates.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { MaintenanceGuard } from './modules/settings/maintenance.guard';
@@ -80,6 +82,7 @@ function canPrettyPrint(): boolean {
     RedisModule,
     RealtimeModule,
     StorageModule,
+    IntegrationsModule,
     MailModule,
     SettingsModule,
     MailTemplatesModule,
@@ -91,6 +94,7 @@ function canPrettyPrint(): boolean {
     UsersModule,
     WalletModule,
     PaymentsModule,
+    PushModule,
     SocialModule,
     ModerationModule,
     MatchingModule,

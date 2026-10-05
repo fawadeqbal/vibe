@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { LedgerKind, PaymentMethod, SubscriptionStatus } from '@prisma/client';
 
+import { AppError } from '../../common/errors/app-error';
 import { Clock, MS } from '../../common/utils/clock';
+import { AppConfig } from '../../config/app-config.service';
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import type { VipPlan } from '../catalog/economy';
@@ -25,17 +27,40 @@ export class VipService {
     private readonly redis: RedisService,
     private readonly clock: Clock,
     private readonly economy: EconomyService,
+    private readonly config: AppConfig,
   ) {}
 
-  /** Starts or extends VIP after a successful payment (inside its transaction). */
-  async activate(userId: string, plan: VipPlan, ctx: { purchaseId: string; method: PaymentMethod; usdCents: number }, tx: Tx): Promise<Date> {
+  /** Where people manage (cancel) a store subscription. */
+  private manageUrl(method: PaymentMethod | null, planId: string): string | null {
+    if (method === PaymentMethod.GOOGLE_PLAY) {
+      const pkg = this.config.get('GOOGLE_PLAY_PACKAGE');
+      return `https://play.google.com/store/account/subscriptions?sku=vip_${planId}${pkg ? `&package=${pkg}` : ''}`;
+    }
+    if (method === PaymentMethod.APP_STORE) return 'https://apps.apple.com/account/subscriptions';
+    return null;
+  }
+
+  /**
+   * Starts or extends VIP after a successful payment (inside its transaction).
+   * Store subscriptions pass `periodEnd` (the store decides the period and
+   * any free trial) and `storeRef`, which later renewal/cancel notifications use.
+   */
+  async activate(
+    userId: string,
+    plan: VipPlan,
+    ctx: { purchaseId: string; method: PaymentMethod; usdCents: number; periodEnd?: Date; storeRef?: string },
+    tx: Tx,
+  ): Promise<Date> {
     const now = this.clock.now();
     const w = await tx.wallet.findUniqueOrThrow({ where: { userId } });
     const active = !!w.vipUntil && w.vipUntil > now;
     const hadTrial = (await tx.subscription.count({ where: { userId, trialEndsAt: { not: null } } })) > 0;
-    const trial = plan.trialDays > 0 && !active && !hadTrial;
+    const trial = !ctx.periodEnd && plan.trialDays > 0 && !active && !hadTrial;
     const from = active ? w.vipUntil! : now;
-    const until = new Date(from.getTime() + (plan.days + (trial ? plan.trialDays : 0)) * MS.day);
+    const until = ctx.periodEnd
+      ? new Date(Math.max(ctx.periodEnd.getTime(), active ? w.vipUntil!.getTime() : 0))
+      : new Date(from.getTime() + (plan.days + (trial ? plan.trialDays : 0)) * MS.day);
+    if (ctx.storeRef) await tx.subscription.updateMany({ where: { storeRef: ctx.storeRef }, data: { storeRef: null } });
     await tx.subscription.updateMany({ where: { userId, status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] } }, data: { status: SubscriptionStatus.EXPIRED } });
     await tx.subscription.create({
       data: {
@@ -46,6 +71,9 @@ export class VipService {
         trialEndsAt: trial ? new Date(now.getTime() + plan.trialDays * MS.day) : null,
         lastBonusAt: now,
         purchaseId: ctx.purchaseId,
+        method: ctx.method,
+        storeRef: ctx.storeRef,
+        autoRenew: true,
       },
     });
     await tx.wallet.update({ where: { userId }, data: { vipUntil: until } });
@@ -106,11 +134,19 @@ export class VipService {
       status: sub?.status ?? null,
       renews: !!sub && (sub.status === SubscriptionStatus.ACTIVE || sub.status === SubscriptionStatus.TRIALING),
       trialEndsAt: sub?.trialEndsAt?.toISOString() ?? null,
+      method: sub?.method ?? null,
+      /** Store subscriptions are managed (cancelled) in the store; open this link. */
+      manageUrl: sub ? this.manageUrl(sub.method, sub.planId) : null,
     };
   }
 
   /** Stops renewal; VIP stays until the end of the paid period. */
   async cancel(userId: string) {
+    const current = await this.prisma.subscription.findFirst({ where: { userId, status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] } }, orderBy: { createdAt: 'desc' } });
+    const manage = current ? this.manageUrl(current.method, current.planId) : null;
+    if (current?.storeRef && manage) {
+      throw AppError.conflict(`This subscription is billed by ${current.method === PaymentMethod.GOOGLE_PLAY ? 'Google Play' : 'the App Store'}. Cancel it there.`, undefined, { manageUrl: manage });
+    }
     await this.prisma.subscription.updateMany({
       where: { userId, status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] } },
       data: { status: SubscriptionStatus.CANCELED, canceledAt: this.clock.now() },

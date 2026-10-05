@@ -107,6 +107,36 @@ export function IdChip({ id, label, className }: { id: string; label?: string; c
   );
 }
 
+/** Small "copy" button for a value that isn't an id (URLs, env lines). */
+export function CopyButton({ value, label = "Copied", title = "Copy", className, children }: { value: string; label?: string; title?: string; className?: string; children?: React.ReactNode }) {
+  const [done, setDone] = React.useState(false);
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        void navigator.clipboard?.writeText(value);
+        setDone(true);
+        toast.success(label);
+        setTimeout(() => setDone(false), 1200);
+      }}
+      className={cn("inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted hover:bg-surface-2 hover:text-text", className)}
+      title={title}
+      aria-label={title}
+    >
+      {done ? <Check className="size-3.5 text-ok" /> : <Copy className="size-3.5" />}
+      {children}
+    </button>
+  );
+}
+
+/** Pretty-printed JSON in a scrollable block (payloads, provider responses). */
+export function JsonBlock({ value, className }: { value: unknown; className?: string }) {
+  if (value === null || value === undefined) return <p className="text-sm text-muted">—</p>;
+  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  return <pre className={cn("max-h-80 overflow-auto rounded-lg border border-line bg-surface-2 p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all text-text-2", className)}>{text}</pre>;
+}
+
 export function YesNo({ value, yes = "Yes", no = "No" }: { value: boolean; yes?: string; no?: string }) {
   return value ? <Badge tone="ok">{yes}</Badge> : <Badge>{no}</Badge>;
 }

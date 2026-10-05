@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { toQueryString } from "../api/client";
+import { filenameFrom, toQueryString } from "../api/client";
 import { flag, format } from "../format";
 import { isActive, NAV } from "../nav";
+import { P } from "../permissions";
 
 describe("toQueryString", () => {
   it("drops empty values and joins lists", () => {
     expect(toQueryString({ q: "", status: ["OPEN", "ACTIONED"], limit: 30, x: undefined, y: null, z: [] })).toBe("?status=OPEN%2CACTIONED&limit=30");
     expect(toQueryString({})).toBe("");
+  });
+});
+
+describe("filenameFrom", () => {
+  it("reads the download name from Content-Disposition", () => {
+    expect(filenameFrom('attachment; filename="vibe-payouts-2026-10-05-abc123.csv"')).toBe("vibe-payouts-2026-10-05-abc123.csv");
+    expect(filenameFrom("attachment; filename*=UTF-8''batch%201.csv")).toBe("batch 1.csv");
+    expect(filenameFrom(null)).toBeNull();
   });
 });
 
@@ -23,9 +32,26 @@ describe("format", () => {
     expect(format.initials("Ayesha Khan")).toBe("AK");
   });
 
+  it("rupees and other currencies", () => {
+    expect(format.pkr(2800).replace(/\s/g, " ")).toBe("PKR 2,800");
+    expect(format.money(139_700, "PKR").replace(/\s/g, " ")).toBe("PKR 1,397");
+    expect(format.money(499, "USD")).toBe("$4.99");
+    expect(format.money(null, "PKR")).toBe("—");
+  });
+
   it("country flags", () => {
     expect(flag("PK")).toBe("🇵🇰");
     expect(flag(null)).toBe("🌍");
+  });
+});
+
+describe("integrations helpers", () => {
+  it("missing keys copy as .env lines; payment keys map to webhook providers", async () => {
+    const { envLines, webhookProviderFor } = await import("@/features/integrations/api");
+    expect(envLines(["JAZZCASH_MERCHANT_ID", "JAZZCASH_PASSWORD"])).toBe("JAZZCASH_MERCHANT_ID=\nJAZZCASH_PASSWORD=");
+    expect(webhookProviderFor("payments.google_play")).toBe("google-play");
+    expect(webhookProviderFor("payments.jazzcash")).toBe("jazzcash");
+    expect(webhookProviderFor("payouts.bank")).toBeNull();
   });
 });
 
@@ -37,6 +63,16 @@ describe("navigation", () => {
     expect(isActive("/users/abc", item("/users"))).toBe(true);
     expect(isActive("/", item("/"))).toBe(true);
     expect(isActive("/users", item("/"))).toBe(false);
+  });
+
+  it("new money and ops screens are in the menu with the right permission", () => {
+    expect(item("/finance/payout-batches").permission).toBe(P.FinanceView);
+    expect(item("/integrations").permission).toBe(P.OpsIntegrations);
+    expect(item("/webhooks").permission).toBe(P.OpsIntegrations);
+    expect(item("/verifications").permission).toBe(P.UsersVerify);
+    // A batch's detail page lights up "Payout batches", not "Cash-outs".
+    expect(isActive("/finance/payout-batches/abc", item("/finance/payout-batches"))).toBe(true);
+    expect(isActive("/finance/payout-batches/abc", item("/finance/cashouts"))).toBe(false);
   });
 
   it("every screen has a permission", () => {

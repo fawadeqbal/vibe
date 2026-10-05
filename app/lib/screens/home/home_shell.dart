@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -7,10 +8,15 @@ import '../../core/theme/vibe_theme.dart';
 import '../../providers/inbox_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/social_provider.dart';
+import '../../services/app_services.dart';
+import '../../services/push/push_route.dart';
 import '../match/match_screen.dart';
 import '../profile/profile_screen.dart';
+import '../social/chat_screen.dart';
 import '../social/chats_screen.dart';
+import '../social/inbox_screen.dart';
 import '../store/store_screen.dart';
+import '../store/wallet_screen.dart';
 
 /// Four tabs. Match is the app; the other three exist to keep people
 /// coming back to it (friends), to pay (store) and to trust it (profile).
@@ -23,8 +29,45 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  StreamSubscription<PushRoute>? _taps;
 
   void go(int i) => setState(() => _index = i);
+
+  @override
+  void initState() {
+    super.initState();
+    final push = context.read<AppServices>().push;
+    _taps = push.taps.listen(_open);
+    final launch = push.takeLaunchRoute();
+    if (launch != null) WidgetsBinding.instance.addPostFrameCallback((_) => _open(launch));
+  }
+
+  @override
+  void dispose() {
+    _taps?.cancel();
+    super.dispose();
+  }
+
+  /// A tapped notification: chat → that chat, friends/inbox → Chats,
+  /// wallet → Wallet, store → Store.
+  void _open(PushRoute r) {
+    if (!mounted) return;
+    final nav = Navigator.of(context);
+    switch (r.target) {
+      case PushTarget.chat:
+        go(1);
+        if (context.read<SocialProvider>().friend(r.friendId!) != null) nav.push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: r.friendId!)));
+      case PushTarget.friends:
+        go(1);
+      case PushTarget.inbox:
+        go(1);
+        nav.push(MaterialPageRoute(builder: (_) => const InboxScreen()));
+      case PushTarget.wallet:
+        nav.push(MaterialPageRoute(builder: (_) => const WalletScreen()));
+      case PushTarget.store:
+        go(2);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -10,6 +10,8 @@ import 'api_exception.dart';
 class Ev {
   Ev._();
   static const walletUpdated = 'wallet:updated';
+  static const paymentUpdated = 'payment:updated';
+  static const cashoutUpdated = 'cashout:updated';
   static const accountBanned = 'account:banned';
   static const accountWarning = 'account:warning';
   static const announcement = 'system:announcement';

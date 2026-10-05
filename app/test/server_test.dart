@@ -15,6 +15,7 @@ import 'package:vibe_app/core/api/realtime_client.dart';
 import 'package:vibe_app/core/api/token_store.dart';
 import 'package:vibe_app/core/mock/mock_data.dart';
 import 'package:vibe_app/models/models.dart';
+import 'package:vibe_app/models/payments.dart';
 import 'package:vibe_app/providers/catalog_provider.dart';
 import 'package:vibe_app/providers/inbox_provider.dart';
 import 'package:vibe_app/providers/match_provider.dart';
@@ -60,13 +61,20 @@ void main() {
     expect(wallet.coins, Economy.welcomeCoins);
     expect(await wallet.checkIn(), 5);
     expect(await wallet.checkIn(), isNull);
-    final p = await wallet.startPurchase(pack: MockData.packs.first, method: PaymentMethod.card, cardToken: 'tok_4242');
-    expect(p.status, PurchaseStatus.succeeded);
+    // Store purchase with a dev receipt (server stores in dev mode).
+    final options = await wallet.paymentOptions();
+    expect(options.methods, isNotEmpty);
+    final pack = MockData.packs.first;
+    final p = await wallet.createPurchase(PurchaseRequest(productType: ProductKind.coinPack, productId: pack.id, method: PaymentMethod.googlePlay, receipt: 'dev-${Random().nextInt(1 << 30)}'), idempotencyKey: ApiClient.newIdempotencyKey());
+    expect(p.state, PurchaseState.succeeded);
     expect(wallet.coins, 30 + 5 + 100);
-    final otp = await wallet.startPurchase(pack: MockData.packs.first, method: PaymentMethod.jazzCash, phone: '03001234567');
-    expect(otp.status, PurchaseStatus.needsOtp);
-    final done = await wallet.confirmPurchase(otp, otp: '1234', method: PaymentMethod.jazzCash);
-    expect(done.status, PurchaseStatus.succeeded);
+    // Dev wallet: an OTP step, then success.
+    final otp = await wallet.createPurchase(PurchaseRequest(productType: ProductKind.coinPack, productId: pack.id, method: PaymentMethod.jazzCash, phone: '03001234567', cnicLast6: '123456'), idempotencyKey: ApiClient.newIdempotencyKey());
+    expect(otp.state, PurchaseState.requiresAction);
+    expect(otp.action?.type, PaymentActionType.otp);
+    expect(otp.currency, 'PKR');
+    final done = await wallet.confirmPurchase(otp.id, '1234');
+    expect(done.state, PurchaseState.succeeded);
     expect(wallet.coins, 235);
     await until(() => wallet.transactions.length >= 4);
 

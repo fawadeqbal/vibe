@@ -7,23 +7,35 @@ import '../core/api/api_exception.dart';
 import '../core/api/mappers.dart';
 import '../core/api/realtime_client.dart';
 import '../core/mock/mock_backend.dart';
+import '../core/mock/mock_data.dart';
 import '../core/util/format.dart';
+import '../core/util/pk_validation.dart';
 import '../models/models.dart';
+import '../models/payments.dart';
 
 part 'wallet_provider_local.dart';
 part 'wallet_provider_remote.dart';
 
-/// Result of a checkout step, for the checkout screen.
-enum PurchaseStatus { succeeded, needsOtp, pendingTransfer, failed }
+/// Buying coins and VIP, step by step. The checkout controller and the
+/// store-billing service drive a purchase through this; the server (or the
+/// offline mock) decides every state.
+abstract interface class CheckoutBackend {
+  /// Methods to offer, the PKR rate and the store tokens/SKUs.
+  Future<PaymentOptions> paymentOptions();
 
-class PurchaseOutcome {
-  const PurchaseOutcome(this.status, {this.receipt, this.purchaseId, this.message});
-  final PurchaseStatus status;
-  final String? receipt;
-  final String? purchaseId;
+  /// Starts a purchase. One [idempotencyKey] per checkout attempt; retries
+  /// reuse it. A declined charge throws [ApiException] `PAYMENT_DECLINED`.
+  Future<PurchaseView> createPurchase(PurchaseRequest request, {required String idempotencyKey});
+  Future<PurchaseView> purchase(String id);
+  Future<PurchaseView> confirmPurchase(String id, String otp);
 
-  /// Failure reason, or bank-transfer instructions.
-  final String? message;
+  /// "I've approved": asks the provider now.
+  Future<PurchaseView> checkPurchase(String id);
+  Future<PurchaseView> cancelPurchase(String id);
+  Future<PurchaseView> sendBankReference(String id, String reference);
+
+  /// Purchases that changed outside a request (wallet approved, card paid, expired…).
+  Stream<PurchaseView> get purchaseUpdates;
 }
 
 /// Coins, gems, VIP, boosts, and the ledger.
@@ -34,7 +46,7 @@ class PurchaseOutcome {
 ///   action is a server call and balances arrive live over the socket.
 ///
 /// `WalletProvider(backend)` builds the local one (tests, demo builds).
-abstract class WalletProvider extends ChangeNotifier {
+abstract class WalletProvider extends ChangeNotifier implements CheckoutBackend {
   WalletProvider.base({DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
 
   factory WalletProvider(MockBackend backend, {DateTime Function()? clock}) = LocalWalletProvider;
@@ -43,6 +55,11 @@ abstract class WalletProvider extends ChangeNotifier {
   Wallet _wallet = const Wallet(coins: 0, gems: 0);
   List<Transaction> _tx = [];
   bool _loaded = false;
+  List<PayoutAccount> _payoutAccounts = [];
+  List<PaymentMethod> _payoutMethods = const [PaymentMethod.jazzCash, PaymentMethod.easypaisa, PaymentMethod.bank];
+  List<Cashout> _cashouts = [];
+  bool _payoutsLoaded = false;
+  final _purchaseUpdates = StreamController<PurchaseView>.broadcast();
 
   Wallet get wallet => _wallet;
   int get coins => _wallet.coins;
@@ -51,6 +68,21 @@ abstract class WalletProvider extends ChangeNotifier {
   bool get isBoosted => _wallet.boostUntil != null && _wallet.boostUntil!.isAfter(_clock());
   List<Transaction> get transactions => List.unmodifiable(_tx.reversed);
   bool get loaded => _loaded;
+
+  /// Saved cash-out destinations (default first) and the rails that are on.
+  List<PayoutAccount> get payoutAccounts => List.unmodifiable(_payoutAccounts);
+  List<PaymentMethod> get payoutMethods => _payoutMethods;
+  List<Cashout> get cashouts => List.unmodifiable(_cashouts);
+  bool get payoutsLoaded => _payoutsLoaded;
+  PayoutAccount? get defaultPayoutAccount {
+    for (final a in _payoutAccounts) {
+      if (a.isDefault) return a;
+    }
+    return _payoutAccounts.isEmpty ? null : _payoutAccounts.first;
+  }
+
+  @override
+  Stream<PurchaseView> get purchaseUpdates => _purchaseUpdates.stream;
 
   bool get checkedInToday => Fmt.sameDay(_wallet.lastCheckIn, _clock());
 
@@ -100,13 +132,24 @@ abstract class WalletProvider extends ChangeNotifier {
 
   Future<bool> boost();
 
-  Future<PurchaseOutcome> startPurchase({CoinPack? pack, VipPlan? plan, required PaymentMethod method, String? phone, String? cardToken});
+  /// How VIP is billed (store subscriptions are managed in the store).
+  Future<VipStatus> vipStatus();
 
-  Future<PurchaseOutcome> confirmPurchase(PurchaseOutcome pending, {required String otp, CoinPack? pack, VipPlan? plan, required PaymentMethod method, String? phone});
-
+  /// Stops renewal. Store subscriptions throw [ApiException] (409) with
+  /// `details.manageUrl` — open it instead.
   Future<void> cancelVip();
 
-  Future<void> cashOut(int gems, PaymentMethod method, String account);
+  // ── cash-outs ─────────────────────────────────────────────────────────
+
+  /// Loads saved payout accounts, available rails and cash-out history.
+  Future<void> loadPayouts();
+  Future<PayoutAccount> addPayoutAccount(NewPayoutAccount account);
+  Future<void> makeDefaultPayoutAccount(String id);
+  Future<void> removePayoutAccount(String id);
+
+  /// Gems → money to a saved account. Errors: `CASHOUT_BELOW_MINIMUM`,
+  /// `KYC_REQUIRED` (403, `details.limitUsd`), readable validation messages.
+  Future<Cashout> requestCashout({int? gems, required String payoutAccountId});
 
   /// Re-fetches the ledger (wallet screen pull-to-refresh / open).
   Future<void> refresh() async {}
@@ -125,5 +168,25 @@ abstract class WalletProvider extends ChangeNotifier {
   void debugSet(Wallet w) {
     _wallet = w;
     notifyListeners();
+  }
+
+  void _emitPurchase(PurchaseView p) {
+    if (!_purchaseUpdates.isClosed) _purchaseUpdates.add(p);
+  }
+
+  void _upsertCashout(Cashout c) {
+    final i = _cashouts.indexWhere((x) => x.id == c.id);
+    if (i >= 0) {
+      _cashouts[i] = c;
+    } else {
+      _cashouts.insert(0, c);
+    }
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _purchaseUpdates.close();
+    super.dispose();
   }
 }

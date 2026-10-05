@@ -4,6 +4,7 @@ const nf = new Intl.NumberFormat("en-US");
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const usd0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const pkr = new Intl.NumberFormat("en-US", { style: "currency", currency: "PKR", maximumFractionDigits: 0 });
 const pct = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 1 });
 
 /** Formatting in one place so every screen shows numbers, money and time the same way. */
@@ -13,6 +14,17 @@ export const format = {
   usd: (n: number | null | undefined) => (n == null ? "—" : usd.format(n)),
   usdRound: (n: number | null | undefined) => (n == null ? "—" : n >= 1000 ? usd0.format(n) : usd.format(n)),
   cents: (c: number | null | undefined) => (c == null ? "—" : usd.format(c / 100)),
+  /** Whole rupees → "PKR 2,800". */
+  pkr: (n: number | null | undefined) => (n == null ? "—" : pkr.format(n)),
+  /** Minor units in any currency → "PKR 1,397" / "$4.99" (decimals only when there are any). */
+  money: (minor: number | null | undefined, currency: string) => {
+    if (minor == null) return "—";
+    try {
+      return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: minor % 100 ? 2 : 0, maximumFractionDigits: 2 }).format(minor / 100);
+    } catch {
+      return `${currency} ${nf.format(minor / 100)}`;
+    }
+  },
   percent: (n: number | null | undefined) => (n == null ? "—" : pct.format(n)),
   signed: (n: number) => (n > 0 ? `+${nf.format(n)}` : nf.format(n)),
   date: (iso: string | null | undefined) => (iso ? fmt(new Date(iso), "d MMM yyyy") : "—"),

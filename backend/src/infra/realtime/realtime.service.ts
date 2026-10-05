@@ -17,6 +17,7 @@ const STALE_MS = 90_000;
 export class RealtimeService {
   private readonly logger = new Logger(RealtimeService.name);
   private server?: Server;
+  private readonly listeners: ((userId: string, event: ServerEventName, payload: unknown) => void)[] = [];
 
   constructor(private readonly redis: RedisService) {}
 
@@ -28,7 +29,22 @@ export class RealtimeService {
     return this.server;
   }
 
+  /**
+   * Observers of every per-user event (e.g. push notifications for people
+   * who are offline). Listeners must be quick and never throw.
+   */
+  onUserEvent(fn: (userId: string, event: ServerEventName, payload: unknown) => void): void {
+    this.listeners.push(fn);
+  }
+
   toUser(userId: string, event: ServerEventName, payload: unknown): void {
+    for (const fn of this.listeners) {
+      try {
+        fn(userId, event, payload);
+      } catch (e) {
+        this.logger.warn(`user-event listener failed: ${(e as Error).message}`);
+      }
+    }
     if (!this.server) return this.logger.debug(`No socket server; dropped ${event}`);
     this.server.to(userRoom(userId)).emit(event, payload);
   }

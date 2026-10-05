@@ -3,13 +3,21 @@ part of 'wallet_provider.dart';
 /// Server mode: every action is an API call; the server's answer (or a live
 /// `wallet:updated` push) replaces local state. No rule is computed here.
 class RemoteWalletProvider extends WalletProvider {
-  RemoteWalletProvider(this._api, this._rt) : super.base() {
-    _sub = _rt.on(Ev.walletUpdated).listen((w) => _applyView(w, refreshLedger: true));
+  RemoteWalletProvider(this._api, this._rt, {this.adRetryDelay = const Duration(seconds: 2)}) : super.base() {
+    _subs = [
+      _rt.on(Ev.walletUpdated).listen((w) => _applyView(w, refreshLedger: true)),
+      _rt.on(Ev.paymentUpdated).listen(_onPaymentUpdated),
+      _rt.on(Ev.cashoutUpdated).listen(_onCashoutUpdated),
+    ];
   }
 
   final ApiClient _api;
   final RealtimeClient _rt;
-  late final StreamSubscription<Map<String, dynamic>> _sub;
+  late final List<StreamSubscription<Map<String, dynamic>>> _subs;
+
+  /// AdMob's verification callback can trail the reward by a moment: one
+  /// retry after this delay when the server says `AD_NOT_VERIFIED`.
+  final Duration adRetryDelay;
   Map<String, dynamic> _view = const {};
   Timer? _ledgerDebounce;
 
@@ -76,7 +84,16 @@ class RemoteWalletProvider extends WalletProvider {
   Future<int?> checkIn() => _claim('/wallet/check-in', (r) => (r['reward'] as num).toInt());
 
   @override
-  Future<int?> rewardAd({String? adToken}) => _claim('/wallet/rewards/ad', (r) => (r['reward'] as num).toInt(), body: {'adToken': adToken ?? ApiClient.newIdempotencyKey()});
+  Future<int?> rewardAd({String? adToken}) async {
+    final body = {'adToken': adToken ?? ApiClient.newIdempotencyKey()};
+    try {
+      return await _claim('/wallet/rewards/ad', (r) => (r['reward'] as num).toInt(), body: body);
+    } on ApiException catch (e) {
+      if (e.code != 'AD_NOT_VERIFIED') rethrow;
+      await Future<void>.delayed(adRetryDelay);
+      return _claim('/wallet/rewards/ad', (r) => (r['reward'] as num).toInt(), body: body);
+    }
+  }
 
   @override
   Future<int?> claimProfileBonus() => _claim('/wallet/rewards/profile', (r) => (r['reward'] as num).toInt(), nullOn: {'ALREADY_CLAIMED', 'PROFILE_INCOMPLETE'});
@@ -95,44 +112,45 @@ class RemoteWalletProvider extends WalletProvider {
     }
   }
 
+  // ── checkout ──────────────────────────────────────────────────────────
+
   @override
-  Future<PurchaseOutcome> startPurchase({CoinPack? pack, VipPlan? plan, required PaymentMethod method, String? phone, String? cardToken}) async {
-    final body = {
-      'productType': pack != null ? 'COIN_PACK' : 'VIP_PLAN',
-      'productId': pack?.id ?? plan!.id,
-      'method': ApiMap.methodOut(method),
-      if (phone != null && phone.isNotEmpty) 'phone': phone.replaceAll(RegExp(r'[^0-9+]'), ''),
-      // Store builds pass the real purchase token from the billing SDK here.
-      if (method == PaymentMethod.googlePlay || method == PaymentMethod.appStore) 'receipt': 'dev-${ApiClient.newIdempotencyKey()}',
-      if (method == PaymentMethod.card) 'cardToken': cardToken ?? 'tok_dev',
-    };
-    return _purchase(() => _api.post('/payments/purchases', body, {'Idempotency-Key': ApiClient.newIdempotencyKey()}));
+  Future<PaymentOptions> paymentOptions() async => PaymentOptions.fromJson(Map<String, dynamic>.from(await _api.get('/payments/methods') as Map));
+
+  @override
+  Future<PurchaseView> createPurchase(PurchaseRequest request, {required String idempotencyKey}) =>
+      _purchaseCall(() => _api.post('/payments/purchases', request.toJson(), {'Idempotency-Key': idempotencyKey}));
+
+  @override
+  Future<PurchaseView> purchase(String id) => _purchaseCall(() => _api.get('/payments/purchases/$id'));
+
+  @override
+  Future<PurchaseView> confirmPurchase(String id, String otp) => _purchaseCall(() => _api.post('/payments/purchases/$id/confirm', {'otp': otp}));
+
+  @override
+  Future<PurchaseView> checkPurchase(String id) => _purchaseCall(() => _api.post('/payments/purchases/$id/check'));
+
+  @override
+  Future<PurchaseView> cancelPurchase(String id) => _purchaseCall(() => _api.post('/payments/purchases/$id/cancel'));
+
+  @override
+  Future<PurchaseView> sendBankReference(String id, String reference) => _purchaseCall(() => _api.post('/payments/purchases/$id/bank-reference', {'reference': reference.trim()}));
+
+  /// Every purchase answer carries the new wallet once it succeeded.
+  Future<PurchaseView> _purchaseCall(Future<dynamic> Function() call) async {
+    final p = PurchaseView.fromJson(Map<String, dynamic>.from(await call() as Map));
+    if (p.wallet != null) _applyView(p.wallet!, refreshLedger: true);
+    return p;
+  }
+
+  void _onPaymentUpdated(Map<String, dynamic> m) {
+    final p = PurchaseView.fromJson(m);
+    _emitPurchase(p);
+    // The socket payload has no wallet; `wallet:updated` follows on success.
   }
 
   @override
-  Future<PurchaseOutcome> confirmPurchase(PurchaseOutcome pending, {required String otp, CoinPack? pack, VipPlan? plan, required PaymentMethod method, String? phone}) {
-    return _purchase(() => _api.post('/payments/purchases/${pending.purchaseId}/confirm', {'otp': otp}));
-  }
-
-  Future<PurchaseOutcome> _purchase(Future<dynamic> Function() call) async {
-    try {
-      final p = Map<String, dynamic>.from(await call() as Map);
-      if (p['wallet'] is Map) _applyView(Map<String, dynamic>.from(p['wallet'] as Map), refreshLedger: true);
-      return switch (p['status']) {
-        'SUCCEEDED' => PurchaseOutcome(PurchaseStatus.succeeded, receipt: p['receipt'] as String?, purchaseId: p['id'] as String?),
-        'REQUIRES_ACTION' when p['nextAction'] == 'otp' => PurchaseOutcome(PurchaseStatus.needsOtp, purchaseId: p['id'] as String?),
-        'REQUIRES_ACTION' => PurchaseOutcome(
-          PurchaseStatus.pendingTransfer,
-          purchaseId: p['id'] as String?,
-          receipt: p['receipt'] as String?,
-          message: 'Transfer the amount using reference ${p['receipt']}. Coins arrive when it clears.',
-        ),
-        _ => PurchaseOutcome(PurchaseStatus.failed, message: p['failureReason'] as String? ?? 'Payment did not go through'),
-      };
-    } on ApiException catch (e) {
-      return PurchaseOutcome(PurchaseStatus.failed, message: e.message);
-    }
-  }
+  Future<VipStatus> vipStatus() async => VipStatus.fromJson(Map<String, dynamic>.from(await _api.get('/vip') as Map));
 
   @override
   Future<void> cancelVip() async {
@@ -140,9 +158,63 @@ class RemoteWalletProvider extends WalletProvider {
     _applyView(Map<String, dynamic>.from(await _api.get('/wallet') as Map), refreshLedger: true);
   }
 
+  // ── cash-outs ─────────────────────────────────────────────────────────
+
   @override
-  Future<void> cashOut(int gems, PaymentMethod method, String account) async {
-    _applyResult(await _api.post('/wallet/cashouts', {'gems': gems, 'method': ApiMap.methodOut(method), 'account': account}, {'Idempotency-Key': ApiClient.newIdempotencyKey()}));
+  Future<void> loadPayouts() async {
+    final res = await Future.wait([_api.get('/wallet/payout-accounts'), _api.get('/wallet/cashouts')]);
+    final accounts = Map<String, dynamic>.from(res[0] as Map);
+    _payoutAccounts = [for (final a in (accounts['accounts'] as List? ?? const [])) PayoutAccount.fromJson(Map<String, dynamic>.from(a as Map))];
+    _payoutMethods = [for (final m in (accounts['methods'] as List? ?? const [])) ?paymentMethodFromApi(m)];
+    _cashouts = [for (final c in (res[1] as List? ?? const [])) Cashout.fromJson(Map<String, dynamic>.from(c as Map))];
+    _payoutsLoaded = true;
+    notifyListeners();
+  }
+
+  @override
+  Future<PayoutAccount> addPayoutAccount(NewPayoutAccount account) async {
+    final body = account.toJson()..['account'] = PkValidation.normaliseAccount(account.method, account.account);
+    final a = PayoutAccount.fromJson(Map<String, dynamic>.from(await _api.post('/wallet/payout-accounts', body) as Map));
+    await _reloadAccounts();
+    return a;
+  }
+
+  @override
+  Future<void> makeDefaultPayoutAccount(String id) async {
+    final list = await _api.post('/wallet/payout-accounts/$id/default') as List;
+    _payoutAccounts = [for (final a in list) PayoutAccount.fromJson(Map<String, dynamic>.from(a as Map))];
+    notifyListeners();
+  }
+
+  @override
+  Future<void> removePayoutAccount(String id) async {
+    await _api.delete('/wallet/payout-accounts/$id');
+    await _reloadAccounts();
+  }
+
+  Future<void> _reloadAccounts() async {
+    final res = Map<String, dynamic>.from(await _api.get('/wallet/payout-accounts') as Map);
+    _payoutAccounts = [for (final a in (res['accounts'] as List? ?? const [])) PayoutAccount.fromJson(Map<String, dynamic>.from(a as Map))];
+    notifyListeners();
+  }
+
+  @override
+  Future<Cashout> requestCashout({int? gems, required String payoutAccountId}) async {
+    final res = Map<String, dynamic>.from(await _api.post('/wallet/cashouts', {'gems': ?gems, 'payoutAccountId': payoutAccountId}, {'Idempotency-Key': ApiClient.newIdempotencyKey()}) as Map);
+    _applyResult(res);
+    final c = Cashout.fromJson(Map<String, dynamic>.from(res['cashout'] as Map));
+    _upsertCashout(c);
+    return c;
+  }
+
+  void _onCashoutUpdated(Map<String, dynamic> m) {
+    final id = '${m['id']}';
+    final i = _cashouts.indexWhere((c) => c.id == id);
+    if (i < 0) {
+      if (_payoutsLoaded) unawaited(loadPayouts().catchError((_) {}));
+      return;
+    }
+    _upsertCashout(_cashouts[i].copyWith(status: cashoutStatusFromApi(m['status']), failureReason: m['failureReason'] as String?));
   }
 
   // The server owns the ledger: these exist only for the offline mock.
@@ -162,7 +234,9 @@ class RemoteWalletProvider extends WalletProvider {
 
   @override
   void dispose() {
-    _sub.cancel();
+    for (final s in _subs) {
+      s.cancel();
+    }
     _ledgerDebounce?.cancel();
     super.dispose();
   }

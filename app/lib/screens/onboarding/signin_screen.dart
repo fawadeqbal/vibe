@@ -7,7 +7,10 @@ import '../../core/api/api_config.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
+import '../../models/payments.dart';
 import '../../providers/session_provider.dart';
+import '../../services/app_services.dart';
+import '../../services/auth/social_sign_in.dart';
 
 /// E-mail first (we send a 4-digit code), social buttons under it. In the
 /// offline mock any address and any 4-digit code sign you in.
@@ -27,6 +30,25 @@ class _SignInScreenState extends State<SignInScreen> {
   String? _error;
   int _resendIn = 0;
   Timer? _timer;
+
+  /// Social buttons: what the server can verify AND this build can run.
+  List<String> _providers = const [];
+  String? _socialBusy;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProviders();
+  }
+
+  Future<void> _loadProviders() async {
+    final session = context.read<SessionProvider>();
+    final social = context.read<AppServices>().social;
+    final server = await session.socialProviders();
+    if (!mounted) return;
+    // Offline demo: the mock signs straight in with any provider.
+    setState(() => _providers = ApiConfig.enabled ? visibleProviders(server: server, social: social) : server);
+  }
 
   String get _address => _email.text.trim().toLowerCase();
 
@@ -77,7 +99,47 @@ class _SignInScreenState extends State<SignInScreen> {
     await _guard(() => context.read<SessionProvider>().signIn(method: 'email', email: _address, code: _code.text.trim()));
   }
 
-  Future<void> _social(String method) => _guard(() => context.read<SessionProvider>().signIn(method: method));
+  Future<void> _social(String provider) async {
+    final session = context.read<SessionProvider>();
+    final social = context.read<AppServices>().social;
+    setState(() {
+      _error = null;
+      _socialBusy = provider;
+    });
+    try {
+      await _guard(() async {
+        if (!ApiConfig.enabled) return session.signIn(method: provider);
+        final credential = await social.signIn(provider);
+        if (credential == null) return; // cancelled
+        await session.signInWith(credential);
+      });
+    } on SocialSignInException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _socialBusy = null);
+    }
+  }
+
+  Widget _socialButton(String provider, bool busy) {
+    final social = context.read<AppServices>().social;
+    final dev = ApiConfig.enabled && !social.canUse(provider);
+    final icon = switch (provider) {
+      'google' => Icons.g_mobiledata_rounded,
+      'apple' => Icons.apple,
+      'facebook' => Icons.facebook_rounded,
+      _ => Icons.login_rounded,
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GhostButton(
+        label: 'Continue with ${socialProviderLabel(provider)}${dev ? ' (dev)' : ''}',
+        icon: icon,
+        expand: true,
+        trailing: _socialBusy == provider ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: V.text2)) : null,
+        onTap: busy || _socialBusy != null ? null : () => _social(provider),
+      ),
+    );
+  }
 
   /// Shows server errors (wrong code, rate limits, offline) under the field.
   Future<void> _guard(Future<void> Function() fn) async {
@@ -161,19 +223,19 @@ class _SignInScreenState extends State<SignInScreen> {
                   ],
                 ),
               ],
-              const SizedBox(height: 28),
-              Row(
-                children: [
-                  const Expanded(child: Divider(color: V.line)),
-                  Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('or', style: VT.label(12, color: V.muted))),
-                  const Expanded(child: Divider(color: V.line)),
-                ],
-              ),
-              const SizedBox(height: 20),
-              GhostButton(label: 'Continue with Google', icon: Icons.g_mobiledata_rounded, expand: true, onTap: session.busy ? null : () => _social('google')),
+              if (_providers.isNotEmpty) ...[
+                const SizedBox(height: 28),
+                Row(
+                  children: [
+                    const Expanded(child: Divider(color: V.line)),
+                    Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text('or', style: VT.label(12, color: V.muted))),
+                    const Expanded(child: Divider(color: V.line)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                for (final p in _providers) _socialButton(p, session.busy),
+              ],
               const SizedBox(height: 10),
-              GhostButton(label: 'Continue with Apple', icon: Icons.apple, expand: true, onTap: session.busy ? null : () => _social('apple')),
-              const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

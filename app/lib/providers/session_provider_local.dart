@@ -41,13 +41,51 @@ class LocalSessionProvider extends SessionProvider {
 
   /// Mocked selfie verification: grants the badge after a short "review".
   @override
-  Future<bool> verifySelfie() async {
-    if (_me == null) return false;
+  Future<VerificationState> verifySelfie(List<int> jpeg) async {
+    if (_me == null) return VerificationState.none;
     return _busyWhile(() async {
       final ok = await _backend.verifySelfie();
       if (ok) await saveProfile(_me!.copyWith(verified: true));
-      return ok;
+      _verification = VerificationState(ok ? VerificationStatus.approved : VerificationStatus.rejected, reason: ok ? null : 'Try again in good light.');
+      return _verification;
     });
+  }
+
+  // ── social sign-in (mock: any provider signs straight in) ─────────────
+
+  final List<LinkedIdentity> _identities = [];
+
+  @override
+  Future<List<String>> socialProviders() async => const ['google', 'apple'];
+
+  @override
+  Future<void> signInWith(SocialCredential credential) async {
+    await signIn(method: credential.provider);
+    _identities
+      ..clear()
+      ..add(LinkedIdentity(provider: credential.provider, linkedAt: DateTime.now()));
+  }
+
+  @override
+  Future<IdentitiesView> identities() async => IdentitiesView(email: 'you@example.com', identities: List.of(_identities), available: const ['google', 'apple', 'facebook']);
+
+  @override
+  Future<IdentitiesView> linkIdentity(SocialCredential c) async {
+    if (!_identities.any((i) => i.provider == c.provider)) _identities.add(LinkedIdentity(provider: c.provider, linkedAt: DateTime.now()));
+    return identities();
+  }
+
+  @override
+  Future<IdentitiesView> unlinkIdentity(String provider) async {
+    _identities.removeWhere((i) => i.provider == provider);
+    return identities();
+  }
+
+  /// The mock keeps no files: a new photo is a fresh stock portrait.
+  @override
+  Future<void> uploadAvatar(List<int> bytes, {String contentType = 'image/jpeg'}) async {
+    if (_me == null) return;
+    await saveProfile(_me!.copyWith(avatarUrl: 'https://i.pravatar.cc/400?img=${1 + DateTime.now().millisecond % 70}'));
   }
 
   @override
@@ -67,6 +105,9 @@ class LocalSessionProvider extends SessionProvider {
 
   @override
   Future<void> signOut() async {
+    await _runSignOutHooks();
+    _identities.clear();
+    _verification = VerificationState.none;
     await _backend.signOut();
     _me = null;
     _onboarded = false;

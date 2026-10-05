@@ -39,6 +39,14 @@ const TONE: Record<string, Tone> = {
   SENDING: "info",
   SENT: "ok",
   SKIPPED: "neutral",
+  // provider webhooks
+  RECEIVED: "info",
+  PROCESSED: "ok",
+  IGNORED: "neutral",
+  // payout batches (OPEN, PAID, CANCELED above)
+  EXPORTED: "info",
+  // selfie verification (PENDING, REJECTED above)
+  APPROVED: "ok",
 };
 
 const LABEL: Record<string, string> = {

@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 
-import { AppConfig } from '../../config/app-config.service';
-import { RedisService } from '../../infra/redis/redis.service';
 import { CashoutService } from './cashout.service';
 import { LedgerService } from './ledger.service';
-import { AdMobAdVerifier, AdVerifier, DevAdVerifier } from './providers/ad-verifier';
-import { DevPayoutProvider, PayoutProvider } from './providers/payout.provider';
+import { AdsService } from './ads/ads.service';
+import { PayoutAccountsService } from './payouts/payout-accounts.service';
+import { PayoutBatchesService } from './payouts/payout-batches.service';
+import { PayoutGateway } from './payouts/payout-gateway.service';
 import { RewardsService } from './rewards.service';
 import { AdMobWebhookController, WalletController } from './wallet.controller';
 import { WalletService } from './wallet.service';
@@ -17,13 +17,11 @@ import { WalletService } from './wallet.service';
     WalletService,
     RewardsService,
     CashoutService,
-    {
-      provide: AdVerifier,
-      inject: [AppConfig, RedisService],
-      useFactory: (config: AppConfig, redis: RedisService) => (config.get('ADS_VERIFIER') === 'admob' ? new AdMobAdVerifier(redis) : new DevAdVerifier(redis)),
-    },
-    { provide: PayoutProvider, useClass: DevPayoutProvider },
+    AdsService,
+    PayoutGateway,
+    PayoutAccountsService,
+    PayoutBatchesService,
   ],
-  exports: [LedgerService, WalletService, RewardsService, CashoutService],
+  exports: [LedgerService, WalletService, RewardsService, CashoutService, PayoutAccountsService, PayoutBatchesService, PayoutGateway],
 })
 export class WalletModule {}

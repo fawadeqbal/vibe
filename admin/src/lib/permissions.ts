@@ -34,6 +34,7 @@ export const P = {
   OpsTemplates: "ops.templates",
   OpsMessages: "ops.messages",
   OpsEconomy: "ops.economy",
+  OpsIntegrations: "ops.integrations",
 
   StaffView: "staff.view",
   StaffManage: "staff.manage",

@@ -120,7 +120,7 @@ export interface UserDetail extends UserSummary {
   inCall: { matchId: string; partnerId: string; startedAt: string } | null;
   bio: string;
   interests: string[];
-  signIn: { email: string | null; google: boolean; apple: boolean };
+  signIn: { email: string | null; google: boolean; apple: boolean; facebook: boolean };
   inviteCode: string;
   invitedBy: { id: string; name: string } | null;
   onboardedAt: string | null;
@@ -139,6 +139,21 @@ export interface UserDetail extends UserSummary {
   counts: { matches: number; friends: number; reportsGot: number; openReports: number; reportsMade: number; blockedBy: number; invitees: number; purchases: number; likes: number };
   money: { spentUsd: number; giftsSent: number; giftsSentCoins: number; giftsReceived: number; giftsReceivedGems: number; cashedOutUsd: number };
   sessions: { id: string; userAgent: string | null; ip: string | null; createdAt: string; expiresAt: string }[];
+}
+
+export type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface Verification {
+  id: string;
+  status: VerificationStatus;
+  /** dev | manual | rekognition */
+  provider: string;
+  /** Face match score 0–100, when the provider gives one. */
+  similarity: number | null;
+  reason: string | null;
+  hasSelfie: boolean;
+  createdAt: string;
+  user: { id: string; name: string; avatarUrl: string; age: number | null; countryCode: string };
 }
 
 export interface PersonRef {
@@ -175,7 +190,7 @@ export interface StaffNote {
 
 export type LedgerKind = "PURCHASE" | "SPEND" | "EARN" | "GIFT_SENT" | "GIFT_RECEIVED" | "CASHOUT" | "CASHOUT_REVERSAL" | "VIP" | "REFUND" | "ADJUSTMENT";
 export type PaymentMethod = "GOOGLE_PLAY" | "APP_STORE" | "JAZZCASH" | "EASYPAISA" | "CARD" | "BANK";
-export type PurchaseStatus = "PENDING" | "REQUIRES_ACTION" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+export type PurchaseStatus = "PENDING" | "REQUIRES_ACTION" | "SUCCEEDED" | "FAILED" | "REFUNDED" | "EXPIRED";
 export type CashoutStatus = "REVIEW" | "REQUESTED" | "PROCESSING" | "PAID" | "REJECTED";
 export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "CANCELED" | "EXPIRED";
 
@@ -206,7 +221,19 @@ export interface Purchase {
   status: PurchaseStatus;
   providerRef: string | null;
   nextAction: string | null;
+  /** Data for the next step (redirect URL + fields, bank instructions…). */
+  actionData: Record<string, unknown> | null;
   failureReason: string | null;
+  /** What was actually charged: PKR for local methods, in minor units (paisa). */
+  currency: string;
+  amountMinor: number | null;
+  /** Play purchase token / Apple original transaction id. */
+  storeRef: string | null;
+  /** Unfinished checkouts expire at this time. */
+  expiresAt: string | null;
+  lastCheckedAt?: string | null;
+  checkAttempts?: number;
+  refundedAt: string | null;
   metadata: { refund?: { reason: string; at: string; coinsClawedBack: number; coinsShortfall: number } } & Record<string, unknown>;
   createdAt: string;
   completedAt: string | null;
@@ -221,13 +248,60 @@ export interface Cashout {
   usdCents: number;
   usd: number;
   method: PaymentMethod;
+  /** Whole rupees, fixed at the day's rate when requested. */
+  amountPkr: number | null;
   accountMasked: string;
+  payoutAccountId: string | null;
   status: CashoutStatus;
   providerRef: string | null;
+  /** The provider's own status for the last attempt, e.g. awaiting_bank_batch. */
+  providerStatus: string | null;
   failureReason: string | null;
+  batchId: string | null;
+  attempts: number;
+  lastCheckedAt?: string | null;
   createdAt: string;
   processedAt: string | null;
   user?: PersonRef;
+}
+
+/** One step with a payment or payout provider (oldest first). */
+export interface PaymentEvent {
+  id: string;
+  purchaseId: string | null;
+  cashoutId: string | null;
+  provider: string;
+  type: string;
+  code: string | null;
+  message: string | null;
+  data: unknown;
+  createdAt: string;
+}
+
+export type PayoutBatchStatus = "OPEN" | "EXPORTED" | "PAID" | "CANCELED";
+
+export interface PayoutBatch {
+  id: string;
+  method: PaymentMethod;
+  status: PayoutBatchStatus;
+  count: number;
+  totalUsdCents: number;
+  totalPkr: number;
+  reference: string | null;
+  createdById: string;
+  createdAt: string;
+  exportedAt: string | null;
+  paidAt: string | null;
+}
+
+export interface PayoutBatchDetail extends PayoutBatch {
+  cashouts: (Omit<Cashout, "user"> & { user: { id: string; name: string } | null })[];
+}
+
+export interface PayoutWaiting {
+  count: number;
+  totalPkr: number;
+  totalUsd: number;
 }
 
 export interface Subscription {
@@ -344,6 +418,49 @@ export interface Announcement {
   publishedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
+}
+
+export type IntegrationKind = "payment" | "payout" | "login" | "ads" | "push" | "storage" | "kyc" | "mail";
+export type IntegrationMode = "live" | "dev" | "off";
+
+export interface IntegrationStatus {
+  key: string;
+  kind: IntegrationKind;
+  label: string;
+  mode: IntegrationMode;
+  requiredEnv: string[];
+  missingEnv: string[];
+  endpoints?: { label: string; url: string }[];
+  notes?: string[];
+  docsUrl?: string;
+}
+
+export type WebhookStatus = "RECEIVED" | "PROCESSED" | "IGNORED" | "FAILED";
+
+export interface IntegrationsOverview {
+  items: IntegrationStatus[];
+  summary: Record<IntegrationMode, number>;
+  webhooks24h: { provider: string; status: WebhookStatus; count: number }[];
+}
+
+export interface WebhookEvent {
+  id: string;
+  provider: string;
+  eventId: string;
+  eventType: string | null;
+  status: WebhookStatus;
+  error: string | null;
+  attempts: number;
+  subjectType: string | null;
+  subjectId: string | null;
+  receivedAt: string;
+  processedAt: string | null;
+}
+
+export interface WebhookEventDetail extends WebhookEvent {
+  /** Redacted by the API. */
+  payload: unknown;
+  headers: unknown;
 }
 
 export interface Setting {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,12 +7,15 @@ import 'core/api/api_client.dart';
 import 'core/api/realtime_client.dart';
 import 'core/api/system_notices.dart';
 import 'core/theme/vibe_theme.dart';
+import 'models/payments.dart';
 import 'providers/catalog_provider.dart';
 import 'providers/inbox_provider.dart';
 import 'providers/match_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/social_provider.dart';
 import 'providers/wallet_provider.dart';
+import 'services/app_services.dart';
+import 'services/payments/store_billing.dart';
 import 'screens/home/home_shell.dart';
 import 'screens/onboarding/permissions_screen.dart';
 import 'screens/onboarding/profile_setup_screen.dart';
@@ -33,14 +38,20 @@ class _VibeAppState extends State<VibeApp> {
   bool _sessionLive = false;
   late final SessionProvider _session = context.read<SessionProvider>();
   late final CatalogProvider _catalog = context.read<CatalogProvider>();
+  late final AppServices _services = context.read<AppServices>();
   final _messenger = GlobalKey<ScaffoldMessengerState>();
   SystemNotices? _notices;
+  StreamSubscription<StoreDelivery>? _deliveries;
 
   @override
   void initState() {
     super.initState();
     final rt = widget.realtime;
     if (rt != null) _notices = SystemNotices(context.read<ApiClient>(), rt, _messenger)..start();
+    // Store purchases finished in the background (redelivered at launch, Play "pending" that cleared).
+    _deliveries = _services.billing.deliveries.listen((d) {
+      _messenger.currentState?.showSnackBar(SnackBar(content: Text(d.purchase.productType == ProductKind.vipPlan ? 'Your VIP is active' : 'Purchase complete: coins added')));
+    });
     _catalog.addListener(_redrawPrices);
     // Restore everything once; the splash shows meanwhile.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -60,6 +71,7 @@ class _VibeAppState extends State<VibeApp> {
     _session.removeListener(_onSessionChanged);
     _catalog.removeListener(_redrawPrices);
     _notices?.stop();
+    _deliveries?.cancel();
     super.dispose();
   }
 
@@ -73,8 +85,12 @@ class _VibeAppState extends State<VibeApp> {
       rt.connect();
       _loadAll();
       _notices?.catchUp();
+      _services.billing.setSignedIn(true);
+      unawaited(_services.push.register(context.read<ApiClient>()));
+      unawaited(_session.loadVerification());
     } else if (!_session.signedIn && _sessionLive) {
       _sessionLive = false;
+      _services.billing.setSignedIn(false);
       rt.disconnect();
     }
   }

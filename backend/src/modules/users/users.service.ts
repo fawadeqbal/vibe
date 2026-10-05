@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Gender, Prisma, User, UserStatus } from '@prisma/client';
+import { AuthProvider, Gender, Prisma, User, UserStatus } from '@prisma/client';
 
 import { cursorArgs, CursorQueryDto, toPage } from '../../common/dto/pagination.dto';
 import { AppError } from '../../common/errors/app-error';
@@ -14,15 +14,21 @@ import { EconomyService } from '../catalog/economy.service';
 import { WalletService } from '../wallet/wallet.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { isProfileComplete, PROFILE_COMPLETED, ProfileCompletedEvent } from './profile.rules';
-import { VerificationProvider } from './providers/verification.provider';
+import { VerificationService } from './verification/verification.service';
 import { MeProfile, PROFILE_INCLUDE, PublicProfile, toMeProfile, toPublicProfile } from './user.mapper';
 
 export interface NewUserInput {
   email?: string;
-  googleSub?: string;
-  appleSub?: string;
+  /** A social login to link at creation (Google/Apple/Facebook). */
+  identity?: { provider: AuthProvider; subject: string; email?: string; refreshToken?: string };
   name?: string;
   inviteCode?: string;
+}
+
+/** Emitted (awaited) just before an account is wiped, so integrations can revoke what they hold. */
+export const USER_DELETING = 'user.deleting';
+export interface UserDeletingEvent {
+  userId: string;
 }
 
 @Injectable()
@@ -33,7 +39,7 @@ export class UsersService {
     private readonly clock: Clock,
     private readonly events: EventEmitter2,
     private readonly storage: StorageProvider,
-    private readonly verification: VerificationProvider,
+    private readonly verification: VerificationService,
     private readonly realtime: RealtimeService,
     private readonly economy: EconomyService,
   ) {}
@@ -45,11 +51,10 @@ export class UsersService {
       const user = await t.user.create({
         data: {
           email: input.email,
-          googleSub: input.googleSub,
-          appleSub: input.appleSub,
           name: input.name ?? '',
           inviteCode: await this.uniqueInviteCode(t),
           invitedById: inviter?.id,
+          ...(input.identity ? { identities: { create: { ...input.identity, lastUsedAt: this.clock.now() } } } : {}),
         },
       });
       await this.wallet.open(user.id, t);
@@ -119,13 +124,23 @@ export class UsersService {
     return toMeProfile(after, this.clock.now());
   }
 
-  async verifySelfie(id: string, selfie: Buffer | null): Promise<MeProfile> {
+  /**
+   * Selfie verification. Approved → the badge at once; rejected → a readable
+   * reason; close calls (or the manual provider) → `verification: pending`
+   * until staff decide.
+   */
+  async verifySelfie(id: string, selfie: Buffer | null): Promise<MeProfile & { verification: { status: string; reason: string | null } }> {
     const u = await this.findActive(id);
-    if (u.verified) return toMeProfile(u, this.clock.now());
-    const r = await this.verification.verify(id, selfie, u.avatarUrl);
-    if (!r.approved) throw new AppError(ErrorCode.VALIDATION_FAILED, r.reason ?? 'We could not verify you. Try again in good light.');
-    const after = await this.prisma.user.update({ where: { id }, data: { verified: true, verifiedAt: this.clock.now() }, include: PROFILE_INCLUDE });
-    return toMeProfile(after, this.clock.now());
+    if (u.verified) return { ...toMeProfile(u, this.clock.now()), verification: { status: 'APPROVED', reason: null } };
+    const r = await this.verification.submit(id, selfie, u.avatarUrl);
+    if (r.status === 'REJECTED') throw new AppError(ErrorCode.VALIDATION_FAILED, r.reason ?? 'We could not verify you. Try again in good light.');
+    const after = await this.prisma.user.findUniqueOrThrow({ where: { id }, include: PROFILE_INCLUDE });
+    return { ...toMeProfile(after, this.clock.now()), verification: { status: r.status, reason: r.reason } };
+  }
+
+  async verificationStatus(id: string) {
+    const r = await this.verification.latest(id);
+    return r ? { status: r.status, reason: r.reason, at: r.createdAt.toISOString() } : { status: 'NONE', reason: null, at: null };
   }
 
   /** Profile-page numbers: matches today, average length, quick-skip rate. */
@@ -184,11 +199,16 @@ export class UsersService {
    * wiped; the ledger and reports stay (pseudonymous) for accounting/safety.
    */
   async deleteAccount(id: string): Promise<void> {
+    // Let integrations revoke what they hold first (Sign in with Apple tokens, push tokens…).
+    await this.events.emitAsync(USER_DELETING, { userId: id } satisfies UserDeletingEvent).catch(() => undefined);
     await this.prisma.$transaction([
       this.prisma.session.deleteMany({ where: { userId: id } }),
+      this.prisma.authIdentity.deleteMany({ where: { userId: id } }),
+      this.prisma.pushToken.deleteMany({ where: { userId: id } }),
+      this.prisma.payoutAccount.updateMany({ where: { userId: id, deletedAt: null }, data: { deletedAt: this.clock.now(), isDefault: false } }),
       this.prisma.user.update({
         where: { id },
-        data: { status: UserStatus.DELETED, deletedAt: this.clock.now(), email: null, googleSub: null, appleSub: null, name: 'Deleted user', bio: '', avatarUrl: '', interests: [] },
+        data: { status: UserStatus.DELETED, deletedAt: this.clock.now(), email: null, name: 'Deleted user', bio: '', avatarUrl: '', interests: [] },
       }),
     ]);
     this.realtime.disconnectUser(id);

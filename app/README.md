@@ -48,6 +48,16 @@ VIBE_API_TEST=http://127.0.0.1:3000 flutter test test/server_test.dart  # full f
 
 **Messages from Vibe.** Messages the team sends from the admin panel appear as a pinned row at the top of Chats (with an unread count, also on the Chats tab) and a banner if the app is open. Links in them open in the browser (`url_launcher`; on Android 11+ add an `https` `<queries>` intent to `AndroidManifest.xml`). **Profile → E-mail updates** turns off news e-mails; sign-in codes and important notices still arrive.
 
-## What still needs real accounts
+## Integrations (payments, sign-in, ads, push, photos)
 
-Sign in with Google/Apple (add `google_sign_in` / `sign_in_with_apple` and pass the ID token in `RemoteSessionProvider`), store billing (`in_app_purchase` → pass the purchase token as `receipt`), the card gateway SDK (pass its token), AdMob rewarded ads (pass the SSV transaction id), and a real photo picker (`image_picker` → `POST /me/avatar`). Each has a marked seam in the code; the server side is already done.
+All coded and switched on by build configuration only — see
+[`INTEGRATIONS_APP.md`](INTEGRATIONS_APP.md) for every key, where to get it,
+how to build (`--dart-define-from-file=.env`, template in `.env.example`)
+and a test checklist. A build without keys runs: each integration is hidden
+or replaced by a dev stand-in. Code: `lib/core/config/integrations_config.dart`
+(keys), `lib/services/` (store billing, checkout controller, deep links,
+social sign-in, rewarded ads, push, photo picking), wired in `main.dart`
+through `AppServices`.
+
+`android/` and `ios/` are tracked in git: they carry the native side of the
+integrations (manifest placeholders, Info.plist, xcconfig).

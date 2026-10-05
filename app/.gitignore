@@ -4,8 +4,9 @@ build/
 .flutter-plugins
 .flutter-plugins-dependencies
 pubspec.lock
-android/
-ios/
+# android/ and ios/ are tracked: they hold the integration config (manifest,
+# Gradle placeholders, Info.plist, xcconfig). Their own .gitignore files keep
+# build output, local.properties and generated files out.
 web/
 linux/
 macos/

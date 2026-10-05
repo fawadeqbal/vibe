@@ -92,12 +92,12 @@ export class DevBotsService implements OnApplicationBootstrap, OnModuleDestroy {
 
   private async seed(): Promise<void> {
     for (const [i, [name, gender, countryCode, age, photo, interests]] of BOTS.entries()) {
-      const sub = `bot:${i}`;
-      const existing = await this.prisma.user.findUnique({ where: { googleSub: sub } });
+      const inviteCode = `BOT${String(i).padStart(4, '0')}`;
+      const existing = await this.prisma.user.findUnique({ where: { inviteCode } });
       if (!existing) {
         await this.prisma.$transaction(async (tx) => {
           const u = await tx.user.create({
-            data: { googleSub: sub, isBot: true, name, gender, countryCode, age, interests, verified: i % 3 !== 2, bio: BIOS[i % BIOS.length], avatarUrl: `https://i.pravatar.cc/400?img=${photo}`, inviteCode: `BOT${String(i).padStart(4, '0')}`, onboardedAt: new Date() },
+            data: { isBot: true, name, gender, countryCode, age, interests, verified: i % 3 !== 2, bio: BIOS[i % BIOS.length], avatarUrl: `https://i.pravatar.cc/400?img=${photo}`, inviteCode, onboardedAt: new Date() },
           });
           await tx.wallet.create({ data: { userId: u.id } });
           await this.ledger.move(u.id, { coins: 1_000_000, kind: LedgerKind.ADJUSTMENT, title: 'Dev bot float', idempotencyKey: 'bot-float' }, { tx });

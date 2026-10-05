@@ -130,3 +130,16 @@ export function next<T = any>(s: Socket, event: string, timeoutMs = 5000): Promi
 }
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Buys with the dev card gateway like a person would: start the purchase,
+ * open the hosted page, press Pay (or Decline), then read the purchase.
+ */
+export async function payByCard(t: TestApp, auth: { Authorization: string }, body: object, action: 'pay' | 'decline' = 'pay') {
+  const started = await t.http.post('/v1/payments/purchases').set(auth).set('Idempotency-Key', `card-${Math.random()}`).send({ ...body, method: 'CARD' }).expect(201);
+  if (started.body.status !== 'REQUIRES_ACTION' || started.body.action?.type !== 'redirect') throw new Error(`Expected a card redirect, got ${JSON.stringify(started.body)}`);
+  const path = new URL(started.body.action.url).pathname;
+  await t.http.get(path).expect(200);
+  await t.http.post(path).type('form').send({ action }).expect(303);
+  return t.http.get(`/v1/payments/purchases/${started.body.id}`).set(auth).expect(200);
+}

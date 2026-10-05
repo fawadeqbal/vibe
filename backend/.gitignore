@@ -6,3 +6,5 @@ uploads
 *.log
 turn/.env
 turn/certs/
+# private uploads (selfies awaiting review) — never commit
+uploads-private/

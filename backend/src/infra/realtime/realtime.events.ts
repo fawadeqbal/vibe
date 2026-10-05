@@ -4,6 +4,10 @@
  */
 export const ServerEvent = {
   WalletUpdated: 'wallet:updated',
+  /** A purchase changed status outside the request (wallet approved, card paid, bank confirmed, expired). */
+  PaymentUpdated: 'payment:updated',
+  /** A cash-out changed status (paid, returned). */
+  CashoutUpdated: 'cashout:updated',
   AccountBanned: 'account:banned',
   AccountWarning: 'account:warning',
   Announcement: 'system:announcement',

@@ -1,7 +1,8 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Banknote, Check, X } from "lucide-react";
+import { Banknote, Check, Layers, X } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -22,6 +23,7 @@ import { format } from "@/lib/format";
 import { P } from "@/lib/permissions";
 
 import { financeKeys, useCashouts } from "./api";
+import { CashoutSheet } from "./cashout-sheet";
 import { cashoutColumns } from "./columns";
 
 const TABS = [
@@ -32,7 +34,7 @@ const TABS = [
   { value: "REJECTED", label: "Rejected" },
   { value: "ALL", label: "All" },
 ];
-const DEFAULTS = { status: "REVIEW", q: "", method: [] as string[], from: "", to: "" };
+const DEFAULTS = { status: "REVIEW", q: "", method: [] as string[], from: "", to: "", open: "" };
 
 export function CashoutsPage() {
   const [f, setF, reset] = useUrlState(DEFAULTS);
@@ -40,6 +42,7 @@ export function CashoutsPage() {
   const list = useCashouts({ status: f.status === "ALL" ? undefined : f.status, q: f.q, method: f.method, from: f.from, to: f.to });
   const [paying, setPaying] = React.useState<Cashout | null>(null);
   const actions = useCashoutActions();
+  const opened = f.open ? (list.rows.find((c) => c.id === f.open) ?? null) : null;
 
   const columns: Column<Cashout>[] = [
     ...cashoutColumns(true),
@@ -51,21 +54,7 @@ export function CashoutsPage() {
             align: "right" as const,
             cell: (c: Cashout) => (
               <span className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                {c.status === "REVIEW" && (
-                  <Button size="xs" variant="trust" onClick={() => actions.approve(c)}>
-                    <Check /> Approve
-                  </Button>
-                )}
-                {["REVIEW", "REQUESTED", "PROCESSING"].includes(c.status) && (
-                  <>
-                    <Button size="xs" onClick={() => setPaying(c)}>
-                      Mark paid
-                    </Button>
-                    <Button size="xs" variant="danger-ghost" onClick={() => actions.reject(c)} aria-label="Reject">
-                      <X />
-                    </Button>
-                  </>
-                )}
+                <CashoutButtons c={c} actions={actions} onPay={setPaying} compact />
               </span>
             ),
           },
@@ -75,7 +64,17 @@ export function CashoutsPage() {
 
   return (
     <div>
-      <PageHeader title="Cash-outs" description="Gems people turn into money. Large ones and everything while payouts are on hold wait here for approval; rejecting returns the gems." />
+      <PageHeader
+        title="Cash-outs"
+        description="Gems people turn into money. Large ones and everything while payouts are on hold wait here for approval; rejecting returns the gems. Bank cash-outs are paid in payout batches."
+        actions={
+          <Button size="sm" asChild>
+            <Link href="/finance/payout-batches">
+              <Layers /> Payout batches
+            </Link>
+          </Button>
+        }
+      />
       <Tabs value={f.status} onValueChange={(status) => setF({ status })}>
         <TabsList className="mb-4">
           {TABS.map((t) => (
@@ -92,6 +91,7 @@ export function CashoutsPage() {
         loading={list.isLoading}
         error={list.error}
         onRetry={list.refetch}
+        onRowClick={(c) => setF({ open: c.id })}
         hasMore={list.hasNextPage}
         loadingMore={list.isFetchingNextPage}
         onLoadMore={list.fetchNextPage}
@@ -105,8 +105,35 @@ export function CashoutsPage() {
           </FilterBar>
         }
       />
+      <CashoutSheet cashout={opened} onClose={() => setF({ open: "" })} footer={opened && can(P.FinanceCashouts) && isOpenCashout(opened) ? <CashoutButtons c={opened} actions={actions} onPay={setPaying} /> : undefined} />
       {paying && <MarkPaidDialog cashout={paying} onClose={() => setPaying(null)} />}
     </div>
+  );
+}
+
+const isOpenCashout = (c: Cashout) => ["REVIEW", "REQUESTED", "PROCESSING"].includes(c.status);
+
+function CashoutButtons({ c, actions, onPay, compact }: { c: Cashout; actions: ReturnType<typeof useCashoutActions>; onPay: (c: Cashout) => void; compact?: boolean }) {
+  const size = compact ? "xs" : "sm";
+  return (
+    <>
+      {c.status === "REVIEW" && (
+        <Button size={size} variant="trust" onClick={() => actions.approve(c)}>
+          <Check /> Approve
+        </Button>
+      )}
+      {isOpenCashout(c) && (
+        <>
+          <Button size={size} onClick={() => onPay(c)}>
+            Mark paid
+          </Button>
+          <Button size={size} variant="danger-ghost" onClick={() => actions.reject(c)} aria-label="Reject">
+            <X />
+            {!compact && "Reject"}
+          </Button>
+        </>
+      )}
+    </>
   );
 }
 
@@ -118,7 +145,7 @@ function useCashoutActions() {
     approve: (c: Cashout) =>
       void confirm({
         title: `Approve ${format.usd(c.usd)} to ${c.user?.name ?? "this user"}?`,
-        description: `It goes to the payout provider now (${format.enum(c.method)} ${c.accountMasked}).`,
+        description: `It goes to the payout provider now (${c.amountPkr != null ? `${format.pkr(c.amountPkr)} to ` : ""}${format.enum(c.method)} ${c.accountMasked}).${c.method === "BANK" ? " Bank cash-outs then wait for a payout batch." : ""}`,
         confirmLabel: "Approve and pay",
         action: async () => {
           await api.post(`admin/cashouts/${c.id}/approve`);
@@ -163,7 +190,7 @@ function MarkPaidDialog({ cashout, onClose }: { cashout: Cashout; onClose: () =>
       <DialogContent
         size="sm"
         title="Mark as paid"
-        description={`Only after you've sent ${format.usd(cashout.usd)} yourself (${format.enum(cashout.method)} ${cashout.accountMasked}).`}
+        description={`Only after you've sent ${cashout.amountPkr != null ? format.pkr(cashout.amountPkr) : format.usd(cashout.usd)} yourself (${format.enum(cashout.method)} ${cashout.accountMasked}).`}
         footer={
           <>
             <Button variant="ghost" onClick={onClose}>

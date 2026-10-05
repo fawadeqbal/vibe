@@ -49,12 +49,15 @@ let staffToken;
 if (STAFF_PASSWORD) {
   const s = await call('POST', 'admin/auth/login', { email: STAFF_EMAIL, password: STAFF_PASSWORD });
   staffToken = s.tokens.accessToken;
-  // Gems for two creators, then cash-outs (one large → review).
-  for (const [i, gems] of [[4, 30000], [2, 12000]]) {
+  // Gems for three creators (verified: big cash-outs need a selfie check), then
+  // cash-outs: one large → review, one wallet, one bank (waits for a payout batch).
+  for (const [i, gems] of [[4, 30000], [2, 12000], [10, 8000]]) {
+    await call('POST', `admin/users/${users[i].id}/verification`, { verified: true, reason: 'demo data' }, staffToken);
     await call('POST', `admin/users/${users[i].id}/wallet`, { coins: 0, gems, title: 'Creator gifts (demo)', reason: 'demo data', idempotencyKey: crypto.randomUUID() }, staffToken);
   }
   await call('POST', 'wallet/cashouts', { gems: 25000, method: 'JAZZCASH', account: '03211234567' }, users[4].t, { 'idempotency-key': crypto.randomUUID() });
   await call('POST', 'wallet/cashouts', { gems: 6000, method: 'EASYPAISA', account: '03451234567' }, users[2].t, { 'idempotency-key': crypto.randomUUID() });
+  await call('POST', 'wallet/cashouts', { gems: 5000, method: 'BANK', account: 'PK36SCBL0000001123456702', bankName: 'Standard Chartered' }, users[10].t, { 'idempotency-key': crypto.randomUUID() });
   await call('POST', 'admin/announcements', { title: 'New gifts are here', body: 'Send a Rocket to someone who made your day. 🚀' }, staffToken);
   const live = await call('POST', 'admin/announcements', { title: 'Weekend boost', body: 'VIP is 20% off until Sunday.', audience: 'NON_VIP' }, staffToken);
   await call('POST', `admin/announcements/${live.id}/publish`, {}, staffToken);

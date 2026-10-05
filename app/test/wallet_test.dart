@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/mock/mock_data.dart';
 import 'package:vibe_app/models/models.dart';
+import 'package:vibe_app/models/payments.dart';
 import 'package:vibe_app/providers/wallet_provider.dart';
 
 void main() {
@@ -98,7 +99,13 @@ void main() {
     expect(wallet.canCashOut, isFalse);
     wallet.debugSet(wallet.wallet.copyWith(gems: 6000));
     expect(wallet.canCashOut, isTrue);
-    await wallet.cashOut(5000, PaymentMethod.easypaisa, '03001234567');
+    final account = await wallet.addPayoutAccount(const NewPayoutAccount(method: PaymentMethod.easypaisa, account: '0300 1234567', holderName: 'Sara Khan'));
+    expect(account.isDefault, isTrue, reason: 'the first account becomes the default');
+    expect(account.accountMasked, '0300•••567');
+    final c = await wallet.requestCashout(gems: 5000, payoutAccountId: account.id);
+    expect(c.status, CashoutStatus.requested);
+    expect(c.amountPkr, (25 * Economy.pkrPerUsd).floor());
+    expect(wallet.cashouts.single.id, c.id);
     expect(wallet.gems, 1000);
     expect(wallet.transactions.first.kind, TxKind.cashout);
     expect(wallet.transactions.first.usd, closeTo(25, 0.001));

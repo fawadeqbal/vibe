@@ -1,0 +1,23 @@
+// Native integration values for Info.plist (see ../../INTEGRATIONS_APP.md).
+// These defaults keep a key-less build running; put real values in
+// Flutter/Integrations.xcconfig (same keys), which overrides this file and is
+// not committed. Never put secrets here: everything ends up in the app.
+//
+// Note: "//" starts a comment in xcconfig files, so no URLs here.
+
+// Google's public AdMob *test* app id (serves only test ads). Required:
+// the Google Mobile Ads SDK stops the app at launch without one.
+ADMOB_APP_ID_IOS = ca-app-pub-3940256099942544~1458002511
+
+// Facebook Login. Placeholders keep the SDK quiet; the button stays hidden
+// until FACEBOOK_APP_ID / FACEBOOK_CLIENT_TOKEN are also passed to Dart.
+FACEBOOK_APP_ID = 000000000000000
+FACEBOOK_CLIENT_TOKEN = 00000000000000000000000000000000
+
+// Google Sign-In: the iOS client id reversed (com.googleusercontent.apps.123-abc),
+// registered as a URL scheme for the sign-in callback.
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.unset
+
+// Push + Sign in with Apple need capabilities on the App ID. Once they are
+// enabled for your team, point this at Runner/Runner.entitlements.
+CODE_SIGN_ENTITLEMENTS =

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 
 import 'api_config.dart';
 import 'api_exception.dart';
@@ -12,11 +13,18 @@ import 'token_store.dart';
 /// refreshes it once on expiry (one refresh shared by concurrent calls),
 /// retries, and turns every failure into an [ApiException].
 class ApiClient {
-  ApiClient({String? baseUrl, http.Client? httpClient, TokenStore? tokens}) : _base = baseUrl ?? ApiConfig.restBase, _http = httpClient ?? http.Client(), tokens = tokens ?? SecureTokenStore();
+  ApiClient({String? baseUrl, http.Client? httpClient, TokenStore? tokens, Map<String, String> defaultHeaders = const {}})
+      : _base = baseUrl ?? ApiConfig.restBase,
+        _http = httpClient ?? http.Client(),
+        tokens = tokens ?? SecureTokenStore(),
+        _defaultHeaders = Map.unmodifiable(defaultHeaders);
 
   final String _base;
   final http.Client _http;
   final TokenStore tokens;
+
+  /// Sent with every request (e.g. `X-App-Store` on store builds).
+  final Map<String, String> _defaultHeaders;
 
   String? _access;
   String? _refresh;
@@ -51,25 +59,44 @@ class ApiClient {
   Future<dynamic> patch(String path, [Object? body]) => _send('PATCH', path, body: body);
   Future<dynamic> delete(String path) => _send('DELETE', path);
 
+  /// `multipart/form-data` upload of one file (avatar, selfie). Same session
+  /// handling and errors as the JSON calls; the body is rebuilt on retry.
+  Future<dynamic> upload(String path, {required String field, required List<int> bytes, required String filename, required String contentType, Map<String, String> fields = const {}}) {
+    final type = contentType.split('/');
+    return _dispatch(path, () {
+      final req = http.MultipartRequest('POST', Uri.parse('$_base$path'))
+        ..fields.addAll(fields)
+        ..files.add(http.MultipartFile.fromBytes(field, bytes, filename: filename, contentType: MediaType(type.first, type.length > 1 ? type[1] : 'octet-stream')));
+      return req;
+    }, timeout: const Duration(seconds: 60));
+  }
+
   /// A fresh key for `Idempotency-Key` (one per user action, reused on retry).
   static String newIdempotencyKey() {
     final r = Random.secure();
     return List.generate(16, (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
   }
 
-  Future<dynamic> _send(String method, String path, {Object? body, Map<String, String>? query, Map<String, String>? headers, bool retried = false}) async {
+  Future<dynamic> _send(String method, String path, {Object? body, Map<String, String>? query, Map<String, String>? headers}) {
     final uri = Uri.parse('$_base$path').replace(queryParameters: query);
-    final req = http.Request(method, uri)
-      ..headers['Accept'] = 'application/json'
-      ..headers.addAll(headers ?? const {});
+    return _dispatch(path, () {
+      final req = http.Request(method, uri)..headers.addAll(headers ?? const {});
+      if (body != null) {
+        req.headers['Content-Type'] = 'application/json';
+        req.body = jsonEncode(body);
+      }
+      return req;
+    });
+  }
+
+  /// Sends a freshly built request, refreshing the session once on 401.
+  Future<dynamic> _dispatch(String path, http.BaseRequest Function() build, {Duration timeout = const Duration(seconds: 20), bool retried = false}) async {
+    final req = build();
+    req.headers.addAll({..._defaultHeaders, 'Accept': 'application/json', ...req.headers});
     if (_access != null) req.headers['Authorization'] = 'Bearer $_access';
-    if (body != null) {
-      req.headers['Content-Type'] = 'application/json';
-      req.body = jsonEncode(body);
-    }
     http.Response res;
     try {
-      res = await http.Response.fromStream(await _http.send(req).timeout(const Duration(seconds: 20)));
+      res = await http.Response.fromStream(await _http.send(req).timeout(timeout));
     } on TimeoutException catch (e) {
       throw ApiException.network(e);
     } catch (e) {
@@ -79,7 +106,7 @@ class ApiClient {
     if (res.statusCode >= 200 && res.statusCode < 300) return decoded;
     final err = ApiException.fromBody(res.statusCode, decoded);
     if (res.statusCode == 401 && !retried && _refresh != null && !path.startsWith('/auth/')) {
-      if (await refreshSession()) return _send(method, path, body: body, query: query, headers: headers, retried: true);
+      if (await refreshSession()) return _dispatch(path, build, timeout: timeout, retried: true);
     }
     throw err;
   }

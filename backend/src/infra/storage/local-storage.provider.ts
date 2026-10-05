@@ -1,30 +1,61 @@
 import { Injectable } from '@nestjs/common';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize } from 'node:path';
 
 import { AppConfig } from '../../config/app-config.service';
-import { StorageProvider } from './storage.provider';
+import { Integration, IntegrationReporter, IntegrationStatus, missingKeys } from '../../integrations/core/integration.types';
+import { StorageProvider, StoreOptions } from './storage.provider';
 
-/** Writes to disk and serves from `/media` (dev, single instance). */
+/**
+ * Writes to disk and serves public files from `/media` (one server only).
+ * Private files go to `<UPLOAD_DIR>-private`, which is never served.
+ */
+@Integration()
 @Injectable()
-export class LocalStorageProvider extends StorageProvider {
+export class LocalStorageProvider extends StorageProvider implements IntegrationReporter {
   constructor(private readonly config: AppConfig) {
     super();
   }
 
-  private path(key: string): string {
+  private path(key: string, opts?: StoreOptions): string {
     const safe = normalize(key).replace(/^(\.\.(\/|\\|$))+/, '');
-    return join(this.config.get('UPLOAD_DIR'), safe);
+    const root = this.config.get('UPLOAD_DIR');
+    return join(opts?.private ? `${root.replace(/\/$/, '')}-private` : root, safe);
   }
 
-  async put(key: string, data: Buffer, _contentType: string): Promise<string> {
-    const file = this.path(key);
+  async put(key: string, data: Buffer, _contentType: string, opts?: StoreOptions): Promise<string> {
+    const file = this.path(key, opts);
     await mkdir(dirname(file), { recursive: true });
     await writeFile(file, data);
-    return `${this.config.get('PUBLIC_URL')}/media/${key}`;
+    return opts?.private ? key : `${this.config.get('PUBLIC_URL')}/media/${key}`;
   }
 
-  async delete(key: string): Promise<void> {
-    await rm(this.path(key), { force: true });
+  async delete(key: string, opts?: StoreOptions): Promise<void> {
+    await rm(this.path(key, opts), { force: true });
+  }
+
+  async read(key: string, opts?: StoreOptions): Promise<Buffer | null> {
+    try {
+      return await readFile(this.path(key, opts));
+    } catch {
+      return null;
+    }
+  }
+
+  keyFromUrl(url: string): string | null {
+    const prefix = `${this.config.get('PUBLIC_URL')}/media/`;
+    return url.startsWith(prefix) ? decodeURIComponent(url.slice(prefix.length)) : null;
+  }
+
+  integrationStatus(): IntegrationStatus {
+    return {
+      key: 'storage.media',
+      kind: 'storage',
+      label: 'Media storage',
+      mode: 'dev',
+      requiredEnv: ['STORAGE_DRIVER', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY', 'S3_PUBLIC_URL'],
+      missingEnv: ['STORAGE_DRIVER', ...missingKeys(this.config.env, ['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY', 'S3_PUBLIC_URL'])],
+      notes: ['Local disk (one server, no CDN). Set STORAGE_DRIVER=s3 and the S3_* keys (AWS S3 or Cloudflare R2) to scale.'],
+    };
   }
 }

@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../core/api/api_exception.dart';
 
 import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/models.dart';
+import '../../models/payments.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../../services/app_services.dart';
 import 'checkout_screen.dart';
 
 /// The subscription page. "Who liked you" leads as the hook, benefits are
@@ -23,6 +28,45 @@ class VipScreen extends StatefulWidget {
 class _VipScreenState extends State<VipScreen> {
   // Kept by id: the plan list can change live when staff edit prices.
   String? _planId;
+
+  /// How the current VIP is billed: store subscriptions are managed there.
+  VipStatus? _status;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    final wallet = context.read<WalletProvider>();
+    if (!wallet.isVip) return;
+    try {
+      final s = await wallet.vipStatus();
+      if (mounted) setState(() => _status = s);
+    } on ApiException catch (_) {}
+  }
+
+  Future<void> _openManage(String url) async {
+    final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication).catchError((_) => false);
+    if (!ok && mounted) toast(context, "Couldn't open the store", error: true);
+  }
+
+  Future<void> _cancel(WalletProvider wallet) async {
+    final manage = _status?.managedByStore == true ? _status!.manageUrl : null;
+    if (manage != null) return _openManage(manage);
+    try {
+      await wallet.cancelVip();
+      if (mounted) toast(context, 'VIP renewal cancelled');
+    } on ApiException catch (e) {
+      // Billed by Google Play / the App Store: cancel there.
+      final url = e.details['manageUrl'];
+      if (url is String) return _openManage(url);
+      if (mounted) toast(context, e.message, error: true);
+    }
+  }
+
+  String get _storeName => _status?.method == PaymentMethod.appStore ? 'App Store' : 'Google Play';
   VipPlan get _plan => MockData.plans.firstWhere((p) => p.id == _planId, orElse: () => MockData.plans.firstWhere((p) => p.highlighted, orElse: () => MockData.plans.first));
 
   static List<(IconData, String, String)> get _perks => [
@@ -117,13 +161,11 @@ class _VipScreenState extends State<VipScreen> {
                   const SizedBox(height: 12),
                   if (vip)
                     GhostButton(
-                      label: 'Cancel VIP',
+                      label: _status?.managedByStore == true ? 'Manage in $_storeName' : 'Cancel VIP',
+                      icon: _status?.managedByStore == true ? Icons.open_in_new_rounded : null,
                       expand: true,
-                      color: V.bad,
-                      onTap: () async {
-                        await wallet.cancelVip();
-                        if (context.mounted) toast(context, 'VIP cancelled');
-                      },
+                      color: _status?.managedByStore == true ? V.text : V.bad,
+                      onTap: () => _cancel(wallet),
                     )
                   else
                     GradientButton(
@@ -136,11 +178,24 @@ class _VipScreenState extends State<VipScreen> {
                         if (ok == true && context.mounted) Navigator.of(context).pop();
                       },
                     ),
-                  const SizedBox(height: 10),
+                  if (!vip && context.read<AppServices>().billing.supported)
+                    TextButton(
+                      onPressed: () async {
+                        toast(context, 'Checking your store purchases…');
+                        try {
+                          await context.read<AppServices>().billing.restore();
+                        } catch (_) {
+                          if (context.mounted) toast(context, "Couldn't reach the store", error: true);
+                        }
+                      },
+                      child: Text('Restore purchases', style: VT.label(12.5, color: V.text2)),
+                    )
+                  else
+                    const SizedBox(height: 10),
                   Text(
                     vip
-                        ? 'Your plan stays active until the end of the period.'
-                        : '${_plan.trialDays > 0 ? 'Then ' : ''}${Fmt.usd(_plan.usd)}/${_period(_plan)}, renewing until cancelled. Cancel from this page. Prices in USD.',
+                        ? (_status?.managedByStore == true ? 'Billed by $_storeName: renew or cancel it there.' : 'Your plan stays active until the end of the period.')
+                        : '${_plan.trialDays > 0 ? 'Then ' : ''}${Fmt.usd(_plan.usd)}/${_period(_plan)}, renewing until cancelled. Cancel any time. Prices in USD.',
                     textAlign: TextAlign.center,
                     style: VT.body(11, color: V.muted, height: 1.45),
                   ),

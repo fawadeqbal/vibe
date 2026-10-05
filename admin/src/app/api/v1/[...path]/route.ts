@@ -47,10 +47,11 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
     }
   }
 
-  const out = new NextResponse(res.status === 204 ? null : await res.arrayBuffer(), {
-    status: res.status,
-    headers: { "content-type": res.headers.get("content-type") ?? "application/json", "cache-control": "no-store" },
-  });
+  const headers: Record<string, string> = { "content-type": res.headers.get("content-type") ?? "application/json", "cache-control": "no-store" };
+  // File downloads (e.g. the payout batch CSV) keep their name.
+  const disposition = res.headers.get("content-disposition");
+  if (disposition) headers["content-disposition"] = disposition;
+  const out = new NextResponse(res.status === 204 ? null : await res.arrayBuffer(), { status: res.status, headers });
   return finish(out, renewed, res.status === 401);
 }
 

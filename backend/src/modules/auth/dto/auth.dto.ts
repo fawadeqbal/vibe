@@ -22,21 +22,58 @@ export class VerifyOtpDto extends RequestOtpDto {
   inviteCode?: string;
 }
 
-export class SocialSignInDto {
-  @ApiProperty({ enum: ['google', 'apple'] })
-  @IsIn(['google', 'apple'])
-  provider!: 'google' | 'apple';
+const PROVIDERS = ['google', 'apple', 'facebook'] as const;
+export type SocialProviderName = (typeof PROVIDERS)[number];
 
-  @ApiProperty({ description: 'ID token from the platform SDK (dev: "dev:<id>")' })
+/** Tokens from the platform SDK. Which ones depend on the provider (see each field). */
+export class SocialCredentialDto {
+  @ApiPropertyOptional({ description: 'ID token: Google, Apple, Facebook Limited Login (dev: "dev:<id>[:<name>]")' })
+  @IsOptional()
+  @IsString()
+  @Length(3, 8192)
+  idToken?: string;
+
+  @ApiPropertyOptional({ description: 'Facebook access token (classic login)' })
+  @IsOptional()
   @IsString()
   @Length(3, 4096)
-  idToken!: string;
+  accessToken?: string;
+
+  @ApiPropertyOptional({ description: 'Apple authorization code (lets the server revoke access on account deletion)' })
+  @IsOptional()
+  @IsString()
+  @Length(3, 2048)
+  authorizationCode?: string;
+
+  @ApiPropertyOptional({ description: 'Raw nonce the app generated (Apple, Facebook Limited Login)' })
+  @IsOptional()
+  @IsString()
+  @Length(8, 200)
+  nonce?: string;
+
+  @ApiPropertyOptional({ description: 'Display name (Apple gives it to the app only on first sign-in)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  name?: string;
+}
+
+export class SocialSignInDto extends SocialCredentialDto {
+  @ApiProperty({ enum: PROVIDERS })
+  @IsIn(PROVIDERS)
+  provider!: SocialProviderName;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @Length(4, 12)
   inviteCode?: string;
+}
+
+export class LinkIdentityDto extends SocialCredentialDto {
+  @ApiProperty({ enum: PROVIDERS })
+  @IsIn(PROVIDERS)
+  provider!: SocialProviderName;
 }
 
 export class RefreshDto {

@@ -73,7 +73,7 @@ export class AdminUsersService {
   }
 
   async get(staff: StaffPrincipal, id: string) {
-    const u = await this.prisma.user.findUnique({ where: { id }, include: { wallet: true, invitedBy: { select: { id: true, name: true } } } });
+    const u = await this.prisma.user.findUnique({ where: { id }, include: { wallet: true, invitedBy: { select: { id: true, name: true } }, identities: { select: { provider: true } } } });
     if (!u) throw AppError.notFound('User');
     const pair = { OR: [{ userAId: id }, { userBId: id }] };
     const [online, inCall, counts, spent, giftsSent, giftsReceived, cashedOut, sessions, sub] = await Promise.all([
@@ -103,7 +103,7 @@ export class AdminUsersService {
       inCall,
       bio: u.bio,
       interests: u.interests,
-      signIn: { email: emailFor(staff, u.email), google: !!u.googleSub, apple: !!u.appleSub },
+      signIn: { email: emailFor(staff, u.email), google: u.identities.some((i) => i.provider === 'GOOGLE'), apple: u.identities.some((i) => i.provider === 'APPLE'), facebook: u.identities.some((i) => i.provider === 'FACEBOOK') },
       inviteCode: u.inviteCode,
       invitedBy: u.invitedBy,
       onboardedAt: u.onboardedAt?.toISOString() ?? null,

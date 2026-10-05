@@ -45,6 +45,7 @@ class MockBackend {
   static const _kMatches = 'vibe.matches';
   static const _kBlocked = 'vibe.blocked';
   static const _kOnboarded = 'vibe.onboarded';
+  static const _kPayouts = 'vibe.payouts';
 
   Future<void> init() async {
     _prefs ??= await SharedPreferences.getInstance();
@@ -84,7 +85,7 @@ class MockBackend {
 
   Future<void> signOut() async {
     await init();
-    for (final k in [_kProfile, _kWallet, _kTx, _kFriends, _kChats, _kMatches, _kBlocked, _kOnboarded]) {
+    for (final k in [_kProfile, _kWallet, _kTx, _kFriends, _kChats, _kMatches, _kBlocked, _kOnboarded, _kPayouts]) {
       await _prefs!.remove(k);
     }
   }
@@ -241,6 +242,21 @@ class MockBackend {
 
   Future<void> requestCashout({required int gems, required PaymentMethod method, required String account}) async {
     await _wait(900);
+  }
+
+  /// Saved payout accounts and cash-out history, as API-shaped JSON.
+  Future<({List<Map<String, dynamic>> accounts, List<Map<String, dynamic>> cashouts})> loadPayouts() async {
+    await init();
+    final raw = _prefs!.getString(_kPayouts);
+    if (raw == null) return (accounts: <Map<String, dynamic>>[], cashouts: <Map<String, dynamic>>[]);
+    final m = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    List<Map<String, dynamic>> list(Object? v) => [for (final e in (v as List? ?? const [])) Map<String, dynamic>.from(e as Map)];
+    return (accounts: list(m['accounts']), cashouts: list(m['cashouts']));
+  }
+
+  Future<void> savePayouts({required List<Map<String, dynamic>> accounts, required List<Map<String, dynamic>> cashouts}) async {
+    await init();
+    await _prefs!.setString(_kPayouts, jsonEncode({'accounts': accounts, 'cashouts': cashouts.take(50).toList()}));
   }
 
   Future<bool> verifySelfie() async {

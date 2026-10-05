@@ -12,10 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Segmented, Skeleton } from "@/components/ui/controls";
 import { Textarea } from "@/components/ui/input";
 import { AuditTable } from "@/features/audit/audit-table";
+import { CashoutSheet } from "@/features/finance/cashout-sheet";
 import { cashoutColumns, ledgerColumns, purchaseColumns } from "@/features/finance/columns";
 import { useAction } from "@/hooks/use-action";
 import { api } from "@/lib/api/client";
-import type { MatchRow, Report } from "@/lib/api/types";
+import type { Cashout, MatchRow, Report } from "@/lib/api/types";
 import { format } from "@/lib/format";
 
 import { useUserAudit, useUserCashouts, useUserLedger, useUserMatches, useUserNotes, useUserPurchases, useUserReports, userKeys } from "./api";
@@ -49,7 +50,13 @@ export function PurchasesTab({ userId }: { userId: string }) {
 
 export function CashoutsTab({ userId }: { userId: string }) {
   const q = useUserCashouts(userId);
-  return <DataTable columns={cashoutColumns(false)} rows={q.rows} getRowId={(c) => c.id} {...paging(q)} empty={{ title: "No cash-outs" }} />;
+  const [open, setOpen] = React.useState<Cashout | null>(null);
+  return (
+    <>
+      <DataTable columns={cashoutColumns(false)} rows={q.rows} getRowId={(c) => c.id} {...paging(q)} onRowClick={setOpen} empty={{ title: "No cash-outs" }} />
+      <CashoutSheet cashout={open} onClose={() => setOpen(null)} />
+    </>
+  );
 }
 
 export function ReportsTab({ userId }: { userId: string }) {

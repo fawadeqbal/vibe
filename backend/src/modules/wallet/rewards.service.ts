@@ -8,7 +8,7 @@ import { Clock, MS } from '../../common/utils/clock';
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { EconomyService } from '../catalog/economy.service';
 import { isProfileComplete, PROFILE_COMPLETED, ProfileCompletedEvent } from '../users/profile.rules';
-import { AdVerifier } from './providers/ad-verifier';
+import { AdsService } from './ads/ads.service';
 import { LedgerService } from './ledger.service';
 import { adsLeftToday, freeFriendRequestsLeft, isBoosted, nextCheckInDay } from './wallet.mapper';
 import { WalletService } from './wallet.service';
@@ -27,7 +27,7 @@ export class RewardsService {
     private readonly ledger: LedgerService,
     private readonly wallet: WalletService,
     private readonly clock: Clock,
-    private readonly ads: AdVerifier,
+    private readonly ads: AdsService,
     private readonly economy: EconomyService,
   ) {}
 
@@ -53,11 +53,14 @@ export class RewardsService {
   }
 
   async rewardAd(userId: string, adToken: string): Promise<{ reward: number; leftToday: number }> {
+    const before = await this.prisma.wallet.findUniqueOrThrow({ where: { userId } });
+    if (adsLeftToday(before, this.clock, this.economy.rules) <= 0) throw AppError.conflict("You've watched all of today's ads", ErrorCode.DAILY_LIMIT_REACHED);
+    // Claim the verified view first (may wait a moment for AdMob's callback), outside the wallet lock.
+    if (!(await this.ads.consume(userId, adToken))) throw new AppError(ErrorCode.AD_NOT_VERIFIED, 'Ad view could not be verified');
     const res = await this.prisma.tx(async (tx) => {
       const w = await this.locked(tx, userId);
       const left = adsLeftToday(w, this.clock, this.economy.rules);
       if (left <= 0) throw AppError.conflict("You've watched all of today's ads", ErrorCode.DAILY_LIMIT_REACHED);
-      if (!(await this.ads.consume(userId, adToken))) throw new AppError(ErrorCode.AD_NOT_VERIFIED, 'Ad view could not be verified');
       const today = this.clock.dayOf();
       await tx.wallet.update({
         where: { userId },
