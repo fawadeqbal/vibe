@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/api/api_config.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -292,7 +293,7 @@ class _EarnSectionState extends State<_EarnSection> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Invite a friend'),
-        content: Text('Share your link. When they finish setting up their profile you get ${Economy.inviteRewardCoins} coins.\n\nvibe.app/i/${wallet.hashCode.toRadixString(36)}\n\n(Mock: pretend a friend just joined.)'),
+        content: Text('Share your link. When they finish setting up their profile you get ${Economy.inviteRewardCoins} coins.\n\n${ApiConfig.siteUrl.replaceFirst(RegExp(r'^https?://'), '')}/i/${wallet.hashCode.toRadixString(36)}\n\n(Mock: pretend a friend just joined.)'),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Close', style: TextStyle(color: V.text2))),
           TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Friend joined')),
@@ -309,7 +310,7 @@ class _EarnSectionState extends State<_EarnSection> {
   /// friend finishes their profile.
   Future<void> _shareInvite() async {
     final code = context.read<SessionProvider>().inviteCode ?? '';
-    final link = 'https://vibe.app/i/$code';
+    final link = '${ApiConfig.siteUrl}/i/$code';
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -97,9 +99,12 @@ abstract class SessionProvider extends ChangeNotifier {
 
   Future<void> finishOnboarding();
 
-  /// Selfie check against the profile photo. APPROVED adds the badge;
-  /// PENDING waits for staff; REJECTED carries a readable reason.
-  Future<VerificationState> verifySelfie(List<int> jpeg);
+  /// Starts a selfie check: the moves to do after a front-facing photo.
+  Future<LivenessChallenge> verificationChallenge();
+
+  /// Selfie check against the profile photo (front frame, then one per move).
+  /// APPROVED adds the badge; PENDING waits for staff; REJECTED carries a readable reason.
+  Future<VerificationState> verifySelfie(SelfieCheck check);
 
   /// Re-reads the latest verification (profile screen).
   Future<void> loadVerification() async {}

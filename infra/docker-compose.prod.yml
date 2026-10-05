@@ -56,6 +56,20 @@ services:
       driver: json-file
       options: { max-size: 10m, max-file: "3" }
 
+  # Face checks for selfie verification: face match + pose-challenge liveness
+  # (face/README.md). Private network only; the API is its one client.
+  vibe-face:
+    build:
+      context: ./face
+    container_name: vibe-face
+    restart: unless-stopped
+    mem_limit: 768m
+    networks:
+      - vibe-internal
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
   # One-shot, idempotent: node layout, buckets, and the API's access key.
   vibe-storage-init:
     image: node:22-alpine
@@ -76,6 +90,7 @@ services:
     networks:
       - vibe-internal
 
+  # API → https://api.vibe.fawadiqbal.dev (port 3000; also serves /media)
   vibe-api:
     build:
       context: ./backend
@@ -106,6 +121,7 @@ services:
       timeout: 3s
       retries: 5
 
+  # Admin panel → https://admin.vibe.fawadiqbal.dev (port 3001)
   vibe-admin:
     build:
       context: ./admin
@@ -126,6 +142,44 @@ services:
       timeout: 3s
       retries: 5
 
+  # Web app → https://app.vibe.fawadiqbal.dev (port 3002). NEXT_PUBLIC_* are
+  # baked in at build time, so they're build args (values from .env).
+  vibe-web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_VIBE_API: ${PUBLIC_URL}
+        NEXT_PUBLIC_SITE_URL: ${SITE_URL}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${WEB_GOOGLE_CLIENT_ID:-}
+        NEXT_PUBLIC_DEV_SIGN_IN: "false"
+    container_name: vibe-web
+    restart: unless-stopped
+    depends_on:
+      vibe-api: { condition: service_healthy }
+    networks:
+      global-proxy:
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  # Landing page → https://vibe.fawadiqbal.dev (static files on nginx, port 3003)
+  vibe-landing:
+    build:
+      context: ./landing
+      args:
+        NEXT_PUBLIC_SITE_URL: ${SITE_URL}
+        NEXT_PUBLIC_WEB_APP_URL: ${WEB_APP_URL}
+        NEXT_PUBLIC_VIBE_API: ${PUBLIC_URL}
+        NEXT_PUBLIC_ANDROID_URL: ${ANDROID_URL:-}
+    container_name: vibe-landing
+    restart: unless-stopped
+    networks:
+      global-proxy:
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  # TURN relay → turn.vibe.fawadiqbal.dev (host network: 3478, 5349, relay ports)
   vibe-turn:
     image: coturn/coturn:4.18-alpine
     container_name: vibe-turn

@@ -1,0 +1,2 @@
+- `astronaut.jpg`: NASA portrait of astronaut Eileen Collins (public domain), via scikit-image `data.astronaut()`.
+- `no-face.jpg`: a cup of coffee (public domain), via scikit-image `data.coffee()`.

@@ -64,14 +64,19 @@ export class ApiClient {
     return this.send<T>("DELETE", path);
   }
 
-  /** `multipart/form-data` upload of one file (avatar, selfie). */
+  /** `multipart/form-data` upload of one file (avatar). */
   upload<T = unknown>(path: string, field: string, file: Blob, filename: string, fields: Record<string, string> = {}) {
+    return this.uploadFiles<T>(path, [{ field, file, filename }], fields);
+  }
+
+  /** `multipart/form-data` upload of several files (a selfie check's frames), in order. */
+  uploadFiles<T = unknown>(path: string, files: { field: string; file: Blob; filename: string }[], fields: Record<string, string> = {}) {
     return this.dispatch<T>(
       path,
       () => {
         const form = new FormData();
         for (const [k, v] of Object.entries(fields)) form.append(k, v);
-        form.append(field, file, filename);
+        for (const f of files) form.append(f.field, f.file, f.filename);
         return { method: "POST", body: form };
       },
       60_000,

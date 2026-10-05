@@ -34,7 +34,10 @@ New-Item -ItemType Directory -Path $tempStaging | Out-Null
 
 robocopy "$vibeDir\backend" "$tempStaging\backend" /E /XD node_modules dist .git /XF .env .env.local /NFL /NDL /NJH /NJS /NC /NS /NP | Out-Null
 robocopy "$vibeDir\admin" "$tempStaging\admin" /E /XD node_modules .next .git /XF .env .env.local /NFL /NDL /NJH /NJS /NC /NS /NP | Out-Null
+robocopy "$vibeDir\web" "$tempStaging\web" /E /XD node_modules .next .git /XF .env .env.local tsconfig.tsbuildinfo /NFL /NDL /NJH /NJS /NC /NS /NP | Out-Null
+robocopy "$vibeDir\landing" "$tempStaging\landing" /E /XD node_modules .next out .git /XF .env .env.local /NFL /NDL /NJH /NJS /NC /NS /NP | Out-Null
 robocopy "$vibeDir\infra" "$tempStaging\infra" /E /NFL /NDL /NJH /NJS /NC /NS /NP | Out-Null
+robocopy "$vibeDir\face" "$tempStaging\face" /E /XD .venv __pycache__ .pytest_cache models /NFL /NDL /NJH /NJS /NC /NS /NP | Out-Null
 Copy-Item "$vibeDir\infra\docker-compose.prod.yml" "$tempStaging\docker-compose.yml"
 Copy-Item "$vibeDir\infra\.env.prod" "$tempStaging\.env.template"
 
@@ -52,7 +55,7 @@ Remove-Item $zipFile -Force
 # 4. Unzip, fix permissions, generate secrets
 Write-Host "`n[4/6] Unpacking and generating production secrets..." -ForegroundColor Yellow
 # Use sudo for rm because previous Docker builds may have left root-owned files
-ssh -i $key -o StrictHostKeyChecking=no $server "cd /opt/vibe && sudo rm -rf backend admin docker-compose.yml ; unzip -o vibe-deploy.zip ; rm -f vibe-deploy.zip ; sudo chown -R opc:opc /opt/vibe ; chmod -R u+rwX,go+rX backend admin ; chmod +x infra/turn/*.sh ; sed -i 's/\r$//' infra/turn/*.sh infra/turn/turnserver.conf"
+ssh -i $key -o StrictHostKeyChecking=no $server "cd /opt/vibe && sudo rm -rf backend admin web landing face docker-compose.yml ; unzip -o vibe-deploy.zip ; rm -f vibe-deploy.zip ; sudo chown -R opc:opc /opt/vibe ; chmod -R u+rwX,go+rX backend admin web landing face ; chmod +x infra/turn/*.sh ; sed -i 's/\r$//' infra/turn/*.sh infra/turn/turnserver.conf"
 Assert-Ok "unpack on server"
 
 # Migrate old secrets into the new .env and clean up the old standalone TURN server
@@ -133,5 +136,9 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
 }
 
 Write-Host "`n=== Vibe deployment complete! ===" -ForegroundColor Green
-Write-Host "API:   https://api.vibe.fawadiqbal.dev"
-Write-Host "Admin: https://vibe.fawadiqbal.dev"
+Write-Host "Landing: https://vibe.fawadiqbal.dev"
+Write-Host "Web app: https://app.vibe.fawadiqbal.dev"
+Write-Host "API:     https://api.vibe.fawadiqbal.dev"
+Write-Host "Admin:   https://admin.vibe.fawadiqbal.dev"
+Write-Host "TURN:    turn.vibe.fawadiqbal.dev"
+Write-Host "(Routing for these names lives in the shared reverse proxy: infra/DOMAINS.md)"

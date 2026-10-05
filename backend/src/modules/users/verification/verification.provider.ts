@@ -1,3 +1,5 @@
+import type { LivenessStep } from './liveness';
+
 /** What a verification provider decided about one selfie. */
 export interface VerificationDecision {
   decision: 'approved' | 'rejected' | 'review';
@@ -8,14 +10,20 @@ export interface VerificationDecision {
 
 export interface VerificationInput {
   userId: string;
+  /** The front-facing photo (the first frame of a pose challenge). */
   selfie: Buffer;
   /** The current profile photo, when we can read it (our own storage). */
   profilePhoto: Buffer | null;
+  /** Pose challenge: [front, one frame per step], and the steps that were asked for. */
+  frames?: Buffer[];
+  steps?: LivenessStep[];
 }
 
 /** Selfie verification (face match against the profile photo). Choose with VERIFICATION_PROVIDER. */
 export abstract class VerificationProvider {
   abstract readonly name: string;
+  /** Needs a pose challenge (POST /me/verification/challenge) rather than a single selfie. */
+  readonly liveness: boolean = false;
   abstract verify(input: VerificationInput): Promise<VerificationDecision>;
 }
 

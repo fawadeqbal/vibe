@@ -512,6 +512,34 @@ class VerificationState {
       );
 }
 
+/// The selfie check's pose challenge (backend: users/verification/liveness.ts):
+/// a front-facing photo, then these moves, one frame each.
+enum LivenessStep { turnLeft, turnRight, tiltLeft, tiltRight }
+
+class LivenessChallenge {
+  const LivenessChallenge({required this.id, required this.steps});
+  final String id;
+  final List<LivenessStep> steps;
+
+  factory LivenessChallenge.fromJson(Map<String, dynamic> m) {
+    final steps = [
+      for (final s in (m['steps'] as List? ?? const []))
+        for (final step in LivenessStep.values)
+          if (step.name == s) step,
+    ];
+    final id = m['id'];
+    if (id is! String || steps.isEmpty) throw const FormatException('Unexpected selfie check from the server');
+    return LivenessChallenge(id: id, steps: steps);
+  }
+}
+
+/// What a selfie check sends: the challenge it answers and its JPEG frames (front first).
+class SelfieCheck {
+  const SelfieCheck({required this.challengeId, required this.frames});
+  final String challengeId;
+  final List<List<int>> frames;
+}
+
 // ── VIP subscription ─────────────────────────────────────────────────────
 
 /// `GET /vip`: how the current VIP is billed and where to manage it.

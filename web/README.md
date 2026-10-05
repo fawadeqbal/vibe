@@ -17,13 +17,13 @@ The API must allow this origin: `CORS_ORIGINS` in `../backend/.env` (`*` in deve
 
 | Variable | What it does |
 | --- | --- |
-| `NEXT_PUBLIC_VIBE_API` | API origin, e.g. `https://api.vibe.app`. REST is `/v1`, the socket is the root. |
+| `NEXT_PUBLIC_VIBE_API` | API origin, e.g. `https://api.vibe.fawadiqbal.dev`. REST is `/v1`, the socket is the root. |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google sign-in (Google Identity Services). Use a *Web application* OAuth client and add the same id to the backend's `GOOGLE_CLIENT_IDS`. Empty = no Google button. |
 | `NEXT_PUBLIC_DEV_SIGN_IN` | `true` shows Google/Apple/Facebook buttons that send `dev:` tokens (backend dev mode only), like the app's debug builds. |
 | `NEXT_PUBLIC_FORCE_RELAY` | `true` sends every call through TURN (testing the relay). |
 | `NEXT_PUBLIC_DEV_ADS` | The mock rewarded ad ("Watch an ad" in the Store). Defaults to on in `npm run dev`, off in builds; needs a backend with `ADS_VERIFIER=dev`. |
 
-These are inlined at build time. Docker: `docker build --build-arg NEXT_PUBLIC_VIBE_API=https://api.example.com -t vibe-web .` (standalone server on port 3002).
+These are inlined at build time. Docker: `docker build --build-arg NEXT_PUBLIC_VIBE_API=https://api.vibe.fawadiqbal.dev -t vibe-web .` (standalone server on port 3002).
 
 ```bash
 npm run typecheck && npm run lint && npm test && npm run build

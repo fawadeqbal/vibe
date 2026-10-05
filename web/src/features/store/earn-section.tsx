@@ -12,6 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/api/errors";
 import { alpha } from "@/lib/colors";
 import { cn } from "@/lib/cn";
+import { config } from "@/lib/config";
 import { isProfileComplete } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
 import { useSession } from "@/stores/session";
@@ -71,7 +72,7 @@ export function EarnSection() {
   const invite = async () => {
     const code = useSession.getState().inviteCode ?? "";
     if (!code) return inform({ title: "Invite a friend", body: "Your invite code isn't ready yet. Try again in a moment." });
-    const link = `https://vibe.app/i/${code}`;
+    const link = `${config.siteUrl}/i/${code}`;
     await openDialog<void>((close) => (
       <AlertDialog
         title="Invite a friend"

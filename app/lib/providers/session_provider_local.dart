@@ -39,9 +39,19 @@ class LocalSessionProvider extends SessionProvider {
     notifyListeners();
   }
 
+  /// Offline demo: one turn and one other move, like the server.
+  @override
+  Future<LivenessChallenge> verificationChallenge() async {
+    final r = Random();
+    final turn = r.nextBool() ? LivenessStep.turnLeft : LivenessStep.turnRight;
+    final others = LivenessStep.values.where((s) => s != turn).toList();
+    final other = others[r.nextInt(others.length)];
+    return LivenessChallenge(id: 'local-${DateTime.now().microsecondsSinceEpoch}', steps: r.nextBool() ? [turn, other] : [other, turn]);
+  }
+
   /// Mocked selfie verification: grants the badge after a short "review".
   @override
-  Future<VerificationState> verifySelfie(List<int> jpeg) async {
+  Future<VerificationState> verifySelfie(SelfieCheck check) async {
     if (_me == null) return VerificationState.none;
     return _busyWhile(() async {
       final ok = await _backend.verifySelfie();

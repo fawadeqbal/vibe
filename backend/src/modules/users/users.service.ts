@@ -14,7 +14,7 @@ import { EconomyService } from '../catalog/economy.service';
 import { WalletService } from '../wallet/wallet.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { isProfileComplete, PROFILE_COMPLETED, ProfileCompletedEvent } from './profile.rules';
-import { VerificationService } from './verification/verification.service';
+import { SelfieCapture, VerificationService } from './verification/verification.service';
 import { MeProfile, PROFILE_INCLUDE, PublicProfile, toMeProfile, toPublicProfile } from './user.mapper';
 
 export interface NewUserInput {
@@ -129,13 +129,19 @@ export class UsersService {
    * reason; close calls (or the manual provider) → `verification: pending`
    * until staff decide.
    */
-  async verifySelfie(id: string, selfie: Buffer | null): Promise<MeProfile & { verification: { status: string; reason: string | null } }> {
+  async verifySelfie(id: string, capture: SelfieCapture): Promise<MeProfile & { verification: { status: string; reason: string | null } }> {
     const u = await this.findActive(id);
     if (u.verified) return { ...toMeProfile(u, this.clock.now()), verification: { status: 'APPROVED', reason: null } };
-    const r = await this.verification.submit(id, selfie, u.avatarUrl);
+    const r = await this.verification.submit(id, capture, u.avatarUrl);
     if (r.status === 'REJECTED') throw new AppError(ErrorCode.VALIDATION_FAILED, r.reason ?? 'We could not verify you. Try again in good light.');
     const after = await this.prisma.user.findUniqueOrThrow({ where: { id }, include: PROFILE_INCLUDE });
     return { ...toMeProfile(after, this.clock.now()), verification: { status: r.status, reason: r.reason } };
+  }
+
+  async verificationChallenge(id: string) {
+    const u = await this.findActive(id);
+    if (u.verified) throw AppError.conflict('You are already verified');
+    return this.verification.createChallenge(id);
   }
 
   async verificationStatus(id: string) {

@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { ApiError } from "@/lib/api/errors";
 import { tokenStore } from "@/lib/api/tokens";
 import { asList, asMap, type Json, profile as mapProfile } from "@/lib/api/mappers";
+import { type LivenessChallenge, parseChallenge } from "@/lib/liveness";
 import type { Profile } from "@/lib/models";
 import {
   type IdentitiesView,
@@ -47,7 +48,10 @@ interface SessionState {
   uploadAvatar: (file: Blob) => Promise<void>;
   saveProfile: (p: Profile) => Promise<void>;
   finishOnboarding: () => Promise<void>;
-  verifySelfie: (jpeg: Blob) => Promise<VerificationState>;
+  /** Starts a selfie check: the moves to do after a front-facing photo. */
+  verificationChallenge: () => Promise<LivenessChallenge>;
+  /** Sends a selfie check's frames (front first, then one per move). */
+  verifySelfie: (check: { challengeId: string; frames: Blob[] }) => Promise<VerificationState>;
   loadVerification: () => Promise<void>;
   /** False when the change could not be saved (the switch flips back). */
   setEmailUpdates: (on: boolean) => Promise<boolean>;
@@ -165,10 +169,13 @@ export const useSession = create<SessionState>()((set, get) => {
       applyMe(asMap(await api.post("/me/onboarding/complete")));
     },
 
-    verifySelfie: (jpeg) =>
+    verificationChallenge: async () => parseChallenge(asMap(await api.post("/me/verification/challenge"))),
+
+    verifySelfie: ({ challengeId, frames }) =>
       busyWhile(async () => {
         try {
-          const res = asMap(await api.upload("/me/verification", "selfie", jpeg, "selfie.jpg"));
+          const files = frames.map((file, i) => ({ field: "frames", file, filename: `frame${i}.jpg` }));
+          const res = asMap(await api.uploadFiles("/me/verification", files, { challengeId }));
           applyMe(res);
           set({ verificationState: parseVerification(asMap(res.verification)) });
         } catch (e) {

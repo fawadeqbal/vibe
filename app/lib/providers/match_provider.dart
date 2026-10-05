@@ -95,6 +95,10 @@ abstract class MatchProvider extends ChangeNotifier {
   bool get micOn => _micOn;
   bool get camOn => _camOn;
   bool get frontCamera => _frontCamera;
+
+  /// The open camera stream (lobby / call), for screens that need a frame of it
+  /// (the selfie check) without opening the camera a second time.
+  MediaStream? get localStream => _localStream;
   bool get hasLocalVideo => _localStream != null && _rendererReady;
   bool get autoBlur => _autoBlur;
   bool get blurred => _blurUntil != null && _blurUntil!.isAfter(DateTime.now());

@@ -150,6 +150,7 @@ void main() {
         return json({'tokens': {'accessToken': 'a1', 'refreshToken': 'r1'}, 'user': _me()});
       }
       if (req.url.path.endsWith('/auth/providers')) return json({'providers': ['google', 'apple']});
+      if (req.url.path.endsWith('/me/verification/challenge')) return json({'id': 'ch_123456789012', 'steps': ['tiltLeft', 'turnRight', 'somethingNew'], 'frames': 3});
       return json({'error': {'code': 'VALIDATION_FAILED', 'message': 'Your face is not clearly visible.'}}, 400);
     });
     final session = RemoteSessionProvider(api);
@@ -158,10 +159,23 @@ void main() {
     expect(session.signedIn, isTrue);
     expect(api.accessToken, 'a1');
 
-    final v = await session.verifySelfie([0xFF, 0xD8, 0xFF]);
+    // The server picks the moves; moves this build doesn't know are left out.
+    final challenge = await session.verificationChallenge();
+    expect(challenge.id, 'ch_123456789012');
+    expect(challenge.steps, [LivenessStep.tiltLeft, LivenessStep.turnRight]);
+
+    final v = await session.verifySelfie(SelfieCheck(challengeId: challenge.id, frames: const [
+      [0xFF, 0xD8, 0x01],
+      [0xFF, 0xD8, 0x02],
+      [0xFF, 0xD8, 0x03],
+    ]));
     expect(v.status, VerificationStatus.rejected);
     expect(v.reason, 'Your face is not clearly visible.');
     expect(session.verification.status, VerificationStatus.rejected);
     expect(sent.last.url.path, '/v1/me/verification');
+    // One multipart request: the challenge id, then the frames in order under "frames".
+    final body = bodies.last;
+    expect(body, contains('name="challengeId"'));
+    expect(RegExp('name="frames"; filename="frame(\\d).jpg"').allMatches(body).map((m) => m.group(1)).toList(), ['0', '1', '2']);
   });
 }

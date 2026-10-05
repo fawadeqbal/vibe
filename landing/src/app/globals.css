@@ -1,0 +1,212 @@
+@import "tailwindcss";
+
+/*
+ * Vibe's visual world, the same tokens as web/src/app/globals.css (and the
+ * Flutter app's `V`): near-black ground, one hot accent running pink → violet,
+ * gold for money, teal for trust. Geist carries the page; Instrument Serif
+ * italic marks one emotional phrase per heading.
+ */
+
+@theme static {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-bg: #0b0a10;
+  --color-bg2: #12101a;
+  --color-surface: #1a1724;
+  --color-line: rgb(255 255 255 / 0.07);
+  --color-line-soft: rgb(255 255 255 / 0.06);
+  --color-line-strong: rgb(255 255 255 / 0.16);
+  --color-tile: rgb(255 255 255 / 0.04);
+
+  --color-text: #f4f1fa;
+  --color-text2: #b9b3c9;
+  --color-muted: #7f7893;
+  --color-faint: #3a3550;
+
+  --color-pink: #ff3d8f;
+  --color-pink-soft: #ff7ab3;
+  --color-violet: #8b5cf6;
+  --color-lavender: #c4b5fd;
+  --color-gold: #ffc857;
+  --color-gold-deep: #f0a020;
+  --color-trust: #5eead4;
+  --color-ok: #34d399;
+  --color-bad: #fb7185;
+  --color-on-gold: #1a1200;
+  --color-on-gold-icon: #4a2e00;
+  --color-on-gem: #062a26;
+  --color-glass: rgb(18 16 26 / 0.5);
+
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+
+  --breakpoint-xs: 380px;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+    scroll-padding-top: 84px;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-color: #2e2840 var(--color-bg);
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgb(255 61 143 / 0.4);
+    color: #fff;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-lavender);
+    outline-offset: 3px;
+  }
+  h1,
+  h2 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Instrument Serif italic: the one emotional phrase in a heading. */
+@utility serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+@utility bg-brand {
+  background-image: linear-gradient(135deg, #ff3d8f, #8b5cf6);
+}
+@utility bg-gold-grad {
+  background-image: linear-gradient(135deg, #ffd98a, #f0a020);
+}
+@utility coin {
+  background-image: linear-gradient(135deg, #ffd98a, #f0a020);
+  border-radius: 9999px;
+}
+
+/* Section labels, from the design. */
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+/* Frosted chips over the call video. */
+@utility glass {
+  background: rgb(18 16 26 / 0.5);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+
+/* ── the hero's authored moment: a call connecting ───────────────────────
+ * Video arrives blurred (Vibe's "calls start blurred"), sharpens, then the
+ * conversation lands. Everything is already visible without JS or motion. */
+@keyframes call-unblur {
+  0%,
+  35% {
+    filter: blur(22px) saturate(0.7);
+    transform: scale(1.08);
+  }
+  100% {
+    filter: blur(0) saturate(1);
+    transform: scale(1);
+  }
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+}
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes blur-badge {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+.call-video {
+  animation: call-unblur 2.4s var(--ease-out-expo) both;
+}
+.call-chip {
+  animation: chip-in 0.7s var(--ease-out-expo) 1.4s both;
+}
+.call-bubble-1 {
+  animation: bubble-in 0.6s var(--ease-out-expo) 2s both;
+}
+.call-bubble-2 {
+  animation: bubble-in 0.6s var(--ease-out-expo) 2.9s both;
+}
+.call-blur-badge {
+  animation: blur-badge 2.2s ease-out both;
+}
+
+/* Final CTA: the logo breathing, with rings rippling out. */
+@keyframes vl-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.045);
+  }
+}
+@keyframes vl-ripple {
+  0% {
+    transform: scale(0.62);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+.vl-pulse {
+  animation: vl-pulse 3s ease-in-out infinite;
+}
+.vl-ripple {
+  animation: vl-ripple 3s cubic-bezier(0, 0.4, 0.4, 1) infinite;
+}

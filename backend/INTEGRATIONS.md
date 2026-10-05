@@ -17,7 +17,7 @@ provider's console. Operations → **Webhooks** shows every callback received (a
 | `auto` | Live where keys are set; dev for the rest — except in production, where missing = off. |
 
 Switches: `PAYMENTS_PROVIDER`, `PAYOUTS_PROVIDER`, `SOCIAL_VERIFIER`, `ADS_VERIFIER`, `PUSH_PROVIDER`,
-plus `STORAGE_DRIVER` (local | s3) and `VERIFICATION_PROVIDER` (dev | rekognition | manual).
+plus `STORAGE_DRIVER` (local | s3) and `VERIFICATION_PROVIDER` (dev | face | rekognition | manual).
 
 Secrets that are files (private keys, service-account JSON) can be given as the literal value
 (`\n` escapes are fine), as `base64:<…>`, or as `file:/path/in/container`.
@@ -93,7 +93,7 @@ providers in their profile (one sign-in method always remains).
 - **AdMob:** `ADMOB_AD_UNIT_IDS` (rewarded unit ids) → live. AdMob → app → ad unit → *Server-side verification* callback URL: `https://<api>/v1/webhooks/admob/ssv`.
 - **Push (FCM):** `FCM_PROJECT_ID` + a service account with *Firebase Cloud Messaging API Admin* (`FCM_SERVICE_ACCOUNT_JSON`, or reuse `GOOGLE_SERVICE_ACCOUNT_JSON`). iOS also needs the APNs key uploaded in Firebase. People get pushes for messages, friend requests, inbox messages, payment and cash-out results — only while the app isn't open.
 - **Storage:** `STORAGE_DRIVER=s3` with `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` (+ `S3_ENDPOINT`, `S3_REGION=auto` for Cloudflare R2) and a separate `S3_PRIVATE_BUCKET` with public access blocked (selfies waiting for review).
-- **Selfie verification:** `VERIFICATION_PROVIDER=rekognition` with `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (IAM: `rekognition:DetectFaces`, `rekognition:CompareFaces`). Matches ≥ `VERIFICATION_MIN_SIMILARITY` pass, close ones go to Users → Verifications, clear mismatches are rejected. `manual` sends every selfie to staff. Selfies are deleted once reviewed.
+- **Selfie verification:** `VERIFICATION_PROVIDER=face` uses our own `vibe-face` container (no keys, nothing leaves the server): the app gets a pose challenge (`POST /me/verification/challenge`: look straight, then a head turn and one more move), sends one frame per step to `POST /me/verification` (`frames` + `challengeId`), and the API checks the moves were done by the same face and that it matches the profile photo (≥ `FACE_MATCH_APPROVE` → badge, ≥ `FACE_MATCH_REVIEW` → staff review). If the service is down, attempts go to staff review. Details: `../face/README.md`. Alternatively `VERIFICATION_PROVIDER=rekognition` with `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (IAM: `rekognition:DetectFaces`, `rekognition:CompareFaces`). Matches ≥ `VERIFICATION_MIN_SIMILARITY` pass, close ones go to Users → Verifications, clear mismatches are rejected. `manual` sends every selfie to staff. Selfies are deleted once reviewed.
 
 ## Testing without keys
 

@@ -116,9 +116,14 @@ class RemoteSessionProvider extends SessionProvider {
   }
 
   @override
-  Future<VerificationState> verifySelfie(List<int> jpeg) => _busyWhile(() async {
+  Future<LivenessChallenge> verificationChallenge() async =>
+      LivenessChallenge.fromJson(Map<String, dynamic>.from(await _api.post('/me/verification/challenge') as Map));
+
+  @override
+  Future<VerificationState> verifySelfie(SelfieCheck check) => _busyWhile(() async {
     try {
-      final res = Map<String, dynamic>.from(await _api.upload('/me/verification', field: 'selfie', bytes: jpeg, filename: 'selfie.jpg', contentType: 'image/jpeg') as Map);
+      final files = [for (var i = 0; i < check.frames.length; i++) UploadFile(field: 'frames', bytes: check.frames[i], filename: 'frame$i.jpg')];
+      final res = Map<String, dynamic>.from(await _api.uploadFiles('/me/verification', files, fields: {'challengeId': check.challengeId}) as Map);
       _applyMe(res);
       _verification = VerificationState.fromJson(Map<String, dynamic>.from(res['verification'] as Map? ?? const {}));
     } on ApiException catch (e) {

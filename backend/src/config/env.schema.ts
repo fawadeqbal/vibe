@@ -167,8 +167,13 @@ export const envSchema = z.object({
   FCM_SERVICE_ACCOUNT_JSON: opt,
 
   // ── Selfie verification ────────────────────────────────────────────
-  /** dev = approve if there's a photo; rekognition = AWS face match; manual = staff review queue. */
-  VERIFICATION_PROVIDER: z.enum(['dev', 'rekognition', 'manual']).default('dev'),
+  /** dev = approve if there's a photo; face = our own face service; rekognition = AWS face match; manual = staff review queue. */
+  VERIFICATION_PROVIDER: z.enum(['dev', 'face', 'rekognition', 'manual']).default('dev'),
+  /** face: our own face service (infra: vibe-face) — face match + pose-challenge liveness. */
+  FACE_SERVICE_URL: z.string().url().default('http://vibe-face:8000'),
+  /** Cosine similarity (SFace) to the profile photo for an automatic badge, and the floor for staff review. */
+  FACE_MATCH_APPROVE: z.coerce.number().min(0.3).max(0.9).default(0.4),
+  FACE_MATCH_REVIEW: z.coerce.number().min(0.2).max(0.9).default(0.3),
   /** Face similarity (0–100) needed to approve automatically; below goes to staff review. */
   VERIFICATION_MIN_SIMILARITY: z.coerce.number().min(50).max(100).default(90),
   AWS_REGION: z.string().default('us-east-1'),

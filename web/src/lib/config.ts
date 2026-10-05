@@ -19,6 +19,8 @@ export const config = {
   /** REST lives under /v1; sockets connect to the root. */
   restBase: `${api}/v1`,
   socketUrl: api,
+  /** Public site (landing page); invite links are <siteUrl>/i/<code>. */
+  siteUrl: trimSlashes(process.env.NEXT_PUBLIC_SITE_URL || "https://vibe.fawadiqbal.dev"),
   googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
   /** Offer `dev:` social tokens (backend dev mode only). */
   devSignIn: ["true", "yes", "1"].includes((process.env.NEXT_PUBLIC_DEV_SIGN_IN ?? "").toLowerCase()),

@@ -61,12 +61,17 @@ class ApiClient {
 
   /// `multipart/form-data` upload of one file (avatar, selfie). Same session
   /// handling and errors as the JSON calls; the body is rebuilt on retry.
-  Future<dynamic> upload(String path, {required String field, required List<int> bytes, required String filename, required String contentType, Map<String, String> fields = const {}}) {
-    final type = contentType.split('/');
+  Future<dynamic> upload(String path, {required String field, required List<int> bytes, required String filename, required String contentType, Map<String, String> fields = const {}}) =>
+      uploadFiles(path, [UploadFile(field: field, bytes: bytes, filename: filename, contentType: contentType)], fields: fields);
+
+  /// `multipart/form-data` with several files (a selfie check's frames), in order.
+  Future<dynamic> uploadFiles(String path, List<UploadFile> files, {Map<String, String> fields = const {}}) {
     return _dispatch(path, () {
-      final req = http.MultipartRequest('POST', Uri.parse('$_base$path'))
-        ..fields.addAll(fields)
-        ..files.add(http.MultipartFile.fromBytes(field, bytes, filename: filename, contentType: MediaType(type.first, type.length > 1 ? type[1] : 'octet-stream')));
+      final req = http.MultipartRequest('POST', Uri.parse('$_base$path'))..fields.addAll(fields);
+      for (final f in files) {
+        final type = f.contentType.split('/');
+        req.files.add(http.MultipartFile.fromBytes(f.field, f.bytes, filename: f.filename, contentType: MediaType(type.first, type.length > 1 ? type[1] : 'octet-stream')));
+      }
       return req;
     }, timeout: const Duration(seconds: 60));
   }
@@ -141,4 +146,13 @@ class ApiClient {
       return s;
     }
   }
+}
+
+/// One file of a multipart upload.
+class UploadFile {
+  const UploadFile({required this.field, required this.bytes, required this.filename, this.contentType = 'image/jpeg'});
+  final String field;
+  final List<int> bytes;
+  final String filename;
+  final String contentType;
 }

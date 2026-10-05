@@ -1,11 +1,12 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseFilePipeBuilder, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseFilePipeBuilder, Patch, Post, Query, UploadedFile, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CursorQueryDto } from '../../common/dto/pagination.dto';
 import { OK } from '../../common/dto/ok.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { VerifySelfieDto } from './dto/verification.dto';
 import { UsersService } from './users.service';
 
 const MAX_IMAGE = 5 * 1024 * 1024;
@@ -44,13 +45,22 @@ export class MeController {
     return this.users.completeOnboarding(id);
   }
 
+  @Post('verification/challenge')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Start a selfie check: the moves to do (front photo first), answered once within 5 minutes' })
+  challenge(@CurrentUser('id') id: string) {
+    return this.users.verificationChallenge(id);
+  }
+
   @Post('verification')
   @HttpCode(200)
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Selfie verification: badge at once, a reason, or `verification.status = PENDING` while staff review' })
-  @UseInterceptors(FileInterceptor('selfie', { limits: { fileSize: MAX_IMAGE } }))
-  verify(@CurrentUser('id') id: string, @UploadedFile() selfie?: Express.Multer.File) {
-    return this.users.verifySelfie(id, selfie?.buffer ?? null);
+  @ApiOperation({
+    summary: 'Selfie verification: `frames` (front photo, then one per move) + `challengeId`; older apps send one `selfie`. Badge at once, a reason (400), or `verification.status = PENDING` while staff review',
+  })
+  @UseInterceptors(FileFieldsInterceptor([{ name: 'frames', maxCount: 6 }, { name: 'selfie', maxCount: 1 }], { limits: { fileSize: MAX_IMAGE, files: 7 } }))
+  verify(@CurrentUser('id') id: string, @Body() dto: VerifySelfieDto, @UploadedFiles() files: { frames?: Express.Multer.File[]; selfie?: Express.Multer.File[] } = {}) {
+    return this.users.verifySelfie(id, { frames: files.frames?.map((f) => f.buffer), selfie: files.selfie?.[0]?.buffer ?? null, challengeId: dto.challengeId });
   }
 
   @Get('verification')

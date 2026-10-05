@@ -5,6 +5,7 @@ import '../screens/store/hosted_payment.dart';
 import 'ads/rewarded_ads.dart';
 import 'auth/social_sign_in.dart';
 import 'media/media_picker.dart';
+import 'media/selfie_camera.dart';
 import 'payments/payment_links.dart';
 import 'payments/store_billing.dart';
 import 'push/push_service.dart';
@@ -23,6 +24,7 @@ class AppServices {
     RewardedAds? ads,
     PushService? push,
     MediaPicker? media,
+    SelfieCamera? selfieCamera,
     TargetPlatform? platform,
   })  : billing = billing ?? NoStoreBilling(),
         links = links ?? ManualPaymentLinks(),
@@ -30,6 +32,7 @@ class AppServices {
         ads = ads ?? const NoRewardedAds(),
         push = push ?? NoPush(),
         media = media ?? const NoMediaPicker(),
+        selfieCamera = selfieCamera ?? const NoSelfieCamera(),
         platform = platform ?? defaultTargetPlatform;
 
   /// Everything off: tests and the offline demo's defaults.
@@ -43,6 +46,9 @@ class AppServices {
   final RewardedAds ads;
   final PushService push;
   final MediaPicker media;
+
+  /// The live front camera for the selfie check (pose challenge).
+  final SelfieCamera selfieCamera;
   final TargetPlatform platform;
 
   bool get android => platform == TargetPlatform.android;
