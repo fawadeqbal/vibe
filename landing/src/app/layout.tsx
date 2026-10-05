@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 
+import { JsonLd } from "@/components/json-ld";
+import { organizationLd, websiteLd } from "@/lib/seo";
 import { site } from "@/lib/site";
 
 import "./globals.css";
@@ -23,14 +26,30 @@ const instrumentSerif = localFont({
   src: [{ path: "./fonts/InstrumentSerif-Italic.woff2", weight: "400", style: "italic" }],
 });
 
+const verification: Metadata["verification"] = {
+  ...(site.verification.google ? { google: site.verification.google } : {}),
+  ...(site.verification.yandex ? { yandex: site.verification.yandex } : {}),
+  ...(site.verification.bing ? { other: { "msvalidate.01": site.verification.bing } } : {}),
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
-  title: site.title,
+  title: { default: site.title, template: `%s | ${site.name}` },
   description: site.description,
+  keywords: [...site.keywords],
   applicationName: site.name,
-  alternates: { canonical: "/" },
-  openGraph: { type: "website", siteName: site.name, title: site.title, description: site.description, url: "/" },
-  twitter: { card: "summary_large_image", title: site.title, description: site.description },
+  authors: [{ name: site.legalName, url: site.url }],
+  creator: site.legalName,
+  publisher: site.legalName,
+  category: "social networking",
+  alternates: { canonical: "/", types: { "application/rss+xml": [{ url: "/blog/feed.xml", title: `${site.name} blog` }] } },
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } },
+  openGraph: { type: "website", siteName: site.name, locale: site.locale, title: site.title, description: site.description, url: "/" },
+  twitter: { card: "summary_large_image", title: site.title, description: site.description, ...(site.twitter ? { site: site.twitter, creator: site.twitter } : {}) },
+  // favicon.ico, icon.svg and apple-icon.png in app/ are picked up as files.
+  appleWebApp: { title: site.name, statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
+  verification,
 };
 
 export const viewport: Viewport = {
@@ -44,7 +63,18 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${geist.variable} ${instrumentSerif.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <JsonLd nodes={[organizationLd(), websiteLd()]} />
+        {site.gaId && (
+          <>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${site.gaId}`} strategy="afterInteractive" />
+            <Script id="ga" strategy="afterInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${site.gaId}');`}
+            </Script>
+          </>
+        )}
+      </body>
     </html>
   );
 }

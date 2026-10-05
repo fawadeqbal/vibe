@@ -20,7 +20,7 @@ export function Vip() {
           <Icon name="workspace_premium" size={30} />
         </span>
         <h2 id="vip-title" className="mt-5 text-[clamp(28px,3.6vw,40px)] leading-[1.08] font-bold tracking-[-0.03em]">
-          Vibe <span className="serif text-gold">VIP</span>
+          {site.name} <span className="serif text-gold">VIP</span>
         </h2>
         <p className="mt-3.5 max-w-[480px] text-base leading-[1.6] text-text2">Everything the free app holds back — free filters, no ads, priority matching, 200 coins a month and seeing who liked you.</p>
         <ul className="mt-9 flex w-full max-w-[880px] flex-wrap justify-center gap-3">

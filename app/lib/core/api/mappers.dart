@@ -1,3 +1,4 @@
+import '../../models/follows.dart';
 import '../../models/models.dart';
 import '../mock/mock_data.dart';
 
@@ -116,6 +117,65 @@ class ApiMap {
     unread: i(m['unread']),
     online: m['online'] as bool? ?? false,
   );
+
+  static FollowState followState(Object? s) => switch (s) {
+        'following' => FollowState.following,
+        'requested' => FollowState.requested,
+        _ => FollowState.none,
+      };
+
+  static FriendState friendState(Object? s) => switch (s) {
+        'friends' => FriendState.friends,
+        'requested' => FriendState.requested,
+        'incoming' => FriendState.incoming,
+        _ => FriendState.none,
+      };
+
+  static ProfileView profileView(Map<String, dynamic> m) {
+    final rel = Map<String, dynamic>.from((m['rel'] as Map?) ?? const {});
+    final counts = m['counts'] is Map ? Map<String, dynamic>.from(m['counts'] as Map) : null;
+    final stats = m['stats'];
+    return ProfileView(
+      profile: profile(Map<String, dynamic>.from(m['profile'] as Map)),
+      tier: switch (m['tier']) {
+        'self' => ProfileTier.self,
+        'following' => ProfileTier.following,
+        'friends' => ProfileTier.friends,
+        _ => ProfileTier.matched,
+      },
+      follow: followState(rel['follow']),
+      followsYou: rel['followsYou'] == true,
+      friend: friendState(rel['friend']),
+      followers: counts == null ? null : i(counts['followers']),
+      following: counts == null ? null : i(counts['following']),
+      stats: stats is Map ? ProfileStats(matches: i(stats['matches']), likes: i(stats['likes']), gifts: i(stats['gifts'])) : null,
+      statsHidden: stats == 'hidden',
+      online: m['online'] as bool?,
+    );
+  }
+
+  static FollowEntry followEntry(Map<String, dynamic> m) => FollowEntry(
+        profile: profile(Map<String, dynamic>.from(m['profile'] as Map)),
+        since: date(m['since']) ?? DateTime.now(),
+        followsBack: m['followsBack'] == true,
+      );
+
+  /// The follow part of GET/PATCH /me.
+  static FollowSettings followSettings(Map<String, dynamic> me) => FollowSettings(
+        followers: i(me['followers']),
+        following: i(me['following']),
+        privateAccount: me['privateAccount'] == true,
+        hideStats: me['hideStats'] == true,
+      );
+
+  static String reportReasonOut(ReportReason r) => switch (r) {
+        ReportReason.nudity => 'NUDITY',
+        ReportReason.harassment => 'HARASSMENT',
+        ReportReason.underage => 'UNDERAGE',
+        ReportReason.spam => 'SPAM',
+        ReportReason.scam => 'SCAM',
+        ReportReason.other => 'OTHER',
+      };
 
   static TeamMessage teamMessage(Map<String, dynamic> m) => TeamMessage(
         id: m['id'] as String,

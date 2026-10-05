@@ -92,6 +92,7 @@ export function ChatView({ friendId }: { friendId: string }) {
           />
         }
       >
+        <button type="button" aria-label={`Open ${p.name}'s profile`} className="flex min-w-0 items-center text-left" onClick={() => router.push(`/u/${friendId}`)}>
         <span className="relative shrink-0">
           <Avatar url={p.avatarUrl} name={p.name} size={40} />
           {f.online ? <span className="absolute right-0 bottom-0 size-3 rounded-full border-2 border-bg bg-ok" /> : null}
@@ -103,6 +104,7 @@ export function ChatView({ friendId }: { friendId: string }) {
           </span>
           <span className={cn("type-label block text-[11.5px] font-medium", f.online ? "text-ok" : "text-muted")}>{f.online ? "Online" : `Last seen ${ago(f.since)}`}</span>
         </span>
+        </button>
       </AppBar>
 
       {!msgs?.length ? (

@@ -27,6 +27,10 @@ class Ev {
   static const friendRequest = 'social:friend-request';
   static const friendAccepted = 'social:friend-accepted';
   static const friendRemoved = 'social:friend-removed';
+  static const followNew = 'social:follow-new';
+  static const followRequest = 'social:follow-request';
+  static const followAccepted = 'social:follow-accepted';
+  static const followRemoved = 'social:follow-removed';
   static const message = 'social:message';
   static const inboxMessage = 'inbox:message';
   static const catalogUpdated = 'catalog:updated';

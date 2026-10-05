@@ -5,13 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/vibe_theme.dart';
+import '../../core/theme/vibe_widgets.dart';
+import '../../models/follows.dart';
+import '../../providers/follows_provider.dart';
 import '../../providers/inbox_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../services/app_services.dart';
 import '../../services/push/push_route.dart';
 import '../match/match_screen.dart';
+import '../profile/follow_lists_screen.dart';
 import '../profile/profile_screen.dart';
+import '../profile/user_profile_screen.dart';
 import '../social/chat_screen.dart';
 import '../social/chats_screen.dart';
 import '../social/inbox_screen.dart';
@@ -30,6 +35,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   StreamSubscription<PushRoute>? _taps;
+  StreamSubscription<FollowNotice>? _followNotices;
 
   void go(int i) => setState(() => _index = i);
 
@@ -40,11 +46,15 @@ class _HomeShellState extends State<HomeShell> {
     _taps = push.taps.listen(_open);
     final launch = push.takeLaunchRoute();
     if (launch != null) WidgetsBinding.instance.addPostFrameCallback((_) => _open(launch));
+    _followNotices = context.read<FollowsProvider>().notices.listen((n) {
+      if (mounted) toast(context, n.text);
+    });
   }
 
   @override
   void dispose() {
     _taps?.cancel();
+    _followNotices?.cancel();
     super.dispose();
   }
 
@@ -66,6 +76,10 @@ class _HomeShellState extends State<HomeShell> {
         nav.push(MaterialPageRoute(builder: (_) => const WalletScreen()));
       case PushTarget.store:
         go(2);
+      case PushTarget.profile:
+        nav.push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: r.userId!)));
+      case PushTarget.followRequests:
+        nav.push(MaterialPageRoute(builder: (_) => const FollowListsScreen(initial: FollowList.requests)));
     }
   }
 

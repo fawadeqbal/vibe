@@ -194,3 +194,44 @@ export interface TeamMessage {
   buttonUrl: string | null;
   read: boolean;
 }
+
+// ── follows ──────────────────────────────────────────────────────────────
+
+/** How much of someone's profile you may see (the server decides). */
+export type ProfileTier = "self" | "matched" | "following" | "friends";
+/** Your follow towards someone. */
+export type FollowState = "none" | "requested" | "following";
+/** Your own lists (nobody else's are ever shown). */
+export type FollowList = "followers" | "following" | "requests";
+
+export interface ProfileStats {
+  matches: number;
+  likes: number;
+  gifts: number;
+}
+
+/** GET /users/:id/view. `counts`/`stats` are null below the "following" tier. */
+export interface ProfileView {
+  profile: Profile;
+  tier: ProfileTier;
+  follow: FollowState;
+  followsYou: boolean;
+  friend: Exclude<FriendState, "blocked">;
+  counts: { followers: number; following: number } | null;
+  stats: ProfileStats | "hidden" | null;
+  online: boolean | null;
+}
+
+export interface FollowEntry {
+  profile: Profile;
+  since: Date;
+  followsBack: boolean;
+}
+
+/** Your numbers and privacy switches (from GET /me). */
+export interface FollowSettings {
+  followers: number;
+  following: number;
+  privateAccount: boolean;
+  hideStats: boolean;
+}

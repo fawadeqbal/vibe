@@ -29,6 +29,14 @@ export const ServerEvent = {
   FriendRequest: 'social:friend-request',
   FriendAccepted: 'social:friend-accepted',
   FriendRemoved: 'social:friend-removed',
+  /** Someone followed you: `{ from: PublicProfile }`. */
+  FollowNew: 'social:follow-new',
+  /** Someone asked to follow your private account: `{ from: PublicProfile }`. */
+  FollowRequest: 'social:follow-request',
+  /** Your follow request was accepted: `{ by: PublicProfile }`. */
+  FollowAccepted: 'social:follow-accepted',
+  /** A follow between you and `userId` ended (unfollow, removed). Refresh. */
+  FollowRemoved: 'social:follow-removed',
   Message: 'social:message',
   PresenceChanged: 'social:presence',
 } as const;

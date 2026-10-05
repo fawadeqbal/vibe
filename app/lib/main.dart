@@ -12,6 +12,7 @@ import 'core/api/realtime_client.dart';
 import 'core/config/integrations_config.dart';
 import 'core/mock/mock_backend.dart';
 import 'providers/catalog_provider.dart';
+import 'providers/follows_provider.dart';
 import 'providers/inbox_provider.dart';
 import 'providers/match_provider.dart';
 import 'providers/session_provider.dart';
@@ -56,6 +57,7 @@ Future<void> main() async {
   final MatchProvider match;
   final InboxProvider inbox;
   final CatalogProvider catalog;
+  final FollowsProvider follows;
   if (api != null && realtime != null) {
     session = RemoteSessionProvider(api);
     wallet = RemoteWalletProvider(api, realtime);
@@ -63,6 +65,7 @@ Future<void> main() async {
     match = RemoteMatchProvider(api, realtime, wallet, social, session);
     inbox = RemoteInboxProvider(api, realtime);
     catalog = RemoteCatalogProvider(api, realtime);
+    follows = RemoteFollowsProvider(api, realtime);
   } else {
     session = SessionProvider(backend);
     wallet = WalletProvider(backend);
@@ -70,6 +73,7 @@ Future<void> main() async {
     match = MatchProvider(backend, wallet, social, session);
     inbox = InboxProvider();
     catalog = CatalogProvider();
+    follows = FollowsProvider(backend, social);
   }
 
   final services = _buildServices(config, api: api, backend: backend, wallet: wallet);
@@ -77,6 +81,7 @@ Future<void> main() async {
     // While the token still works: forget this device for push, drop SDK sessions.
     session.addSignOutHook(() => services.push.unregister(api));
     session.addSignOutHook(services.social.signOut);
+    session.addSignOutHook(() async => follows.clear());
   }
 
   runApp(
@@ -89,6 +94,7 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: session),
         ChangeNotifierProvider.value(value: wallet),
         ChangeNotifierProvider.value(value: social),
+        ChangeNotifierProvider.value(value: follows),
         ChangeNotifierProvider.value(value: match),
         ChangeNotifierProvider.value(value: inbox),
         ChangeNotifierProvider.value(value: catalog),

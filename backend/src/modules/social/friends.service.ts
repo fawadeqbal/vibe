@@ -12,6 +12,7 @@ import { PROFILE_INCLUDE, PublicProfile, toPublicProfile } from '../users/user.m
 import { RewardsService } from '../wallet/rewards.service';
 import { WalletService } from '../wallet/wallet.service';
 import { BlocksService } from './blocks.service';
+import { haveMet } from './met';
 
 export type FriendState = 'friends' | 'requested' | 'incoming';
 
@@ -62,8 +63,7 @@ export class FriendsService {
       await this.accept(me, targetId);
       return { state: 'friends', paidCoins: 0 };
     }
-    const met = await this.prisma.match.count({ where: { OR: [{ userAId: me, userBId: targetId }, { userAId: targetId, userBId: me }] } });
-    if (!met) throw new AppError(ErrorCode.NEVER_MATCHED, 'You can add people you have met in a match', HttpStatus.FORBIDDEN);
+    if (!(await haveMet(this.prisma, me, targetId))) throw new AppError(ErrorCode.NEVER_MATCHED, 'You can add people you have met in a match', HttpStatus.FORBIDDEN);
     const target = await this.prisma.user.findUniqueOrThrow({ where: { id: targetId }, select: { name: true } });
     const [low, high] = orderedPair(me, targetId);
     const { paidCoins } = await this.prisma.tx(async (tx) => {

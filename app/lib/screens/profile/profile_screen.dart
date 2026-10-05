@@ -5,13 +5,16 @@ import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/models.dart';
+import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../match/safety_sheet.dart' show VerifyPill;
 import '../onboarding/profile_setup_screen.dart';
+import 'follow_lists_screen.dart';
 import 'sign_in_methods.dart';
+import 'user_profile_screen.dart';
 import 'verification_flow.dart';
 import '../store/vip_screen.dart';
 import '../store/wallet_screen.dart';
@@ -55,6 +58,8 @@ class ProfileScreen extends StatelessWidget {
                   _ProfileCard(me: me, vip: wallet.isVip),
                   const SizedBox(height: 12),
                   _StatsCard(me: me, friends: social.friends.length, match: match),
+                  const SizedBox(height: 10),
+                  const _FollowSection(),
                   const SectionTitle('Safety & trust', top: 26),
                   GroupCard(
                     border: V.trust.withValues(alpha: 0.22),
@@ -158,7 +163,7 @@ class ProfileScreen extends StatelessWidget {
                   if (match.history.isEmpty)
                     Padding(padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2), child: Text('Your last matches will show up here.', style: VT.body(13, color: V.text2)))
                   else
-                    for (final (i, r) in match.history.take(8).indexed) _matchRow(r, last: i == (match.history.length.clamp(0, 8) - 1)),
+                    for (final (i, r) in match.history.take(8).indexed) _matchRow(context, r, last: i == (match.history.length.clamp(0, 8) - 1)),
                   const SectionTitle('Sign-in methods', top: 22),
                   const SignInMethodsCard(),
                   const SectionTitle('Account', top: 22),
@@ -222,7 +227,12 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _matchRow(MatchRecord r, {required bool last}) {
+  Widget _matchRow(BuildContext context, MatchRecord r, {required bool last}) => InkWell(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: r.partner.id))),
+        child: _matchRowContent(r, last: last),
+      );
+
+  Widget _matchRowContent(MatchRecord r, {required bool last}) {
     final bits = [Fmt.duration(r.length), Fmt.ago(r.startedAt), if (r.likedMe) 'liked you', if (r.giftsReceived > 0) '${r.giftsReceived} gift${r.giftsReceived == 1 ? '' : 's'}'];
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -402,6 +412,49 @@ class _BalanceCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Your followers (only you see the lists) and the two privacy switches.
+class _FollowSection extends StatelessWidget {
+  const _FollowSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final follows = context.watch<FollowsProvider>();
+    final s = follows.settings;
+    Future<void> save({bool? privateAccount, bool? hideStats}) async {
+      final ok = await follows.setPrivacy(privateAccount: privateAccount, hideStats: hideStats);
+      if (!ok && context.mounted) toast(context, "Couldn't save that, try again", error: true);
+    }
+
+    return GroupCard(
+      dividerInset: 52,
+      children: [
+        GroupRow(
+          bare: true,
+          icon: Icons.people_alt_rounded,
+          title: '${Fmt.thousands(s.followers)} ${s.followers == 1 ? 'follower' : 'followers'} · ${Fmt.thousands(s.following)} following',
+          subtitle: 'Only you can see these lists.',
+          trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FollowListsScreen())),
+        ),
+        GroupRow(
+          bare: true,
+          icon: Icons.lock_outline_rounded,
+          title: 'Private account',
+          subtitle: 'New followers need your OK first.',
+          trailing: Switch(value: s.privateAccount, onChanged: (on) => save(privateAccount: on)),
+        ),
+        GroupRow(
+          bare: true,
+          icon: Icons.visibility_off_outlined,
+          title: 'Hide my stats',
+          subtitle: 'Matches, likes and gifts stay private.',
+          trailing: Switch(value: s.hideStats, onChanged: (on) => save(hideStats: on)),
+        ),
+      ],
     );
   }
 }

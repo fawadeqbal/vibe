@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
 
 /// Where a tapped notification should take you, from its `data`
-/// (`route`: chat + friendId | friends | inbox | wallet | store).
+/// (`route`: chat + friendId | friends | inbox | wallet | store | profile + userId | follow-requests).
 @immutable
 class PushRoute {
-  const PushRoute(this.target, {this.friendId, this.purchaseId, this.cashoutId});
+  const PushRoute(this.target, {this.friendId, this.userId, this.purchaseId, this.cashoutId});
 
   final PushTarget target;
   final String? friendId;
+
+  /// The person to show (route `profile`).
+  final String? userId;
   final String? purchaseId;
   final String? cashoutId;
 
@@ -25,19 +28,21 @@ class PushRoute {
       'inbox' => const PushRoute(PushTarget.inbox),
       'wallet' => PushRoute(PushTarget.wallet, purchaseId: s('purchaseId'), cashoutId: s('cashoutId')),
       'store' => PushRoute(PushTarget.store, purchaseId: s('purchaseId')),
+      'profile' => s('userId') != null ? PushRoute(PushTarget.profile, userId: s('userId')) : null,
+      'follow-requests' => const PushRoute(PushTarget.followRequests),
       _ => null,
     };
   }
 
   @override
-  bool operator ==(Object other) => other is PushRoute && other.target == target && other.friendId == friendId && other.purchaseId == purchaseId && other.cashoutId == cashoutId;
+  bool operator ==(Object other) => other is PushRoute && other.target == target && other.friendId == friendId && other.userId == userId && other.purchaseId == purchaseId && other.cashoutId == cashoutId;
   @override
-  int get hashCode => Object.hash(target, friendId, purchaseId, cashoutId);
+  int get hashCode => Object.hash(target, friendId, userId, purchaseId, cashoutId);
   @override
   String toString() => 'PushRoute($target${friendId != null ? ', $friendId' : ''})';
 }
 
-enum PushTarget { chat, friends, inbox, wallet, store }
+enum PushTarget { chat, friends, inbox, wallet, store, profile, followRequests }
 
 /// Android notification channels (ids = the server's `category`).
 const pushChannels = <String, String>{

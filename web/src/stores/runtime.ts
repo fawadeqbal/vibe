@@ -1,4 +1,5 @@
 import { useCatalog } from "./catalog";
+import { useFollows } from "./follows";
 import { useInbox } from "./inbox";
 import { useMatch } from "./match";
 import { realtime } from "./services";
@@ -16,7 +17,7 @@ let live = false;
 
 async function loadAll() {
   await useCatalog.getState().load();
-  await Promise.allSettled([useWallet.getState().load(), useSocial.getState().load(), useMatch.getState().load(), useInbox.getState().load()]);
+  await Promise.allSettled([useWallet.getState().load(), useSocial.getState().load(), useFollows.getState().load(), useMatch.getState().load(), useInbox.getState().load()]);
 }
 
 function onSessionChanged(signedIn: boolean) {
@@ -31,6 +32,7 @@ function onSessionChanged(signedIn: boolean) {
     useMatch.getState().reset();
     useWallet.getState().reset();
     useSocial.getState().reset();
+    useFollows.getState().reset();
     useInbox.getState().reset();
   }
 }

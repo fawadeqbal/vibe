@@ -1,3 +1,5 @@
+import { site } from "@/lib/site";
+
 /** The two overlapping rings: pink, and violet screened over it. */
 export function LogoMark({ size = 26, stroke = 2.4 }: { size?: number; stroke?: number }) {
   const ring = size * 0.62;
@@ -15,7 +17,7 @@ export function Logo({ size = 26, stroke = 2.4, textClass = "text-[19px]" }: { s
   return (
     <span className="flex items-center gap-2.5">
       <LogoMark size={size} stroke={stroke} />
-      <span className={`${textClass} font-bold tracking-[-0.4px]`}>Vibe</span>
+      <span className={`${textClass} font-bold tracking-[-0.4px]`}>{site.name}</span>
     </span>
   );
 }

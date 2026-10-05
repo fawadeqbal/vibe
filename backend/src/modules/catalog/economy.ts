@@ -22,6 +22,7 @@ export interface EconomyRules {
 
   friendRequestCost: number;
   freeFriendRequestsPerDay: number;
+  maxFollowsPerDay: number;
   boostCost: number;
   boostMinutes: number;
 
@@ -90,11 +91,12 @@ export const RULE_GROUPS: RuleGroup[] = [
   },
   {
     key: 'social',
-    label: 'Friends and boosts',
-    description: 'Friend requests after the free ones, and paid priority in the queue.',
+    label: 'Friends, follows and boosts',
+    description: 'Friend requests after the free ones, the daily follow limit, and paid priority in the queue.',
     fields: [
       coins('friendRequestCost', 'Friend request (after the free ones)'),
       count('freeFriendRequestsPerDay', 'Free friend requests per day', 0, 100),
+      count('maxFollowsPerDay', 'Follows per day', 1, 10_000, 'Stops spam-following. Unfollowing does not give follows back.'),
       coins('boostCost', 'Boost'),
       { key: 'boostMinutes', label: 'Boost length', kind: 'minutes', min: 1, max: 1440 },
     ],
@@ -156,6 +158,7 @@ export const DEFAULT_RULES: EconomyRules = {
 
   friendRequestCost: 10,
   freeFriendRequestsPerDay: 3,
+  maxFollowsPerDay: 200,
   boostCost: 50,
   boostMinutes: 30,
 

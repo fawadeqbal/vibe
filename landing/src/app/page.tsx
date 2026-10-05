@@ -1,20 +1,17 @@
-import { SiteHeader } from "@/components/site-header";
-import { Faq, FinalCta, Invite, SiteFooter, Stats } from "@/components/sections/closing";
+import { JsonLd } from "@/components/json-ld";
+import { Faq, FinalCta, Invite, Stats } from "@/components/sections/closing";
 import { Gifts } from "@/components/sections/gifts";
 import { Hero } from "@/components/sections/hero";
 import { HowItWorks } from "@/components/sections/how-it-works";
 import { Safety } from "@/components/sections/safety";
 import { Vip } from "@/components/sections/vip";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
 import { FAQS } from "@/lib/faqs";
+import { appLd, faqLd, webPageLd } from "@/lib/seo";
 import { site } from "@/lib/site";
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
-    { "@type": "MobileApplication", name: site.name, operatingSystem: "Android", applicationCategory: "SocialNetworkingApplication", description: site.description, offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } },
-    { "@type": "FAQPage", mainEntity: FAQS.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) },
-  ],
-};
+export const metadata = { title: { absolute: site.title } };
 
 export default function LandingPage() {
   return (
@@ -35,7 +32,7 @@ export default function LandingPage() {
         <FinalCta />
       </main>
       <SiteFooter />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+      <JsonLd nodes={[webPageLd({ path: "/", title: site.title, description: site.description, modified: site.updated }), appLd(), faqLd(FAQS)]} />
     </>
   );
 }

@@ -13,7 +13,7 @@ import { StorageProvider } from '../../infra/storage/storage.provider';
 import { EconomyService } from '../catalog/economy.service';
 import { WalletService } from '../wallet/wallet.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { isProfileComplete, PROFILE_COMPLETED, ProfileCompletedEvent } from './profile.rules';
+import { isProfileComplete, PRIVACY_OPENED, PrivacyOpenedEvent, PROFILE_COMPLETED, ProfileCompletedEvent } from './profile.rules';
 import { SelfieCapture, VerificationService } from './verification/verification.service';
 import { MeProfile, PROFILE_INCLUDE, PublicProfile, toMeProfile, toPublicProfile } from './user.mapper';
 
@@ -99,12 +99,19 @@ export class UsersService {
       bio: dto.bio,
       interests: dto.interests ? [...new Set(dto.interests)] : undefined,
       marketingEmails: dto.marketingEmails,
+      privateAccount: dto.privateAccount,
+      hideStats: dto.hideStats,
       avatarUrl: dto.avatarUrl,
     };
     // A new photo invalidates the selfie match.
     if (dto.avatarUrl && dto.avatarUrl !== before.avatarUrl && before.verified) Object.assign(data, { verified: false, verifiedAt: null });
     const after = await this.prisma.user.update({ where: { id }, data, include: PROFILE_INCLUDE });
     this.emitIfCompleted(before, after);
+    if (before.privateAccount && !after.privateAccount) {
+      // Waiting follow requests are accepted before we answer, so the counts below are current.
+      await this.events.emitAsync(PRIVACY_OPENED, { userId: id } satisfies PrivacyOpenedEvent);
+      return toMeProfile(await this.findActive(id), this.clock.now());
+    }
     return toMeProfile(after, this.clock.now());
   }
 

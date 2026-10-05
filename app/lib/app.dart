@@ -9,6 +9,7 @@ import 'core/api/system_notices.dart';
 import 'core/theme/vibe_theme.dart';
 import 'models/payments.dart';
 import 'providers/catalog_provider.dart';
+import 'providers/follows_provider.dart';
 import 'providers/inbox_provider.dart';
 import 'providers/match_provider.dart';
 import 'providers/session_provider.dart';
@@ -113,6 +114,8 @@ class _VibeAppState extends State<VibeApp> {
     await context.read<WalletProvider>().load();
     if (!mounted) return;
     await context.read<SocialProvider>().load();
+    if (!mounted) return;
+    await context.read<FollowsProvider>().load();
     if (!mounted) return;
     await context.read<MatchProvider>().load();
     if (!mounted) return;

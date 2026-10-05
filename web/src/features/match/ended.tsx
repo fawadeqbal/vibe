@@ -8,6 +8,7 @@ import { Glass } from "@/components/ui/glass";
 import { Icon } from "@/components/ui/icon";
 import { VDivider } from "@/components/ui/misc";
 import { CoinAmount } from "@/components/ui/money";
+import { openUserProfileSheet } from "@/features/profile/user-profile";
 import { duration } from "@/lib/format";
 import { matchLengthSeconds } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
@@ -60,6 +61,9 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
             <p className="type-body mt-1 text-[13px] text-text2">
               {p.country.flag} {p.country.name} · {p.age}
             </p>
+            <TextButton icon="person" className="mt-1 text-[13px] font-medium text-text2" onClick={() => void openUserProfileSheet(p.id)}>
+              View profile
+            </TextButton>
 
             <div className="mt-[22px] flex w-full border-y border-line py-4">
               <Stat label="Call length">

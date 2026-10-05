@@ -19,11 +19,20 @@ npm run build                # static site in out/
 | `NEXT_PUBLIC_ANDROID_URL` | "Get the app", "Android", "Get Vibe for Android" → Play Store or a direct .apk |
 | `NEXT_PUBLIC_VIBE_API` | Live online count: `GET <API>/v1/stats/online` → `{ "online": n }`, polled every 30 s while the tab is visible |
 | `NEXT_PUBLIC_ONLINE_FALLBACK` | Number shown before the first answer and when the API can't be reached (default 2743) |
-| `NEXT_PUBLIC_SITE_URL` | Canonical / Open Graph URLs, sitemap |
+| `NEXT_PUBLIC_BRAND_NAME` | Product name everywhere on the site (default Vibe) |
+| `NEXT_PUBLIC_SITE_URL` | Canonical / Open Graph URLs, sitemap, robots, RSS |
+| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `_BING_…`, `_GA_ID`, `_SOCIAL_LINKS`, `_TWITTER_HANDLE` | Search Console / Bing verification, analytics, schema.org sameAs (see SEO.md) |
 | `NEXT_PUBLIC_TERMS_URL`, `_PRIVACY_URL`, `_SUPPORT_URL` | Footer links (default: the FAQ) |
 
 The online endpoint lives in `backend/src/modules/health/stats.controller.ts`: public, readable from any
 origin (no `CORS_ORIGINS` change needed), cached 10 s per API instance.
+
+## SEO, brand name and domain
+
+The brand name and domain come from `NEXT_PUBLIC_BRAND_NAME` and `NEXT_PUBLIC_SITE_URL`
+(in production: `BRAND_NAME` / `SITE_URL` in `infra/.env.prod`). Change them and rebuild to
+rename the product or move domains. Keyword pages live in `src/content/pages.ts`, blog posts in
+`src/content/posts.ts`. Full guide, launch checklist and ranking plan: **[SEO.md](SEO.md)**.
 
 ## Content to check before launch
 

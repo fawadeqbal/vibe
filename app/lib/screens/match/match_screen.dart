@@ -10,10 +10,13 @@ import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
+import '../../models/follows.dart';
 import '../../models/models.dart';
+import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../profile/user_profile_screen.dart';
 import '../store/store_screen.dart';
 import '../store/vip_screen.dart';
 import 'filters_sheet.dart';
@@ -571,7 +574,10 @@ class _Ended extends StatelessWidget {
                           Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              VAvatar(url: p.avatarUrl, name: p.name, size: 92, ring: true, gapColor: V.surface),
+                              GestureDetector(
+                                onTap: () => showUserProfileSheet(context, p.id),
+                                child: Semantics(button: true, label: 'Open ${p.name}\'s profile', child: VAvatar(url: p.avatarUrl, name: p.name, size: 92, ring: true, gapColor: V.surface)),
+                              ),
                               if (p.verified)
                                 Positioned(
                                   right: -2,
@@ -836,7 +842,10 @@ class _Connected extends StatelessWidget {
             child: Row(
               children: [
                 Flexible(
-                  child: Glass(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => showUserProfileSheet(context, p.id),
+                    child: Glass(
                     radius: 24,
                     color: V.bg2.withValues(alpha: 0.45),
                     padding: const EdgeInsets.fromLTRB(5, 5, 14, 5),
@@ -865,6 +874,7 @@ class _Connected extends StatelessWidget {
                       ],
                     ),
                   ),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Glass(
@@ -881,6 +891,8 @@ class _Connected extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
+                _FollowPill(userId: p.id),
                 const SizedBox(width: 8),
                 GlassPill(label: 'Report', icon: Icons.flag_rounded, tint: V.bad, height: 36, onTap: onReport),
               ],
@@ -1249,5 +1261,66 @@ class VipNudge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GhostButton(label: 'Get VIP', icon: Icons.workspace_premium_rounded, color: V.gold, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen())));
+  }
+}
+
+/// Follow from the call's top bar (a small icon button). Reads the partner's
+/// profile once so it knows whether you already follow them.
+class _FollowPill extends StatefulWidget {
+  const _FollowPill({required this.userId});
+  final String userId;
+
+  @override
+  State<_FollowPill> createState() => _FollowPillState();
+}
+
+class _FollowPillState extends State<_FollowPill> {
+  @override
+  void initState() {
+    super.initState();
+    final follows = context.read<FollowsProvider>();
+    Future(() async {
+      try {
+        await follows.view(widget.userId);
+      } on ApiException catch (_) {}
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.select<FollowsProvider, FollowState>((f) => f.stateOf(widget.userId));
+    final label = switch (s) { FollowState.none => 'Follow', FollowState.requested => 'Follow requested', FollowState.following => 'Following' };
+    final none = s == FollowState.none;
+    // Icon-only so the partner's name keeps its room on small phones.
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: none,
+        label: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: !none
+              ? null
+              : () async {
+                  try {
+                    await context.read<FollowsProvider>().follow(widget.userId);
+                  } on ApiException catch (e) {
+                    if (context.mounted) toast(context, e.message, error: true);
+                  }
+                },
+          child: Glass(
+            radius: 18,
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            color: none ? V.violet.withValues(alpha: 0.28) : V.bg2.withValues(alpha: 0.45),
+            border: none ? V.violet.withValues(alpha: 0.5) : null,
+            child: Center(
+              widthFactor: 1,
+              child: Icon(switch (s) { FollowState.none => Icons.add_rounded, FollowState.requested => Icons.hourglass_top_rounded, FollowState.following => Icons.check_rounded }, size: 20, color: s == FollowState.following ? V.ok : Colors.white),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

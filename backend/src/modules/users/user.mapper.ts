@@ -27,6 +27,12 @@ export interface MeProfile extends PublicProfile {
   role: User['role'];
   matches: number;
   likes: number;
+  followers: number;
+  following: number;
+  /** Follows need approval. */
+  privateAccount: boolean;
+  /** Stats are hidden from other people. */
+  hideStats: boolean;
   inviteCode: string;
   onboarded: boolean;
   profileReady: boolean;
@@ -62,6 +68,10 @@ export function toMeProfile(u: WithWallet, now: Date = new Date()): MeProfile {
     role: u.role,
     matches: u.matchesCount,
     likes: u.likesCount,
+    followers: u.followersCount,
+    following: u.followingCount,
+    privateAccount: u.privateAccount,
+    hideStats: u.hideStats,
     inviteCode: u.inviteCode,
     onboarded: !!u.onboardedAt,
     profileReady: isProfileReady(u),

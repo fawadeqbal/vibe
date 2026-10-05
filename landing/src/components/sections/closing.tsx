@@ -1,7 +1,6 @@
 import { Cta } from "@/components/cta";
 import { FaqList } from "@/components/faq-list";
 import { Icon } from "@/components/icon";
-import { Logo } from "@/components/logo";
 import { site } from "@/lib/site";
 
 export function Invite() {
@@ -28,7 +27,7 @@ export function Invite() {
 
 export function Stats() {
   return (
-    <section aria-label="Vibe in numbers" className="border-t border-line-soft">
+    <section aria-label={`${site.name} in numbers`} className="border-t border-line-soft">
       <dl className="mx-auto grid max-w-[1140px] grid-cols-2 gap-6 px-4 py-14 text-center sm:px-6 md:grid-cols-4">
         {site.stats.map((s) => (
           <div key={s.label} className="flex flex-col-reverse">
@@ -73,33 +72,9 @@ export function FinalCta() {
         <p className="mt-4 text-base text-text2">Free to download. Free to match. 18+ only.</p>
         <Cta href={site.links.android} size="xl" className="mt-[30px] shadow-[0_12px_34px_rgb(255_61_143/0.35)]">
           <Icon name="download" size={20} />
-          Get Vibe for Android
+          Get {site.name} for Android
         </Cta>
       </div>
     </section>
-  );
-}
-
-export function SiteFooter() {
-  const links = [
-    { href: "#safety", label: "Safety" },
-    { href: site.links.terms, label: "Terms" },
-    { href: site.links.privacy, label: "Privacy" },
-    { href: site.links.support, label: "Support" },
-  ];
-  return (
-    <footer className="border-t border-line-soft">
-      <div className="mx-auto flex max-w-[1140px] flex-wrap items-center gap-5 px-4 py-9 sm:px-6">
-        <Logo size={22} stroke={2} textClass="text-[15px]" />
-        <p className="min-w-[200px] flex-1 text-[12.5px] text-muted">© {new Date().getFullYear()} Vibe · Meet someone new. 18+ only — be kind on camera.</p>
-        <nav aria-label="Footer" className="flex flex-wrap gap-5">
-          {links.map((l) => (
-            <a key={l.label} href={l.href} className="text-[13px] text-text2 underline-offset-4 transition-colors hover:text-pink-soft hover:underline">
-              {l.label}
-            </a>
-          ))}
-        </nav>
-      </div>
-    </footer>
   );
 }

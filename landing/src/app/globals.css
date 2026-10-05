@@ -210,3 +210,113 @@
 .vl-ripple {
   animation: vl-ripple 3s cubic-bezier(0, 0.4, 0.4, 1) infinite;
 }
+
+/* ── long-form pages (keyword pages, blog) ───────────────────────────────
+ * Readable measure, quiet hierarchy, links in the brand pink. In the
+ * components layer so utility classes (buttons inside articles) still win. */
+@layer components {
+  .prose-site {
+    color: var(--color-text2);
+    font-size: 17px;
+    line-height: 1.75;
+  }
+  .prose-site > * + * {
+    margin-top: 1.15em;
+  }
+  .prose-site h2 {
+    margin-top: 2.2em;
+    color: var(--color-text);
+    font-size: clamp(23px, 2.6vw, 28px);
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    scroll-margin-top: 96px;
+  }
+  .prose-site h3 {
+    margin-top: 1.8em;
+    color: var(--color-text);
+    font-size: 19px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .prose-site h2 + *,
+  .prose-site h3 + * {
+    margin-top: 0.6em;
+  }
+  .prose-site strong {
+    color: var(--color-text);
+    font-weight: 600;
+  }
+  .prose-site a {
+    color: var(--color-pink-soft);
+    text-decoration: underline;
+    text-decoration-color: rgb(255 122 179 / 0.4);
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.2s;
+  }
+  .prose-site a:hover {
+    text-decoration-color: currentColor;
+  }
+  .prose-site ul,
+  .prose-site ol {
+    padding-left: 1.3em;
+  }
+  .prose-site ul {
+    list-style: disc;
+  }
+  .prose-site ol {
+    list-style: decimal;
+  }
+  .prose-site li + li {
+    margin-top: 0.45em;
+  }
+  .prose-site li::marker {
+    color: var(--color-pink);
+  }
+  .prose-site .note {
+    display: flex;
+    gap: 12px;
+    border: 1px solid rgb(94 234 212 / 0.2);
+    background: rgb(94 234 212 / 0.05);
+    border-radius: 20px;
+    padding: 16px 18px;
+    font-size: 15.5px;
+    line-height: 1.6;
+  }
+  .prose-site .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--color-line);
+    border-radius: 18px;
+  }
+  .prose-site table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  .prose-site caption {
+    caption-side: bottom;
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 13px;
+    color: var(--color-muted);
+  }
+  .prose-site th,
+  .prose-site td {
+    padding: 12px 14px;
+    text-align: left;
+    vertical-align: top;
+    border-top: 1px solid var(--color-line);
+  }
+  .prose-site thead th {
+    border-top: 0;
+    color: var(--color-text);
+    font-weight: 600;
+    background: var(--color-tile);
+  }
+  .prose-site tbody th {
+    color: var(--color-text);
+    font-weight: 600;
+  }
+}

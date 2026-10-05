@@ -13,6 +13,7 @@ import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/mock/mock_data.dart';
 import 'package:vibe_app/core/theme/vibe_theme.dart';
 import 'package:vibe_app/models/models.dart';
+import 'package:vibe_app/providers/follows_provider.dart';
 import 'package:vibe_app/providers/inbox_provider.dart';
 import 'package:vibe_app/providers/match_provider.dart';
 import 'package:vibe_app/providers/session_provider.dart';
@@ -103,6 +104,7 @@ class H {
   late SessionProvider session;
   late MatchProvider match;
   late InboxProvider inbox;
+  late FollowsProvider follows;
 
   Future<void> init({bool slowMatch = false, bool vip = false, bool withFriends = true}) async {
     SharedPreferences.setMockInitialValues({});
@@ -153,6 +155,8 @@ class H {
     ));
     await session.finishOnboarding();
     await match.load();
+    follows = FollowsProvider(backend, social);
+    await follows.load();
     inbox = InboxProvider();
     if (withFriends) await inbox.load();
   }
@@ -165,6 +169,7 @@ class H {
           ChangeNotifierProvider.value(value: social),
           ChangeNotifierProvider.value(value: match),
           ChangeNotifierProvider.value(value: inbox),
+          ChangeNotifierProvider<FollowsProvider>.value(value: follows),
         ],
         child: RepaintBoundary(key: const ValueKey('root'), child: MaterialApp(debugShowCheckedModeBanner: false, theme: V.theme(), home: home)),
       );

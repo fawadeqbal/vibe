@@ -19,10 +19,11 @@ export function Hero() {
         <div className="max-w-[560px] min-w-0 flex-[1_1_440px]">
           <OnlineNow />
           <h1 className="mt-[22px] text-[clamp(40px,5.5vw,64px)] leading-[1.02] font-bold tracking-[-0.035em]">
+            <span className="eyebrow mb-4 block text-lavender">Free random video chat</span>{" "}
             Meet someone new, <span className="serif text-pink-soft">right now.</span>
           </h1>
           <p className="mt-5 max-w-[460px] text-[17px] leading-[1.6] text-text2">
-            Welcome to Vibe — one tap connects you on video with a real person somewhere in the world. Swipe to the next when the spark isn&apos;t there, stay when it is. No profiles to build first, no waiting.
+            {site.name} is free random video chat with real, selfie-verified people: one tap puts you face to face with someone new, anywhere in the world. Swipe to the next when the spark isn&apos;t there, stay when it is. No profile to build first, no waiting.
           </p>
           <div className="mt-[30px] flex flex-wrap items-center gap-3">
             <Cta href={site.links.webApp}>
@@ -50,13 +51,13 @@ export function Hero() {
   );
 }
 
-/** A live call on Vibe: the product, shown rather than described. */
+/** A live call in the app: the product, shown rather than described. */
 function CallPhone() {
   return (
     <div className="relative flex h-[660px] w-[440px] max-w-full flex-none items-center justify-center max-sm:h-[600px]">
       <div aria-hidden="true" className="absolute top-1/2 left-1/2 size-[560px] -translate-1/2 rounded-full bg-[radial-gradient(circle,rgb(139_92_246/0.2),rgb(255_61_143/0.06)_45%,rgb(11_10_16/0)_68%)]" />
       <figure
-        aria-label="A Vibe video call: Sofia, 24, verified, one minute in, chatting about where you're from"
+        aria-label={`A ${site.name} video call: Sofia, 24, verified, one minute in, chatting about where you're from`}
         className="relative z-[5] h-[620px] w-[300px] overflow-hidden rounded-[46px] border border-line-strong bg-bg shadow-[0_60px_120px_rgb(0_0_0/0.7),0_24px_80px_rgb(139_92_246/0.14)] max-sm:h-[580px] max-sm:w-[280px]"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}

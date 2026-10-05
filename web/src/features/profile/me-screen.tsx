@@ -23,6 +23,7 @@ import { alpha } from "@/lib/colors";
 import { ago, duration, gemsAsUsd, thousands, until } from "@/lib/format";
 import { genderLabel, isProfileComplete, type MatchRecord, matchLengthSeconds, type Profile } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
+import { useFollows } from "@/stores/follows";
 import { averageLength, matchesToday, skipRate, useMatch } from "@/stores/match";
 import { useSession, verification } from "@/stores/session";
 import { friendsOf, useSocial } from "@/stores/social";
@@ -72,6 +73,7 @@ export function MeScreen() {
       <div className="mt-3">
         <StatsCard me={me} />
       </div>
+      <FollowSection />
 
       <SectionTitle text="Safety & trust" top={26} />
       <GroupCard className="border-trust/22">
@@ -238,7 +240,7 @@ function BalanceCard({ label, icon, value, note, valueClass, href }: { label: st
 function MatchRow({ r, last }: { r: MatchRecord; last: boolean }) {
   const bits = [duration(matchLengthSeconds(r)), ago(r.startedAt), ...(r.likedMe ? ["liked you"] : []), ...(r.giftsReceived > 0 ? [`${r.giftsReceived} gift${r.giftsReceived === 1 ? "" : "s"}`] : [])];
   return (
-    <div className={`flex items-center py-3 ${last ? "" : "border-b border-line-soft"}`}>
+    <Link href={`/u/${r.partner.id}`} className={`flex items-center py-3 transition-opacity hover:opacity-85 ${last ? "" : "border-b border-line-soft"}`}>
       <Avatar url={r.partner.avatarUrl} name={r.partner.name} size={44} />
       <span className="ml-3.5 min-w-0 flex-1">
         <span className="type-title block text-[15px] font-semibold">
@@ -247,6 +249,45 @@ function MatchRow({ r, last }: { r: MatchRecord; last: boolean }) {
         <span className="type-body mt-px block text-[12px] text-text2">{bits.join(" · ")}</span>
       </span>
       {r.liked ? <Icon name="favorite" size={18} className="text-pink" /> : null}
+    </Link>
+  );
+}
+
+/** Your followers (only you see the lists) and the two privacy switches. */
+function FollowSection() {
+  const router = useRouter();
+  const s = useFollows((x) => x.settings);
+  const save = async (patch: { privateAccount?: boolean; hideStats?: boolean }) => {
+    if (!(await useFollows.getState().setPrivacy(patch))) toast("Couldn't save that, try again", { error: true });
+  };
+  return (
+    <div className="mt-2.5">
+      <GroupCard dividerInset={52}>
+        <GroupRow
+          bare
+          icon="people_alt"
+          title={`${thousands(s.followers)} ${s.followers === 1 ? "follower" : "followers"} · ${thousands(s.following)} following`}
+          subtitle="Only you can see these lists."
+          trailing={<Icon name="chevron_right" className="text-muted" />}
+          onClick={() => router.push("/me/follows")}
+        />
+        <GroupRow
+          bare
+          icon="lock"
+          iconVariant="outlined"
+          title="Private account"
+          subtitle="New followers need your OK first."
+          trailing={<Switch checked={s.privateAccount} label="Private account" onChange={(on) => void save({ privateAccount: on })} />}
+        />
+        <GroupRow
+          bare
+          icon="visibility_off"
+          iconVariant="outlined"
+          title="Hide my stats"
+          subtitle="Matches, likes and gifts stay private."
+          trailing={<Switch checked={s.hideStats} label="Hide my stats" onChange={(on) => void save({ hideStats: on })} />}
+        />
+      </GroupCard>
     </div>
   );
 }

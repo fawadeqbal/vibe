@@ -3,6 +3,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { ServerEvent, ServerEventName } from '../../infra/realtime/realtime.events';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { PushMessage } from './push-sender';
 import { PushService } from './push.service';
 
@@ -20,6 +21,7 @@ export class PushBridge implements OnModuleInit {
     private readonly realtime: RealtimeService,
     private readonly push: PushService,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {}
 
   private readonly builders: Partial<Record<ServerEventName, Builder>> = {
@@ -35,6 +37,20 @@ export class PushBridge implements OnModuleInit {
     [ServerEvent.FriendAccepted]: (p) => {
       const f = (p.friend ?? {}) as { id?: string; name?: string };
       return { title: "You're friends now", body: `${f.name || 'Your friend'} accepted your request`, data: { route: 'chat', friendId: String(f.id ?? '') }, category: 'social' };
+    },
+    [ServerEvent.FollowNew]: async (p, userId) => {
+      const from = (p.from ?? {}) as { id?: string; name?: string };
+      if (!(await this.firstToday(`push:follow:${from.id}:${userId}`))) return null;
+      return { title: 'New follower', body: `${from.name || 'Someone'} started following you`, data: { route: 'profile', userId: String(from.id ?? '') }, category: 'social' };
+    },
+    [ServerEvent.FollowRequest]: async (p, userId) => {
+      const from = (p.from ?? {}) as { id?: string; name?: string };
+      if (!(await this.firstToday(`push:follow-req:${from.id}:${userId}`))) return null;
+      return { title: 'Follow request', body: `${from.name || 'Someone'} wants to follow you`, data: { route: 'follow-requests' }, category: 'social' };
+    },
+    [ServerEvent.FollowAccepted]: (p) => {
+      const by = (p.by ?? {}) as { id?: string; name?: string };
+      return { title: 'Request accepted', body: `${by.name || 'Someone'} accepted your follow request`, data: { route: 'profile', userId: String(by.id ?? '') }, category: 'social' };
     },
     [ServerEvent.InboxMessage]: (p) => ({ title: String(p.title ?? 'Message from Vibe'), body: String(p.body ?? '').slice(0, 160), data: { route: 'inbox' }, category: 'inbox' }),
     [ServerEvent.PaymentUpdated]: (p) => {
@@ -54,6 +70,11 @@ export class PushBridge implements OnModuleInit {
       const build = this.builders[event];
       if (build) void this.deliver(userId, build, (payload ?? {}) as Payload);
     });
+  }
+
+  /** True the first time this key is seen today (follow/unfollow spam gets one push a day). */
+  private async firstToday(key: string): Promise<boolean> {
+    return (await this.redis.client.set(key, '1', 'EX', 86_400, 'NX')) === 'OK';
   }
 
   private async deliver(userId: string, build: Builder, payload: Payload): Promise<void> {

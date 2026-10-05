@@ -54,4 +54,14 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsUrl({ require_tld: false, require_protocol: true })
   avatarUrl?: string;
+
+  @ApiPropertyOptional({ description: 'New followers need your approval' })
+  @IsOptional()
+  @IsBoolean()
+  privateAccount?: boolean;
+
+  @ApiPropertyOptional({ description: 'Hide matches, likes and gifts on your profile' })
+  @IsOptional()
+  @IsBoolean()
+  hideStats?: boolean;
 }

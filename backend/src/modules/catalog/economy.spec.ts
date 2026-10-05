@@ -47,6 +47,13 @@ describe('economy', () => {
     const r = PacksSchema.parse([{ id: 'starter', name: 'Starter', coins: 100, usdCents: 99, bonusPercent: 0, tag: '' }]);
     expect(r[0]).not.toHaveProperty('tag');
   });
+
+  it('follows have a daily cap staff can change', () => {
+    expect(DEFAULT_RULES.maxFollowsPerDay).toBe(200);
+    expect(RULE_FIELDS.find((f) => f.key === 'maxFollowsPerDay')).toMatchObject({ kind: 'count', min: 1, max: 10_000 });
+    expect(RulesPatchSchema.safeParse({ maxFollowsPerDay: 0 }).success).toBe(false);
+    expect(RulesPatchSchema.safeParse({ maxFollowsPerDay: 50 }).success).toBe(true);
+  });
 });
 
 function packTotalCoinsOf(id: string): number {

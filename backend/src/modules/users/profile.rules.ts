@@ -11,3 +11,9 @@ export const PROFILE_COMPLETED = 'user.profile-completed';
 export interface ProfileCompletedEvent {
   userId: string;
 }
+
+/** Emitted (awaited) when an account switches from private to public; waiting follow requests get accepted. */
+export const PRIVACY_OPENED = 'user.privacy-opened';
+export interface PrivacyOpenedEvent {
+  userId: string;
+}

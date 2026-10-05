@@ -79,6 +79,7 @@ export class WalletService {
       );
       if (!sent.applied) return null;
       await this.ledger.move(toId, { gems, kind: LedgerKind.GIFT_RECEIVED, title: `${gift.name} from ${ctx.fromName}` }, { tx });
+      await tx.user.update({ where: { id: toId }, data: { giftsReceivedCount: { increment: 1 } } });
       return tx.giftTransfer.create({ data: { giftId: gift.id, fromId, toId, coins: gift.coins, gems, matchId: ctx.matchId } });
     });
     this.changed([fromId, toId]);

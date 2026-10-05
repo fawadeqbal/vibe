@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Cta } from "@/components/cta";
@@ -7,12 +8,15 @@ import { Icon } from "@/components/icon";
 import { Logo } from "@/components/logo";
 import { site } from "@/lib/site";
 
+// Absolute "/#…" so the same header works on every page (on the home page the
+// browser just scrolls).
 const NAV = [
-  { href: "#how", label: "How it works" },
-  { href: "#gifts", label: "Gifts" },
-  { href: "#safety", label: "Safety" },
-  { href: "#vip", label: "VIP" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/#how", label: "How it works" },
+  { href: "/#gifts", label: "Gifts" },
+  { href: "/#safety", label: "Safety" },
+  { href: "/#vip", label: "VIP" },
+  { href: "/blog/", label: "Blog" },
+  { href: "/#faq", label: "FAQ" },
 ];
 
 export function SiteHeader() {
@@ -35,9 +39,9 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-line-soft bg-bg/80 backdrop-blur-[20px]">
       <div className="mx-auto flex h-[68px] max-w-[1140px] items-center gap-7 px-4 sm:px-6">
-        <a href="#top" aria-label="Vibe home" className="rounded-lg">
+        <Link href="/" aria-label={`${site.name} home`} className="rounded-lg">
           <Logo />
-        </a>
+        </Link>
         <nav aria-label="Sections" className="hidden flex-1 justify-center gap-6 md:flex">
           {NAV.map((n) => (
             <a key={n.href} href={n.href} className="text-sm font-medium text-text2 transition-colors hover:text-text">

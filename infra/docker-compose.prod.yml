@@ -171,6 +171,15 @@ services:
         NEXT_PUBLIC_WEB_APP_URL: ${WEB_APP_URL}
         NEXT_PUBLIC_VIBE_API: ${PUBLIC_URL}
         NEXT_PUBLIC_ANDROID_URL: ${ANDROID_URL:-}
+        # SEO / brand (see landing/SEO.md). Rename or move = change these + rebuild.
+        NEXT_PUBLIC_BRAND_NAME: ${BRAND_NAME:-Vibe}
+        NEXT_PUBLIC_BRAND_LEGAL_NAME: ${BRAND_LEGAL_NAME:-}
+        NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
+        NEXT_PUBLIC_BING_SITE_VERIFICATION: ${BING_SITE_VERIFICATION:-}
+        NEXT_PUBLIC_GA_ID: ${GA_ID:-}
+        NEXT_PUBLIC_SOCIAL_LINKS: ${SOCIAL_LINKS:-}
+        NEXT_PUBLIC_TWITTER_HANDLE: ${TWITTER_HANDLE:-}
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
     container_name: vibe-landing
     restart: unless-stopped
     networks:

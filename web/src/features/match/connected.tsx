@@ -14,6 +14,7 @@ import { cn } from "@/lib/cn";
 import { clock } from "@/lib/format";
 import type { FriendState, Profile } from "@/lib/models";
 import { useNow } from "@/hooks/use-now";
+import { FollowPill, openUserProfileSheet } from "@/features/profile/user-profile";
 import { useCatalog } from "@/stores/catalog";
 import { cooldownSeconds, mutualLike, useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
@@ -44,6 +45,7 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
 
       {/* Top: who, timer, report. */}
       <div className="absolute inset-x-0 top-0 flex items-center gap-2 px-3 pt-[calc(10px+env(safe-area-inset-top))]">
+        <button type="button" aria-label={`Open ${p.name}'s profile`} onClick={() => void openUserProfileSheet(p.id, { inCall: true })} className="flex min-w-0 shrink text-left">
         <Glass radius={24} className="flex min-w-0 shrink items-center bg-bg2/45 py-[5px] pr-3.5 pl-[5px]">
           <Avatar url={p.avatarUrl} name={p.name} size={36} />
           <span className="ml-2.5 flex min-w-0 flex-col">
@@ -59,11 +61,13 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
             </span>
           </span>
         </Glass>
+        </button>
         <Glass radius={16} className="flex h-8 shrink-0 items-center bg-bg2/45 px-2.5 py-0">
           <span className="size-1.5 rounded-full bg-bad" />
           <span className="type-mono ml-1.5 text-[12px] text-text">{clock(m.elapsed)}</span>
         </Glass>
         <span className="flex-1" />
+        <FollowPill userId={p.id} />
         <GlassPill label="Report" icon="flag" tint="bad" height={36} onClick={actions.report} className="shrink-0" />
       </div>
 

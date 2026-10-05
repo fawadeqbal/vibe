@@ -7,6 +7,7 @@ import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../providers/social_provider.dart';
 import '../match/gift_sheet.dart';
+import '../profile/user_profile_screen.dart';
 import '../store/store_screen.dart';
 
 /// Text chat with a friend. Gifts here earn them gems too — that is what
@@ -96,7 +97,10 @@ class _ChatScreenState extends State<ChatScreen> {
         leading: Center(child: CircleIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())),
         leadingWidth: 64,
         shape: const Border(bottom: BorderSide(color: V.lineSoft)),
-        title: Row(
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: widget.friendId))),
+          child: Row(
           children: [
             Stack(
               children: [
@@ -121,6 +125,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           ],
+        ),
         ),
         actions: [
           PopupMenuButton<String>(

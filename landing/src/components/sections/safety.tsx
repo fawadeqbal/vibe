@@ -1,4 +1,5 @@
 import { Icon } from "@/components/icon";
+import { site } from "@/lib/site";
 import { SafetyToggles } from "@/components/safety-toggles";
 import type { IconName } from "@/lib/icons";
 
@@ -18,7 +19,7 @@ export function Safety() {
           <h2 id="safety-title" className="mt-3 text-[clamp(28px,3.6vw,40px)] leading-[1.08] font-bold tracking-[-0.03em]">
             Built so you never have to <span className="serif text-trust">think twice</span>
           </h2>
-          <p className="mt-4 max-w-[440px] text-base leading-[1.6] text-text2">Video with strangers only works when it feels safe. Every call on Vibe comes with guardrails on by default.</p>
+          <p className="mt-4 max-w-[440px] text-base leading-[1.6] text-text2">Video with strangers only works when it feels safe. Every call on {site.name} comes with guardrails on by default.</p>
           <ul className="mt-7 flex flex-col gap-[18px]">
             {POINTS.map((p) => (
               <li key={p.title} className="flex gap-3.5">

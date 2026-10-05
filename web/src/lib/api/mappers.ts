@@ -1,5 +1,5 @@
 import { country } from "../catalog";
-import type { ChatMessage, Friend, Gender, Gift, MatchRecord, PaymentMethod, Profile, TeamMessage, Transaction, TxKind, Wallet } from "../models";
+import type { ChatMessage, FollowEntry, FollowSettings, FollowState, Friend, FriendState, Gender, Gift, MatchRecord, PaymentMethod, Profile, ProfileTier, ProfileView, TeamMessage, Transaction, TxKind, Wallet } from "../models";
 
 /**
  * JSON from the Vibe API → the app's models. One place, so a field rename on
@@ -125,3 +125,29 @@ export function matchRecord(m: Json): MatchRecord | null {
     coinsSpent: int(m.coinsSpent),
   };
 }
+
+const TIERS: ProfileTier[] = ["self", "matched", "following", "friends"];
+const FRIEND_STATES: Exclude<FriendState, "blocked">[] = ["none", "requested", "incoming", "friends"];
+
+export const followState = (v: unknown): FollowState => (v === "following" || v === "requested" ? v : "none");
+
+export function profileView(m: Json): ProfileView {
+  const rel = asMap(m.rel);
+  const counts = m.counts && typeof m.counts === "object" ? asMap(m.counts) : null;
+  const stats = m.stats;
+  return {
+    profile: profile(asMap(m.profile)),
+    tier: TIERS.find((x) => x === m.tier) ?? "matched",
+    follow: followState(rel.follow),
+    followsYou: bool(rel.followsYou),
+    friend: FRIEND_STATES.find((x) => x === rel.friend) ?? "none",
+    counts: counts ? { followers: int(counts.followers), following: int(counts.following) } : null,
+    stats: stats === "hidden" ? "hidden" : stats && typeof stats === "object" ? { matches: int(asMap(stats).matches), likes: int(asMap(stats).likes), gifts: int(asMap(stats).gifts) } : null,
+    online: typeof m.online === "boolean" ? m.online : null,
+  };
+}
+
+export const followEntry = (m: Json): FollowEntry => ({ profile: profile(asMap(m.profile)), since: date(m.since) ?? new Date(), followsBack: bool(m.followsBack) });
+
+/** The follow part of GET/PATCH /me. */
+export const followSettings = (m: Json): FollowSettings => ({ followers: int(m.followers), following: int(m.following), privateAccount: bool(m.privateAccount), hideStats: bool(m.hideStats) });

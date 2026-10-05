@@ -51,6 +51,8 @@ export enum ErrorCode {
   BLOCKED = 'BLOCKED',
   NOT_FRIENDS = 'NOT_FRIENDS',
   NEVER_MATCHED = 'NEVER_MATCHED',
+  /** Too many new follows today (economy rule maxFollowsPerDay). */
+  FOLLOW_LIMIT = 'FOLLOW_LIMIT',
 
   // matching
   NOT_IN_MATCH = 'NOT_IN_MATCH',
