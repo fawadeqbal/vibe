@@ -1,10 +1,23 @@
-# Vibe CD — auto deploy from GitHub
+# Vibe CI/CD — test and deploy from GitHub
 
-Every push to `main` → GitHub Actions SSHes into the server → runs `infra/deploy.sh` →
-server pulls the repo, rebuilds `.env`, `docker compose up -d --build`, waits for the API → Actions checks the public URLs and the TURN relay.
+**CI** (`.github/workflows/ci.yml`) runs on every push and pull request, only for the parts that changed:
+
+| Part | Checks |
+|---|---|
+| backend | lint, typecheck, unit tests, build, e2e tests against Postgres 16 + Redis 7 |
+| admin, web | lint, typecheck, vitest, `next build` |
+| landing | lint, typecheck, `next build` |
+| face | `docker build --target test` (downloads the pinned models, runs pytest) |
+| app | `flutter analyze --no-fatal-infos`, `flutter test` |
+
+A change to `ci.yml` itself, or **Actions → CI → Run workflow**, runs everything. The final job **CI passed** sums it up.
+
+**CD** (`.github/workflows/deploy.yml`) starts when CI passes on `main` → GitHub Actions SSHes into the server → runs `infra/deploy.sh` →
+server pulls that commit, rebuilds `.env`, `docker compose up -d --build`, waits for the API → Actions checks the public URLs and the TURN relay.
+If CI fails, nothing is deployed.
 
 ```
-git push main ─▶ GitHub Actions ──(key A: SSH)──▶ server opc@145.241.156.60
+git push main ─▶ CI ✓ ─▶ Deploy ──(key A: SSH)──▶ server opc@145.241.156.60
                                                    │ deploy.sh
                                                    └─(key B: deploy key, read-only)─▶ git pull from GitHub
 ```
@@ -16,7 +29,11 @@ Two keys, both made **on the server**:
 | A `gh_actions` | GitHub secret `SSH_PRIVATE_KEY` | server `~/.ssh/authorized_keys` | GitHub logging into the server |
 | B `vibe_deploy_key` | server `~/.ssh/` | GitHub repo → Deploy keys (read-only) | Server pulling the code |
 
-Pushes that only touch `app/`, `docs/`, `*.md` or `notes.txt` don't deploy. You can also deploy any time from **Actions → Deploy → Run workflow**.
+If nothing server-side changed since the live commit (only `app/`, `docs/`, `.github/`, `*.md`, `notes.txt`), deploy.sh updates the checkout and leaves the containers running. **Actions → Deploy → Run workflow** always rebuilds — use it after a failed deploy too.
+
+### Recommended: protect main
+
+**Settings → Branches → Add rule** (or Rulesets) for `main`: require a pull request and the status check **CI passed**. Then broken code can't reach `main`, so it can't reach the server.
 
 ---
 

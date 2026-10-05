@@ -1,5 +1,7 @@
 // Screenshot harness for the redesign (not part of the app's test suite).
 // Run: flutter test --update-goldens test_shots/shots_test.dart
+// Test-only helpers (mock prefs, wallet debugSet) are fine in this harness.
+// ignore_for_file: invalid_use_of_visible_for_testing_member
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';

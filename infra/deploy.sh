@@ -54,6 +54,15 @@ main() {
   NOW="$(git rev-parse --short HEAD)"
   echo "  $PREV -> $NOW  $(git log -1 --format='%s (%an)')"
 
+  # Nothing for the server in this push (only the Flutter app, docs, notes)?
+  # Leave the containers alone. FORCE=1 (manual "Run workflow") always rebuilds.
+  if [ -z "${FORCE:-}" ] && git cat-file -e "${PREV}^{commit}" 2>/dev/null; then
+    if ! git diff --name-only "$PREV" "$NOW" | grep -qvE '^(app/|docs/|\.github/|notes\.txt$)|\.md$'; then
+      printf '\n\033[1;32mNothing server-side changed since %s — containers left running as they are.\033[0m\n' "$PREV"
+      return 0
+    fi
+  fi
+
   chmod -R u+rwX,go+rX backend admin web landing face
   chmod +x infra/turn/*.sh
 

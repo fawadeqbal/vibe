@@ -1,0 +1,171 @@
+# CI: lint, typecheck, tests and builds for every part of Vibe.
+# Runs on pull requests and on every push. Only the parts whose files changed are
+# checked (everything when this file changes or on a manual run).
+# When CI passes on main, deploy.yml deploys the server.
+name: CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}   # newer push to a branch/PR replaces the old run
+
+permissions:
+  contents: read
+  pull-requests: read   # paths-filter reads the PR's changed files
+
+env:
+  NODE_VERSION: 22
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:   # empty on manual runs → every job runs
+      backend: ${{ steps.filter.outputs.backend }}
+      admin:   ${{ steps.filter.outputs.admin }}
+      web:     ${{ steps.filter.outputs.web }}
+      landing: ${{ steps.filter.outputs.landing }}
+      face:    ${{ steps.filter.outputs.face }}
+      app:     ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            ci: &ci
+              - .github/workflows/ci.yml
+            backend: [*ci, backend/**]
+            admin:   [*ci, admin/**]
+            web:     [*ci, web/**]
+            landing: [*ci, landing/**]
+            face:    [*ci, face/**]
+            app:     [*ci, app/**]
+
+  backend:
+    name: Backend (lint · types · unit · e2e · build)
+    needs: changes
+    if: needs.changes.outputs.backend != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults: { run: { working-directory: backend } }
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: vibe, POSTGRES_PASSWORD: vibe, POSTGRES_DB: vibe_test }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U vibe" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vibe:vibe@127.0.0.1:5432/vibe_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm, cache-dependency-path: backend/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Migrate test database
+        run: npx prisma migrate deploy
+      - name: E2E tests (Postgres + Redis)
+        run: npm run test:e2e
+
+  admin:
+    name: Admin (lint · types · tests · build)
+    needs: changes
+    if: needs.changes.outputs.admin != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults: { run: { working-directory: admin } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm, cache-dependency-path: admin/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  web:
+    name: Web app (lint · types · tests · build)
+    needs: changes
+    if: needs.changes.outputs.web != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  landing:
+    name: Landing (lint · types · build)
+    needs: changes
+    if: needs.changes.outputs.landing != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults: { run: { working-directory: landing } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm, cache-dependency-path: landing/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
+  face:
+    name: Face service (pytest in Docker)
+    needs: changes
+    if: needs.changes.outputs.face != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # The Dockerfile's "test" stage downloads the pinned models and runs pytest,
+      # exactly as the server build does.
+      - run: docker build --target test -t vibe-face-test face
+
+  app:
+    name: Flutter app (analyze · tests)
+    needs: changes
+    if: needs.changes.outputs.app != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults: { run: { working-directory: app } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+
+  # One check to require in branch protection (Settings → Branches → main).
+  ci-ok:
+    name: CI passed
+    if: always()
+    needs: [changes, backend, admin, web, landing, face, app]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All checks passed or were skipped
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success" or .result == "skipped")'

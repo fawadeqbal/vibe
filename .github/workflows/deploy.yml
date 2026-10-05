@@ -1,17 +1,15 @@
-# CD: every push to main deploys the server (landing, web, admin, API, TURN, face, storage).
-# GitHub SSHes into the server and runs infra/deploy.sh there.
+# CD: when CI passes on main, deploy the server (landing, web, admin, API, TURN, face, storage).
+# GitHub SSHes into the server and runs infra/deploy.sh there. deploy.sh skips the
+# rebuild when only app/, docs/ or *.md changed since the live commit.
 # One-time setup (keys + secrets): infra/CICD.md
 name: Deploy
 
 on:
-  push:
+  workflow_run:            # after CI (ci.yml) finishes on main
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths-ignore:          # these don't change anything on the server
-      - "app/**"           # Flutter app ships through the stores
-      - "docs/**"
-      - "**/*.md"
-      - "notes.txt"
-  workflow_dispatch:       # "Run workflow" button in the Actions tab
+  workflow_dispatch:       # "Run workflow" button: deploy main now, always rebuild
 
 concurrency:
   group: deploy-production
@@ -19,11 +17,17 @@ concurrency:
 
 jobs:
   deploy:
+    # Only a CI run that passed, for a push (not a PR from a branch called main).
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production   # optional: add required reviewers under Settings → Environments
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up SSH
         env:
@@ -38,11 +42,13 @@ jobs:
       - name: Deploy on server
         env:
           TARGET: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
           SSH="ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ServerAliveInterval=30"
           # Ship this commit's deploy.sh and run it for exactly this commit.
           scp -i ~/.ssh/deploy_key -o BatchMode=yes infra/deploy.sh "$TARGET:/tmp/vibe-deploy.sh"
-          $SSH "$TARGET" "bash /tmp/vibe-deploy.sh $GITHUB_SHA"
+          $SSH "$TARGET" "FORCE=$FORCE bash /tmp/vibe-deploy.sh $SHA"
 
       - name: Check public URLs
         run: |
@@ -60,9 +66,10 @@ jobs:
 
       - name: Check TURN relay (calls across networks)
         run: |
-          export TURN_URLS="$(sed -n 's/^TURN_URLS=//p' infra/.env.prod | tr -d '\r')"
-          export TURN_SECRET="$(sed -n 's/^TURN_SECRET=//p' infra/.env.prod | tr -d '\r')"
-          export STUN_URLS='stun:stun.l.google.com:19302'
+          TURN_URLS="$(sed -n 's/^TURN_URLS=//p' infra/.env.prod | tr -d '\r')"
+          TURN_SECRET="$(sed -n 's/^TURN_SECRET=//p' infra/.env.prod | tr -d '\r')"
+          STUN_URLS='stun:stun.l.google.com:19302'
+          export TURN_URLS TURN_SECRET STUN_URLS
           echo "::add-mask::$TURN_SECRET"
           node backend/scripts/turn-check.mjs
 
