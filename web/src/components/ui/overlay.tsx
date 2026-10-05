@@ -29,11 +29,17 @@ export function SheetFrame({ children, onDismiss }: { children: ReactNode; onDis
   );
 }
 
-export function DialogFrame({ children, onDismiss }: { children: ReactNode; onDismiss?: () => void }) {
+/** `bare`: the content brings its own surface and shape (Flutter `Dialog` with a 16px inset). */
+export function DialogFrame({ children, onDismiss, bare }: { children: ReactNode; onDismiss?: () => void; bare?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-10" role="presentation">
+    <div className={cn("fixed inset-0 z-50 flex items-center justify-center", bare ? "p-4" : "p-10")} role="presentation">
       <div className="absolute inset-0 bg-black/54" style={{ animation: "vibe-fade-in 150ms ease-out" }} onClick={onDismiss} aria-hidden />
-      <div role="alertdialog" aria-modal="true" className="relative w-full max-w-[min(560px,100%)] min-w-[280px] rounded-[28px] border border-line bg-surface shadow-2xl sm:w-auto" style={{ animation: "vibe-dialog-in 150ms ease-out" }}>
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        className={cn("relative w-full", bare ? "max-w-[480px]" : "max-w-[min(560px,100%)] min-w-[280px] rounded-[28px] border border-line bg-surface shadow-2xl sm:w-auto")}
+        style={{ animation: "vibe-dialog-in 150ms ease-out" }}
+      >
         {children}
       </div>
     </div>

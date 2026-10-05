@@ -47,6 +47,25 @@ function fakeBackend(over: Partial<CheckoutBackend> = {}) {
 afterEach(() => vi.useRealTimers());
 
 describe("CheckoutController", () => {
+  it("works again after dispose → activate (a React Strict Mode remount)", async () => {
+    const { backend, push } = fakeBackend({ createPurchase: async () => view({ method: "card", action: { type: "redirect", url: "https://pay", post: false, fields: {}, instructions: null, bank: null } }) });
+    const c = new CheckoutController(backend, "coinPack", "starter", 0.99);
+    const seen = vi.fn();
+    c.subscribe(seen);
+    void c.load(); // first mount starts loading…
+    c.dispose(); // …and is torn down at once
+    c.activate(); // second mount
+    await c.load();
+    expect(c.snapshot().stage).toBe("methods");
+    expect(seen).toHaveBeenCalled();
+    await c.choose(card);
+    push(view({ state: "succeeded" }));
+    expect(c.snapshot().stage).toBe("succeeded"); // pushes are heard again
+    c.dispose();
+    push(view({ state: "failed" }));
+    expect(c.snapshot().stage).toBe("succeeded"); // and ignored once disposed
+  });
+
   it("walks a wallet payment: methods → details → otp → succeeded", async () => {
     const { backend } = fakeBackend();
     const c = new CheckoutController(backend, "coinPack", "starter", 0.99, { newKey: () => "k1" });

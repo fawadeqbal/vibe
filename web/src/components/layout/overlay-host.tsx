@@ -36,7 +36,7 @@ export function OverlayHost() {
             {content}
           </SheetFrame>
         ) : (
-          <DialogFrame key={o.id} onDismiss={dismiss}>
+          <DialogFrame key={o.id} onDismiss={dismiss} bare={o.bare}>
             {content}
           </DialogFrame>
         );

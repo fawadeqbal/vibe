@@ -22,6 +22,14 @@ export const config = {
   googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
   /** Offer `dev:` social tokens (backend dev mode only). */
   devSignIn: ["true", "yes", "1"].includes((process.env.NEXT_PUBLIC_DEV_SIGN_IN ?? "").toLowerCase()),
+  /**
+   * Rewarded ads are AdMob (phones only). Like the app's debug builds, `npm run dev`
+   * offers a 5-second mock ad instead, paid by a backend with ADS_VERIFIER=dev.
+   * NEXT_PUBLIC_DEV_ADS=true/false overrides (default: on in development only).
+   */
+  devAds: process.env.NEXT_PUBLIC_DEV_ADS
+    ? ["true", "yes", "1"].includes(process.env.NEXT_PUBLIC_DEV_ADS.toLowerCase())
+    : process.env.NODE_ENV === "development",
   /** Every call through TURN (testing the relay). */
   forceRelay: ["true", "yes", "1"].includes((process.env.NEXT_PUBLIC_FORCE_RELAY ?? "").toLowerCase()),
 } as const;

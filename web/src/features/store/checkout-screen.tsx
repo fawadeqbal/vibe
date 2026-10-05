@@ -99,6 +99,7 @@ function Checkout({ pack, plan, resume, resumeStatus }: { pack?: CoinPack; plan?
   const openedFor = useRef<string | null>(null);
 
   useEffect(() => {
+    c.activate(); // again after a remount (React Strict Mode runs effects twice in development)
     if (resume) void c.resume(resume, resumeStatus);
     else void c.load();
     const offReturn = onPaymentReturn((r) => void c.onReturn(r));

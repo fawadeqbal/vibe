@@ -47,6 +47,8 @@ interface WalletState {
   /** Today's check-in. Null when already claimed today. */
   checkIn: () => Promise<number | null>;
   claimProfileBonus: () => Promise<number | null>;
+  /** Pays for a watched rewarded ad (null: today's ads are used up). */
+  rewardAd: (adToken: string) => Promise<number | null>;
   /** False when there aren't enough coins. */
   boost: () => Promise<boolean>;
   vipStatus: () => Promise<VipStatus>;
@@ -70,6 +72,8 @@ interface WalletState {
 }
 
 const EMPTY_WALLET: Wallet = { coins: 0, gems: 0, vipUntil: null, boostUntil: null, streakDay: 0, lastCheckIn: null, profileBonusClaimed: false };
+/** How long to wait before re-claiming an ad whose server-side callback has not landed yet (the app's adRetryDelay). */
+const AD_RETRY_MS = 2000;
 
 /** Purchases that changed outside a request (wallet approved, card paid, expired…). */
 const purchaseListeners = new Set<(p: PurchaseView) => void>();
@@ -140,6 +144,18 @@ export const useWallet = create<WalletState>()((set, get) => {
 
     checkIn: () => claim("/wallet/check-in"),
     claimProfileBonus: () => claim("/wallet/rewards/profile", undefined, ["ALREADY_CLAIMED", "PROFILE_INCOMPLETE"]),
+
+    async rewardAd(adToken) {
+      // The token is the nonce AdMob echoes to the server in its signed callback,
+      // which can land a moment after the ad closes: retry once on AD_NOT_VERIFIED.
+      try {
+        return await claim("/wallet/rewards/ad", { adToken });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.code !== "AD_NOT_VERIFIED") throw e;
+        await new Promise((r) => setTimeout(r, AD_RETRY_MS));
+        return claim("/wallet/rewards/ad", { adToken });
+      }
+    },
 
     async boost() {
       try {
@@ -222,6 +238,8 @@ export const isBoosted = (w: Wallet, now = Date.now()) => !!w.boostUntil && w.bo
 const checkIn = (s: Pick<WalletState, "view">) => asMap(s.view.checkIn);
 export const checkedInToday = (s: Pick<WalletState, "view">) => checkIn(s).checkedInToday === true;
 export const nextCheckInDay = (s: Pick<WalletState, "view">) => (typeof checkIn(s).nextDay === "number" ? (checkIn(s).nextDay as number) : 0);
+const ads = (s: Pick<WalletState, "view">) => asMap(s.view.ads);
+export const adsLeftToday = (s: Pick<WalletState, "view">) => (typeof ads(s).leftToday === "number" ? (ads(s).leftToday as number) : economy().rewardedAdsPerDay);
 export const freeFriendRequestsLeft = (s: Pick<WalletState, "view">) =>
   typeof s.view.freeFriendRequestsLeft === "number" ? s.view.freeFriendRequestsLeft : economy().freeFriendRequestsPerDay;
 export const canCashOut = (s: Pick<WalletState, "view" | "wallet">) =>

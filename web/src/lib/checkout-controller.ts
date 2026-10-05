@@ -63,7 +63,7 @@ export class CheckoutController {
   private visible = true;
   private disposed = false;
   private poll: ReturnType<typeof setInterval> | undefined;
-  private unsubscribe: () => void;
+  private unsubscribe: (() => void) | null = null;
 
   constructor(
     private readonly backend: CheckoutBackend,
@@ -72,7 +72,17 @@ export class CheckoutController {
     readonly usd: number,
     private readonly opts: { returnUrl?: string; pollEveryMs?: number; newKey?: () => string; fallbackPkrPerUsd?: number } = {},
   ) {
-    this.unsubscribe = backend.onPurchaseUpdate((p) => {
+    this.activate();
+  }
+
+  /**
+   * Listens for purchase pushes. Called by the constructor, and again by the
+   * screen when it mounts: React (Strict Mode in development) can unmount and
+   * remount the same screen, so dispose() must not be the end of the line.
+   */
+  activate() {
+    this.disposed = false;
+    this.unsubscribe ??= this.backend.onPurchaseUpdate((p) => {
       if (this.s.purchase?.id === p.id) this.apply(p, true);
     });
   }
@@ -244,11 +254,12 @@ export class CheckoutController {
     } else if (!visible) this.stopWatching();
   }
 
+  /** Stops pushes and polling until activate() is called again. */
   dispose() {
     this.disposed = true;
     this.stopWatching();
-    this.unsubscribe();
-    this.listeners.clear();
+    this.unsubscribe?.();
+    this.unsubscribe = null;
   }
 
   // ── internals ─────────────────────────────────────────────────────────

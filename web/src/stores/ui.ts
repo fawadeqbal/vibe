@@ -22,6 +22,8 @@ export interface Overlay {
   resolve: (value: unknown) => void;
   /** Tapping the backdrop / Escape closes it (with undefined). */
   dismissible: boolean;
+  /** Dialog content draws its own surface (e.g. a full-bleed ad), with a 16px inset. */
+  bare?: boolean;
 }
 
 interface UiState {
@@ -41,13 +43,14 @@ export function toast(message: string, opts: { error?: boolean } = {}) {
   setTimeout(() => useUi.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 2400);
 }
 
-function open<T>(kind: OverlayKind, render: (close: (value?: T) => void) => ReactNode, dismissible = true): Promise<T | undefined> {
+function open<T>(kind: OverlayKind, render: (close: (value?: T) => void) => ReactNode, dismissible = true, bare = false): Promise<T | undefined> {
   return new Promise<T | undefined>((resolve) => {
     const id = ++seq;
     const overlay: Overlay = {
       id,
       kind,
       dismissible,
+      bare,
       render: render as Overlay["render"],
       resolve: (v) => {
         useUi.setState((s) => ({ overlays: s.overlays.filter((o) => o.id !== id) }));
@@ -62,7 +65,8 @@ function open<T>(kind: OverlayKind, render: (close: (value?: T) => void) => Reac
 export const openSheet = <T,>(render: (close: (value?: T) => void) => ReactNode) => open<T>("sheet", render);
 
 /** A modal dialog. Resolves with what it closes with. */
-export const openDialog = <T,>(render: (close: (value?: T) => void) => ReactNode, dismissible = true) => open<T>("dialog", render, dismissible);
+export const openDialog = <T,>(render: (close: (value?: T) => void) => ReactNode, dismissible = true, opts: { bare?: boolean } = {}) =>
+  open<T>("dialog", render, dismissible, opts.bare);
 
 /** Closes every open overlay (e.g. on navigation). */
 export function closeAllOverlays() {

@@ -21,6 +21,7 @@ The API must allow this origin: `CORS_ORIGINS` in `../backend/.env` (`*` in deve
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google sign-in (Google Identity Services). Use a *Web application* OAuth client and add the same id to the backend's `GOOGLE_CLIENT_IDS`. Empty = no Google button. |
 | `NEXT_PUBLIC_DEV_SIGN_IN` | `true` shows Google/Apple/Facebook buttons that send `dev:` tokens (backend dev mode only), like the app's debug builds. |
 | `NEXT_PUBLIC_FORCE_RELAY` | `true` sends every call through TURN (testing the relay). |
+| `NEXT_PUBLIC_DEV_ADS` | The mock rewarded ad ("Watch an ad" in the Store). Defaults to on in `npm run dev`, off in builds; needs a backend with `ADS_VERIFIER=dev`. |
 
 These are inlined at build time. Docker: `docker build --build-arg NEXT_PUBLIC_VIBE_API=https://api.example.com -t vibe-web .` (standalone server on port 3002).
 
@@ -71,6 +72,6 @@ Rules the code follows:
 - **Session:** tokens live in `localStorage` (`lib/api/tokens.ts`), refreshed once on 401 like the app. Swap that module for an httpOnly-cookie backend-for-frontend if the threat model needs it.
 - **Camera & mic:** `getUserMedia` (the browser asks on the permissions step). The page sends `Permissions-Policy: camera=(self), microphone=(self)`; production must be served over HTTPS.
 - **Payments:** app-store billing is mobile-only, so the web shows JazzCash, Easypaisa, card and bank transfer. Hosted pages (card, JazzCash page) open in a popup and return to `/payment-return`, which reports back to the checkout tab. The API only accepts `https://` return URLs, so on plain-http localhost the checkout finishes by polling instead.
-- **Rewarded ads** are app-only (AdMob), so the Store's "Watch an ad" row is hidden.
+- **Rewarded ads** are AdMob, which only exists in the phone apps. Like the app's debug builds, `npm run dev` shows the Store's "Watch an ad" row with a 5-second mock ad (`components/shared/rewarded-ads.tsx`) that a backend with `ADS_VERIFIER=dev` pays for; production builds hide the row (`NEXT_PUBLIC_DEV_ADS` overrides).
 - **Sign in with Apple / Facebook** need their web SDKs wired before they can be offered for real; in development they work with `NEXT_PUBLIC_DEV_SIGN_IN=true`.
 - **"People online now"** uses the same estimate as the app.
