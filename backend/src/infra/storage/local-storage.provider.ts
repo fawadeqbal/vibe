@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize } from 'node:path';
 
 import { AppConfig } from '../../config/app-config.service';
 import { Integration, IntegrationReporter, IntegrationStatus, missingKeys } from '../../integrations/core/integration.types';
-import { StorageProvider, StoreOptions } from './storage.provider';
+import { OpenedObject, StorageProvider, StoreOptions } from './storage.provider';
 
 /**
  * Writes to disk and serves public files from `/media` (one server only).
@@ -42,6 +43,17 @@ export class LocalStorageProvider extends StorageProvider implements Integration
     }
   }
 
+  /** Express's static middleware serves `/media` for this driver; this is here for completeness. */
+  async open(key: string): Promise<OpenedObject | null> {
+    const file = this.path(key);
+    try {
+      const s = await stat(file);
+      return s.isFile() ? { body: createReadStream(file), contentLength: s.size, lastModified: s.mtime } : null;
+    } catch {
+      return null;
+    }
+  }
+
   keyFromUrl(url: string): string | null {
     const prefix = `${this.config.get('PUBLIC_URL')}/media/`;
     return url.startsWith(prefix) ? decodeURIComponent(url.slice(prefix.length)) : null;
@@ -53,9 +65,9 @@ export class LocalStorageProvider extends StorageProvider implements Integration
       kind: 'storage',
       label: 'Media storage',
       mode: 'dev',
-      requiredEnv: ['STORAGE_DRIVER', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY', 'S3_PUBLIC_URL'],
-      missingEnv: ['STORAGE_DRIVER', ...missingKeys(this.config.env, ['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY', 'S3_PUBLIC_URL'])],
-      notes: ['Local disk (one server, no CDN). Set STORAGE_DRIVER=s3 and the S3_* keys (AWS S3 or Cloudflare R2) to scale.'],
+      requiredEnv: ['STORAGE_DRIVER', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'],
+      missingEnv: ['STORAGE_DRIVER', ...missingKeys(this.config.env, ['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'])],
+      notes: ['Local disk (one server, no CDN). Set STORAGE_DRIVER=s3 and the S3_* keys (our Garage container, AWS S3 or Cloudflare R2) to scale.'],
     };
   }
 }

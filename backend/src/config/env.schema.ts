@@ -176,7 +176,7 @@ export const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: opt,
 
   // ── Media ──────────────────────────────────────────────────────────
-  /** local = disk + /media (one server); s3 = any S3-compatible store (AWS S3, Cloudflare R2, Backblaze B2, MinIO). */
+  /** local = disk + /media (one server); s3 = any S3-compatible store (our Garage container, AWS S3, Cloudflare R2, Backblaze B2, MinIO). */
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   UPLOAD_DIR: z.string().default('uploads'),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(5 * 1024 * 1024),
@@ -184,11 +184,11 @@ export const envSchema = z.object({
   /** Bucket with no public access, for selfies awaiting review. Defaults to S3_BUCKET + private/ prefix. */
   S3_PRIVATE_BUCKET: opt,
   S3_REGION: z.string().default('auto'),
-  /** e.g. https://<account>.r2.cloudflarestorage.com for R2; empty for AWS. */
+  /** e.g. http://vibe-storage:3900 for our Garage container, https://<account>.r2.cloudflarestorage.com for R2; empty for AWS. */
   S3_ENDPOINT: opt,
   S3_ACCESS_KEY_ID: opt,
   S3_SECRET_ACCESS_KEY: opt,
-  /** Public base URL (CDN / R2 custom domain) the app loads media from. */
+  /** Public base URL (CDN / R2 custom domain) the app loads media from. Empty = the API serves the bucket at <PUBLIC_URL>/media. */
   S3_PUBLIC_URL: opt,
   S3_FORCE_PATH_STYLE: bool.default(false),
 
@@ -243,7 +243,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     if (env.JWT_STAFF_SECRET && env.JWT_STAFF_SECRET === env.JWT_ACCESS_SECRET) problems.push('JWT_STAFF_SECRET must differ from JWT_ACCESS_SECRET');
     if (env.DEV_BOTS_AFTER_MS > 0) problems.push('DEV_BOTS_AFTER_MS must be 0 in production');
     if (env.PAYOUTS_PROVIDER !== 'dev' && !env.DATA_ENCRYPTION_KEY) problems.push('DATA_ENCRYPTION_KEY is required in production once payouts are live (openssl rand -base64 48)');
-    if (env.STORAGE_DRIVER === 's3' && (!env.S3_BUCKET || !env.S3_ACCESS_KEY_ID || !env.S3_SECRET_ACCESS_KEY || !env.S3_PUBLIC_URL)) problems.push('STORAGE_DRIVER=s3 needs S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY and S3_PUBLIC_URL');
+    if (env.STORAGE_DRIVER === 's3' && (!env.S3_BUCKET || !env.S3_ACCESS_KEY_ID || !env.S3_SECRET_ACCESS_KEY)) problems.push('STORAGE_DRIVER=s3 needs S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY');
     if (problems.length) throw new Error(`Unsafe production configuration:\n  • ${problems.join('\n  • ')}`);
   }
   return env;

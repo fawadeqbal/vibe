@@ -93,7 +93,7 @@ src/
     prisma/                  PrismaService + tx() that composes across services
     redis/                   RedisService: JSON, counters, distributed lock
     realtime/                Socket.IO gateway, presence, RealtimeService.toUser(), Redis adapter + handshake auth
-    storage/                 StorageProvider (local disk now, S3 later)
+    storage/                 StorageProvider (local disk or any S3; /media streams the bucket)
   modules/                   one folder per business capability
     catalog/                 prices and rules: defaults + validation (economy.ts), live values (EconomyService), GET /v1/catalog
     auth/                    e-mailed sign-in codes, Google/Apple, access + rotating refresh tokens
@@ -137,7 +137,7 @@ Conventions that keep it maintainable:
 - **Matching** pairs with a Lua script that removes both users from the queue only if both are still there, so two instances can never hand the same person out twice. A 1 s sweeper (guarded by a distributed lock) retries waiting users. VIP/boost get a head start in the queue score, not the front of the line.
 - **Background jobs** (VIP bonus/expiry, cash-out retries, the sweeper) run under Redis locks, so exactly one instance runs each.
 - **Video is peer-to-peer** (WebRTC). The server only relays signalling. Phones on different networks often can't reach each other directly, so production needs a TURN relay: `turn/` is a ready-to-run coturn server (step-by-step guide in `turn/README.md`). Set `TURN_URLS` + `TURN_SECRET` and the API hands each user a 24-hour TURN login; `npm run turn:check` tests the relay with those settings.
-- **Next steps when traffic grows:** Postgres read replicas for history/feeds, S3 + CDN for media (swap `StorageProvider`), a BullMQ worker for payouts, and partitioning `LedgerEntry` by month.
+- **Next steps when traffic grows:** Postgres read replicas for history/feeds, a CDN in front of `/media` (set `S3_PUBLIC_URL`), a BullMQ worker for payouts, and partitioning `LedgerEntry` by month.
 
 ## API at a glance
 
@@ -201,6 +201,6 @@ Connect to the server root with `auth: { token: <access token> }` over WebSocket
    - **Payments:** `PAYMENTS_PROVIDER=live` with the Play service account and the App Store key. JazzCash/Easypaisa/card adapters plug into `LivePaymentProvider` once the merchant accounts exist.
    - **Ads:** `ADS_VERIFIER=admob`, and point AdMob SSV at `/v1/webhooks/admob/ssv`.
 3. Run `npx prisma migrate deploy` as a release step. The Docker image also runs it on start.
-4. Run the TURN relay (`turn/README.md`), set `TURN_URLS`/`TURN_SECRET`, and check it with `npm run turn:check`. Without it many calls between different networks fail (the API logs a warning at boot). Serve media from S3/CDN.
+4. Run the TURN relay (`turn/README.md`), set `TURN_URLS`/`TURN_SECRET`, and check it with `npm run turn:check`. Without it many calls between different networks fail (the API logs a warning at boot). Media lives in the self-hosted Garage container (`vibe-storage`, see `../infra/garage/README.md`) and is served by the API at `/media`.
 5. Build: `docker build -t vibe-api .`, then scale horizontally behind a load balancer. `GET /health/ready` is the readiness probe.
 6. Run the admin panel (`../admin`, its own Dockerfile) on a private hostname behind HTTPS, ideally behind your VPN or SSO proxy as well. Keep `/v1/admin/*` reachable only from the panel's servers if your network allows it.

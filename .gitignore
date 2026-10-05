@@ -1,0 +1,4 @@
+
+# local debug logs from the .bat helpers
+crash-log.txt
+app/build-and-run.log

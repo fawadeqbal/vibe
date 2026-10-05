@@ -57,7 +57,7 @@ Assert-Ok "unpack on server"
 
 # Migrate old secrets into the new .env and clean up the old standalone TURN server
 $migrateScript = @'
-cd /opt/vibe
+cd /opt/vibe || exit 1
 
 # Stop and remove the old standalone TURN server if it exists
 if [ -d /opt/vibe-turn ]; then
@@ -75,38 +75,39 @@ if [ -d /opt/vibe-turn ]; then
   fi
 fi
 
-# Load old secrets if .env exists
-OLD_DB_PASS="CHANGE_DB_PASSWORD"
-OLD_JWT_ACCESS="CHANGE_ME_jwt_access_secret_production"
-OLD_JWT_STAFF="CHANGE_ME_jwt_staff_secret_production"
-OLD_WEBHOOK="CHANGE_ME_webhook_secret"
-
+# Build the server .env from the template (infra/.env.prod, all real values).
+# Keys in PINNED keep the server's current value when it has one: changing them
+# on a live server would lock the API out of Postgres (the password is fixed when
+# the volume is created), sign everyone out, and make payout details encrypted
+# with the old key unreadable. A fresh server takes the template's values.
+PINNED="VIBE_DB_PASSWORD DATABASE_URL JWT_ACCESS_SECRET JWT_STAFF_SECRET PAYMENT_WEBHOOK_SECRET DATA_ENCRYPTION_KEY"
 if [ -f .env ]; then
-  OLD_DB_PASS=$(grep ^VIBE_DB_PASSWORD= .env | cut -d= -f2)
-  OLD_JWT_ACCESS=$(grep ^JWT_ACCESS_SECRET= .env | cut -d= -f2)
-  OLD_JWT_STAFF=$(grep ^JWT_STAFF_SECRET= .env | cut -d= -f2)
-  OLD_WEBHOOK=$(grep ^PAYMENT_WEBHOOK_SECRET= .env | cut -d= -f2)
+  awk -v pinned="$PINNED" '
+    BEGIN { n = split(pinned, a, " "); for (i = 1; i <= n; i++) keep[a[i]] = 1 }
+    NR == FNR {
+      i = index($0, "=")
+      if (i > 1) { k = substr($0, 1, i - 1); if ((k in keep) && ($0 !~ /CHANGE_/)) old[k] = $0 }
+      next
+    }
+    {
+      i = index($0, "=")
+      k = (i > 1) ? substr($0, 1, i - 1) : ""
+      if (k in old) print old[k]; else print
+    }
+  ' .env .env.template > .env.new || { echo "Could not build .env from the template" >&2; exit 1; }
+  mv .env.new .env
+else
+  cp .env.template .env
 fi
+chmod 600 .env
 
-# Overwrite .env with the new unified template
-cp .env.template .env
-
-# Generate new secrets if the old ones were the placeholders
-[ -z "$OLD_DB_PASS" ] || [ "$OLD_DB_PASS" = "CHANGE_DB_PASSWORD" ] && OLD_DB_PASS=$(openssl rand -hex 16)
-[ -z "$OLD_JWT_ACCESS" ] || [ "$OLD_JWT_ACCESS" = "CHANGE_ME_jwt_access_secret_production" ] && OLD_JWT_ACCESS=$(openssl rand -base64 48 | tr -d '\n"')
-[ -z "$OLD_JWT_STAFF" ] || [ "$OLD_JWT_STAFF" = "CHANGE_ME_jwt_staff_secret_production" ] && OLD_JWT_STAFF=$(openssl rand -base64 48 | tr -d '\n"')
-[ -z "$OLD_WEBHOOK" ] || [ "$OLD_WEBHOOK" = "CHANGE_ME_webhook_secret" ] && OLD_WEBHOOK=$(openssl rand -hex 24)
-
-# Inject the secrets into the new .env
-sed -i "s~CHANGE_DB_PASSWORD~$OLD_DB_PASS~g" .env
-sed -i "s~CHANGE_ME_jwt_access_secret_production~$OLD_JWT_ACCESS~g" .env
-sed -i "s~CHANGE_ME_jwt_staff_secret_production~$OLD_JWT_STAFF~g" .env
-sed -i "s~CHANGE_ME_webhook_secret~$OLD_WEBHOOK~g" .env
-
-echo "Unified .env created and secrets preserved."
+echo "Server .env written from the template (pinned secrets kept)."
 '@
 
-ssh -i $key -o StrictHostKeyChecking=no $server $migrateScript
+# Send the script base64-encoded: Windows PowerShell strips double quotes from
+# arguments passed to native programs, which breaks any quoted shell code.
+$migrateB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($migrateScript -replace "`r", "")))
+ssh -i $key -o StrictHostKeyChecking=no $server "echo $migrateB64 | base64 -d | bash"
 Assert-Ok "write .env"
 
 # 5. Build and start

@@ -1,0 +1,27 @@
+# Garage: the self-hosted, S3-compatible store for Vibe media (vibe-storage).
+# One node, one copy. Secrets come from the environment (GARAGE_RPC_SECRET,
+# GARAGE_ADMIN_TOKEN in .env), never from this file.
+#
+# Ports, all on the private vibe-internal network only (nothing is published):
+#   3900  S3 API     <- vibe-api (S3_ENDPOINT=http://vibe-storage:3900)
+#   3901  RPC        (node-to-node; unused with one node)
+#   3903  admin API  <- vibe-storage-init (buckets, keys, layout)
+# Photos reach the internet through the API: https://<api>/media/<key>.
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+metadata_auto_snapshot_interval = "6h"
+
+replication_factor = 1
+compression_level = 1
+
+rpc_bind_addr = "0.0.0.0:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "0.0.0.0:3900"
+
+[admin]
+api_bind_addr = "0.0.0.0:3903"

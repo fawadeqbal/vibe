@@ -32,6 +32,50 @@ services:
       interval: 5s
       retries: 10
 
+  # Self-hosted S3 (Garage) for photos and selfies. Private network only: the
+  # API is its one client and serves public photos at https://<api>/media/...
+  vibe-storage:
+    image: dxflrs/garage:v2.4.1
+    container_name: vibe-storage
+    restart: unless-stopped
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
+    volumes:
+      - ./infra/garage/garage.toml:/etc/garage.toml:ro
+      - storage-meta:/var/lib/garage/meta
+      - storage-data:/var/lib/garage/data
+    networks:
+      - vibe-internal
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  # One-shot, idempotent: node layout, buckets, and the API's access key.
+  vibe-storage-init:
+    image: node:22-alpine
+    container_name: vibe-storage-init
+    restart: "no"
+    command: ["node", "/init.mjs"]
+    environment:
+      GARAGE_ADMIN_URL: http://vibe-storage:3903
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_PRIVATE_BUCKET: ${S3_PRIVATE_BUCKET}
+    volumes:
+      - ./infra/garage/init.mjs:/init.mjs:ro
+    depends_on:
+      vibe-storage: { condition: service_started }
+    networks:
+      - vibe-internal
+
   vibe-api:
     build:
       context: ./backend
@@ -42,13 +86,20 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://vibe:${VIBE_DB_PASSWORD}@vibe-postgres:5432/vibe?schema=public
       REDIS_URL: redis://vibe-redis:6379
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      # Media stored on disk before the switch to vibe-storage (still served at
+      # /media as a fallback), and the local driver's files if it is used again.
+      - uploads:/app/uploads
+      - uploads-private:/app/uploads-private
     depends_on:
       vibe-postgres: { condition: service_healthy }
       vibe-redis: { condition: service_healthy }
+      vibe-storage-init: { condition: service_completed_successfully }
     networks:
       vibe-internal: {}
       global-proxy:
-        
+
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health/live || exit 1"]
       interval: 15s
@@ -68,7 +119,7 @@ services:
     networks:
       vibe-internal: {}
       global-proxy:
-        
+
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/login >/dev/null || exit 1"]
       interval: 30s
@@ -103,5 +154,7 @@ networks:
 volumes:
   pgdata:
   redisdata:
-
-
+  uploads:
+  uploads-private:
+  storage-meta:
+  storage-data:

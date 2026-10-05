@@ -10,6 +10,8 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AppConfig } from './config/app-config.service';
 import { RedisIoAdapter } from './infra/realtime/redis-io.adapter';
+import { serveMedia } from './infra/storage/media.handler';
+import { StorageProvider } from './infra/storage/storage.provider';
 
 export async function configureApp(app: NestExpressApplication): Promise<void> {
   const config = app.get(AppConfig);
@@ -19,7 +21,10 @@ export async function configureApp(app: NestExpressApplication): Promise<void> {
   const origins = config.list('CORS_ORIGINS');
   app.enableCors({ origin: origins.includes('*') ? (origin, cb) => cb(null, true) : origins, credentials: true });
   app.setGlobalPrefix('v1', { exclude: ['health/live', 'health/ready'] });
-  // Local uploads (the S3 driver serves from its own CDN instead).
+  // Public media at /media: streamed from the bucket (s3 driver; a CDN set in S3_PUBLIC_URL can
+  // sit in front with this as its origin), then from disk — the local driver's files, or under s3
+  // anything uploaded before the switch (same URLs, so old avatars keep working).
+  if (config.get('STORAGE_DRIVER') === 's3') app.use('/media', serveMedia(app.get(StorageProvider)));
   app.useStaticAssets(resolve(config.get('UPLOAD_DIR')), { prefix: '/media', index: false, maxAge: '7d' });
   app.enableShutdownHooks();
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true, transformOptions: { enableImplicitConversion: false } }));
