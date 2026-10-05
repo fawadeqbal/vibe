@@ -33,6 +33,8 @@ class RemoteMatchProvider extends MatchProvider {
   String? _matchId;
   String? _lastMatchId;
   RTCPeerConnection? _pc;
+  Future<void>? _peerStarting;
+  MediaStream? _remoteStream;
   final List<RTCIceCandidate> _pendingIce = [];
   bool _remoteDescriptionSet = false;
   List<Map<String, dynamic>>? _iceServers;
@@ -247,7 +249,13 @@ class RemoteMatchProvider extends MatchProvider {
       notifyListeners();
     });
     notifyListeners();
-    unawaited(_startPeer(caller: e['role'] == 'caller'));
+    // ICE from the partner can arrive while the peer is still being set up;
+    // it waits in _pendingIce, so only clear it when a new match begins.
+    _pendingIce.clear();
+    final starting = _peerStarting = _startPeer(caller: e['role'] == 'caller');
+    unawaited(starting.whenComplete(() {
+      if (identical(_peerStarting, starting)) _peerStarting = null;
+    }));
   }
 
   void _onChat(Map<String, dynamic> e) {
@@ -276,6 +284,8 @@ class RemoteMatchProvider extends MatchProvider {
     if (e['matchId'] != _matchId) return;
     _ticker?.cancel();
     _ticker = null;
+    _peerStarting = null;
+    _pendingIce.clear();
     unawaited(_closePeer());
     final byMe = e['byMe'] == true;
     final reason = e['reason'] as String?;
@@ -329,6 +339,7 @@ class RemoteMatchProvider extends MatchProvider {
   }
 
   Future<void> _startPeer({required bool caller}) async {
+    final matchId = _matchId;
     await _closePeer();
     if (!_cameraEnabled) return;
     await ensureCamera();
@@ -338,14 +349,19 @@ class RemoteMatchProvider extends MatchProvider {
       await remoteRenderer.initialize();
       _remoteRendererReady = true;
     }
+    final iceServers = await _ice();
+    // The match may have ended (or a new one begun) during the awaits above.
+    if (_matchId != matchId || matchId == null) return;
     final pc = await createPeerConnection({
-      'iceServers': await _ice(),
+      'iceServers': iceServers,
       'sdpSemantics': 'unified-plan',
       if (ApiConfig.forceRelay) 'iceTransportPolicy': 'relay',
     });
+    if (_matchId != matchId || _pc != null) {
+      await pc.close();
+      return;
+    }
     _pc = pc;
-    _remoteDescriptionSet = false;
-    _pendingIce.clear();
     for (final t in local.getTracks()) {
       await pc.addTrack(t, local);
     }
@@ -354,14 +370,24 @@ class RemoteMatchProvider extends MatchProvider {
       _rt.request('rtc:signal', {'type': 'ice', 'data': c.toMap()}).catchError((_) => null);
     };
     pc.onTrack = (event) {
-      if (event.streams.isEmpty) return;
-      remoteRenderer.srcObject = event.streams.first;
+      if (_pc != pc || event.streams.isEmpty) return;
+      _remoteStream = event.streams.first;
+      remoteRenderer.srcObject = _remoteStream;
       _hasRemoteVideo = true;
       notifyListeners();
     };
     pc.onConnectionState = (s) {
-      if (s == RTCPeerConnectionState.RTCPeerConnectionStateFailed || s == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-        _hasRemoteVideo = false;
+      if (_pc != pc) return;
+      debugPrint('rtc connection: $s');
+      // "disconnected" is usually a short network blip that recovers on its
+      // own: keep the video up and only fall back to the photo on "failed".
+      final up = switch (s) {
+        RTCPeerConnectionState.RTCPeerConnectionStateConnected => _remoteStream != null,
+        RTCPeerConnectionState.RTCPeerConnectionStateFailed || RTCPeerConnectionState.RTCPeerConnectionStateClosed => false,
+        _ => _hasRemoteVideo,
+      };
+      if (up != _hasRemoteVideo) {
+        _hasRemoteVideo = up;
         notifyListeners();
       }
     };
@@ -378,7 +404,10 @@ class RemoteMatchProvider extends MatchProvider {
     try {
       switch (e['type']) {
         case 'offer':
-          if (_pc == null) await _startPeer(caller: false);
+          // Usually the peer from match:found is still being set up: wait for
+          // it instead of building a second one (which leaked the first and
+          // dropped the ICE candidates queued meanwhile).
+          if (_pc == null) await (_peerStarting ?? _startPeer(caller: false));
           final pc = _pc;
           if (pc == null) return;
           await pc.setRemoteDescription(RTCSessionDescription(data['sdp'] as String?, data['type'] as String?));
@@ -415,6 +444,8 @@ class RemoteMatchProvider extends MatchProvider {
   Future<void> _closePeer() async {
     final pc = _pc;
     _pc = null;
+    _remoteDescriptionSet = false;
+    _remoteStream = null;
     _hasRemoteVideo = false;
     if (_remoteRendererReady) remoteRenderer.srcObject = null;
     await pc?.close();

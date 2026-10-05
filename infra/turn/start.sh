@@ -27,7 +27,10 @@ cat /etc/coturn/turnserver.conf > "$conf"
 case "${TURN_EXTERNAL_IP:-}" in
   "") ;;
   auto)
-    ip="$(detect-external-ip)" || fail "could not detect the public IP; set TURN_EXTERNAL_IP to it in turn/.env"
+    ip="$(detect-external-ip 2>/dev/null | head -n 1 | tr -d ' \r')" || ip=""
+    # An empty answer would leave external-ip unset: coturn then hands phones its private
+    # address (e.g. 10.0.0.x) as the relay and every relayed call fails without an error.
+    echo "$ip" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' || fail "could not detect the public IP (got '$ip'); set TURN_EXTERNAL_IP=<public ip>/<private ip> in turn/.env"
     echo "turn: public IP detected: $ip"
     echo "external-ip=$ip" >> "$conf" ;;
   *) echo "external-ip=$TURN_EXTERNAL_IP" >> "$conf" ;;

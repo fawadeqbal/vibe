@@ -138,8 +138,19 @@ abstract class MatchProvider extends ChangeNotifier {
 
   // ── camera ────────────────────────────────────────────────────────────
 
-  Future<void> ensureCamera() async {
-    if (!_cameraEnabled || _localStream != null) return;
+  Future<void>? _cameraOpening;
+
+  /// Opens the camera once. The lobby, `start()` and the peer setup all ask
+  /// for it, often at the same moment (a match can be found before the first
+  /// getUserMedia returns): they share the one in-flight request, so the
+  /// camera is never opened twice (on Android the second open evicts the
+  /// first, leaving a dead track on the call or in the preview).
+  Future<void> ensureCamera() {
+    if (!_cameraEnabled || _localStream != null) return Future.value();
+    return _cameraOpening ??= _openCamera().whenComplete(() => _cameraOpening = null);
+  }
+
+  Future<void> _openCamera() async {
     try {
       if (!_rendererReady) {
         await localRenderer.initialize();

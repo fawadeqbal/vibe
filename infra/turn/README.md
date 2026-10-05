@@ -50,7 +50,7 @@ nano .env
 | `TURN_DOMAIN` | `turn.yourapp.com` |
 | `TURN_SECRET` | the long random string from `openssl rand -hex 32` |
 | `TURN_TLS_PORT` | `5349`, or `443` if this server runs nothing else (gets through strict office/hotel Wi-Fi) |
-| `TURN_EXTERNAL_IP` | empty on most VPS; `auto` on AWS, Google Cloud, Azure, Oracle |
+| `TURN_EXTERNAL_IP` | empty on most VPS; `<public ip>/<private ip>` (or `auto`) on AWS, Google Cloud, Azure, Oracle |
 | `CERT_EMAIL` | your e-mail (certificate expiry warnings) |
 
 **5. Open the firewall ports.** On the server (if it uses `ufw`):
@@ -121,6 +121,7 @@ If two phones can call each other, the relay works. Then build normally
 | `connection refused` | Nothing listening: check `docker compose logs` for errors. |
 | `password rejected` | `TURN_SECRET` differs between the API's `.env` and `turn/.env` (or the server clock is wrong: `timedatectl`). |
 | ✓ for `turn:` but ✗ for `turns:` | No certificate: run `sudo sh install-cert.sh`, then `docker compose restart`. |
+| `relay 10.x… is a PRIVATE address` | Cloud VM without `TURN_EXTERNAL_IP`: set `<public ip>/<private ip>` in `.env`, then `docker compose up -d --force-recreate` (`restart` does not re-read `.env`). |
 | All ✓, but calls still fail | Open the relay range `49152-65535/udp`. On AWS/GCP/Azure/Oracle set `TURN_EXTERNAL_IP=auto`. |
 
 ## Costs

@@ -117,6 +117,14 @@ function xorAddress(v) {
   return `[ipv6]:${port}`;
 }
 
+/** RFC 1918 / CGNAT / loopback / link-local: not reachable from the internet. */
+function isPrivateIp(ip) {
+  const p = ip.split('.').map(Number);
+  if (p.length !== 4 || p.some((n) => !Number.isInteger(n))) return false;
+  const [a, b] = p;
+  return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254);
+}
+
 const errorOf = (msg) => {
   const v = msg.attrs.get(A.ERROR);
   return v ? { code: v[2] * 100 + v[3], reason: v.subarray(4).toString() } : null;
@@ -222,6 +230,11 @@ async function checkTurn(url) {
     const mapped = xorAddress(res.attrs.get(A.XOR_MAPPED));
     // Free the relay straight away.
     await conn.send(message(T.REFRESH, withAuth([attr(A.LIFETIME, Buffer.from([0, 0, 0, 0]))]), auth)).catch(() => null);
+    // The relay address is handed to the other phone as-is: a private one (cloud VM without
+    // external-ip) can't be reached from the internet, so every relayed call silently fails.
+    if (relay && isPrivateIp(relay.slice(0, relay.lastIndexOf(':')))) {
+      throw new Error(`relay ${relay} is a PRIVATE address, phones can't reach it. Set TURN_EXTERNAL_IP=<public ip>/<private ip> in turn/.env and recreate coturn`);
+    }
     return `relay ${relay}${mapped ? ` (you are ${mapped})` : ''}`;
   } finally {
     conn.close();

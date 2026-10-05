@@ -4,14 +4,28 @@ $server = "opc@145.241.156.60"
 $vibeDir = "$PSScriptRoot\.."
 $zipFile = "$vibeDir\vibe-deploy.zip"
 
+# ssh/scp are native programs: "Stop" doesn't catch their failures, so check the exit code.
+function Assert-Ok([string]$step) {
+  if ($LASTEXITCODE -ne 0) { Write-Host "  FAILED: $step (exit code $LASTEXITCODE)" -ForegroundColor Red; exit 1 }
+}
+
+# Preflight: key present, and the TURN relay knows its public IP. Without
+# TURN_EXTERNAL_IP coturn hands phones its private 10.0.0.x address and
+# calls between different networks connect with no video.
+if (-not (Test-Path $key)) { Write-Host "SSH key not found: $key" -ForegroundColor Red; exit 1 }
+if (-not (Select-String -Path "$vibeDir\infra\.env.prod" -Pattern '^TURN_EXTERNAL_IP=\S' -Quiet)) {
+  Write-Host "infra\.env.prod has no TURN_EXTERNAL_IP (e.g. 145.241.156.60/10.0.0.44). Aborting." -ForegroundColor Red; exit 1
+}
+
 Write-Host "=== Deploying Vibe to production ===" -ForegroundColor Cyan
 
 # 1. Create directory on server
-Write-Host "`n[1/5] Creating /opt/vibe on server..." -ForegroundColor Yellow
+Write-Host "`n[1/6] Creating /opt/vibe on server..." -ForegroundColor Yellow
 ssh -i $key -o StrictHostKeyChecking=no $server "sudo mkdir -p /opt/vibe && sudo chown -R opc:opc /opt/vibe"
+Assert-Ok "connect to server"
 
 # 2. Zip and upload as one file
-Write-Host "`n[2/5] Zipping project (excluding node_modules, .git, dist)..." -ForegroundColor Yellow
+Write-Host "`n[2/6] Zipping project (excluding node_modules, .git, dist)..." -ForegroundColor Yellow
 if (Test-Path $zipFile) { Remove-Item $zipFile -Force }
 
 $tempStaging = "$vibeDir\.deploy-staging"
@@ -30,14 +44,16 @@ Remove-Item $tempStaging -Recurse -Force
 $sizeMB = [math]::Round((Get-Item $zipFile).Length / 1MB, 1)
 Write-Host "  Zip created: $sizeMB MB" -ForegroundColor Green
 
-Write-Host "`n[3/5] Uploading zip to server..." -ForegroundColor Yellow
+Write-Host "`n[3/6] Uploading zip to server..." -ForegroundColor Yellow
 scp -i $key -o StrictHostKeyChecking=no $zipFile "${server}:/opt/vibe/vibe-deploy.zip"
+Assert-Ok "upload zip"
 Remove-Item $zipFile -Force
 
 # 4. Unzip, fix permissions, generate secrets
-Write-Host "`n[4/5] Unpacking and generating production secrets..." -ForegroundColor Yellow
+Write-Host "`n[4/6] Unpacking and generating production secrets..." -ForegroundColor Yellow
 # Use sudo for rm because previous Docker builds may have left root-owned files
-ssh -i $key -o StrictHostKeyChecking=no $server "cd /opt/vibe && sudo rm -rf backend admin docker-compose.yml ; unzip -o vibe-deploy.zip ; rm -f vibe-deploy.zip ; sudo chown -R opc:opc /opt/vibe ; chmod -R u+rwX,go+rX backend admin"
+ssh -i $key -o StrictHostKeyChecking=no $server "cd /opt/vibe && sudo rm -rf backend admin docker-compose.yml ; unzip -o vibe-deploy.zip ; rm -f vibe-deploy.zip ; sudo chown -R opc:opc /opt/vibe ; chmod -R u+rwX,go+rX backend admin ; chmod +x infra/turn/*.sh ; sed -i 's/\r$//' infra/turn/*.sh infra/turn/turnserver.conf"
+Assert-Ok "unpack on server"
 
 # Migrate old secrets into the new .env and clean up the old standalone TURN server
 $migrateScript = @'
@@ -91,10 +107,29 @@ echo "Unified .env created and secrets preserved."
 '@
 
 ssh -i $key -o StrictHostKeyChecking=no $server $migrateScript
+Assert-Ok "write .env"
 
 # 5. Build and start
-Write-Host "`n[5/5] Building and starting Vibe (this takes a few minutes)..." -ForegroundColor Yellow
-ssh -i $key -o StrictHostKeyChecking=no $server "cd /opt/vibe && docker compose up -d --build"
+Write-Host "`n[5/6] Building and starting Vibe (this takes a few minutes)..." -ForegroundColor Yellow
+# coturn reads start.sh (a mounted file) only when the container starts, so
+# recreate it explicitly; "up" alone doesn't notice a changed mounted file.
+ssh -i $key -o StrictHostKeyChecking=no $server "cd /opt/vibe && docker compose up -d --build && docker compose up -d --force-recreate vibe-turn && sleep 3 && docker compose ps && docker compose logs --tail=8 vibe-turn"
+Assert-Ok "build and start"
+
+# 6. Check the TURN relay from this PC: every relay must be the PUBLIC IP.
+Write-Host "`n[6/6] Checking the TURN relay..." -ForegroundColor Yellow
+if (Get-Command node -ErrorAction SilentlyContinue) {
+  $envProd = Get-Content "$vibeDir\infra\.env.prod"
+  $env:TURN_URLS = (($envProd | Where-Object { $_ -match '^TURN_URLS=' }) -replace '^TURN_URLS=', '').Trim()
+  $env:TURN_SECRET = (($envProd | Where-Object { $_ -match '^TURN_SECRET=' }) -replace '^TURN_SECRET=', '').Trim()
+  $env:STUN_URLS = 'stun:stun.l.google.com:19302'
+  node "$vibeDir\backend\scripts\turn-check.mjs"
+  $turnOk = ($LASTEXITCODE -eq 0)
+  Remove-Item Env:TURN_SECRET, Env:TURN_URLS, Env:STUN_URLS -ErrorAction SilentlyContinue
+  if (-not $turnOk) { Write-Host "  TURN check failed: calls across networks will have no video. See above." -ForegroundColor Red; exit 1 }
+} else {
+  Write-Host "  node not found, skipped. Run: node backend\scripts\turn-check.mjs" -ForegroundColor DarkYellow
+}
 
 Write-Host "`n=== Vibe deployment complete! ===" -ForegroundColor Green
 Write-Host "API:   https://api.vibe.fawadiqbal.dev"
