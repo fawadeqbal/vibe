@@ -12,6 +12,15 @@ describe('business clock', () => {
     expect(clock.minuteOfDay(new Date('2026-10-06T16:00:00Z'))).toBe(21 * 60);
   });
 
+  it('startOfDay is the instant of local midnight, never in the future (00:09 PKT regression)', () => {
+    const justAfterMidnight = new Date('2026-10-06T19:09:00Z'); // 00:09 on 7 Oct in Pakistan
+    expect(clock.startOfDay(justAfterMidnight)).toEqual(new Date('2026-10-06T19:00:00Z'));
+    expect(clock.startOfDay(justAfterMidnight).getTime()).toBeLessThanOrEqual(justAfterMidnight.getTime());
+    // dayOf is the calendar day for @db.Date columns: here it is ahead of "now".
+    expect(clock.dayOf(justAfterMidnight)).toEqual(new Date('2026-10-07T00:00:00Z'));
+    expect(clock.startOfDay(new Date('2026-10-06T12:00:00Z'))).toEqual(new Date('2026-10-05T19:00:00Z'));
+  });
+
   it('weeks start on Monday 00:00 business time', () => {
     // 2026-10-05 is a Monday.
     const monday = new Date('2026-10-04T19:00:00Z');

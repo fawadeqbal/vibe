@@ -136,7 +136,7 @@ export class AdminReportsService {
     const [open, byReason, today, actioned7, dismissed7, review] = await Promise.all([
       this.prisma.report.count({ where: { status: ReportStatus.OPEN } }),
       this.prisma.report.groupBy({ by: ['reason'], where: { status: ReportStatus.OPEN }, _count: { _all: true } }),
-      this.prisma.report.count({ where: { createdAt: { gte: this.clock.dayOf(now) } } }),
+      this.prisma.report.count({ where: { createdAt: { gte: this.clock.startOfDay(now) } } }),
       this.prisma.report.count({ where: { status: ReportStatus.ACTIONED, reviewedAt: { gte: d7 } } }),
       this.prisma.report.count({ where: { status: ReportStatus.DISMISSED, reviewedAt: { gte: d7 } } }),
       this.prisma.$queryRaw<{ avg: number | null }[]>`

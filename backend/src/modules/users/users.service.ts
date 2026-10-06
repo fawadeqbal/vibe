@@ -186,7 +186,7 @@ export class UsersService {
 
   /** Profile-page numbers: matches today, average length, quick-skip rate. */
   async stats(id: string) {
-    const since = this.clock.dayOf();
+    const since = this.clock.startOfDay();
     const [today, agg, quick, total] = await Promise.all([
       this.prisma.match.count({ where: { OR: [{ userAId: id }, { userBId: id }], startedAt: { gte: since } } }),
       this.prisma.$queryRaw<{ avg: number | null }[]>`

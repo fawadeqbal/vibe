@@ -27,7 +27,11 @@ export class Clock {
     this.override = date;
   }
 
-  /** Midnight (as a UTC Date) of the business day containing `at`. */
+  /**
+   * Midnight (as a UTC Date) of the business day containing `at` — the
+   * calendar day, for `@db.Date` columns. Not an instant: to compare with
+   * timestamps ("since local midnight") use `startOfDay`.
+   */
   dayOf(at: Date = this.now()): Date {
     const local = at.getTime() + this.offsetMs;
     const midnightLocal = Math.floor(local / DAY_MS) * DAY_MS;
@@ -59,6 +63,11 @@ export class Clock {
   /** Business day number: `floor((epochMs + offset) / day)`. Streaks and once-a-day jobs key on it. */
   dayIndex(at: Date = this.now()): number {
     return dayIndexOf(at.getTime(), this.offsetMinutes);
+  }
+
+  /** The instant the business day containing `at` started (local midnight), for timestamp columns. */
+  startOfDay(at: Date = this.now()): Date {
+    return this.dayStart(this.dayIndex(at));
   }
 
   /** The instant business day `dayIndex` starts (local midnight). */

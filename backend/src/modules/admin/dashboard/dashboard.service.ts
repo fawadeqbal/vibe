@@ -40,7 +40,7 @@ export class DashboardService {
 
   private async computeSummary() {
     const now = this.clock.now();
-    const today = this.clock.dayOf(now);
+    const today = this.clock.startOfDay(now);
     const d7 = new Date(now.getTime() - 7 * MS.day);
     const d30 = new Date(now.getTime() - 30 * MS.day);
     const realUser = { status: UserStatus.ACTIVE, isBot: false };

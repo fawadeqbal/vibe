@@ -289,7 +289,7 @@ export class ReferralsService {
     const rules = this.economy.rules;
     const inviter = r.inviter && r.inviter.status === UserStatus.ACTIVE ? r.inviter : null;
     if (inviter) {
-      const today = await this.prisma.referral.count({ where: { inviterId: inviter.id, status: ReferralStatus.REWARDED, rewardedAt: { gte: this.clock.dayOf(now) } } });
+      const today = await this.prisma.referral.count({ where: { inviterId: inviter.id, status: ReferralStatus.REWARDED, rewardedAt: { gte: this.clock.startOfDay(now) } } });
       if (today >= rules.maxReferralRewardsPerDay) return 'capped';
     }
     const inviterCoins = inviter ? rules.inviteRewardCoins : 0;
