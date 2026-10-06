@@ -64,6 +64,11 @@ class CatalogProvider extends ChangeNotifier {
         milestone(3, ms[2], 'referralMilestone3Coins'),
       ]);
     }
+    Economy.affiliateRevSharePercent = i('affiliateRevSharePercent', Economy.affiliateRevSharePercent);
+    Economy.affiliateCommissionMonths = i('affiliateCommissionMonths', Economy.affiliateCommissionMonths);
+    Economy.affiliateCpaUsdCents = i('affiliateCpaUsdCents', Economy.affiliateCpaUsdCents);
+    Economy.affiliateHoldDays = i('affiliateHoldDays', Economy.affiliateHoldDays);
+    Economy.affiliateMinPayoutUsdCents = i('affiliateMinPayoutUsdCents', Economy.affiliateMinPayoutUsdCents);
     Economy.welcomeCoins = i('welcomeCoins', Economy.welcomeCoins);
     Economy.streakRestoreCost = i('streakRestoreCost', Economy.streakRestoreCost);
     Economy.streakWeeklyCoins = i('streakWeeklyCoins', Economy.streakWeeklyCoins);

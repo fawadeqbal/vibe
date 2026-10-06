@@ -16,8 +16,8 @@ class ApiConfig {
   /// Override with `--dart-define=VIBE_SITE_URL=https://...`.
   static const String siteUrl = String.fromEnvironment('VIBE_SITE_URL', defaultValue: 'https://vibe.fawadiqbal.dev');
 
-  /// The web app. The creator partner dashboard lives at `<webAppUrl>/partner`
-  /// (the app opens it in the browser). Override with `--dart-define=VIBE_WEB_URL=https://...`.
+  /// The web app (the creator partner dashboard is also at `<webAppUrl>/partner`;
+  /// the app has its own partner screen). Override with `--dart-define=VIBE_WEB_URL=https://...`.
   static const String webAppUrl = String.fromEnvironment('VIBE_WEB_URL', defaultValue: 'https://app.vibe.fawadiqbal.dev');
 
   static String get partnerUrl => '${webAppUrl.replaceAll(RegExp(r'/+$'), '')}/partner';

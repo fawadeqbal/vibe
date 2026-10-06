@@ -9,6 +9,7 @@ import '../../models/models.dart';
 import '../../providers/referrals_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../partner/partner_screen.dart';
 import 'invite_code_field.dart';
 import 'invite_share.dart';
 
@@ -198,8 +199,8 @@ class _PartnerLinkCard extends StatelessWidget {
                 Text(link.link.replaceFirst(RegExp(r'^https?://'), ''), maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.mono(12.5, color: V.text2)),
                 const SizedBox(height: 2),
                 GestureDetector(
-                  onTap: () => openPartnerPage(context),
-                  child: Text('Earnings and stats on the web →', style: VT.label(12, color: V.pinkSoft)),
+                  onTap: () => openPartnerScreen(context),
+                  child: Text('Earnings and stats →', style: VT.label(12, color: V.pinkSoft)),
                 ),
               ],
             ),

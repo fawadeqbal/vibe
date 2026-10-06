@@ -17,6 +17,7 @@ import 'providers/follows_provider.dart';
 import 'providers/inbox_provider.dart';
 import 'providers/match_provider.dart';
 import 'providers/moments_provider.dart';
+import 'providers/partner_provider.dart';
 import 'providers/referrals_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/social_provider.dart';
@@ -76,6 +77,7 @@ Future<void> main() async {
   final EngagementProvider engagement;
   final MomentsProvider moments;
   final ReferralsProvider referrals;
+  final PartnerProvider partner;
   if (api != null && realtime != null) {
     session = RemoteSessionProvider(api, invites: invites);
     wallet = RemoteWalletProvider(api, realtime);
@@ -87,6 +89,7 @@ Future<void> main() async {
     engagement = RemoteEngagementProvider(api, realtime);
     moments = RemoteMomentsProvider(api, realtime, session);
     referrals = RemoteReferralsProvider(api, realtime);
+    partner = RemotePartnerProvider(api, realtime);
   } else {
     session = SessionProvider(backend, invites: invites);
     wallet = WalletProvider(backend);
@@ -98,6 +101,7 @@ Future<void> main() async {
     engagement = EngagementProvider(backend);
     moments = MomentsProvider(backend, session);
     referrals = ReferralsProvider(backend);
+    partner = PartnerProvider(verified: () => session.me?.verified == true);
   }
   invites.signedIn = () => session.signedIn;
 
@@ -111,6 +115,7 @@ Future<void> main() async {
     session.addSignOutHook(() async => moments.clear());
   }
   session.addSignOutHook(() async => referrals.clear());
+  session.addSignOutHook(() async => partner.clear());
 
   runApp(
     MultiProvider(
@@ -129,6 +134,7 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: engagement),
         ChangeNotifierProvider.value(value: moments),
         ChangeNotifierProvider.value(value: referrals),
+        ChangeNotifierProvider.value(value: partner),
         ChangeNotifierProvider.value(value: invites),
       ],
       child: VibeApp(realtime: realtime),

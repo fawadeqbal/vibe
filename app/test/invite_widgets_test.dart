@@ -12,6 +12,7 @@ import 'package:vibe_app/core/config/integrations_config.dart';
 import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/theme/vibe_theme.dart';
 import 'package:vibe_app/models/models.dart';
+import 'package:vibe_app/providers/partner_provider.dart';
 import 'package:vibe_app/providers/referrals_provider.dart';
 import 'package:vibe_app/providers/session_provider.dart';
 import 'package:vibe_app/providers/wallet_provider.dart';
@@ -20,6 +21,7 @@ import 'package:vibe_app/screens/invite/invite_code_field.dart';
 import 'package:vibe_app/screens/invite/invite_screen.dart';
 import 'package:vibe_app/screens/invite/invite_share.dart';
 import 'package:vibe_app/screens/invite/share_cards.dart';
+import 'package:vibe_app/screens/partner/partner_screen.dart';
 import 'package:vibe_app/services/app_services.dart';
 import 'package:vibe_app/services/invite/invite_capture.dart';
 import 'package:vibe_app/services/share/share_service.dart';
@@ -31,6 +33,7 @@ class IH {
   late SessionProvider session;
   late ReferralsProvider referrals;
   late InviteCapture invites;
+  late PartnerProvider partner;
   final share = RecordingShare();
 
   Future<void> init({bool seed = true, ReferralsProvider? referrals, String? capturedCode}) async {
@@ -40,6 +43,7 @@ class IH {
     invites = InviteCapture(store: MemoryInviteStore(invite: capturedCode == null ? null : CapturedInvite(code: capturedCode, at: DateTime.now()), checked: true));
     session = SessionProvider(backend, invites: invites);
     this.referrals = referrals ?? ReferralsProvider(backend, seed: seed);
+    partner = PartnerProvider(verified: () => session.me?.verified == true);
     await wallet.load();
     await session.signIn(method: 'email');
     await session.saveProfile(session.me!.copyWith(name: 'Sana Malik', age: 23, avatarUrl: ''));
@@ -52,6 +56,7 @@ class IH {
           ChangeNotifierProvider.value(value: session),
           ChangeNotifierProvider.value(value: wallet),
           ChangeNotifierProvider.value(value: referrals),
+          ChangeNotifierProvider.value(value: partner),
           ChangeNotifierProvider.value(value: invites),
         ],
         child: MaterialApp(theme: V.theme(), home: home),
@@ -269,10 +274,12 @@ void main() {
     expect(find.byType(InviteBannerRow), findsNothing);
   });
 
-  testWidgets('creator partner program opens the web dashboard', (t) async {
+  testWidgets('creator partner program opens the native partner screen', (t) async {
     final h = await pumpInvite(t, (_) => Scaffold(body: Builder(builder: (c) => TextButton(onPressed: () => openPartnerPage(c), child: const Text('Partner')))));
     await t.tap(find.text('Partner'));
-    await t.pump();
-    expect(h.share.urls.single, 'https://app.vibe.fawadiqbal.dev/partner');
+    await t.pumpAndSettle();
+    expect(find.byType(PartnerScreen), findsOneWidget);
+    expect(find.text('Creator partners'), findsOneWidget);
+    expect(h.share.urls, isEmpty, reason: 'no browser any more');
   });
 }

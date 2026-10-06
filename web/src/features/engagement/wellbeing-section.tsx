@@ -20,7 +20,8 @@ const TRUST = { iconColor: "trust" as const, iconBg: alpha("trust", 0.12) };
  * in that window; messages and payments still come through) and the break
  * reminder. Teal: these look after you.
  */
-export function WellbeingSection() {
+/** `title`: false on its own page (the app bar already says it). */
+export function WellbeingSection({ title = true }: { title?: boolean }) {
   const prefs = useSession((s) => s.prefs);
   const quietOn = prefs.quietHoursStart != null && prefs.quietHoursEnd != null && prefs.quietHoursStart !== prefs.quietHoursEnd;
 
@@ -38,7 +39,7 @@ export function WellbeingSection() {
 
   return (
     <>
-      <SectionTitle text="Notifications & wellbeing" top={26} />
+      {title ? <SectionTitle text="Notifications & wellbeing" top={26} /> : null}
       <GroupCard className="border-trust/22">
         <GroupRow
           icon="bedtime"

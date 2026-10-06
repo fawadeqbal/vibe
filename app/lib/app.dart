@@ -14,6 +14,7 @@ import 'providers/follows_provider.dart';
 import 'providers/inbox_provider.dart';
 import 'providers/match_provider.dart';
 import 'providers/moments_provider.dart';
+import 'providers/partner_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/social_provider.dart';
 import 'providers/wallet_provider.dart';
@@ -130,6 +131,9 @@ class _VibeAppState extends State<VibeApp> {
     await context.read<EngagementProvider>().load();
     if (!mounted) return;
     await context.read<MomentsProvider>().load();
+    if (!mounted) return;
+    // The Me row shows where you are in the creator partner program.
+    await context.read<PartnerProvider?>()?.load();
   }
 
   @override

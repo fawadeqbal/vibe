@@ -155,7 +155,7 @@ class _VipScreenState extends State<VipScreen> {
                       children: [
                         const Icon(Icons.check_circle_rounded, size: 16, color: V.trust),
                         const SizedBox(width: 6),
-                        Text(_plan.trialDays > 0 ? 'Nothing charged today · cancel any time' : 'Cancel any time', style: VT.label(12.5, color: V.text, weight: FontWeight.w500)),
+                        Flexible(child: Text(_plan.trialDays > 0 ? 'Nothing charged today · cancel any time' : 'Cancel any time', textAlign: TextAlign.center, style: VT.label(12.5, color: V.text, weight: FontWeight.w500))),
                       ],
                     ),
                   const SizedBox(height: 12),

@@ -34,7 +34,7 @@ class PushRoute {
       'follow-requests' => const PushRoute(PushTarget.followRequests),
       // A friend joined / got active, a milestone: the Invite friends screen.
       'invite' => const PushRoute(PushTarget.invite),
-      // Creator partner news: the web dashboard, in the browser.
+      // Creator partner news: the partner screen.
       'partner' => const PushRoute(PushTarget.partner),
       _ => null,
     };

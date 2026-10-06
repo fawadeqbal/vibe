@@ -1,46 +1,37 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect } from "react";
 
 import { Screen } from "@/components/layout/screen";
-import { confirm } from "@/components/shared/dialogs";
-import { startSelfieVerification, verificationSubtitle, VerifyPill } from "@/components/shared/selfie-verification";
 import { Avatar } from "@/components/ui/avatar";
-import { CircleIconButton, TextButton } from "@/components/ui/button";
+import { CircleIconButton } from "@/components/ui/button";
 import { Glass, GlassPill } from "@/components/ui/glass";
-import { GradientFill } from "@/components/ui/gradient-fill";
 import { Icon } from "@/components/ui/icon";
 import { VDivider } from "@/components/ui/misc";
-import { CoinIcon, GemIcon } from "@/components/ui/money";
 import { PageHeader } from "@/components/ui/page-header";
-import { GroupCard, GroupRow, Panel } from "@/components/ui/panel";
-import { Switch } from "@/components/ui/switch";
-import { SectionTitle } from "@/components/ui/typography";
+import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { useNow } from "@/hooks/use-now";
+import { type AffiliateStatus } from "@/lib/affiliate";
 import { alpha } from "@/lib/colors";
-import { ago, duration, gemsAsUsd, thousands, until } from "@/lib/format";
-import { genderLabel, isProfileComplete, type MatchRecord, matchLengthSeconds, type Profile } from "@/lib/models";
+import { duration, thousands, until } from "@/lib/format";
+import { genderLabel, isProfileComplete, type Profile } from "@/lib/models";
+import { useAffiliate } from "@/stores/affiliate";
 import { useCatalog } from "@/stores/catalog";
+import { useEngagement } from "@/stores/engagement";
 import { useFollows } from "@/stores/follows";
 import { averageLength, matchesToday, skipRate, useMatch } from "@/stores/match";
-import { useSession, verification } from "@/stores/session";
+import { useSession } from "@/stores/session";
 import { friendsOf, useSocial } from "@/stores/social";
-import { toast } from "@/stores/ui";
 import { isVip, useWallet } from "@/stores/wallet";
 
-import { ProgressCard } from "@/features/engagement/progress-card";
-import { WellbeingSection } from "@/features/engagement/wellbeing-section";
 import { InviteCodeField } from "@/features/referrals/invite-code-field";
 
-import { SignInMethodsCard } from "./sign-in-methods";
-
-const TRUST = { iconColor: "trust" as const, iconBg: alpha("trust", 0.12) };
-
 /**
- * You: your profile shown as the card others see, your numbers, then Safety
- * & trust (teal) above money (gold), then history and account.
+ * You: your profile shown as the card others see and your numbers, then one
+ * row per area (progress, followers, history, safety, money, invite & earn,
+ * settings). Each row opens its own page (`me-sections.tsx`, `/me/*`), so Me
+ * stays short instead of one long page. Same structure as the app.
  */
 export function MeScreen() {
   const router = useRouter();
@@ -48,27 +39,17 @@ export function MeScreen() {
   const me = session.me;
   const wallet = useWallet((s) => s.wallet);
   const economy = useCatalog((s) => s.economy);
-  const usdPerGem = economy.usdPerGem;
-  const autoBlur = useMatch((s) => s.autoBlur);
   const history = useMatch((s) => s.history);
-  const blocked = useSocial((s) => s.blocked);
+  const level = useEngagement((s) => s.level);
+  const follows = useFollows((s) => s.settings);
+  const partner = useAffiliate((s) => s.overview?.status);
   useNow(60_000);
+  useEffect(() => {
+    // The partner row says where you are (review, active…); one small read.
+    if (!useAffiliate.getState().overview) void useAffiliate.getState().load();
+  }, []);
   if (!me) return null;
   const vip = isVip(wallet);
-  const v = verification(session);
-  const recent = [...history].reverse().slice(0, 8);
-
-  const signOut = async () => {
-    const ok = await confirm({ title: "Sign out?", body: "You can sign back in with the same e-mail any time.", ok: "Sign out", okTone: "bad" });
-    if (!ok) return;
-    useMatch.getState().releaseCamera();
-    await useSession.getState().signOut();
-  };
-
-  const unblockAll = async () => {
-    for (const id of [...blocked]) await useSocial.getState().unblock(id);
-    toast("Everyone unblocked");
-  };
 
   return (
     <Screen
@@ -78,98 +59,74 @@ export function MeScreen() {
       <div className="mt-3">
         <StatsCard me={me} />
       </div>
-      <FollowSection />
-      <ProgressCard />
 
-      <SectionTitle text="Safety & trust" top={26} />
-      <GroupCard className="border-trust/22">
-        <GroupRow
-          icon="verified"
-          iconVariant={me.verified ? "round" : "outlined"}
-          {...TRUST}
-          title={me.verified ? "Verified profile" : "Verify your profile"}
-          subtitle={verificationSubtitle(v, me.verified)}
-          trailing={me.verified ? <Icon name="check_circle" className="text-trust" /> : <VerifyPill busy={session.busy} onClick={() => void startSelfieVerification()} />}
+      <GroupCard className="mt-[18px]">
+        <MenuRow icon="emoji_events" tone="lavender" title="Progress & badges" subtitle={level ? `Level ${level.level} · ${thousands(level.xp)} XP` : "Your level and badges"} href="/me/progress" />
+        <MenuRow
+          icon="people_alt"
+          title="Followers & privacy"
+          subtitle={`${thousands(follows.followers)} ${follows.followers === 1 ? "follower" : "followers"} · ${thousands(follows.following)} following`}
+          href="/me/privacy"
         />
-        <GroupRow icon="blur_on" title="Blur the first 3 seconds" subtitle="Both videos start blurred." trailing={<Switch checked={autoBlur} onChange={(x) => useMatch.getState().setAutoBlur(x)} label="Blur the first 3 seconds" />} />
-        {blocked.length ? (
-          <GroupRow icon="block" title={`${blocked.length} blocked`} subtitle="They can never match with you." trailing={<TextButton onClick={() => void unblockAll()}>Unblock all</TextButton>} />
-        ) : null}
-        <GroupRow icon="support_agent" title="Help and safety" trailing={<Icon name="chevron_right" className="text-muted" />} onClick={() => toast("The help centre opens here soon")} />
+        <MenuRow icon="history" title="Recent matches" subtitle={history.length ? `${history.length} recent ${history.length === 1 ? "call" : "calls"}` : "Your last calls show up here"} href="/me/matches" />
       </GroupCard>
 
-      <WellbeingSection />
-
-      <SectionTitle text="Wallet" top={26} />
-      <div className="flex gap-2.5">
-        <BalanceCard label="Coins" icon={<CoinIcon size={14} plain />} value={thousands(wallet.coins)} valueClass="text-gold" href="/wallet" />
-        <BalanceCard label="Gems" icon={<GemIcon size={15} />} value={thousands(wallet.gems)} note={`≈ ${gemsAsUsd(wallet.gems, usdPerGem)}`} valueClass="text-gem" href="/wallet" />
-      </div>
-      <Link href="/vip" className="relative isolate mt-2.5 flex items-center overflow-hidden rounded-[20px] border border-gold/28 px-4 py-3.5 transition-[filter] hover:brightness-110">
-        <GradientFill gradient="vipCard" className="-z-10" />
-        <Icon name="workspace_premium" size={24} className="text-gold" />
-        <span className="ml-3 flex-1">
-          <span className="type-title block text-[15px] font-semibold">{vip ? "You are VIP" : "Get VIP"}</span>
-          <span className="type-body block text-[12px] text-text2">{vip ? until(wallet.vipUntil!) : "Free filters, no ads, see who liked you"}</span>
-        </span>
-        <Icon name="chevron_right" className="text-gold" />
-      </Link>
-
-      <SectionTitle text="Invite & earn" top={26} />
-      <GroupCard>
-        <GroupRow
-          icon="card_giftcard"
-          iconColor="gold"
-          iconBg={alpha("gold", 0.12)}
-          title="Invite friends"
-          subtitle={`Give ${economy.inviteeRewardCoins}, get ${economy.inviteRewardCoins} coins`}
-          trailing={<Icon name="chevron_right" className="text-muted" />}
-          onClick={() => router.push("/invite")}
+      <GroupCard className="mt-2.5 border-trust/22">
+        <MenuRow
+          icon="verified"
+          iconVariant={me.verified ? "round" : "outlined"}
+          tone="trust"
+          title="Safety & trust"
+          subtitle={me.verified ? "Verified · blur, blocking and help" : "Not verified yet · blur, blocking and help"}
+          href="/me/safety"
         />
-        <GroupRow
-          icon="campaign"
-          iconColor="lavender"
-          iconBg={alpha("violet", 0.14)}
-          title="Creator partner program"
-          subtitle="Earn money for the people you bring"
-          trailing={<Icon name="chevron_right" className="text-muted" />}
-          onClick={() => router.push("/partner")}
-        />
+      </GroupCard>
+
+      <GroupCard className="mt-2.5">
+        <MenuRow icon="account_balance_wallet" tone="gold" title="Wallet" subtitle={`${thousands(wallet.coins)} coins · ${thousands(wallet.gems)} gems`} href="/wallet" />
+        <MenuRow icon="workspace_premium" tone="gold" title={vip ? "You are VIP" : "Get VIP"} subtitle={vip ? until(wallet.vipUntil!) : "Free filters, no ads, see who liked you"} href="/vip" />
+      </GroupCard>
+
+      <GroupCard className="mt-2.5">
+        <MenuRow icon="card_giftcard" tone="gold" title="Invite friends" subtitle={`Give ${economy.inviteeRewardCoins}, get ${economy.inviteRewardCoins} coins`} href="/invite" />
+        <MenuRow icon="campaign" tone="lavender" title="Creator partner program" subtitle={partnerSubtitle(partner)} href="/partner" />
       </GroupCard>
       <InviteCodeField className="mt-2.5" />
 
-      <SectionTitle text="Recent matches" top={26} bottom={4} />
-      {!recent.length ? (
-        <p className="type-body px-0.5 py-3 text-[13px] text-text2">Your last matches will show up here.</p>
-      ) : (
-        recent.map((r, i) => <MatchRow key={r.id} r={r} last={i === recent.length - 1} />)
-      )}
-
-      <SectionTitle text="Sign-in methods" top={22} />
-      <SignInMethodsCard />
-
-      <SectionTitle text="Account" top={22} />
-      <GroupCard dividerInset={52}>
-        <GroupRow
-          bare
-          icon="mail_outline"
-          title="E-mail updates"
-          subtitle="News and offers from Vibe. Sign-in codes always arrive."
-          trailing={
-            <Switch
-              checked={session.emailUpdates}
-              label="E-mail updates"
-              onChange={async (on) => {
-                if (!(await useSession.getState().setEmailUpdates(on))) toast("Couldn't save that, try again", { error: true });
-              }}
-            />
-          }
-        />
-        <GroupRow bare icon="description" iconVariant="outlined" title="Terms and privacy" trailing={<Icon name="chevron_right" className="text-muted" />} onClick={() => toast("The policy pages open here soon")} />
-        <GroupRow bare icon="logout" iconColor="bad" title="Sign out" titleColor="bad" onClick={() => void signOut()} />
+      <GroupCard className="mt-2.5">
+        <MenuRow icon="notifications_none" title="Notifications & wellbeing" subtitle="Quiet hours and break reminders" href="/me/wellbeing" />
+        <MenuRow icon="manage_accounts" iconVariant="outlined" title="Account" subtitle="Sign-in methods, e-mail, terms, sign out" href="/me/account" />
       </GroupCard>
       <p className="type-body mt-4 text-center text-[11px] text-muted">Vibe web 0.1</p>
     </Screen>
+  );
+}
+
+const partnerSubtitle = (s: AffiliateStatus | undefined) =>
+  s === "ACTIVE"
+    ? "Your stats, links and payouts"
+    : s === "PENDING"
+      ? "Application under review"
+      : s === "SUSPENDED"
+        ? "Paused · see why"
+        : s === "REJECTED"
+          ? "Not approved this time"
+          : "Earn money for the people you bring";
+
+/** One Me menu row: tinted icon tile, title, live subtitle, chevron; opens [href]. */
+function MenuRow({ icon, iconVariant, tone, title, subtitle, href }: { icon: string; iconVariant?: "round" | "outlined"; tone?: "gold" | "trust" | "lavender"; title: string; subtitle: string; href: string }) {
+  const router = useRouter();
+  return (
+    <GroupRow
+      icon={icon}
+      iconVariant={iconVariant}
+      iconColor={tone ?? "text2"}
+      iconBg={tone ? alpha(tone === "lavender" ? "violet" : tone, tone === "lavender" ? 0.14 : 0.12) : undefined}
+      title={title}
+      subtitle={subtitle}
+      trailing={<Icon name="chevron_right" className="text-muted" />}
+      onClick={() => router.push(href)}
+    />
   );
 }
 
@@ -247,78 +204,6 @@ function StatsCard({ me }: { me: Profile }) {
         {small("Avg", duration(averageLength(m)))}
         {small("Skip rate", `${Math.round(skipRate(m) * 100)}%`)}
       </div>
-    </div>
-  );
-}
-
-function BalanceCard({ label, icon, value, note, valueClass, href }: { label: string; icon: ReactNode; value: string; note?: string; valueClass: string; href: string }) {
-  return (
-    <Link href={href} className="flex-1">
-      <Panel className="rounded-[20px] px-4 py-3.5 transition-[filter] hover:brightness-110">
-        <span className="flex items-center">
-          {icon}
-          <span className="type-body ml-1.5 text-[12px] text-muted">{label}</span>
-        </span>
-        <span className="mt-1.5 flex items-baseline">
-          <span className={`type-number-lg truncate text-[22px] ${valueClass}`}>{value}</span>
-          {note ? <span className="type-body ml-1.5 text-[12px] text-muted">{note}</span> : null}
-        </span>
-      </Panel>
-    </Link>
-  );
-}
-
-function MatchRow({ r, last }: { r: MatchRecord; last: boolean }) {
-  const bits = [duration(matchLengthSeconds(r)), ago(r.startedAt), ...(r.likedMe ? ["liked you"] : []), ...(r.giftsReceived > 0 ? [`${r.giftsReceived} gift${r.giftsReceived === 1 ? "" : "s"}`] : [])];
-  return (
-    <Link href={`/u/${r.partner.id}`} className={`flex items-center py-3 transition-opacity hover:opacity-85 ${last ? "" : "border-b border-line-soft"}`}>
-      <Avatar url={r.partner.avatarUrl} name={r.partner.name} size={44} />
-      <span className="ml-3.5 min-w-0 flex-1">
-        <span className="type-title block text-[15px] font-semibold">
-          {r.partner.name}, {r.partner.age} {r.partner.country.flag}
-        </span>
-        <span className="type-body mt-px block text-[12px] text-text2">{bits.join(" · ")}</span>
-      </span>
-      {r.liked ? <Icon name="favorite" size={18} className="text-pink" /> : null}
-    </Link>
-  );
-}
-
-/** Your followers (only you see the lists) and the two privacy switches. */
-function FollowSection() {
-  const router = useRouter();
-  const s = useFollows((x) => x.settings);
-  const save = async (patch: { privateAccount?: boolean; hideStats?: boolean }) => {
-    if (!(await useFollows.getState().setPrivacy(patch))) toast("Couldn't save that, try again", { error: true });
-  };
-  return (
-    <div className="mt-2.5">
-      <GroupCard dividerInset={52}>
-        <GroupRow
-          bare
-          icon="people_alt"
-          title={`${thousands(s.followers)} ${s.followers === 1 ? "follower" : "followers"} · ${thousands(s.following)} following`}
-          subtitle="Only you can see these lists."
-          trailing={<Icon name="chevron_right" className="text-muted" />}
-          onClick={() => router.push("/me/follows")}
-        />
-        <GroupRow
-          bare
-          icon="lock"
-          iconVariant="outlined"
-          title="Private account"
-          subtitle="New followers need your OK first."
-          trailing={<Switch checked={s.privateAccount} label="Private account" onChange={(on) => void save({ privateAccount: on })} />}
-        />
-        <GroupRow
-          bare
-          icon="visibility_off"
-          iconVariant="outlined"
-          title="Hide my stats"
-          subtitle="Matches, likes and gifts stay private."
-          trailing={<Switch checked={s.hideStats} label="Hide my stats" onChange={(on) => void save({ hideStats: on })} />}
-        />
-      </GroupCard>
     </div>
   );
 }

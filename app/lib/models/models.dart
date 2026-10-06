@@ -406,6 +406,15 @@ class Economy {
     ReferralMilestone(count: 25, kind: MilestoneReward.coins, amount: 1000),
   ];
 
+  // Creator partners (admin group "affiliates"): a share of what the people
+  // they bring spend, for some months, plus a fixed amount per active user.
+  // Money in USD cents. Per-partner terms come with `GET /affiliate`.
+  static int affiliateRevSharePercent = 20;
+  static int affiliateCommissionMonths = 6;
+  static int affiliateCpaUsdCents = 10;
+  static int affiliateHoldDays = 14;
+  static int affiliateMinPayoutUsdCents = 1000;
+
   // Sign-up
   static int welcomeCoins = 30;
 

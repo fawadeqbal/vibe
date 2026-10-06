@@ -9,6 +9,7 @@ import '../../models/models.dart';
 import '../../providers/referrals_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../services/app_services.dart';
+import '../partner/partner_screen.dart';
 
 /// Your invite link with a channel (`?s=whatsapp`): the server's once the
 /// Invite screen has loaded, else built from your code (server mode) or
@@ -52,10 +53,7 @@ Future<void> copyInvite(BuildContext context, {String? text}) async {
   if (context.mounted) toast(context, text == null ? 'Invite link copied' : 'Invite copied — paste it anywhere');
 }
 
-/// Me → "Creator partner program", and the `partner` push: the web dashboard.
-Future<void> openPartnerPage(BuildContext context) async {
-  final ok = await context.read<AppServices>().share.openUrl(ApiConfig.partnerUrl);
-  if (ok || !context.mounted) return;
-  await Clipboard.setData(ClipboardData(text: ApiConfig.partnerUrl));
-  if (context.mounted) toast(context, "Couldn't open the browser — link copied", error: true);
-}
+/// Me → "Creator partner program", and the `partner` push: the native
+/// partner screen (kept under this name for older call sites; new code
+/// calls [openPartnerScreen]).
+Future<void> openPartnerPage(BuildContext context) async => openPartnerScreen(context);
