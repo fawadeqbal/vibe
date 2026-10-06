@@ -83,7 +83,7 @@ export function WelcomeScreen() {
   };
 
   return (
-    <div className="relative flex min-h-dvh flex-col">
+    <div className="relative flex min-h-dvh flex-col bg-bg">
       {/* Soft violet glow behind the faces. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[560px]"

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { VibeLogo } from "@/components/ui/brand";
 import { Icon } from "@/components/ui/icon";
@@ -33,86 +33,32 @@ function useTabs(): Tab[] {
 
 const isActive = (path: string, href: string) => path === href || path.startsWith(`${href}/`) || (href === "/chats" && path.startsWith("/inbox"));
 
-/** Rail destination (wide screens): icon over label; the selected one sits in a glass lens. */
-function RailItem({ tab, on }: { tab: Tab; on: boolean }) {
+/** One destination: the pill indicator, icon, badge and label (bottom bar and rail share it). */
+function TabItem({ tab, on, className }: { tab: Tab; on: boolean; className?: string }) {
   const badge = tab.badge ?? 0;
   return (
     <Link
       href={tab.href}
       aria-current={on ? "page" : undefined}
       aria-label={badge > 0 ? `${tab.label}, ${badge} new` : tab.label}
-      className={cn(
-        "group relative flex h-[62px] w-[66px] flex-col items-center justify-center rounded-[22px] transition-[transform,background-color] duration-300 ease-(--ease-spring) active:scale-95",
-        on ? "glass-lens" : "hover:bg-white/6",
-      )}
+      className={cn("group flex flex-col items-center justify-center", className)}
     >
-      <TabGlyph tab={tab} on={on} badge={badge} />
-      <span className={cn("type-label mt-1 text-[11px]", on ? "font-semibold text-pink-soft" : "font-medium text-text2")}>{tab.label}</span>
+      <span className={cn("relative flex h-[30px] w-14 items-center justify-center rounded-[15px] transition-colors duration-200 ease-out", on ? "bg-pink/16" : "group-hover:bg-white/5")}>
+        <Icon name={on ? tab.activeIcon : tab.icon} variant={on ? "round" : tab.iconVariant} size={22} className={on ? "text-pink" : "text-muted"} />
+        {badge > 0 ? (
+          <span className="type-label absolute top-px left-8 flex h-4 min-w-4 items-center justify-center rounded-[8px] bg-pink px-1 text-[10px] font-bold text-white">{badge > 99 ? "99+" : badge}</span>
+        ) : null}
+      </span>
+      <span className={cn("type-label mt-1 text-[11px]", on ? "font-semibold text-text" : "font-medium text-muted")}>{tab.label}</span>
     </Link>
   );
 }
 
-function TabGlyph({ tab, on, badge }: { tab: Tab; on: boolean; badge: number }) {
-  return (
-    <span className="relative flex h-[26px] items-center justify-center">
-      <Icon name={on ? tab.activeIcon : tab.icon} variant={on ? "round" : tab.iconVariant} size={25} className={cn("transition-colors duration-200", on ? "text-pink" : "text-text2")} />
-      {badge > 0 ? (
-        <span className="type-label absolute -top-1 left-[17px] flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-pink px-1 text-[10px] font-bold text-white shadow-[0_0_0_2px_rgb(28_24_40/.9)]">
-          {badge > 99 ? "99+" : badge}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-/**
- * The phone tab bar, iOS 26 style: a floating capsule of glass above the
- * content (which scrolls on under it, blurred), with a lighter glass lens
- * that glides to the selected tab.
- */
-function TabBar({ tabs, path }: { tabs: Tab[]; path: string }) {
-  const index = tabs.findIndex((t) => isActive(path, t.href));
-  const n = tabs.length;
-  return (
-    <nav aria-label="Main" className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[calc(10px+env(safe-area-inset-bottom))] lg:hidden">
-      <div className="glass-bar pointer-events-auto relative flex h-[66px] w-full max-w-[420px] items-stretch rounded-full p-[5px]">
-        {index >= 0 ? (
-          <span
-            aria-hidden
-            className="glass-lens absolute top-[5px] bottom-[5px] rounded-full transition-[left] duration-500 ease-(--ease-spring)"
-            style={{ width: `calc((100% - 10px) / ${n})`, left: `calc(5px + (100% - 10px) * ${index} / ${n})` }}
-          />
-        ) : null}
-        {tabs.map((t, i) => {
-          const on = i === index;
-          const badge = t.badge ?? 0;
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              aria-current={on ? "page" : undefined}
-              aria-label={badge > 0 ? `${t.label}, ${badge} new` : t.label}
-              className="relative z-[2] flex flex-1 flex-col items-center justify-center rounded-full transition-transform duration-300 ease-(--ease-spring) active:scale-[0.92]"
-            >
-              <TabGlyph tab={t} on={on} badge={badge} />
-              <span className={cn("type-label mt-[3px] text-[10.5px] tracking-[0.01em]", on ? "font-semibold text-pink-soft" : "font-medium text-text2")}>{t.label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
-  );
-}
-
-/** Height the floating tab bar takes from the bottom of a page (bar + gap + breathing room). */
-const TABBAR_SPACE = "calc(96px + env(safe-area-inset-bottom))";
-
 /**
  * Four tabs. Match is the app; the other three exist to keep people coming
  * back to it (friends), to pay (store) and to trust it (profile). Phones get
- * a floating glass tab bar (hidden during a live match); wide screens get a
- * floating glass rail. Pages scroll on under the bar; they end with a
- * `.tabbar-spacer` so the last row can scroll clear of it.
+ * the bottom bar (frosted over the camera on Match, hidden during a live
+ * match); wide screens get a navigation rail.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
@@ -125,30 +71,38 @@ export function AppShell({ children }: { children: ReactNode }) {
   const showBar = tabRoot && !(live && onVideo);
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div className="flex h-dvh overflow-hidden bg-bg">
       {/* Rail (wide screens). */}
-      <div className="hidden shrink-0 py-3 pl-3 lg:flex">
-        <nav aria-label="Main" className="glass-bar relative flex h-full w-[90px] flex-col items-center rounded-[32px] py-5">
-          <Link href="/match" aria-label="Vibe home" className="mb-7">
-            <VibeLogo size={42} shadow={false} />
-          </Link>
-          <div className="flex flex-col gap-2">
-            {tabs.map((t) => (
-              <RailItem key={t.href} tab={t} on={isActive(path, t.href)} />
-            ))}
-          </div>
-        </nav>
-      </div>
+      <nav aria-label="Main" className="sticky top-0 hidden h-dvh w-[92px] shrink-0 flex-col items-center border-r border-line-soft bg-bg py-6 lg:flex">
+        <Link href="/match" aria-label="Vibe home" className="mb-8">
+          <VibeLogo size={40} shadow={false} />
+        </Link>
+        <div className="flex flex-col gap-5">
+          {tabs.map((t) => (
+            <TabItem key={t.href} tab={t} on={isActive(path, t.href)} className="w-[76px]" />
+          ))}
+        </div>
+      </nav>
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <main
-          className="flex min-h-0 flex-1 flex-col"
-          style={showBar && !onVideo ? ({ "--tabbar-space": TABBAR_SPACE } as CSSProperties) : undefined}
-        >
-          {children}
-        </main>
+        <main className={cn("flex min-h-0 flex-1 flex-col", showBar && !onVideo && "pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0")}>{children}</main>
 
-        {showBar ? <TabBar tabs={tabs} path={path} /> : null}
+        {/* Bottom bar (phones). */}
+        {showBar ? (
+          <nav
+            aria-label="Main"
+            className={cn(
+              "fixed inset-x-0 bottom-0 z-40 border-t border-line-soft pb-[env(safe-area-inset-bottom)] lg:hidden",
+              onVideo ? "bg-bg/88 backdrop-blur-[20px]" : "bg-bg",
+            )}
+          >
+            <div className="flex h-16">
+              {tabs.map((t) => (
+                <TabItem key={t.href} tab={t} on={isActive(path, t.href)} className="flex-1" />
+              ))}
+            </div>
+          </nav>
+        ) : null}
       </div>
     </div>
   );

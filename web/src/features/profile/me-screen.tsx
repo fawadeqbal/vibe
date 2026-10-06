@@ -233,7 +233,7 @@ function StatsCard({ me }: { me: Profile }) {
     </span>
   );
   return (
-    <div className="glass relative rounded-card">
+    <div className="rounded-card border border-line bg-surface">
       <div className="flex py-4">
         {big(thousands(me.matches), "Matches")}
         <VDivider className="bg-line-soft" />

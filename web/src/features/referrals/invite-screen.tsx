@@ -88,7 +88,7 @@ export function InviteScreen() {
 
       <InviteCodeField className="mt-6" />
 
-      <Link href="/partner" className="glass relative mt-6 flex items-center rounded-[20px] px-4 py-3.5 transition-[filter] hover:brightness-110">
+      <Link href="/partner" className="mt-6 flex items-center rounded-[20px] border border-line bg-surface px-4 py-3.5 transition-[filter] hover:brightness-110">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-[12px] bg-violet/14">
           <Icon name="campaign" size={22} className="text-lavender" />
         </span>
@@ -211,7 +211,7 @@ function Totals({ ov }: { ov: ReferralOverview }) {
     </div>
   );
   return (
-    <div className="glass relative flex rounded-card py-3.5">
+    <div className="flex rounded-card border border-line bg-surface py-3.5">
       {cell(thousands(ov.stats.joined), "Joined")}
       {cell(thousands(ov.stats.pending), "On the way")}
       {cell(thousands(ov.stats.rewarded), "Active")}

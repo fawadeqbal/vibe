@@ -41,12 +41,12 @@ export function MenuButton({ icon = "more_horiz", label, items, className }: { i
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex size-10 items-center justify-center rounded-full text-text transition-colors hover:bg-white/10"
+        className="flex size-10 items-center justify-center rounded-full text-text transition-colors hover:bg-white/6"
       >
         <Icon name={icon} size={24} />
       </button>
       {open ? (
-        <div role="menu" className="glass-thick absolute top-full right-0 z-30 mt-1 min-w-[200px] overflow-hidden rounded-[20px] py-1.5" style={{ animation: "vibe-dialog-in 120ms ease-out" }}>
+        <div role="menu" className="absolute top-full right-0 z-30 mt-1 min-w-[180px] overflow-hidden rounded-[16px] border border-line bg-surface2 py-2 shadow-[0_8px_30px_rgb(0_0_0/.45)]" style={{ animation: "vibe-dialog-in 120ms ease-out" }}>
           {items.map((it) => (
             <button
               key={it.label}

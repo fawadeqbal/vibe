@@ -145,7 +145,7 @@ function Stats() {
       {stats && stats.byChannel.length ? (
         <>
           <SectionTitle text="By channel" top={22} />
-          <div className="glass relative overflow-x-auto rounded-card">
+          <div className="overflow-x-auto rounded-card border border-line bg-surface">
             <table className="w-full min-w-[360px] text-left">
               <thead>
                 <tr className="type-overline text-[10px]">
@@ -217,7 +217,7 @@ function Commissions() {
       ) : !items.length ? (
         <p className="type-body px-0.5 py-2 text-[13px] text-text2">Nothing yet. You earn when people who joined with your link become active and when they buy.</p>
       ) : (
-        <div className="glass relative rounded-card">
+        <div className="rounded-card border border-line bg-surface">
           {items.map((c, i) => (
             <CommissionRow key={c.id} c={c} last={i === items.length - 1} />
           ))}

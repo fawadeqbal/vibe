@@ -52,7 +52,7 @@ export function InviteCodeField({ className, startOpen = false }: { className?: 
     );
 
   return (
-    <div className={cn("glass relative rounded-[20px] p-3.5", className)}>
+    <div className={cn("rounded-[20px] border border-line bg-surface p-3.5", className)}>
       <p className="flex items-center">
         <Icon name="card_giftcard" size={18} className="text-gold" />
         <span className="type-title ml-2 flex-1 text-[14px]">Have an invite code?</span>

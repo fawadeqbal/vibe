@@ -150,7 +150,7 @@ function Ranking({ data, myId, onOpen }: { data: Leaderboard; myId: string | und
 function MeRow({ board, rank, score, name, avatarUrl }: { board: Leaderboard; rank: number | null; score: number; name: string; avatarUrl: string }) {
   return (
     <div className="px-5 pb-[calc(16px+env(safe-area-inset-bottom))]">
-      <div className="flex items-center glass-thick relative rounded-card border border-pink/32 px-4 py-3">
+      <div className="flex items-center rounded-card border border-pink/32 bg-surface2/95 px-4 py-3 shadow-[0_-6px_24px_rgb(0_0_0/.35)] backdrop-blur-[20px]">
         <Avatar url={avatarUrl} name={name} size={36} />
         <span className="type-title ml-3 flex-1 truncate text-[15px] font-semibold">
           You <span className="text-muted">·</span> {rank ? `#${rank}` : "not ranked yet"}

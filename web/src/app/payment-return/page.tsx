@@ -29,7 +29,7 @@ function Return() {
 
 export default function Page() {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg">
       <Spinner className="text-gold" />
       <p className="type-body text-[14px] text-text2">Back to Vibe…</p>
       <Suspense>

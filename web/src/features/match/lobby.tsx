@@ -55,7 +55,7 @@ export function Lobby({ onStart }: { onStart: () => void }) {
     <div className="absolute inset-0">
       <SelfVideo />
       <VideoScrims top={200} bottom={500} />
-      <div className="absolute inset-0 flex flex-col pt-[env(safe-area-inset-top)] pb-[calc(84px+env(safe-area-inset-bottom))] lg:pb-0">
+      <div className="absolute inset-0 flex flex-col pt-[env(safe-area-inset-top)] pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0">
         {/* Who you are + balance. */}
         <div className="flex items-center px-4 pt-3">
           {me ? <Avatar url={me.avatarUrl} name={me.name} size={40} border="rgb(255 255 255 / .25)" /> : null}

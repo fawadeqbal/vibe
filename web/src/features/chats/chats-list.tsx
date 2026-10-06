@@ -56,7 +56,6 @@ export function ChatsList() {
             body="Tap Add during a match. When they accept, you can keep talking here — text and gifts, any time."
             action={<GradientButton label="Find people" icon="videocam" expand={false} onClick={() => router.push("/match")} />}
           />
-          <div className="tabbar-spacer" aria-hidden />
         </>
       ) : (
         <div className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-8">
@@ -95,7 +94,6 @@ export function ChatsList() {
           {friends.map((f, i) => (
             <FriendRow key={f.profile.id} f={f} last={i === friends.length - 1} active={path === `/chats/${f.profile.id}`} onRestore={() => void restore(f)} />
           ))}
-          <div className="tabbar-spacer" aria-hidden />
         </div>
       )}
     </div>
@@ -106,9 +104,9 @@ function RequestCard({ f }: { f: Friend }) {
   const p = f.profile;
   const { accept, decline } = useSocial.getState();
   return (
-    <div className="glass relative mb-2.5 rounded-card border border-pink/32 p-3.5">
+    <div className="mb-2.5 rounded-card border border-pink/32 bg-surface p-3.5">
       <div className="flex items-center">
-        <Avatar url={p.avatarUrl} name={p.name} size={52} ring gapColor="var(--color-surface-solid)" />
+        <Avatar url={p.avatarUrl} name={p.name} size={52} ring gapColor="var(--color-surface)" />
         <div className="ml-3 min-w-0 flex-1">
           <p className="flex items-center">
             <span className="type-title truncate text-[16px] font-semibold">
@@ -216,8 +214,8 @@ function TeamRow({ latest, unread, active }: { latest: TeamMessage; unread: numb
       href="/chats/inbox"
       aria-label={hasUnread ? `Messages from Vibe, ${unread} new` : "Messages from Vibe"}
       className={cn(
-        "glass relative flex items-center rounded-card border p-3 transition-[filter] hover:brightness-110",
-        hasUnread ? "border-pink/32" : "border-transparent",
+        "flex items-center rounded-card border bg-surface p-3 transition-[filter] hover:brightness-110",
+        hasUnread ? "border-pink/32" : "border-line",
         active && "brightness-125",
       )}
     >

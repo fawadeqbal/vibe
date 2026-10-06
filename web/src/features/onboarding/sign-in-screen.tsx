@@ -86,7 +86,7 @@ export function SignInScreen() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div className="flex min-h-dvh flex-col bg-bg pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <form onSubmit={submit} className="mx-auto flex w-full max-w-[460px] flex-col p-6 lg:my-auto" noValidate>
         <VibeLogo size={44} shadow={false} />
         <div className="mt-7">

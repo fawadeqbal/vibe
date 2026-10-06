@@ -27,7 +27,7 @@ export function OnlineDot({ size = 8, tone = "ok" }: { size?: number; tone?: Ton
 export function EmptyState({ icon, iconVariant, title, accent, body, action, className }: { icon: string; iconVariant?: "round" | "outlined"; title: string; accent?: string; body: string; action?: ReactNode; className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center p-8 text-center", className)}>
-      <span className="glass relative flex size-[72px] items-center justify-center rounded-[24px]">
+      <span className="flex size-[72px] items-center justify-center rounded-[24px] border border-line bg-surface">
         <Icon name={icon} variant={iconVariant} size={32} className="text-text2" />
       </span>
       <Headline as="h2" text={title} accent={accent} size={22} align="center" className="mt-[18px]" />

@@ -7,11 +7,11 @@ import { cn } from "@/lib/cn";
 
 import { Icon } from "./icon";
 
-/** Clear glass over video: light tint, blur + saturation, specular rim. */
+/** Frosted panel over video. */
 export function Glass({
   children,
   radius = 16,
-  blur = 16,
+  blur = 20,
   className,
   style,
 }: {
@@ -24,8 +24,8 @@ export function Glass({
 }) {
   return (
     <div
-      className={cn("glass-clear relative border border-transparent px-3 py-2", className)}
-      style={{ borderRadius: radius, backdropFilter: `blur(${blur}px) saturate(160%)`, WebkitBackdropFilter: `blur(${blur}px) saturate(160%)`, ...style }}
+      className={cn("border border-white/12 bg-glass px-3 py-2", className)}
+      style={{ borderRadius: radius, backdropFilter: `blur(${blur}px)`, WebkitBackdropFilter: `blur(${blur}px)`, ...style }}
     >
       {children}
     </div>
@@ -65,7 +65,9 @@ export function GlassPill({
     paddingLeft: icon ? 10 : 12,
     paddingRight: trailing ? 8 : 12,
     backgroundColor: tint ? alpha(tint, 0.18) : undefined,
-    borderColor: tint ? alpha(tint, 0.48) : "transparent",
+    borderColor: tint ? alpha(tint, 0.48) : "rgb(255 255 255 / .14)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
   };
   const content = (
     <>
@@ -76,10 +78,10 @@ export function GlassPill({
       {trailing ? <span className="ml-0.5 flex shrink-0">{trailing}</span> : null}
     </>
   );
-  const base = cn("glass-clear relative inline-flex min-w-0 max-w-full items-center border", className);
+  const base = cn("inline-flex min-w-0 max-w-full items-center border bg-glass", className);
   if (!onClick) return <div className={base} style={style}>{content}</div>;
   return (
-    <button type="button" onClick={onClick} className={cn(base, "transition-[filter,transform] duration-300 ease-(--ease-spring) hover:brightness-125 active:scale-95")} style={style}>
+    <button type="button" onClick={onClick} className={cn(base, "transition-[filter] hover:brightness-125")} style={style}>
       {content}
     </button>
   );
@@ -122,12 +124,14 @@ export function RoundControl({
     >
       <span className={cn("relative", disabled && "opacity-60")}>
         <span
-          className="glass-clear relative flex items-center justify-center rounded-full border transition-[filter,transform] duration-300 ease-(--ease-spring) group-enabled:group-hover:brightness-125 group-enabled:group-active:scale-90"
+          className="flex items-center justify-center rounded-full border transition-[filter] group-enabled:group-hover:brightness-125"
           style={{
             width: size,
             height: size,
-            backgroundColor: tint ? alpha(tint, 0.22) : undefined,
-            borderColor: tint ? alpha(tint, 0.45) : "transparent",
+            backgroundColor: tint ? alpha(tint, 0.22) : "var(--color-glass)",
+            borderColor: tint ? alpha(tint, 0.45) : "rgb(255 255 255 / .14)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
           }}
         >
           <Icon name={icon} size={size * 0.46} style={{ color: color(iconColor) }} />
