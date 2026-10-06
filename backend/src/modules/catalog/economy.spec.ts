@@ -1,4 +1,4 @@
-import { DEFAULT_GIFTS, DEFAULT_PACKS, DEFAULT_PLANS, DEFAULT_RULES, filterCost, gemsFor, gemsToUsdCents, GiftsSchema, PacksSchema, PlansSchema, RULE_FIELDS, RulesPatchSchema, RulesSchema } from './economy';
+import { DEFAULT_GIFTS, DEFAULT_PACKS, DEFAULT_PLANS, DEFAULT_RULES, filterCost, gemsFor, gemsToUsdCents, GiftsSchema, PacksSchema, PlansSchema, RULE_FIELDS, RULE_GROUPS, RulesPatchSchema, RulesSchema } from './economy';
 
 const gift = (id: string) => DEFAULT_GIFTS.find((g) => g.id === id)!;
 
@@ -58,6 +58,22 @@ describe('economy', () => {
     expect(RULE_FIELDS.find((f) => f.key === 'maxFollowsPerDay')).toMatchObject({ kind: 'count', min: 1, max: 10_000 });
     expect(RulesPatchSchema.safeParse({ maxFollowsPerDay: 0 }).success).toBe(false);
     expect(RulesPatchSchema.safeParse({ maxFollowsPerDay: 50 }).success).toBe(true);
+  });
+
+  it('referral and partner rules have their own groups and limits', () => {
+    const group = (key: string) => RULE_GROUPS.find((g) => g.key === key)!.fields.map((f) => f.key);
+    expect(group('referrals')).toContain('inviteRewardCoins');
+    expect(group('rewards')).not.toContain('inviteRewardCoins');
+    expect(group('affiliates')).toEqual(['affiliateRevSharePercent', 'affiliateCommissionMonths', 'affiliateCpaUsdCents', 'affiliateStoreFeePercent', 'affiliateHoldDays', 'affiliateMinPayoutUsdCents']);
+    expect(RULE_FIELDS.find((f) => f.key === 'referralRequireVerified')).toMatchObject({ kind: 'flag', min: 0, max: 1 });
+    expect(RULE_FIELDS.find((f) => f.key === 'referralMilestone1VipDays')).toMatchObject({ kind: 'days' });
+    expect(RulesPatchSchema.safeParse({ referralRequireVerified: 2 }).success).toBe(false);
+    expect(RulesPatchSchema.safeParse({ referralRequireVerified: 0 }).success).toBe(true);
+    expect(RulesPatchSchema.safeParse({ affiliateRevSharePercent: 81 }).success).toBe(false);
+    // Partner money is whole cents; the gem value may still be a fraction.
+    expect(RulesPatchSchema.safeParse({ affiliateCpaUsdCents: 10.5 }).success).toBe(false);
+    expect(RulesPatchSchema.safeParse({ affiliateCpaUsdCents: 25 }).success).toBe(true);
+    expect(RulesPatchSchema.safeParse({ usdCentsPerGem: 0.25 }).success).toBe(true);
   });
 });
 

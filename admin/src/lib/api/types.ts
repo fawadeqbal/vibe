@@ -381,7 +381,8 @@ export interface DashboardSummary {
   gifts: { last30Count: number; last30Coins: number; last30Gems: number };
   payouts: { last30Usd: number; last30Count: number };
   liabilities: { coinsOutstanding: number; gemsOutstanding: number; gemsUsd: number };
-  queues: { openReports: number; reportsToday: number; cashoutsReview: number; cashoutsStuck: number; pendingPurchases: number };
+  queues: { openReports: number; reportsToday: number; cashoutsReview: number; cashoutsStuck: number; pendingPurchases: number; partnersPending: number; partnerPayoutsOpen: number };
+  growth: { referredSignups7d: number; partnerSignups7d: number; referralsRewarded7d: number };
   matches: { today: number; last7d: number; avgSeconds: number; quickSkipRate: number };
   live: { online: number; searching: number; calls: number };
 }
@@ -477,7 +478,7 @@ export interface Setting {
 
 // ── economy ───────────────────────────────────────────────────────────────
 
-export type RuleKind = "coins" | "count" | "seconds" | "minutes" | "hours" | "gems" | "cents" | "share" | "age" | "days7" | "clock";
+export type RuleKind = "coins" | "count" | "seconds" | "minutes" | "hours" | "days" | "gems" | "cents" | "share" | "age" | "days7" | "clock" | "flag";
 export type RuleValue = number | number[];
 export type EconomyRules = Record<string, RuleValue>;
 
@@ -488,6 +489,8 @@ export interface RuleField {
   kind: RuleKind;
   min: number;
   max: number;
+  /** `cents` only: whole cents. */
+  whole?: boolean;
 }
 
 export interface RuleGroup {
@@ -655,4 +658,141 @@ export interface Delivery {
   error: string | null;
   createdAt: string;
   user: PersonRef | null;
+}
+
+// ── growth: referrals and creator partners ────────────────────────────────
+
+export type ReferralStatus = "PENDING" | "QUALIFIED" | "REWARDED" | "REJECTED";
+export type AffiliateStatus = "PENDING" | "ACTIVE" | "SUSPENDED" | "REJECTED";
+export type CommissionStatus = "PENDING" | "AVAILABLE" | "PAID" | "REVERSED" | "HELD";
+export type AffiliatePayoutStatus = "REQUESTED" | "PAID" | "REJECTED";
+
+export interface ReferralPerson extends PersonRef {
+  verified: boolean;
+  goodCallsCount: number;
+  status: "ACTIVE" | "DELETED";
+}
+
+export interface ReferralRow {
+  id: string;
+  code: string;
+  kind: "user" | "affiliate";
+  source: "link" | "install" | "code" | "web";
+  channel: string | null;
+  status: ReferralStatus;
+  rejectReason: string | null;
+  inviterCoins: number;
+  inviteeCoins: number;
+  /** First 8 hex chars of the device hash (same value = same device). */
+  device: string | null;
+  ip: string | null;
+  createdAt: string;
+  qualifiedAt: string | null;
+  rewardedAt: string | null;
+  invitee: ReferralPerson;
+  inviter: ReferralPerson | null;
+  affiliate: { id: string; code: string; displayName: string } | null;
+  steps: { verified: boolean; verifyNeeded: boolean; calls: number; callsNeeded: number };
+}
+
+export interface AffiliateChannel {
+  platform: string;
+  url: string;
+  followers: number;
+}
+
+export interface AffiliateSummary {
+  id: string;
+  userId: string;
+  code: string;
+  displayName: string;
+  status: AffiliateStatus;
+  link: string;
+  revSharePercent: number;
+  cpaUsdCents: number;
+  customTerms: boolean;
+  channels: AffiliateChannel[];
+  appliedAt: string;
+  decidedAt: string | null;
+  user?: { id: string; name: string; avatarUrl: string; verified: boolean };
+  referrals?: number;
+}
+
+export interface AffiliateBalance {
+  pendingUsdCents: number;
+  availableUsdCents: number;
+  requestedUsdCents: number;
+  paidUsdCents: number;
+}
+
+export interface AffiliateFlag {
+  key: "idle_users" | "device_clusters" | "refunds" | "click_ratio";
+  level: "warn" | "severe";
+  message: string;
+  value: number;
+}
+
+export interface AffiliateStatsDay {
+  day: string;
+  clicks: number;
+  signups: number;
+  qualified: number;
+  revenueUsdCents: number;
+  earnedUsdCents: number;
+}
+
+export interface AffiliateStats {
+  days: number;
+  totals: { clicks: number; signups: number; qualified: number; payingUsers: number; revenueUsdCents: number; earnedUsdCents: number };
+  daily: AffiliateStatsDay[];
+  byChannel: { channel: string; clicks: number; signups: number; qualified: number; earnedUsdCents: number }[];
+}
+
+export interface AffiliateCommission {
+  id: string;
+  kind: "REVSHARE" | "CPA";
+  usdCents: number;
+  baseUsdCents: number;
+  status: CommissionStatus;
+  availableAt: string;
+  createdAt: string;
+  adjustment: boolean;
+  purchaseId: string | null;
+  payoutId: string | null;
+  user: { id: string; name: string };
+}
+
+export interface AffiliatePayout {
+  id: string;
+  usdCents: number;
+  amountPkr: number;
+  method: string;
+  accountMasked: string;
+  status: AffiliatePayoutStatus;
+  reference: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+  affiliate?: { id: string; code: string; displayName: string; status: AffiliateStatus; user: { id: string; name: string; avatarUrl: string } };
+}
+
+export interface AffiliateDetail extends AffiliateSummary {
+  user: { id: string; name: string; avatarUrl: string; verified: boolean; createdAt?: string };
+  note: string;
+  staffNote: string | null;
+  decisionReason: string | null;
+  decidedBy: string | null;
+  defaults: { revSharePercent: number; cpaUsdCents: number };
+  stats: AffiliateStats;
+  flags: AffiliateFlag[];
+  balance: AffiliateBalance;
+  referred: { id: string; status: ReferralStatus; rejectReason: string | null; channel: string | null; source: string; createdAt: string; qualifiedAt: string | null; invitee: ReferralPerson }[];
+  commissions: AffiliateCommission[];
+  payouts: AffiliatePayout[];
+}
+
+export interface UserReferrals {
+  invitedBy: ReferralRow | null;
+  invited: { counts: Partial<Record<ReferralStatus, number>>; items: ReferralRow[] };
+  affiliate: { id: string; code: string; status: AffiliateStatus; displayName: string } | null;
 }

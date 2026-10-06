@@ -16,6 +16,16 @@ class ApiConfig {
   /// Override with `--dart-define=VIBE_SITE_URL=https://...`.
   static const String siteUrl = String.fromEnvironment('VIBE_SITE_URL', defaultValue: 'https://vibe.fawadiqbal.dev');
 
+  /// The web app. The creator partner dashboard lives at `<webAppUrl>/partner`
+  /// (the app opens it in the browser). Override with `--dart-define=VIBE_WEB_URL=https://...`.
+  static const String webAppUrl = String.fromEnvironment('VIBE_WEB_URL', defaultValue: 'https://app.vibe.fawadiqbal.dev');
+
+  static String get partnerUrl => '${webAppUrl.replaceAll(RegExp(r'/+$'), '')}/partner';
+
+  /// `https://vibe.fawadiqbal.dev/i/<CODE>` — the share link before
+  /// `GET /referrals` answers (the server sends the canonical one).
+  static String inviteLink(String code) => '${siteUrl.replaceAll(RegExp(r'/+$'), '')}/i/$code';
+
   /// Testing the TURN relay: `--dart-define=VIBE_FORCE_RELAY=true` makes
   /// every call go through TURN, even on the same Wi-Fi. If calls still
   /// connect, the relay works. Never ship a store build with this on.

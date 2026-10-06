@@ -36,6 +36,11 @@ export class AppConfig {
     return `${this.get('DATA_ENCRYPTION_KEY') ?? `${this.get('JWT_ACCESS_SECRET')}::data`}::${purpose}`;
   }
 
+  /** Pepper for hashing install ids (referral fraud checks); derived, so no extra secret to manage. */
+  get devicePepper(): string {
+    return `${this.get('JWT_ACCESS_SECRET')}::device`;
+  }
+
   /** The raw env, for integration status checks (which keys are set). */
   get env(): Record<string, unknown> {
     return (this.raw ??= this.collect());

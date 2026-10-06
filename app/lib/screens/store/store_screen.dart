@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/api/api_config.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -13,6 +11,7 @@ import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../services/ads/rewarded_ads.dart';
 import '../../services/app_services.dart';
+import '../invite/invite_screen.dart';
 import 'checkout_screen.dart';
 import 'vip_screen.dart';
 import 'wallet_screen.dart';
@@ -285,64 +284,7 @@ class _EarnSectionState extends State<_EarnSection> {
     }
   }
 
-  Future<void> _invite() async {
-    final wallet = context.read<WalletProvider>();
-    if (wallet.isRemote) return _shareInvite();
-    // The real one shares a link and pays out when the friend signs up.
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Invite a friend'),
-        content: Text('Share your link. When they finish setting up their profile you get ${Economy.inviteRewardCoins} coins.\n\n${ApiConfig.siteUrl.replaceFirst(RegExp(r'^https?://'), '')}/i/${wallet.hashCode.toRadixString(36)}\n\n(Mock: pretend a friend just joined.)'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Close', style: TextStyle(color: V.text2))),
-          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Friend joined')),
-        ],
-      ),
-    );
-    if (ok == true) {
-      final r = await wallet.claimInvite('a friend');
-      if (mounted) toast(context, '+$r coins for the invite');
-    }
-  }
-
-  /// Server mode: share your code; the reward arrives by itself when the
-  /// friend finishes their profile.
-  Future<void> _shareInvite() async {
-    final code = context.read<SessionProvider>().inviteCode ?? '';
-    final link = '${ApiConfig.siteUrl}/i/$code';
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Invite a friend'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('When they sign up with your code and finish their profile, you get ${Economy.inviteRewardCoins} coins.'),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(color: V.surface2, borderRadius: BorderRadius.circular(14)),
-              child: Text(code, style: VT.mono(20, color: V.gold, weight: FontWeight.w600)),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close', style: TextStyle(color: V.text2))),
-          TextButton(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: link));
-              Navigator.of(ctx).pop();
-              toast(context, 'Invite link copied');
-            },
-            child: const Text('Copy link'),
-          ),
-        ],
-      ),
-    );
-  }
+  void _invite() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InviteScreen()));
 
   Future<void> _profileBonus() async {
     final session = context.read<SessionProvider>();
@@ -408,7 +350,7 @@ class _EarnSectionState extends State<_EarnSection> {
               iconColor: V.gold,
               iconBg: V.gold.withValues(alpha: 0.12),
               title: 'Invite a friend',
-              subtitle: 'When they finish their profile',
+              subtitle: 'They get ${Economy.inviteeRewardCoins} when they\'re active, you get ${Economy.inviteRewardCoins}',
               trailing: _reward('+${Economy.inviteRewardCoins}', true),
               onTap: _invite,
             ),

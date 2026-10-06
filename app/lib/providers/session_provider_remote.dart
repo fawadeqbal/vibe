@@ -2,7 +2,7 @@ part of 'session_provider.dart';
 
 /// Server mode: e-mailed code sign-in, tokens in the keystore, profile on the API.
 class RemoteSessionProvider extends SessionProvider {
-  RemoteSessionProvider(this._api) : super.base() {
+  RemoteSessionProvider(this._api, {super.invites}) : super.base() {
     _api.onSessionExpired = () {
       _me = null;
       _onboarded = false;
@@ -22,6 +22,8 @@ class RemoteSessionProvider extends SessionProvider {
     _inviteCode = m['inviteCode'] as String?;
     _emailUpdates = m['marketingEmails'] as bool? ?? true;
     _wellbeing = WellbeingSettings.fromJson(m);
+    _invitedBy = InvitedBy.fromJson(m['invitedBy']);
+    _referralClaimable = m['referralClaimable'] == true;
   }
 
   /// Tells the server this device's UTC offset (quiet hours are in local
@@ -63,16 +65,24 @@ class RemoteSessionProvider extends SessionProvider {
       // A server in dev mode accepts dev tokens; real tokens come through [signInWith].
       return signInWith(SocialCredential(provider: method, idToken: 'dev:$method-${ApiClient.newIdempotencyKey().substring(0, 12)}'));
     }
-    return _busyWhile(() async => _signedIn(await _api.post('/auth/otp/verify', {'email': email?.trim().toLowerCase(), 'code': code}) as Map));
+    return _busyWhile(() async {
+      final extra = await _signUpFields();
+      await _signedIn(await _api.post('/auth/otp/verify', {'email': email?.trim().toLowerCase(), 'code': code, ...extra}) as Map);
+    });
   }
 
   @override
-  Future<void> signInWith(SocialCredential credential) => _busyWhile(() async => _signedIn(await _api.post('/auth/social', credential.toJson()) as Map));
+  Future<void> signInWith(SocialCredential credential) => _busyWhile(() async {
+        final extra = await _signUpFields();
+        await _signedIn(await _api.post('/auth/social', {...credential.toJson(), ...extra}) as Map);
+      });
 
   Future<void> _signedIn(Map res) async {
     await _api.setTokens(Map<String, dynamic>.from(res['tokens'] as Map));
     _applyMe(Map<String, dynamic>.from(res['user'] as Map));
     _verification = VerificationState.none;
+    // The account exists now: the captured code has done its job.
+    await invites?.consumed();
     unawaited(_syncTimezone());
   }
 
@@ -221,6 +231,8 @@ class RemoteSessionProvider extends SessionProvider {
     _onboarded = false;
     _verification = VerificationState.none;
     _wellbeing = const WellbeingSettings();
+    _invitedBy = null;
+    _referralClaimable = false;
     notifyListeners();
   }
 }

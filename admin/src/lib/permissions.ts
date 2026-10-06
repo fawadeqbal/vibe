@@ -36,6 +36,10 @@ export const P = {
   OpsEconomy: "ops.economy",
   OpsIntegrations: "ops.integrations",
 
+  AffiliatesView: "ops.affiliates.view",
+  Affiliates: "ops.affiliates",
+  Referrals: "ops.referrals",
+
   StaffView: "staff.view",
   StaffManage: "staff.manage",
   RolesManage: "roles.manage",

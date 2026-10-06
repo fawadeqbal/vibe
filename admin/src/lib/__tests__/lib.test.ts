@@ -75,6 +75,15 @@ describe("navigation", () => {
     expect(isActive("/finance/payout-batches/abc", item("/finance/cashouts"))).toBe(false);
   });
 
+  it("growth screens sit in their own group behind the partner view permission", () => {
+    const growth = NAV.find((g) => g.label === "Growth")!;
+    expect(growth.items.map((i) => i.href)).toEqual(["/referrals", "/affiliates", "/affiliate-payouts"]);
+    expect(growth.items.every((i) => i.permission === P.AffiliatesView)).toBe(true);
+    // A partner's detail page lights up "Affiliates", not "Affiliate payouts".
+    expect(isActive("/affiliates/abc", item("/affiliates"))).toBe(true);
+    expect(isActive("/affiliate-payouts", item("/affiliates"))).toBe(false);
+  });
+
   it("every screen has a permission", () => {
     for (const g of NAV) for (const i of g.items) expect(i.permission).toMatch(/^[a-z]+\.[a-z.]+$/);
   });

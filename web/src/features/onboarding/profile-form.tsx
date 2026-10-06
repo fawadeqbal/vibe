@@ -19,6 +19,9 @@ import { type Gender, genderLabel, GENDERS } from "@/lib/models";
 import { useSession } from "@/stores/session";
 import { toast } from "@/stores/ui";
 
+import { InviteBanner } from "@/features/referrals/invite-banner";
+import { InviteCodeField } from "@/features/referrals/invite-code-field";
+
 /**
  * Name, age, gender, country, a few interests. Age gates 18+. The photo is
  * taken with the camera or picked from files and uploaded (`POST /me/avatar`).
@@ -82,6 +85,7 @@ export function ProfileForm({ editing = false, onSaved }: { editing?: boolean; o
         <>
           <Headline text="Set up your " accent="profile" size={34} accentColor="pink-soft" />
           <p className="type-body mt-2.5 text-[15px] leading-[1.5] text-text2">This is what people see for the first three seconds. Make it count.</p>
+          <InviteBanner className="mt-4" />
           <div className="h-6" />
         </>
       ) : null}
@@ -137,6 +141,7 @@ export function ProfileForm({ editing = false, onSaved }: { editing?: boolean; o
       </div>
 
       {error ? <p className="type-body mt-3 text-[13px] text-bad">{error}</p> : null}
+      {!editing ? <InviteCodeField className="mt-6" /> : null}
       <div className="mt-7">
         <GradientButton label={editing ? "Save" : "Continue"} busy={saving} onClick={() => void save()} />
       </div>

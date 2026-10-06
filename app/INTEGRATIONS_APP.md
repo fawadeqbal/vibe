@@ -243,6 +243,39 @@ user id>, customData: <fresh nonce>)`, and after the reward claims
 once after 2 s (AdMob's callback can trail the reward). Debug builds use
 Google's test units, which always fill.
 
+## Invites and attribution (Play Install Referrer, app links)
+
+No keys. How an invite code reaches sign-up (`lib/services/invite/`):
+
+* **Play Install Referrer** — the landing page's Play link carries
+  `referrer=vibe_ref=CODE&utm_source=S`. On the first launch
+  `MainActivity.kt` reads it once (`com.android.installreferrer:installreferrer`,
+  channel `vibe/install_referrer`); `InviteLinks.parseInstallReferrer` keeps a
+  valid code. Organic installs give nothing.
+* **Links before sign-up** — `vibe://invite?code=CODE[&s=S]` and
+  `https://vibe.fawadiqbal.dev/i/CODE[?s=S]` (intent filters in
+  `AndroidManifest.xml`; the https one has `android:autoVerify="true"`). A
+  tapped link wins over the install referrer. Opened while signed in, the link
+  opens *Invite friends* with "Have an invite code?" pre-filled (if still
+  claimable).
+* The code (+ source, + `via` install/link) stays in shared preferences for up
+  to 30 days; a random `deviceId` (UUID) is generated once and kept in the
+  keystore. Both go out with `POST /auth/otp/verify` and `POST /auth/social`
+  (`inviteCode`, `inviteSource`, `inviteVia`, `deviceId`); the code is cleared
+  after the sign-in.
+
+**App Links verification** needs `https://vibe.fawadiqbal.dev/.well-known/assetlinks.json`
+on the landing site with package `com.pingcrood.vibe_app` and the **SHA-256
+fingerprint of the signing certificate** (Play Console → *Setup → App
+signing → App signing key certificate*; add the upload/debug key's too for
+testing). Without it Android opens `/i/<code>` in the browser, which still
+works (the landing page links to Play with the referrer).
+
+Sharing (`share_plus`): invite text, WhatsApp first (`whatsapp://send`, then
+`wa.me`), and PNG share cards rendered from a widget (Level, streak, mutual
+like). *Creator partner program* opens `<VIBE_WEB_URL>/partner` (default
+`https://app.vibe.fawadiqbal.dev`) in the browser.
+
 ## Avatar and selfie verification
 
 No keys. The profile photo is taken or picked with `image_picker`, resized on
@@ -294,6 +327,13 @@ switch each integration to live.
 - [ ] Debug: test ad plays, reward claimed, "ads left today" decreases.
 - [ ] Release with real units: SSV callback reaches the server; claim succeeds (retry path when slow).
 - [ ] Release without units: *Watch an ad* is hidden.
+
+**Invites**
+- [ ] Install from the landing page's Play link (needs a real Play install, e.g. an internal-testing track; sideloaded APKs have no referrer) → welcome shows "<Name> invited you" → sign up → inviter sees them under *Invite friends*.
+- [ ] `adb shell am start -a android.intent.action.VIEW -d "vibe://invite?code=CODE&s=test"` before sign-up → banner on welcome; after sign-up → *Invite friends* opens.
+- [ ] `adb shell pm get-app-links com.pingcrood.vibe_app` shows `vibe.fawadiqbal.dev: verified` once assetlinks.json is live; `https://vibe.fawadiqbal.dev/i/CODE` opens the app.
+- [ ] Share on WhatsApp / More apps / Copy link; share cards from Progress, a streak sheet and a mutual-like recap attach the PNG.
+- [ ] Friend verifies and has 3 calls → live row update, toast, coins after the hold; 3rd friend → milestone sheet.
 
 **Media**
 - [ ] Profile photo from camera and gallery (HEIC on iOS, huge PNG) uploads and shows.

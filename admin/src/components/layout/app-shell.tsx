@@ -103,7 +103,7 @@ function Sidebar() {
     enabled: can(P.DashboardView),
     refetchInterval: 60_000,
   });
-  const counts = { openReports: summary?.queues.openReports, cashoutsReview: summary?.queues.cashoutsReview, pendingPurchases: summary?.queues.pendingPurchases };
+  const counts = { openReports: summary?.queues.openReports, cashoutsReview: summary?.queues.cashoutsReview, pendingPurchases: summary?.queues.pendingPurchases, partnersPending: summary?.queues.partnersPending, partnerPayoutsOpen: summary?.queues.partnerPayoutsOpen };
 
   return (
     <>

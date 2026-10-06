@@ -5,11 +5,9 @@ import { useEffect, useState } from "react";
 
 import { Screen } from "@/components/layout/screen";
 import { confirm } from "@/components/shared/dialogs";
-import { PaymentMethodIcon } from "@/components/shared/payment-method-icon";
 import { startSelfieVerification } from "@/components/shared/selfie-verification";
 import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { MenuButton } from "@/components/ui/menu";
 import { EmptyState, ProgressBar, Tag } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -17,7 +15,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { SectionTitle } from "@/components/ui/typography";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import type { Tone } from "@/lib/colors";
-import { cn } from "@/lib/cn";
 import { ago, gemsAsUsd, thousands, usd } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/models";
 import { type Cashout, cashoutStatusLabel, type PayoutAccount } from "@/lib/payments";
@@ -27,6 +24,7 @@ import { toast } from "@/stores/ui";
 import { canCashOut, useWallet } from "@/stores/wallet";
 
 import { addPayoutAccount } from "./payout-account-form";
+import { PayoutAccountList } from "./payout-account-list";
 
 /** Gems → money: saved payout accounts, the request, and its history. Status changes arrive live. */
 export function CashoutScreen() {
@@ -152,19 +150,7 @@ export function CashoutScreen() {
       ) : loadError && !w.payoutsLoaded ? (
         <EmptyState icon="cloud_off" title="Couldn't load your accounts" body={loadError} action={<GhostButton label="Try again" onClick={load} />} />
       ) : (
-        <div className="flex flex-col gap-2">
-          {w.payoutAccounts.map((a) => (
-            <AccountRow key={a.id} a={a} on={a.id === selected} onSelect={() => setSelected(a.id)} onAction={(act) => void accountAction(a, act)} />
-          ))}
-          <Panel onClick={w.payoutAccounts.length >= 5 ? undefined : () => void add()} className="flex items-center px-4 py-3.5">
-            <span className="flex size-10 items-center justify-center rounded-[12px] bg-gem/12">
-              <Icon name="add" className="text-gem" />
-            </span>
-            <span className="type-title ml-3.5 flex-1 text-[14px] font-semibold">
-              {w.payoutAccounts.length >= 5 ? "Up to 5 accounts — remove one to add another" : "Add JazzCash, Easypaisa or a bank account"}
-            </span>
-          </Panel>
-        </div>
+        <PayoutAccountList accounts={w.payoutAccounts} selected={selected} onSelect={setSelected} onAdd={() => void add()} onAction={(a, act) => void accountAction(a, act)} />
       )}
 
       <div className="mt-5">
@@ -197,37 +183,6 @@ export function CashoutScreen() {
         ))}
       </Panel>
     </Screen>
-  );
-}
-
-function AccountRow({ a, on, onSelect, onAction }: { a: PayoutAccount; on: boolean; onSelect: () => void; onAction: (action: "default" | "remove") => void }) {
-  return (
-    <div
-      role="radio"
-      aria-checked={on}
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && onSelect()}
-      className={cn("flex cursor-pointer items-center rounded-[18px] border py-3 pr-1 pl-4 transition-colors", on ? "border-[1.5px] border-gem bg-gem/8" : "border-line bg-surface")}
-    >
-      <PaymentMethodIcon method={a.method} size={40} iconSize={20} />
-      <span className="ml-3 min-w-0 flex-1">
-        <span className="flex items-center gap-1.5">
-          <span className="type-title truncate text-[14px] font-semibold">
-            {a.method === "bank" ? (a.bankName ?? "Bank") : paymentMethodLabel[a.method]} · {a.accountMasked}
-          </span>
-          {a.isDefault ? <Tag text="Default" tone="gem" /> : null}
-        </span>
-        <span className="type-body block text-[12px] text-text2">{a.holderName}</span>
-      </span>
-      <span onClick={(ev) => ev.stopPropagation()}>
-        <MenuButton
-          icon="more_vert"
-          label="Account options"
-          items={[...(a.isDefault ? [] : [{ label: "Use by default", onSelect: () => onAction("default") }]), { label: "Remove", onSelect: () => onAction("remove") }]}
-        />
-      </span>
-    </div>
   );
 }
 

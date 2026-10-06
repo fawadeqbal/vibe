@@ -1,9 +1,11 @@
+import { useAffiliate } from "./affiliate";
 import { useCatalog } from "./catalog";
 import { useEngagement } from "./engagement";
 import { useFollows } from "./follows";
 import { useInbox } from "./inbox";
 import { useMatch } from "./match";
 import { useMoments } from "./moments";
+import { useReferrals } from "./referrals";
 import { realtime } from "./services";
 import { useSession } from "./session";
 import { useSocial } from "./social";
@@ -49,6 +51,8 @@ function onSessionChanged(signedIn: boolean) {
     useInbox.getState().reset();
     useEngagement.getState().reset();
     useMoments.getState().reset();
+    useReferrals.getState().reset();
+    useAffiliate.getState().reset();
     stopBreakReminder();
   }
 }
@@ -56,6 +60,8 @@ function onSessionChanged(signedIn: boolean) {
 export function startApp() {
   if (started) return;
   started = true;
+  // An invite link (?ref=CODE&s=SOURCE) can land on any page: keep it for sign-up.
+  useReferrals.getState().captureFromLocation();
   void useCatalog.getState().load();
   void useSession
     .getState()

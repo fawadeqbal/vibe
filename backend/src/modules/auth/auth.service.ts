@@ -7,7 +7,10 @@ import { normalizeEmail } from '../../common/utils/text';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { MeProfile } from '../users/user.mapper';
-import { UsersService } from '../users/users.service';
+import { NewUserInput, UsersService } from '../users/users.service';
+
+/** Invite attribution sent with sign-in; used only when the account is created. */
+export type SignUpInvite = Pick<NewUserInput, 'inviteCode' | 'inviteSource' | 'inviteVia' | 'deviceId'>;
 import { OtpService } from './otp.service';
 import { IdentityService } from './identity/identity.service';
 import { SocialCredential, VerifiedIdentity } from './identity/identity.types';
@@ -34,11 +37,11 @@ export class AuthService {
     return this.otp.request(normalizeEmail(rawEmail));
   }
 
-  async verifyOtp(rawEmail: string, code: string, inviteCode: string | undefined, client: ClientInfo): Promise<AuthResult> {
+  async verifyOtp(rawEmail: string, code: string, invite: SignUpInvite, client: ClientInfo): Promise<AuthResult> {
     const email = normalizeEmail(rawEmail);
     await this.otp.verify(email, code);
     const find = () => this.prisma.user.findUnique({ where: { email } });
-    return this.signIn(find, () => this.users.create({ email, inviteCode }), client, find);
+    return this.signIn(find, () => this.users.create({ email, ...invite, ip: client.ip }), client, find);
   }
 
   /**
@@ -46,7 +49,7 @@ export class AuthService {
    * provider-verified e-mail that matches an existing account links to it;
    * otherwise a new account is made with the identity attached.
    */
-  async socialSignIn(provider: AuthProvider, credential: SocialCredential, inviteCode: string | undefined, client: ClientInfo): Promise<AuthResult> {
+  async socialSignIn(provider: AuthProvider, credential: SocialCredential, invite: SignUpInvite, client: ClientInfo): Promise<AuthResult> {
     const id = await this.identities.verify(provider, credential);
     const linked = await this.prisma.authIdentity.findUnique({ where: { provider_subject: { provider, subject: id.subject } } });
     if (linked) {
@@ -61,7 +64,7 @@ export class AuthService {
     }
     return this.signIn(
       async () => null,
-      () => this.users.create({ email: byEmail ? undefined : email, identity: { provider, subject: id.subject, email: id.email, refreshToken: id.refreshToken }, name: id.name, inviteCode }),
+      () => this.users.create({ email: byEmail ? undefined : email, identity: { provider, subject: id.subject, email: id.email, refreshToken: id.refreshToken }, name: id.name, ...invite, ip: client.ip }),
       client,
       async () => {
         const winner = await this.prisma.authIdentity.findUnique({ where: { provider_subject: { provider, subject: id.subject } } });

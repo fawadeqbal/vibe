@@ -33,6 +33,17 @@ class MockData {
 
   static Country country(String code) => countries.firstWhere((c) => c.code == code, orElse: () => countries.first);
 
+  /// Offline demo invite codes: code → (name, creator partner?). Any other
+  /// well-formed code is unknown, like on the server.
+  static const inviteCodes = <String, (String, bool)>{
+    'ALI123': ('Ali', false),
+    'SANA77': ('Sana', false),
+    'ZARACREATES': ('Zara Creates', true),
+  };
+
+  /// Your own code in the offline demo.
+  static const myInviteCode = 'VIBE4U';
+
   static const interests = <String>[
     'Music', 'Gaming', 'Travel', 'Movies', 'Cricket', 'Football', 'Anime', 'Cooking', 'Fitness', 'Art', 'Photography', 'Books', 'Tech', 'Fashion', 'Dance', 'Languages', 'Pets', 'Cars', 'Coffee', 'Memes',
   ];

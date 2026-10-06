@@ -58,8 +58,14 @@ model User {
   onboardedAt          DateTime?
   bannedUntil          DateTime?
   inviteCode           String     @unique
+  /// Kept in sync with the user Referral (inviterId) — the admin panel reads it.
   invitedById          String?
+  /// Legacy (pre-Referral) invite reward marker; no longer written.
   inviteRewardedAt     DateTime?
+  /// sha256(HMAC) of the install id sent at sign-up (referral fraud checks).
+  signupDeviceHash     String?
+  /// Referrals of this user that reached REWARDED (milestones, Ambassador badge).
+  referralsRewarded    Int        @default(0)
   matchesCount         Int        @default(0)
   likesCount           Int        @default(0)
   /// ACTIVE follows only; moved in the same transaction as the Follow row.
@@ -120,6 +126,9 @@ model User {
   pushTokens     PushToken[]
   verifications  VerificationRequest[]
   moments        Moment[]
+  referralsMade  Referral[]            @relation("ReferralsMade")
+  referralGot    Referral?             @relation("ReferralGot")
+  affiliate      Affiliate?
 
   @@index([createdAt])
   @@index([bannedUntil])
@@ -690,6 +699,173 @@ model MomentView {
   moment Moment @relation(fields: [momentId], references: [id], onDelete: Cascade)
 
   @@id([momentId, viewerId])
+}
+
+// ── growth: referrals and affiliates ───────────────────────────────────
+//
+// One Referral per invited user (sign-up with a code, or a late claim),
+// from a user invite code or an affiliate (creator partner) code. Users
+// earn coins when the people they invite become active; affiliates earn
+// money (AffiliateCommission) on the purchases of the people they bring.
+
+enum ReferralStatus {
+  PENDING
+  QUALIFIED
+  REWARDED
+  REJECTED
+}
+
+model Referral {
+  id           String         @id @default(cuid())
+  /// User referrals: the inviter. Null for affiliate referrals.
+  inviterId    String?
+  affiliateId  String?
+  inviteeId    String         @unique
+  /// The code as used (upper-case).
+  code         String
+  /// How the code arrived: link | install | code | web.
+  source       String         @db.VarChar(16)
+  /// `s=` of the share link (tiktok, whatsapp…).
+  channel      String?        @db.VarChar(24)
+  status       ReferralStatus @default(PENDING)
+  rejectReason String?        @db.VarChar(120)
+  deviceHash   String?
+  ip           String?        @db.VarChar(64)
+  qualifiedAt  DateTime?
+  rewardedAt   DateTime?
+  inviterCoins Int            @default(0)
+  inviteeCoins Int            @default(0)
+  createdAt    DateTime       @default(now())
+
+  inviter     User?                 @relation("ReferralsMade", fields: [inviterId], references: [id], onDelete: SetNull)
+  invitee     User                  @relation("ReferralGot", fields: [inviteeId], references: [id], onDelete: Cascade)
+  affiliate   Affiliate?            @relation(fields: [affiliateId], references: [id], onDelete: SetNull)
+  commissions AffiliateCommission[]
+
+  @@index([inviterId, createdAt])
+  @@index([affiliateId, createdAt])
+  @@index([status, qualifiedAt])
+  @@index([deviceHash, createdAt])
+  @@index([createdAt])
+}
+
+/// Landing-page visits per code, channel and business day (deduped per IP per hour).
+model ReferralClick {
+  code    String
+  /// `s=` of the link; "direct" when none.
+  channel String   @db.VarChar(24)
+  day     DateTime @db.Date
+  clicks  Int      @default(0)
+
+  @@id([code, channel, day])
+  @@index([day])
+}
+
+enum AffiliateStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+model Affiliate {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  /// Vanity code, upper-case; unique across affiliate and user invite codes.
+  code            String          @unique
+  displayName     String          @db.VarChar(40)
+  status          AffiliateStatus @default(PENDING)
+  /// Null = the economy default (affiliateRevSharePercent / affiliateCpaUsdCents).
+  revSharePercent Int?
+  cpaUsdCents     Int?
+  /// [{ platform, url, followers }]
+  channels        Json            @default("[]")
+  /// The applicant's message.
+  note            String          @default("") @db.VarChar(1000)
+  staffNote       String?         @db.VarChar(2000)
+  /// Shown to the applicant when rejected or suspended.
+  decisionReason  String?         @db.VarChar(300)
+  appliedAt       DateTime        @default(now())
+  decidedAt       DateTime?
+  decidedById     String?
+  updatedAt       DateTime        @updatedAt
+
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrals   Referral[]
+  commissions AffiliateCommission[]
+  payouts     AffiliatePayout[]
+
+  @@index([status, appliedAt])
+}
+
+enum AffiliateCommissionKind {
+  REVSHARE
+  CPA
+}
+
+enum AffiliateCommissionStatus {
+  PENDING
+  AVAILABLE
+  PAID
+  REVERSED
+  HELD
+}
+
+/// Money an affiliate earned (USD cents). Negative rows take back a
+/// commission that was already paid out (its purchase was refunded).
+model AffiliateCommission {
+  id           String                    @id @default(cuid())
+  affiliateId  String
+  referralId   String
+  purchaseId   String?
+  kind         AffiliateCommissionKind
+  /// Dedupe: rev:<purchaseId> | cpa:<referralId> | undo:<commissionId>.
+  key          String                    @unique
+  baseUsdCents Int
+  usdCents     Int
+  status       AffiliateCommissionStatus @default(PENDING)
+  availableAt  DateTime
+  payoutId     String?
+  createdAt    DateTime                  @default(now())
+
+  affiliate Affiliate        @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  referral  Referral         @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  payout    AffiliatePayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@index([affiliateId, status])
+  @@index([affiliateId, createdAt])
+  @@index([status, availableAt])
+  @@index([payoutId])
+  @@index([purchaseId])
+}
+
+enum AffiliatePayoutStatus {
+  REQUESTED
+  PAID
+  REJECTED
+}
+
+model AffiliatePayout {
+  id              String                @id @default(cuid())
+  affiliateId     String
+  usdCents        Int
+  /// Whole rupees at the cash-out rate of the day it was requested.
+  amountPkr       Int
+  payoutAccountId String?
+  accountMasked   String
+  method          PaymentMethod
+  status          AffiliatePayoutStatus @default(REQUESTED)
+  reference       String?
+  failureReason   String?
+  createdAt       DateTime              @default(now())
+  decidedAt       DateTime?
+  decidedById     String?
+
+  affiliate   Affiliate             @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  commissions AffiliateCommission[]
+
+  @@index([affiliateId, createdAt])
+  @@index([status, createdAt])
 }
 
 // ── safety ─────────────────────────────────────────────────────────────

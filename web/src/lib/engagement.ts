@@ -53,6 +53,7 @@ export const BADGES: Record<string, { name: string; emoji: string }> = {
   streak_7: { name: "On fire", emoji: "🔥" },
   streak_30: { name: "Unstoppable", emoji: "☄️" },
   night_owl: { name: "Night owl", emoji: "🦉" },
+  ambassador: { name: "Ambassador", emoji: "🎖️" },
 };
 
 // ── Vibe Hour ─────────────────────────────────────────────────────────────

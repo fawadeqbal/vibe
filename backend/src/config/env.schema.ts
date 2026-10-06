@@ -20,6 +20,8 @@ export const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   PUBLIC_URL: z.string().url().default('http://localhost:3000'),
   CORS_ORIGINS: z.string().default('*'),
+  /** Share links: `<INVITE_LINK_BASE>/<code>?s=<channel>` (the landing site's invite page). */
+  INVITE_LINK_BASE: z.string().url().default('https://vibe.fawadiqbal.dev/i'),
 
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1).default('redis://127.0.0.1:6379'),

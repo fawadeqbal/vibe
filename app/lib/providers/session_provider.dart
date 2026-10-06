@@ -8,8 +8,10 @@ import '../core/api/api_client.dart';
 import '../core/api/api_exception.dart';
 import '../core/api/mappers.dart';
 import '../core/mock/mock_backend.dart';
+import '../core/mock/mock_data.dart';
 import '../models/models.dart';
 import '../models/payments.dart';
+import '../services/invite/invite_capture.dart';
 
 part 'session_provider_local.dart';
 part 'session_provider_remote.dart';
@@ -23,9 +25,13 @@ part 'session_provider_remote.dart';
 /// [LocalSessionProvider] is the offline mock; [RemoteSessionProvider]
 /// signs in against the Vibe API (e-mailed code, tokens kept in the keystore).
 abstract class SessionProvider extends ChangeNotifier {
-  SessionProvider.base();
+  SessionProvider.base({this.invites});
 
-  factory SessionProvider(MockBackend backend) = LocalSessionProvider;
+  factory SessionProvider(MockBackend backend, {InviteCapture? invites}) = LocalSessionProvider;
+
+  /// The invite code captured before sign-up (sent with the sign-in that
+  /// creates the account, then cleared) and this install's device id.
+  final InviteCapture? invites;
 
   Profile? _me;
   bool _booting = true;
@@ -37,6 +43,8 @@ abstract class SessionProvider extends ChangeNotifier {
   WellbeingSettings _wellbeing = const WellbeingSettings();
   VerificationState _verification = VerificationState.none;
   final List<Future<void> Function()> _signOutHooks = [];
+  InvitedBy? _invitedBy;
+  bool _referralClaimable = false;
 
   Profile? get me => _me;
   bool get booting => _booting;
@@ -59,6 +67,31 @@ abstract class SessionProvider extends ChangeNotifier {
 
   /// Server mode only: the code to share in invite links.
   String? get inviteCode => null;
+
+  /// Who invited you (first name, or the creator partner's name).
+  InvitedBy? get invitedBy => _invitedBy;
+
+  /// No invite yet and the account is under 48 h old: show "Have an invite code?".
+  bool get referralClaimable => _referralClaimable && _invitedBy == null;
+
+  /// A late claim worked: hide the field, remember who it was.
+  void applyClaim(ClaimResult r) {
+    _invitedBy = InvitedBy(name: r.inviterName, status: r.status);
+    _referralClaimable = false;
+    notifyListeners();
+  }
+
+  /// Body fields for the account-creating sign-in (`inviteCode`,
+  /// `inviteSource`, `inviteVia`, `deviceId`). Never fails sign-in.
+  Future<Map<String, String>> _signUpFields() async {
+    final i = invites;
+    if (i == null) return const {};
+    try {
+      return await i.signUpFields();
+    } catch (_) {
+      return const {};
+    }
+  }
 
   /// The latest selfie check (pending review, rejected with a reason…).
   VerificationState get verification => me?.verified == true ? const VerificationState(VerificationStatus.approved) : _verification;

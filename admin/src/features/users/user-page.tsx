@@ -15,6 +15,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Avatar, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/controls";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { useCan } from "@/features/auth/session";
+import { UserReferralsTab } from "@/features/growth/user-referrals";
 import { api } from "@/lib/api/client";
 import type { UserDetail } from "@/lib/api/types";
 import { flag, format } from "@/lib/format";
@@ -40,6 +41,7 @@ function UserView({ user }: { user: UserDetail }) {
     { id: "reports", label: "Reports", count: user.counts.reportsGot, show: can(P.ModerationView) },
     { id: "purchases", label: "Purchases", count: user.counts.purchases, show: can(P.FinanceView) },
     { id: "cashouts", label: "Cash-outs", show: can(P.FinanceView) },
+    { id: "referrals", label: "Referrals", count: user.counts.invitees || undefined, show: true },
     { id: "notes", label: "Notes", show: can(P.UsersNotes) },
     { id: "audit", label: "History", show: can(P.AuditView) },
   ].filter((t) => t.show);
@@ -113,6 +115,9 @@ function UserView({ user }: { user: UserDetail }) {
               </TabsContent>
               <TabsContent value="cashouts">
                 <CashoutsTab userId={user.id} />
+              </TabsContent>
+              <TabsContent value="referrals">
+                <UserReferralsTab userId={user.id} />
               </TabsContent>
               <TabsContent value="notes">
                 <NotesTab userId={user.id} />

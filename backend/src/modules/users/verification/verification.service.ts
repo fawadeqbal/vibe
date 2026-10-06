@@ -1,5 +1,6 @@
 import { RekognitionClient } from '@aws-sdk/client-rekognition';
 import { Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { VerificationRequest, VerificationStatus } from '@prisma/client';
 
 import { AppError } from '../../../common/errors/app-error';
@@ -12,6 +13,7 @@ import { RedisService } from '../../../infra/redis/redis.service';
 import { StorageProvider } from '../../../infra/storage/storage.provider';
 import { Integration, IntegrationReporter, IntegrationStatus, missingKeys } from '../../../integrations/core/integration.types';
 import { readSecret } from '../../../integrations/core/secrets';
+import { USER_VERIFIED, UserVerifiedEvent } from '../profile.rules';
 import { FaceServiceVerificationProvider } from './face.provider';
 import { LivenessStep, newChallengeSteps } from './liveness';
 import { RekognitionVerificationProvider } from './rekognition.provider';
@@ -47,6 +49,7 @@ export class VerificationService implements IntegrationReporter {
     private readonly clock: Clock,
     private readonly config: AppConfig,
     private readonly redis: RedisService,
+    private readonly events: EventEmitter2,
   ) {
     const kind = config.get('VERIFICATION_PROVIDER');
     if (kind === 'face') {
@@ -110,11 +113,13 @@ export class VerificationService implements IntegrationReporter {
       selfieKey = `selfies/${userId}/${Date.now()}.jpg`;
       await this.storage.put(selfieKey, selfie, 'image/jpeg', { private: true });
     }
-    return this.prisma.tx(async (tx) => {
-      const req = await tx.verificationRequest.create({ data: { userId, status, provider: this.provider.name, selfieKey, similarity: d.similarity, reason: d.reason } });
+    const req = await this.prisma.tx(async (tx) => {
+      const created = await tx.verificationRequest.create({ data: { userId, status, provider: this.provider.name, selfieKey, similarity: d.similarity, reason: d.reason } });
       if (status === VerificationStatus.APPROVED) await tx.user.update({ where: { id: userId }, data: { verified: true, verifiedAt: this.clock.now() } });
-      return req;
+      return created;
     });
+    if (status === VerificationStatus.APPROVED) this.events.emit(USER_VERIFIED, { userId } satisfies UserVerifiedEvent);
+    return req;
   }
 
   latest(userId: string) {
@@ -144,6 +149,7 @@ export class VerificationService implements IntegrationReporter {
     });
     // The selfie is only kept while someone needs to look at it.
     if (r.selfieKey) await this.storage.delete(r.selfieKey, { private: true }).catch(() => undefined);
+    if (approve) this.events.emit(USER_VERIFIED, { userId: r.userId } satisfies UserVerifiedEvent);
     return done;
   }
 

@@ -1,4 +1,4 @@
-import type { Gender, User, Wallet } from '@prisma/client';
+import type { Gender, ReferralStatus, User, Wallet } from '@prisma/client';
 
 import { levelOf } from './levels';
 import { isProfileComplete, isProfileReady } from './profile.rules';
@@ -51,9 +51,19 @@ export interface MeProfile extends PublicProfile {
   tzOffsetMinutes: number;
   /** 30 / 60 / 90 / 120, or null when off. */
   breakReminderMinutes: number | null;
+  /** Who invited you (first name, or the creator partner's display name) and how that referral stands. */
+  invitedBy: { name: string; status: ReferralStatus } | null;
+  /** You can still add an invite code (POST /referrals/claim): no referral yet and the account is under 48 h old. */
+  referralClaimable: boolean;
 }
 
+/** Invite codes can be added this long after sign-up. */
+export const REFERRAL_CLAIM_WINDOW_MS = 48 * 3600_000;
+
+export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? '';
+
 type WithWallet = User & { wallet?: Pick<Wallet, 'vipUntil'> | null };
+type ReferralGot = { status: ReferralStatus; inviter: { name: string } | null; affiliate: { displayName: string } | null } | null;
 
 const vipNow = (u: WithWallet, now: Date) => !!u.wallet?.vipUntil && u.wallet.vipUntil > now;
 
@@ -73,7 +83,8 @@ export function toPublicProfile(u: WithWallet, now: Date = new Date()): PublicPr
   };
 }
 
-export function toMeProfile(u: WithWallet, now: Date = new Date()): MeProfile {
+export function toMeProfile(u: WithWallet & { referralGot?: ReferralGot }, now: Date = new Date()): MeProfile {
+  const ref = u.referralGot ?? null;
   return {
     ...toPublicProfile(u, now),
     email: u.email,
@@ -97,8 +108,13 @@ export function toMeProfile(u: WithWallet, now: Date = new Date()): MeProfile {
     quietHoursEnd: u.quietHoursEnd,
     tzOffsetMinutes: u.tzOffsetMinutes,
     breakReminderMinutes: u.breakReminderMinutes,
+    invitedBy: ref ? { name: ref.affiliate?.displayName ?? firstName(ref.inviter?.name ?? '') ?? '', status: ref.status } : null,
+    referralClaimable: !ref && now.getTime() - u.createdAt.getTime() < REFERRAL_CLAIM_WINDOW_MS,
   };
 }
 
 /** Fields joined everywhere a public profile is rendered. */
 export const PROFILE_INCLUDE = { wallet: { select: { vipUntil: true } } } as const;
+
+/** Your own profile also shows who invited you. */
+export const ME_INCLUDE = { ...PROFILE_INCLUDE, referralGot: { select: { status: true, inviter: { select: { name: true } }, affiliate: { select: { displayName: true } } } } } as const;

@@ -103,3 +103,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Play Install Referrer: reads "vibe_ref=CODE&utm_source=S" once on the
+    // first launch (MainActivity.kt → InviteCapture) for invite attribution.
+    implementation("com.android.installreferrer:installreferrer:2.2")
+}

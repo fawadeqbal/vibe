@@ -6,7 +6,9 @@ import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/models.dart';
 import '../../providers/social_provider.dart';
+import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../invite/share_cards.dart';
 import '../store/store_screen.dart';
 
 /// The 🔥 chip after a friend's name: grey until today counted, orange once
@@ -215,6 +217,20 @@ Future<void> showStreakSheet(BuildContext context, Friend f) {
               Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: side(name, s.theirsToday)),
             ],
           ),
+          if (s.count >= 3) ...[
+            const SizedBox(height: 12),
+            GhostButton(
+              label: 'Share our ${s.count}-day streak',
+              icon: Icons.ios_share_rounded,
+              color: V.flame,
+              expand: true,
+              onTap: () {
+                final me = context.read<SessionProvider>().me?.name ?? '';
+                Navigator.of(context).pop();
+                showShareCardSheet(context, ShareCardData.streak(s.count, friend: name, me: me));
+              },
+            ),
+          ],
           const SizedBox(height: 12),
           Text('Every 7th day you both get ${Economy.streakWeeklyCoins} coins. A streak that breaks can be restored the next day${vip ? ' — free with VIP' : ' for ${Economy.streakRestoreCost} coins'}.', style: VT.body(12.5, color: V.muted, height: 1.45)),
         ],

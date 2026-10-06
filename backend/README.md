@@ -54,6 +54,10 @@ flutter run --dart-define=VIBE_API=http://192.168.1.20:3000
 
 Without `VIBE_API` the app runs fully offline on its built-in mock, exactly as before.
 
+### Referrals and creator partners
+
+Every new account can arrive with a code (`inviteCode` + `inviteSource`/`inviteVia`/`deviceId` on OTP verify or social sign-in, or `POST /referrals/claim` within 48 h). One `Referral` per invitee: fraud checks at creation (same device as the inviter, or a third referred sign-up from one device in 30 days → rejected), **QUALIFIED** when the new user is active (selfie-verified and N calls of a minute or more — re-checked on `user.verified` and `match.ended`), **REWARDED** after the hold by a 1-minute job under a Redis lock: coins to both sides (daily cap per inviter), then milestones (VIP days / coins, once each) and the Ambassador badge. Creator-partner (affiliate) codes use the same pipeline; partners earn USD commissions instead of coins: a fixed amount when their user becomes active, and a share of that user's purchases (`payments.purchase-succeeded`, store fee taken off first) for N months, held N days, taken back on refund (`payments.purchase-refunded`). Partners withdraw the whole available balance to a saved payout account; staff pay it by hand from the admin panel (Growth → Affiliate payouts). All the numbers are economy rules (groups "Invites and referrals" and "Creator partners"). Install ids are stored only as an HMAC (pepper derived from `JWT_ACCESS_SECRET`). Share links: `INVITE_LINK_BASE` (default `https://vibe.fawadiqbal.dev/i`). Contract: `docs/specs/2026-10-06-referrals-affiliates-api.md`.
+
 ### Tests
 
 ```bash
@@ -71,6 +75,7 @@ The end-to-end suites cover:
 - **Messaging:** template edits, required/unknown placeholders, reset, custom templates, HTML escaping in previews, test sends, permissions, picked/segment/everyone sends with exactly-once delivery, the inbox, unsubscribe links, important messages, e-mail pacing and resume, and cancelling.
 - **Admin:** staff sign-in, lockout, 2FA with replay protection and recovery codes, forced password change, permission checks per endpoint, live role changes, owner safeguards, audit entries, wallet adjustments, VIP, refunds, cash-out review, maintenance mode, closed sign-ups and announcements.
 - **Matching:** two live socket clients pairing, chat/like/gift/signal relay, paid filters charged on match, skip, reconnect, disconnect, reports leading to an auto-ban, and blocked users never matching.
+- **Referrals and partners:** sign-up with a code (OTP and social), claims (48 h, once, self, loops), activation → hold → both paid, daily caps, milestones, same-device rejection, the public preview and click counting, partner apply/approve, CPA, rev-share with the store fee, refund reversal (before and after payout), payouts (minimum, one open, reject, paid), suspension holds, staff overrides and permissions.
 
 Before running them once: `DATABASE_URL=postgresql://vibe:vibe@localhost:5432/vibe_test npx prisma migrate deploy`.
 
@@ -102,6 +107,7 @@ src/
     payments/                purchases (store/wallet/card/bank), VIP subscriptions, webhooks
     social/                  friends, messages, blocks, "who liked you"
     moderation/              reports, strike rule, bans
+    referrals/               invite attribution, referral rewards + milestones, creator partners (affiliates), commissions, payouts
     matching/                Redis queue, atomic pairing, sessions, skip cooldown, gateway, ICE servers, dev bots
     settings/                runtime settings (maintenance, sign-ups, payout review…) + maintenance guard
     announcements/           in-app announcements; GET /v1/config for app start-up
@@ -109,7 +115,7 @@ src/
       core/                  permissions catalog, @StaffApi/@RequirePermissions/@Audit, staff guard, audit log
       auth/                  staff sign-in (password + TOTP 2FA, recovery codes), rotating sessions
       team/ audit/           staff, roles, audit log
-      dashboard/ users/ moderation/ finance/ ops/
+      dashboard/ users/ moderation/ finance/ ops/ growth/
     health/                  liveness/readiness for load balancers
 prisma/                      schema + migrations (with CHECK constraints for money invariants)
 test/                        e2e suites + helpers
@@ -119,7 +125,7 @@ Conventions that keep it maintainable:
 
 - **Providers are interfaces.** E-mail (`infra/mail`), social sign-in, payments, payouts, ad verification, selfie verification and storage are abstract classes with a dev implementation and a real one, picked by env var. Business code never imports a vendor.
 - **Money goes through one path.** `LedgerService.move()` applies a guarded `UPDATE … WHERE coins + Δ >= 0` and writes the ledger entry, with the resulting balance, in the same transaction. Postgres `CHECK` constraints back it up. Every external charge is idempotent per `Idempotency-Key` and per provider receipt.
-- **Modules talk through events.** Examples are `wallet.changed`, which pushes the balance to sockets, and `user.profile-completed`, which pays the inviter. Others are `user-blocked` / `user-banned` (ends a live match) and `socket.disconnected`. No module reaches into another's tables for side effects.
+- **Modules talk through events.** Examples are `wallet.changed`, which pushes the balance to sockets, and `user.signed-up` / `user.verified` / `match.ended` / `payments.purchase-succeeded`, which drive referrals and partner commissions. Others are `user-blocked` / `user-banned` (ends a live match) and `socket.disconnected`. No module reaches into another's tables for side effects.
 - **The back office reuses the domain.** Admin endpoints call the same services as the app (ledger, moderation, VIP, cash-outs), so no business rule has a second copy. Each admin endpoint declares its permission and audit action in decorators:
 
   ```ts
@@ -135,7 +141,7 @@ Conventions that keep it maintainable:
 - **Stateless API instances.** All shared state (match queue, live sessions, presence, OTPs, idempotency, rate limits, locks) is in Redis; durable state is in Postgres. Run as many instances as you like behind a load balancer. Sockets need sticky sessions only if you enable the polling transport; the app uses WebSocket only.
 - **Cross-instance realtime.** The Socket.IO Redis adapter delivers `toUser()` to whichever instance holds that user's socket.
 - **Matching** pairs with a Lua script that removes both users from the queue only if both are still there, so two instances can never hand the same person out twice. A 1 s sweeper (guarded by a distributed lock) retries waiting users. VIP/boost get a head start in the queue score, not the front of the line.
-- **Background jobs** (VIP bonus/expiry, cash-out retries, the sweeper, engagement reminders, moments cleanup) run under Redis locks, so exactly one instance runs each. Daily engagement jobs (streak reminder 20:00, win-back 12:00, weekly recap Monday 10:00, Vibe Hour start/end) also claim a Redis day key, so a late or repeated tick never sends twice. Reminder pushes (category `engagement`) are capped per person per day (`maxEngagementPushesPerDay`), and quiet hours hold back social, engagement and inbox pushes.
+- **Background jobs** (VIP bonus/expiry, cash-out retries, the sweeper, engagement reminders, moments cleanup, referral rewards, partner commission release) run under Redis locks, so exactly one instance runs each. Daily engagement jobs (streak reminder 20:00, win-back 12:00, weekly recap Monday 10:00, Vibe Hour start/end) also claim a Redis day key, so a late or repeated tick never sends twice. Reminder pushes (category `engagement`) are capped per person per day (`maxEngagementPushesPerDay`), and quiet hours hold back social, engagement and inbox pushes.
 - **Video is peer-to-peer** (WebRTC). The server only relays signalling. Phones on different networks often can't reach each other directly, so production needs a TURN relay: `turn/` is a ready-to-run coturn server (step-by-step guide in `turn/README.md`). Set `TURN_URLS` + `TURN_SECRET` and the API hands each user a 24-hour TURN login; `npm run turn:check` tests the relay with those settings.
 - **Next steps when traffic grows:** Postgres read replicas for history/feeds, a CDN in front of `/media` (set `S3_PUBLIC_URL`), a BullMQ worker for payouts, and partitioning `LedgerEntry` by month.
 
@@ -145,13 +151,15 @@ REST is under `/v1`. Full schema at `/docs`; OpenAPI JSON at `/docs/openapi.json
 
 | Area | Endpoints |
 |---|---|
-| Auth | `POST /auth/otp/request {email}`, `/auth/otp/verify {email, code}`, `/auth/social`, `/auth/refresh`, `/auth/logout` |
+| Auth | `POST /auth/otp/request {email}`, `/auth/otp/verify {email, code, inviteCode?, inviteSource?, inviteVia?, deviceId?}`, `/auth/social` (same invite fields), `/auth/refresh`, `/auth/logout` |
 | Me | `GET/PATCH/DELETE /me` (PATCH also takes `gemGoal`, `quietHoursStart/End`, `tzOffsetMinutes`, `breakReminderMinutes`), `POST /me/avatar`, `/me/onboarding/complete`, `/me/verification`, `GET /me/stats`, `/me/matches`, `/me/progress`, `/me/recap` |
 | Catalog | `GET /catalog` |
 | Wallet | `GET /wallet` (incl. `gemGoal`, `freeBoosts`), `/wallet/transactions`, `POST /wallet/check-in`, `/wallet/rewards/ad`, `/wallet/rewards/profile`, `/wallet/boost` (uses a free boost first), `GET/POST /wallet/cashouts` |
 | Payments | `POST /payments/purchases` (Idempotency-Key), `POST /payments/purchases/:id/confirm`, `GET /payments/purchases/:id`, `GET /vip`, `POST /vip/cancel` |
 | Social | `GET /friends`, `POST /friends/:id/request · accept · decline · read`, `DELETE /friends/:id`, `GET/POST /friends/:id/messages`, `POST /friends/:id/gifts`, `POST /friends/:id/streak/restore`, `GET/POST/DELETE /blocks`, `GET /likes/received`, `GET /users/:id/view` (with `level`, `badges`) |
 | Engagement | `GET /engagement` (Vibe Hour, level, streaks at risk), `GET /leaderboards?board=xp\|gems` |
+| Referrals | `GET /referrals`, public `GET /referrals/preview/:code?s=`, `POST /referrals/claim {code}` |
+| Creator partners | `GET /affiliate`, `GET /affiliate/code-available?code=`, `POST /affiliate/apply`, `GET /affiliate/stats?days=7\|30\|90`, `GET /affiliate/commissions`, `GET/POST /affiliate/payouts` |
 | Moments | `POST /moments` (multipart `photo` + `caption`), `GET /moments/feed`, `POST /moments/:id/view`, `GET /moments/:id/viewers`, `DELETE /moments/:id`, `POST /moments/:id/report` |
 | Safety | `POST /reports` |
 | Matching | `GET /rtc/ice-servers`, `GET /match/online` |
@@ -165,6 +173,7 @@ REST is under `/v1`. Full schema at `/docs`; OpenAPI JSON at `/docs/openapi.json
 | Inbox | `GET /inbox`, `GET /inbox/unread`, `POST /inbox/:id/read`, `POST /inbox/read-all`; public `GET/POST /email/unsubscribe?u&t` |
 | Admin: messaging | `GET/POST /admin/mail-templates`, `GET /admin/mail-templates/starters`, `POST /admin/mail-templates/preview`, `GET/PUT/DELETE /admin/mail-templates/:key`, `POST …/:key/reset · test`, `POST /admin/messages/audience · preview`, `GET/POST /admin/messages`, `GET /admin/messages/:id`, `GET …/:id/deliveries`, `POST …/:id/cancel` |
 | Admin: ops | `GET /admin/dashboard/summary · series`, `GET /admin/live`, `POST /admin/live/calls/:id/end`, `GET/POST /admin/announcements`, `PATCH …/:id`, `POST …/:id/publish · archive`, `GET /admin/settings`, `PUT /admin/settings/:key` |
+| Admin: growth | `GET /admin/referrals`, `POST /admin/referrals/:id/approve · reject`, `GET /admin/users/:id/referrals`, `GET /admin/affiliates`, `GET/PATCH /admin/affiliates/:id`, `GET …/:id/stats`, `POST …/:id/approve · reject · suspend · reactivate · release-held`, `GET /admin/affiliate-payouts`, `GET …/:id/destination`, `POST …/:id/paid · reject` |
 | Admin: economy | `GET /admin/economy`, `PUT /admin/economy/:section {value, base}` (rules · packs · plans · gifts), `POST /admin/economy/:section/reset` |
 | Health | `GET /health/live`, `/health/ready` |
 
@@ -196,6 +205,8 @@ Connect to the server root with `auth: { token: <access token> }` over WebSocket
 | `engagement:vibe-hour {active, startsAt, endsAt}` | Vibe Hour started or ended (broadcast). |
 | `moments:new {authorId}` | Someone you follow, or a friend, posted a moment. |
 | `progress:level-up {level}`, `wallet:goal-reached {goal}` | Level up; gems reached your goal. |
+| `referral:updated {referral, event, coins}`, `referral:milestone {index, count, reward}` | Someone you invited joined / became active / got you coins; a milestone was reached. |
+| `affiliate:updated {status, event, payout?}` | Partner application decided, suspended, or a payout paid / returned. |
 | `account:banned {until}` | Sent just before the server disconnects you. |
 | `account:warning {message}` | A moderator warned you. |
 | `inbox:message {campaignId, title, body, buttonLabel, buttonUrl}` | The Vibe team sent you a message (also in `GET /inbox`). |

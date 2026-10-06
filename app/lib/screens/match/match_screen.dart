@@ -18,6 +18,7 @@ import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../invite/share_cards.dart';
 import '../profile/leaderboard_screen.dart';
 import '../profile/progress.dart';
 import '../profile/user_profile_screen.dart';
@@ -778,6 +779,12 @@ class _EndedState extends State<_Ended> {
                           if (m.lastMutual) ...[
                             const SizedBox(height: 14),
                             Text('You liked each other 💞', textAlign: TextAlign.center, style: VT.label(14, color: V.pinkSoft)),
+                            const SizedBox(height: 4),
+                            TextButton.icon(
+                              onPressed: () => showShareCardSheet(context, ShareCardData.match(friend: p.name, me: context.read<SessionProvider>().me?.name ?? '')),
+                              icon: const Icon(Icons.ios_share_rounded, size: 16, color: V.pinkSoft),
+                              label: Text('Share · We vibed', style: VT.label(13, color: V.pinkSoft)),
+                            ),
                           ],
                           const SizedBox(height: 20),
                           GradientButton(label: 'Find someone else', onTap: onFindAnother, icon: Icons.videocam_rounded),

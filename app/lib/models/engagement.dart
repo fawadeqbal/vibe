@@ -176,6 +176,7 @@ class Badges {
     ProgressBadge(id: 'streak_7', name: 'On fire', emoji: '🔥', target: 7),
     ProgressBadge(id: 'streak_30', name: 'Unstoppable', emoji: '☄️', target: 30),
     ProgressBadge(id: 'night_owl', name: 'Night owl', emoji: '🦉', target: 20),
+    ProgressBadge(id: 'ambassador', name: 'Ambassador', emoji: '🎖️', target: 10),
   ];
 
   static ProgressBadge info(String id) => all.firstWhere((b) => b.id == id, orElse: () => ProgressBadge(id: id, name: id, emoji: '⭐'));
@@ -189,6 +190,7 @@ class Badges {
         'generous' => '${b.target} gifts sent',
         'streak_7' || 'streak_30' => 'A ${b.target}-day friend streak',
         'night_owl' => '${b.target} calls after midnight',
+        'ambassador' => '${b.target} friends active with your invite',
         _ => '',
       };
 }

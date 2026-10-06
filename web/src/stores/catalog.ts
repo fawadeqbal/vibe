@@ -78,6 +78,21 @@ export const useCatalog = create<CatalogState>()((set, get) => ({
       xpPerCheckIn: n("xpPerCheckIn", prev.xpPerCheckIn),
       xpPerStreakDay: n("xpPerStreakDay", prev.xpPerStreakDay),
       maxEngagementPushesPerDay: n("maxEngagementPushesPerDay", prev.maxEngagementPushesPerDay),
+      inviteeRewardCoins: n("inviteeRewardCoins", prev.inviteeRewardCoins),
+      referralActivationCalls: n("referralActivationCalls", prev.referralActivationCalls),
+      referralRequireVerified: n("referralRequireVerified", prev.referralRequireVerified),
+      referralHoldHours: n("referralHoldHours", prev.referralHoldHours),
+      referralMilestone1: n("referralMilestone1", prev.referralMilestone1),
+      referralMilestone1VipDays: n("referralMilestone1VipDays", prev.referralMilestone1VipDays),
+      referralMilestone2: n("referralMilestone2", prev.referralMilestone2),
+      referralMilestone2VipDays: n("referralMilestone2VipDays", prev.referralMilestone2VipDays),
+      referralMilestone3: n("referralMilestone3", prev.referralMilestone3),
+      referralMilestone3Coins: n("referralMilestone3Coins", prev.referralMilestone3Coins),
+      affiliateRevSharePercent: n("affiliateRevSharePercent", prev.affiliateRevSharePercent),
+      affiliateCommissionMonths: n("affiliateCommissionMonths", prev.affiliateCommissionMonths),
+      affiliateCpaUsdCents: n("affiliateCpaUsdCents", prev.affiliateCpaUsdCents),
+      affiliateHoldDays: n("affiliateHoldDays", prev.affiliateHoldDays),
+      affiliateMinPayoutUsdCents: n("affiliateMinPayoutUsdCents", prev.affiliateMinPayoutUsdCents),
     };
     const list = (k: string) => asList(c[k]).map(asMap);
     const packs: CoinPack[] = list("packs").map((p) => ({

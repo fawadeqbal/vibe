@@ -11,6 +11,9 @@ import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../invite/invite_code_field.dart';
+import '../invite/invite_screen.dart';
+import '../invite/invite_share.dart';
 import '../match/safety_sheet.dart' show VerifyPill;
 import '../onboarding/profile_setup_screen.dart';
 import 'follow_lists_screen.dart';
@@ -164,6 +167,28 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SectionTitle('Invite & earn', top: 26),
+                  GroupCard(
+                    children: [
+                      GroupRow(
+                        icon: Icons.card_giftcard_rounded,
+                        iconColor: V.gold,
+                        iconBg: V.gold.withValues(alpha: 0.12),
+                        title: 'Invite friends',
+                        subtitle: 'Give ${Economy.inviteeRewardCoins}, get ${Economy.inviteRewardCoins} coins',
+                        trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InviteScreen())),
+                      ),
+                      GroupRow(
+                        icon: Icons.campaign_rounded,
+                        title: 'Creator partner program',
+                        subtitle: 'Earn money for the people you bring · opens the web',
+                        trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: V.muted),
+                        onTap: () => openPartnerPage(context),
+                      ),
+                    ],
+                  ),
+                  if (session.referralClaimable) ...[const SizedBox(height: 10), const InviteCodeField()],
                   const SectionTitle('Recent matches', top: 26, bottom: 4),
                   if (match.history.isEmpty)
                     Padding(padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2), child: Text('Your last matches will show up here.', style: VT.body(13, color: V.text2)))

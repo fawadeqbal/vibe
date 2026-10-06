@@ -29,7 +29,7 @@ class LocalEngagementProvider extends EngagementProvider {
     final p = ProgressView(
       level: LevelProgress.ofXp(_xp),
       weekXp: _weekXp,
-      badges: [b('verified', 0), b('first_vibes', 14), b('social_butterfly', 14), b('great_talker', 9), b('loved', 23), b('heartthrob', 23), b('generous', 4), b('streak_7', 7), b('streak_30', 7), b('night_owl', 3)],
+      badges: [b('verified', 0), b('first_vibes', 14), b('social_butterfly', 14), b('great_talker', 9), b('loved', 23), b('heartthrob', 23), b('generous', 4), b('streak_7', 7), b('streak_30', 7), b('night_owl', 3), b('ambassador', 2)],
     );
     _progress = p;
     notifyListeners();

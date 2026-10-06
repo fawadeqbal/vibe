@@ -12,10 +12,10 @@ export function Invite() {
             <Icon name="group_add" size={24} />
           </span>
           <div className="min-w-[220px] flex-1">
-            <h2 className="text-base font-semibold">Bring a friend, both get 100 coins</h2>
-            <p className="mt-[3px] text-[13.5px] leading-normal text-text2">Share your invite link from the app — the coins land automatically once they&apos;ve set up their profile.</p>
+            <h2 className="text-base font-semibold">Give 50, get 100 coins</h2>
+            <p className="mt-[3px] text-[13.5px] leading-normal text-text2">Share your invite link from the app. Your friend gets 50 coins and you get 100 once they&apos;re verified and have had 3 calls.</p>
           </div>
-          <Cta href={site.links.webApp} variant="outline" size="md">
+          <Cta href={`${site.links.webApp}/invite`} variant="outline" size="md">
             <Icon name="share" size={17} />
             Invite a friend
           </Cta>

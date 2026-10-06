@@ -24,10 +24,10 @@ describe('levels', () => {
 });
 
 describe('badges', () => {
-  const none = { verified: false, matches: 0, goodCalls: 0, likes: 0, giftsSent: 0, bestStreak: 0, nightCalls: 0 };
+  const none = { verified: false, matches: 0, goodCalls: 0, likes: 0, giftsSent: 0, bestStreak: 0, nightCalls: 0, referrals: 0 };
 
   it('has stable ids in a fixed order', () => {
-    expect(badgesFor(none).map((b) => b.id)).toEqual(['verified', 'first_vibes', 'social_butterfly', 'great_talker', 'loved', 'heartthrob', 'generous', 'streak_7', 'streak_30', 'night_owl']);
+    expect(badgesFor(none).map((b) => b.id)).toEqual(['verified', 'first_vibes', 'social_butterfly', 'great_talker', 'loved', 'heartthrob', 'generous', 'streak_7', 'streak_30', 'night_owl', 'ambassador']);
     expect(earnedBadgeIds(none)).toEqual([]);
   });
 
@@ -43,5 +43,11 @@ describe('badges', () => {
     expect(by.streak_7.earned && by.streak_30.earned && by.night_owl.earned).toBe(true);
     expect(by.night_owl.progress).toBe(20);
     expect(by.streak_7).toMatchObject({ name: 'On fire', emoji: '🔥' });
+  });
+
+  it('ambassador: 10 rewarded referrals', () => {
+    const by = (n: number) => badgesFor({ ...none, referrals: n }).find((b) => b.id === 'ambassador')!;
+    expect(by(9)).toMatchObject({ earned: false, progress: 9, target: 10, name: 'Ambassador', emoji: '🎖️' });
+    expect(by(12)).toMatchObject({ earned: true, progress: 10 });
   });
 });

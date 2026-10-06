@@ -5,6 +5,7 @@ import { tokenStore } from "@/lib/api/tokens";
 import { asList, asMap, type Json, mePrefs, profile as mapProfile } from "@/lib/api/mappers";
 import { tzOffsetMinutes } from "@/lib/engagement";
 import { type LivenessChallenge, parseChallenge } from "@/lib/liveness";
+import { browserStorage, clearRef, deviceId, readRef, referralStatus, type ReferralStatus, signUpFields } from "@/lib/referrals";
 import type { MePrefs, Profile } from "@/lib/models";
 import {
   type IdentitiesView,
@@ -35,6 +36,10 @@ interface SessionState {
   /** News and offers by e-mail. Sign-in codes arrive either way. */
   emailUpdates: boolean;
   inviteCode: string | null;
+  /** Who invited you (their first name or the partner's name) and how far that referral is. */
+  invitedBy: { name: string; status: ReferralStatus } | null;
+  /** No invite yet and the account is under 48 h old: offer "Have an invite code?". */
+  referralClaimable: boolean;
   verificationState: VerificationState;
   /** Gem goal, quiet hours, time zone and break reminder (GET /me). */
   prefs: MePrefs;
@@ -79,6 +84,8 @@ export const useSession = create<SessionState>()((set, get) => {
       me: mapProfile(m),
       onboarded: m.onboarded === true,
       inviteCode: typeof m.inviteCode === "string" ? m.inviteCode : null,
+      invitedBy: m.invitedBy && typeof m.invitedBy === "object" ? { name: String(asMap(m.invitedBy).name ?? ""), status: referralStatus(asMap(m.invitedBy).status) } : null,
+      referralClaimable: m.referralClaimable === true,
       emailUpdates: m.marketingEmails !== false,
       prefs: mePrefs(m),
     });
@@ -95,8 +102,15 @@ export const useSession = create<SessionState>()((set, get) => {
   const signedIn = async (res: unknown) => {
     const r = asMap(res);
     api.setTokens(asMap(r.tokens) as { accessToken: string; refreshToken: string });
+    // The invite only counts for the sign-in that creates the account: done with it either way.
+    clearRef(browserStorage());
     applyMe(asMap(r.user));
     set({ verificationState: NO_VERIFICATION });
+  };
+  /** The captured invite (?ref= link) and this browser's id, sent with every sign-in. */
+  const inviteFields = () => {
+    const kv = browserStorage();
+    return signUpFields(readRef(kv), deviceId(kv));
   };
 
   api.onSessionExpired = () => set({ me: null, onboarded: false });
@@ -110,6 +124,8 @@ export const useSession = create<SessionState>()((set, get) => {
     micGranted: false,
     emailUpdates: true,
     inviteCode: null,
+    invitedBy: null,
+    referralClaimable: false,
     verificationState: NO_VERIFICATION,
     prefs: mePrefs({}),
 
@@ -132,9 +148,9 @@ export const useSession = create<SessionState>()((set, get) => {
 
     requestCode: (email) => busyWhile(async () => void (await api.post("/auth/otp/request", { email: email.trim().toLowerCase() }))),
 
-    signInWithEmail: (email, code) => busyWhile(async () => signedIn(await api.post("/auth/otp/verify", { email: email.trim().toLowerCase(), code }))),
+    signInWithEmail: (email, code) => busyWhile(async () => signedIn(await api.post("/auth/otp/verify", { email: email.trim().toLowerCase(), code, ...inviteFields() }))),
 
-    signInWith: (credential) => busyWhile(async () => signedIn(await api.post("/auth/social", credential))),
+    signInWith: (credential) => busyWhile(async () => signedIn(await api.post("/auth/social", { ...credential, ...inviteFields() }))),
 
     async socialProviders() {
       try {
@@ -277,7 +293,7 @@ export const useSession = create<SessionState>()((set, get) => {
         } catch {}
       }
       api.clearSession();
-      set({ me: null, onboarded: false, verificationState: NO_VERIFICATION });
+      set({ me: null, onboarded: false, invitedBy: null, referralClaimable: false, verificationState: NO_VERIFICATION });
     },
 
     addSignOutHook: (hook) => void signOutHooks.push(hook),

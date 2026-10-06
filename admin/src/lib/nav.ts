@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Banknote, BookOpen, CreditCard, FileClock, Flag, Layers, LayoutDashboard, type LucideIcon, Mail, Megaphone, Plug, ScanFace, Send, Receipt, Settings, ShieldCheck, Sparkles, UserCog, Users, Wallet, Webhook } from "lucide-react";
+import { Activity, BarChart3, Banknote, BookOpen, CreditCard, FileClock, Flag, Gift, HandCoins, Handshake, Layers, LayoutDashboard, type LucideIcon, Mail, Megaphone, Plug, ScanFace, Send, Receipt, Settings, ShieldCheck, Sparkles, UserCog, Users, Wallet, Webhook } from "lucide-react";
 
 import { P, type Permission } from "./permissions";
 
@@ -9,7 +9,7 @@ export interface NavItem {
   /** Shown only with this permission. */
   permission: Permission;
   /** Key into the sidebar's badge counts. */
-  badge?: "openReports" | "cashoutsReview" | "pendingPurchases";
+  badge?: "openReports" | "cashoutsReview" | "pendingPurchases" | "partnersPending" | "partnerPayoutsOpen";
   /** Also active for these path prefixes. */
   match?: string[];
 }
@@ -48,6 +48,14 @@ export const NAV: NavGroup[] = [
       { href: "/finance/payout-batches", label: "Payout batches", icon: Layers, permission: P.FinanceView },
       { href: "/finance/subscriptions", label: "VIP", icon: Sparkles, permission: P.FinanceView },
       { href: "/finance/ledger", label: "Ledger", icon: Receipt, permission: P.WalletView },
+    ],
+  },
+  {
+    label: "Growth",
+    items: [
+      { href: "/referrals", label: "Referrals", icon: Gift, permission: P.AffiliatesView },
+      { href: "/affiliates", label: "Affiliates", icon: Handshake, permission: P.AffiliatesView, badge: "partnersPending" },
+      { href: "/affiliate-payouts", label: "Affiliate payouts", icon: HandCoins, permission: P.AffiliatesView, badge: "partnerPayoutsOpen" },
     ],
   },
   {

@@ -14,6 +14,8 @@ import { useIsDesktop } from "@/hooks/use-media-query";
 import { color, type Tone } from "@/lib/colors";
 import { cn } from "@/lib/cn";
 
+import { InviteBanner } from "@/features/referrals/invite-banner";
+
 interface Face {
   url: string;
   caption: string;
@@ -127,6 +129,7 @@ export function WelcomeScreen() {
                 ))}
               </div>
             </div>
+            <InviteBanner className="mx-6 mt-6 lg:mx-0" />
             <div className="px-6 pt-7 pb-3 lg:px-0">
               <GradientButton label="Get started" icon="arrow_forward" iconAfter onClick={() => router.push("/sign-in")} />
             </div>

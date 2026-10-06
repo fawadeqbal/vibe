@@ -50,6 +50,20 @@ class CatalogProvider extends ChangeNotifier {
     Economy.rewardedAdsPerDay = i('rewardedAdsPerDay', Economy.rewardedAdsPerDay);
     Economy.inviteRewardCoins = i('inviteRewardCoins', Economy.inviteRewardCoins);
     Economy.profileCompleteCoins = i('profileCompleteCoins', Economy.profileCompleteCoins);
+    Economy.inviteeRewardCoins = i('inviteeRewardCoins', Economy.inviteeRewardCoins);
+    Economy.referralActivationCalls = i('referralActivationCalls', Economy.referralActivationCalls);
+    Economy.referralRequireVerified = i('referralRequireVerified', Economy.referralRequireVerified ? 1 : 0) != 0;
+    Economy.referralHoldHours = i('referralHoldHours', Economy.referralHoldHours);
+    final ms = Economy.referralMilestones;
+    ReferralMilestone milestone(int n, ReferralMilestone before, String amountKey) =>
+        ReferralMilestone(count: i('referralMilestone$n', before.count), kind: before.kind, amount: i(amountKey, before.amount));
+    if (ms.length == 3) {
+      Economy.referralMilestones = List.unmodifiable([
+        milestone(1, ms[0], 'referralMilestone1VipDays'),
+        milestone(2, ms[1], 'referralMilestone2VipDays'),
+        milestone(3, ms[2], 'referralMilestone3Coins'),
+      ]);
+    }
     Economy.welcomeCoins = i('welcomeCoins', Economy.welcomeCoins);
     Economy.streakRestoreCost = i('streakRestoreCost', Economy.streakRestoreCost);
     Economy.streakWeeklyCoins = i('streakWeeklyCoins', Economy.streakWeeklyCoins);

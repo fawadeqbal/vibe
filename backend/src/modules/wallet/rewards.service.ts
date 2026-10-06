@@ -1,5 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+import { Injectable } from '@nestjs/common';
 import { LedgerKind, Wallet } from '@prisma/client';
 
 import { AppError } from '../../common/errors/app-error';
@@ -8,7 +7,7 @@ import { Clock, MS } from '../../common/utils/clock';
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { EconomyService } from '../catalog/economy.service';
 import { ProgressService } from '../engagement/progress.service';
-import { isProfileComplete, PROFILE_COMPLETED, ProfileCompletedEvent } from '../users/profile.rules';
+import { isProfileComplete } from '../users/profile.rules';
 import { AdsService } from './ads/ads.service';
 import { LedgerService } from './ledger.service';
 import { adsLeftToday, freeFriendRequestsLeft, isBoosted, nextCheckInDay } from './wallet.mapper';
@@ -21,8 +20,6 @@ import { WalletService } from './wallet.service';
  */
 @Injectable()
 export class RewardsService {
-  private readonly logger = new Logger(RewardsService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
@@ -119,26 +116,5 @@ export class RewardsService {
     }
     await this.wallet.spend(userId, this.economy.rules.friendRequestCost, `Friend request · ${toName}`, { tx });
     return { paidCoins: this.economy.rules.friendRequestCost };
-  }
-
-  /** The inviter is paid when the person they invited completes their profile. */
-  @OnEvent(PROFILE_COMPLETED, { async: true })
-  async payInviter(e: ProfileCompletedEvent): Promise<void> {
-    try {
-      const paid = await this.prisma.tx(async (tx) => {
-        const user = await tx.user.findUnique({ where: { id: e.userId }, select: { name: true, invitedById: true, inviteRewardedAt: true } });
-        if (!user?.invitedById || user.inviteRewardedAt) return null;
-        await tx.user.update({ where: { id: e.userId }, data: { inviteRewardedAt: this.clock.now() } });
-        await this.ledger.move(
-          user.invitedById,
-          { coins: this.economy.rules.inviteRewardCoins, kind: LedgerKind.EARN, title: `Invited ${user.name || 'a friend'}`, idempotencyKey: `invite:${e.userId}` },
-          { tx },
-        );
-        return user.invitedById;
-      });
-      if (paid) this.wallet.changed([paid]);
-    } catch (err) {
-      this.logger.error({ err }, 'Invite reward failed');
-    }
   }
 }

@@ -68,6 +68,11 @@ export class DashboardService {
       liveCalls,
       wallets,
       quality,
+      referred7,
+      partnerReferred7,
+      referralsRewarded7,
+      partnersPending,
+      partnerPayoutsOpen,
     ] = await Promise.all([
       this.prisma.user.count({ where: realUser }),
       this.prisma.user.count({ where: { ...realUser, createdAt: { gte: today } } }),
@@ -95,6 +100,11 @@ export class DashboardService {
                AVG(EXTRACT(EPOCH FROM ("endedAt" - "startedAt")))::float AS avg,
                COUNT(*) FILTER (WHERE "endedAt" - "startedAt" < interval '10 seconds') AS quick
           FROM "Match" WHERE "startedAt" >= ${d7} AND "endedAt" IS NOT NULL`,
+      this.prisma.referral.count({ where: { createdAt: { gte: d7 } } }),
+      this.prisma.referral.count({ where: { createdAt: { gte: d7 }, affiliateId: { not: null } } }),
+      this.prisma.referral.count({ where: { rewardedAt: { gte: d7 } } }),
+      this.prisma.affiliate.count({ where: { status: 'PENDING' } }),
+      this.prisma.affiliatePayout.count({ where: { status: 'REQUESTED' } }),
     ]);
 
     const rev30 = num(revenue30._sum.usdCents);
@@ -119,7 +129,8 @@ export class DashboardService {
         gemsOutstanding: num(wallets._sum.gems),
         gemsUsd: Math.floor(num(wallets._sum.gems) * this.economy.rules.usdCentsPerGem) / 100,
       },
-      queues: { openReports, reportsToday, cashoutsReview, cashoutsStuck, pendingPurchases },
+      queues: { openReports, reportsToday, cashoutsReview, cashoutsStuck, pendingPurchases, partnersPending, partnerPayoutsOpen },
+      growth: { referredSignups7d: referred7, partnerSignups7d: partnerReferred7, referralsRewarded7d: referralsRewarded7 },
       matches: {
         today: num(q?.today),
         last7d: num(q?.n),

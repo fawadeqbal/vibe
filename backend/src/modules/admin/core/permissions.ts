@@ -40,6 +40,10 @@ export const P = {
   OpsEconomy: 'ops.economy',
   OpsIntegrations: 'ops.integrations',
 
+  AffiliatesView: 'ops.affiliates.view',
+  Affiliates: 'ops.affiliates',
+  Referrals: 'ops.referrals',
+
   StaffView: 'staff.view',
   StaffManage: 'staff.manage',
   RolesManage: 'roles.manage',
@@ -119,6 +123,15 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    key: 'growth',
+    label: 'Growth',
+    permissions: [
+      { key: P.AffiliatesView, label: 'View referrals and partners', description: 'Referrals, creator partners, their stats, flags and payouts.' },
+      { key: P.Referrals, label: 'Override referrals', description: 'Approve a rejected referral anyway, or reject one.' },
+      { key: P.Affiliates, label: 'Manage partners and payouts', description: 'Approve, reject, suspend partners, change their terms, see payout accounts and mark payouts paid.', sensitive: true },
+    ],
+  },
+  {
     key: 'team',
     label: 'Team',
     permissions: [
@@ -159,25 +172,25 @@ export const SYSTEM_ROLES: SystemRole[] = [
     key: 'moderator',
     name: 'Moderator',
     description: 'Works the report queue and keeps people safe.',
-    permissions: [P.DashboardView, P.UsersView, P.UsersBan, P.UsersVerify, P.UsersSessions, P.UsersNotes, P.ModerationView, P.ModerationResolve, P.ModerationMessages, P.OpsLive],
+    permissions: [P.DashboardView, P.UsersView, P.UsersBan, P.UsersVerify, P.UsersSessions, P.UsersNotes, P.ModerationView, P.ModerationResolve, P.ModerationMessages, P.OpsLive, P.AffiliatesView, P.Referrals],
   },
   {
     key: 'finance',
     name: 'Finance',
     description: 'Payments, refunds, payouts and VIP.',
-    permissions: [P.DashboardView, P.UsersView, P.UsersPii, P.UsersNotes, P.WalletView, P.WalletAdjust, P.FinanceView, P.FinancePurchases, P.FinanceRefunds, P.FinanceCashouts, P.FinanceVip, P.OpsEconomy, P.OpsIntegrations],
+    permissions: [P.DashboardView, P.UsersView, P.UsersPii, P.UsersNotes, P.WalletView, P.WalletAdjust, P.FinanceView, P.FinancePurchases, P.FinanceRefunds, P.FinanceCashouts, P.FinanceVip, P.OpsEconomy, P.OpsIntegrations, P.AffiliatesView, P.Affiliates, P.Referrals],
   },
   {
     key: 'support',
     name: 'Support',
     description: 'Helps users: looks things up, signs people out, small fixes.',
-    permissions: [P.DashboardView, P.UsersView, P.UsersPii, P.UsersEdit, P.UsersSessions, P.UsersNotes, P.WalletView, P.FinanceView, P.ModerationView],
+    permissions: [P.DashboardView, P.UsersView, P.UsersPii, P.UsersEdit, P.UsersSessions, P.UsersNotes, P.WalletView, P.FinanceView, P.ModerationView, P.AffiliatesView],
   },
   {
     key: 'viewer',
     name: 'Viewer',
     description: 'Read-only access to dashboards and lists.',
-    permissions: [P.DashboardView, P.UsersView, P.ModerationView, P.FinanceView, P.OpsLive],
+    permissions: [P.DashboardView, P.UsersView, P.ModerationView, P.FinanceView, P.OpsLive, P.AffiliatesView],
   },
 ];
 

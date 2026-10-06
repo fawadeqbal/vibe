@@ -132,8 +132,9 @@ abstract class WalletProvider extends ChangeNotifier implements CheckoutBackend 
 
   Future<int?> claimProfileBonus();
 
-  /// Mock only: pretend an invited friend joined. On the server the reward
-  /// arrives by itself when they finish their profile.
+  /// Offline demo only: an invited friend became active (the Invite screen's
+  /// demo button). On the server the reward arrives by itself
+  /// (`referral:updated` + `wallet:updated`).
   Future<int> claimInvite(String friendName);
 
   /// A 30-minute boost: a free credit when you have one, else coins.

@@ -8,6 +8,7 @@ import '../../models/models.dart';
 import '../../providers/inbox_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../invite/invite_screen.dart';
 import '../store/vip_screen.dart';
 import 'chat_screen.dart';
 import 'inbox_screen.dart';
@@ -36,7 +37,18 @@ class ChatsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const PageHeader('Chats'),
+            PageHeader(
+              'Chats',
+              actions: [
+                CircleIconButton(
+                  icon: Icons.person_add_alt_1_rounded,
+                  iconSize: 20,
+                  background: V.surface2,
+                  tooltip: 'Invite friends',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InviteScreen())),
+                ),
+              ],
+            ),
             const MomentsBar(),
             Expanded(
               child: empty

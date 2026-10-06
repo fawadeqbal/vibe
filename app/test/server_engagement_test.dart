@@ -162,7 +162,7 @@ void main() {
     await a.engagement.load();
     expect(a.engagement.loaded, isTrue);
     final p = await a.engagement.loadProgress();
-    expect(p.badges, hasLength(10));
+    expect(p.badges, hasLength(11));
     expect(p.level.level, greaterThanOrEqualTo(1));
     final lb = await a.engagement.leaderboard(Board.xp);
     expect(lb.board, Board.xp);

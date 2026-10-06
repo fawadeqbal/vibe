@@ -334,7 +334,7 @@ export const PAGES: KeywordPage[] = [
       },
       { h2: "Free coins, too" },
       {
-        p: "Not everything is about cash. Daily check-ins, completing your profile and inviting friends all pay out free coins — invite a friend and you both get 100 coins once they finish their profile.",
+        p: "Not everything is about cash. Daily check-ins, completing your profile and inviting friends all pay out free coins — invite a friend and they get 50 coins, you get 100, once they're verified and have had a few calls.",
       },
     ],
     faqs: [

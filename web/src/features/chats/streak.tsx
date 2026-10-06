@@ -4,7 +4,8 @@ import { useCallback } from "react";
 
 import { confirm, useNeedCoins } from "@/components/shared/dialogs";
 import { StreakChip } from "@/components/shared/streak-chip";
-import { GradientButton } from "@/components/ui/button";
+import { openShareCard } from "@/components/shared/share-card";
+import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { CoinAmount } from "@/components/ui/money";
 import { GroupCard, GroupRow } from "@/components/ui/panel";
@@ -72,6 +73,19 @@ function StreakSheet({ friendId, onRestore, onDone }: { friendId: string; onRest
         <GroupRow bare icon={s.theirsToday ? "check_circle" : "radio_button_unchecked"} iconColor={s.theirsToday ? "ok" : "muted"} title={`${name} today`} subtitle={s.theirsToday ? "Done" : "Not yet"} />
         <GroupRow bare icon="emoji_events" iconVariant="outlined" iconColor="text2" title="Best" trailing={<span className="type-number text-[15px] text-text">{streakDays(Math.max(s.best, s.count))}</span>} />
       </GroupCard>
+      {s.count > 0 ? (
+        <div className="mt-4">
+          <GhostButton
+            label="Share our streak"
+            icon="ios_share"
+            expand
+            onClick={() => {
+              onDone();
+              void openShareCard({ kind: "streak", days: s.count });
+            }}
+          />
+        </div>
+      ) : null}
       {s.restorable ? (
         <div className="mt-4">
           <GradientButton

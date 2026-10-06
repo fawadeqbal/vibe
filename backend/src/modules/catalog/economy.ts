@@ -28,7 +28,6 @@ export interface EconomyRules {
 
   welcomeCoins: number;
   profileCompleteCoins: number;
-  inviteRewardCoins: number;
   rewardedAdCoins: number;
   rewardedAdsPerDay: number;
   checkInRewards: number[];
@@ -55,6 +54,32 @@ export interface EconomyRules {
   xpPerStreakDay: number;
   maxEngagementPushesPerDay: number;
 
+  /** Referrals (user invites): coins to the inviter / the new user when the invitee becomes active. */
+  inviteRewardCoins: number;
+  inviteeRewardCoins: number;
+  /** Calls of 60 s or more the invitee needs. */
+  referralActivationCalls: number;
+  /** 1 = the invitee must pass selfie verification. */
+  referralRequireVerified: number;
+  /** Wait after qualifying before paying (refund/ban window). */
+  referralHoldHours: number;
+  /** Rewarded referrals per inviter per business day (the rest wait for tomorrow). */
+  maxReferralRewardsPerDay: number;
+  referralMilestone1: number;
+  referralMilestone1VipDays: number;
+  referralMilestone2: number;
+  referralMilestone2VipDays: number;
+  referralMilestone3: number;
+  referralMilestone3Coins: number;
+
+  /** Affiliates (creator partners). */
+  affiliateRevSharePercent: number;
+  affiliateCommissionMonths: number;
+  affiliateCpaUsdCents: number;
+  affiliateStoreFeePercent: number;
+  affiliateHoldDays: number;
+  affiliateMinPayoutUsdCents: number;
+
   minAge: number;
   autoBanReports: number;
   autoBanWindowHours: number;
@@ -62,8 +87,11 @@ export interface EconomyRules {
 }
 
 export type RuleKey = keyof EconomyRules;
-/** `clock`: a time of day as whole minutes after midnight (0–1439); the admin panel shows HH:MM. */
-type RuleKind = 'coins' | 'count' | 'seconds' | 'minutes' | 'hours' | 'gems' | 'cents' | 'share' | 'age' | 'days7' | 'clock';
+/**
+ * `clock`: a time of day as whole minutes after midnight (0–1439); the admin panel shows HH:MM.
+ * `days`: whole days. `flag`: 0 = off, 1 = on (the admin panel shows a switch).
+ */
+type RuleKind = 'coins' | 'count' | 'seconds' | 'minutes' | 'hours' | 'days' | 'gems' | 'cents' | 'share' | 'age' | 'days7' | 'clock' | 'flag';
 
 export interface RuleField {
   key: RuleKey;
@@ -72,6 +100,8 @@ export interface RuleField {
   kind: RuleKind;
   min: number;
   max: number;
+  /** `cents` only: whole cents (no fractions of a cent). */
+  whole?: boolean;
 }
 
 export interface RuleGroup {
@@ -83,6 +113,8 @@ export interface RuleGroup {
 
 const coins = (key: RuleKey, label: string, help?: string, max = 100_000): RuleField => ({ key, label, help, kind: 'coins', min: 0, max });
 const count = (key: RuleKey, label: string, min: number, max: number, help?: string): RuleField => ({ key, label, help, kind: 'count', min, max });
+const days = (key: RuleKey, label: string, min: number, max: number, help?: string): RuleField => ({ key, label, help, kind: 'days', min, max });
+const usdCents = (key: RuleKey, label: string, max: number, help?: string): RuleField => ({ key, label, help, kind: 'cents', min: 0, max, whole: true });
 
 /**
  * The rules, grouped the way the admin panel shows them (one card with its
@@ -124,7 +156,6 @@ export const RULE_GROUPS: RuleGroup[] = [
     fields: [
       coins('welcomeCoins', 'Welcome coins', 'Given once, at sign-up.', 10_000),
       coins('profileCompleteCoins', 'Complete-profile bonus', undefined, 10_000),
-      coins('inviteRewardCoins', 'Invite reward', 'To the inviter, when the friend finishes their profile.', 10_000),
       coins('rewardedAdCoins', 'Coins per rewarded ad', undefined, 1_000),
       count('rewardedAdsPerDay', 'Rewarded ads per day', 0, 100),
       { key: 'checkInRewards', label: 'Daily check-in, day 1 → 7', help: 'Seven rewards; the streak starts over after day 7 or a missed day.', kind: 'days7', min: 0, max: 10_000 },
@@ -167,6 +198,38 @@ export const RULE_GROUPS: RuleGroup[] = [
     ],
   },
   {
+    key: 'referrals',
+    label: 'Invites and referrals',
+    description: 'Friends inviting friends. Both get coins once the new person is active (verified and a few real calls), after a short hold. Milestones reward people who invite a lot.',
+    fields: [
+      coins('inviteRewardCoins', 'Invite reward (inviter)', 'To the person who shared the link, when their friend becomes active.', 10_000),
+      coins('inviteeRewardCoins', 'Welcome reward (new user)', 'To the friend who joined with the link, at the same time.', 10_000),
+      count('referralActivationCalls', 'Calls of a minute or more to become active', 0, 20),
+      { key: 'referralRequireVerified', label: 'New user must pass selfie verification', kind: 'flag', min: 0, max: 1 },
+      { key: 'referralHoldHours', label: 'Hold before paying', help: 'Time to catch fake accounts before coins go out.', kind: 'hours', min: 0, max: 720 },
+      count('maxReferralRewardsPerDay', 'Rewards per inviter per day', 1, 1000, 'More wait for the next day.'),
+      count('referralMilestone1', 'Milestone 1: active friends', 1, 1000),
+      days('referralMilestone1VipDays', 'Milestone 1: VIP', 0, 365),
+      count('referralMilestone2', 'Milestone 2: active friends', 1, 1000),
+      days('referralMilestone2VipDays', 'Milestone 2: VIP', 0, 365),
+      count('referralMilestone3', 'Milestone 3: active friends', 1, 1000),
+      coins('referralMilestone3Coins', 'Milestone 3: coins', undefined, 100_000),
+    ],
+  },
+  {
+    key: 'affiliates',
+    label: 'Creator partners',
+    description: 'What creators (affiliates) earn on the people they bring: a share of their purchases for a number of months, plus a fixed amount per active user. Per-partner terms override the share and the fixed amount.',
+    fields: [
+      count('affiliateRevSharePercent', 'Share of purchases, %', 0, 80),
+      count('affiliateCommissionMonths', 'Months after sign-up that earn', 1, 36),
+      usdCents('affiliateCpaUsdCents', 'Per active user', 10_000),
+      count('affiliateStoreFeePercent', 'Store fee taken off first, %', 0, 50, 'Google Play and App Store purchases only.'),
+      days('affiliateHoldDays', 'Hold before earnings are available', 0, 90, 'Covers refunds.'),
+      usdCents('affiliateMinPayoutUsdCents', 'Minimum payout', 1_000_000),
+    ],
+  },
+  {
     key: 'safety',
     label: 'Safety',
     description: 'Age limit and automatic bans. One under-age report always bans.',
@@ -199,7 +262,6 @@ export const DEFAULT_RULES: EconomyRules = {
 
   welcomeCoins: 30,
   profileCompleteCoins: 50,
-  inviteRewardCoins: 100,
   rewardedAdCoins: 10,
   rewardedAdsPerDay: 10,
   checkInRewards: [5, 10, 15, 20, 25, 30, 50],
@@ -224,6 +286,26 @@ export const DEFAULT_RULES: EconomyRules = {
   xpPerStreakDay: 2,
   maxEngagementPushesPerDay: 3,
 
+  inviteRewardCoins: 100,
+  inviteeRewardCoins: 50,
+  referralActivationCalls: 3,
+  referralRequireVerified: 1,
+  referralHoldHours: 24,
+  maxReferralRewardsPerDay: 10,
+  referralMilestone1: 3,
+  referralMilestone1VipDays: 7,
+  referralMilestone2: 10,
+  referralMilestone2VipDays: 30,
+  referralMilestone3: 25,
+  referralMilestone3Coins: 1000,
+
+  affiliateRevSharePercent: 20,
+  affiliateCommissionMonths: 6,
+  affiliateCpaUsdCents: 10,
+  affiliateStoreFeePercent: 15,
+  affiliateHoldDays: 14,
+  affiliateMinPayoutUsdCents: 1000,
+
   minAge: 18,
   autoBanReports: 3,
   autoBanWindowHours: 24,
@@ -234,7 +316,7 @@ const ruleSchema = (f: RuleField): z.ZodTypeAny => {
   const n = z.number({ invalid_type_error: `${f.label}: enter a number` });
   const bounded = (s: z.ZodNumber) => s.min(f.min, `${f.label}: at least ${f.min}`).max(f.max, `${f.label}: at most ${f.max}`);
   if (f.kind === 'days7') return z.array(bounded(n.int(`${f.label}: whole coins only`)), { invalid_type_error: `${f.label}: seven numbers` }).length(7, `${f.label}: exactly seven days`);
-  if (f.kind === 'share' || f.kind === 'cents') return bounded(n);
+  if (f.kind === 'share' || (f.kind === 'cents' && !f.whole)) return bounded(n);
   return bounded(n.int(`${f.label}: whole numbers only`));
 };
 

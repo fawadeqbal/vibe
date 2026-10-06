@@ -52,6 +52,11 @@ export const site = {
   /** Official profiles (Instagram, TikTok, X, Facebook, YouTube, Play Store…): schema.org sameAs. */
   sameAs: list(process.env.NEXT_PUBLIC_SOCIAL_LINKS),
 
+  /** Android application id: invite pages build the Play Store link (with the install referrer) from it. */
+  androidPackage: env(process.env.NEXT_PUBLIC_ANDROID_PACKAGE, "com.pingcrood.vibe_app"),
+  /** The API origin ("" = none configured). */
+  api,
+
   links: {
     webApp,
     android: env(process.env.NEXT_PUBLIC_ANDROID_URL, "#download"),

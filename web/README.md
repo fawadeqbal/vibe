@@ -37,7 +37,7 @@ src/
     (onboarding)/         welcome, sign-in, setup, permissions
     (app)/                everything behind sign-in, wrapped in the AppShell
       match/ chats/ chats/[friendId]/ chats/inbox/ store/ vip/ checkout/ wallet/ wallet/cashout/ me/ me/edit/
-      leaderboard/ u/[id]/
+      leaderboard/ u/[id]/ invite/ partner/
     payment-return/       where hosted payment pages come back to
   components/
     ui/                   design-system primitives (no data): Button family, Glass/GlassPill/RoundControl,
@@ -47,9 +47,12 @@ src/
                           verification, camera capture, dialogs (confirm / need-coins), video view…
     layout/               AppRuntime (session gate, splash, toasts, overlays), AppShell (bar / rail), Screen
   features/               one folder per area — onboarding, match, chats, store, wallet, profile, engagement
-                          (progress & badges, leaderboard, wellbeing settings, level-up / break-reminder host)
+                          (progress & badges, leaderboard, wellbeing settings, level-up / break-reminder host),
+                          referrals (invite screen, invite banner, "Have an invite code?", milestone host),
+                          partner (creator partner program: apply, status, dashboard, chart, payouts)
   stores/                 zustand stores, one per Flutter provider: session, wallet, social, match, inbox, catalog,
-                          follows, engagement (Vibe Hour, level, leaderboards, recap), moments, wellbeing (break reminder)
+                          follows, engagement (Vibe Hour, level, leaderboards, recap), moments, wellbeing (break reminder),
+                          referrals (captured ?ref=, GET /referrals, claim), affiliate (/v1/affiliate)
                           (+ services.ts: the one API client and socket; runtime.ts: sign-in/sign-out lifecycle;
                           ui.ts: toasts, and sheets/dialogs as promises — `await pickGift(name)`)
   lib/                    framework-free logic: API client (token refresh), realtime client, JSON mappers,
@@ -79,4 +82,7 @@ Rules the code follows:
 - **Sign in with Apple / Facebook** need their web SDKs wired before they can be offered for real; in development they work with `NEXT_PUBLIC_DEV_SIGN_IN=true`.
 - **"People online now"** uses the same estimate as the app.
 - **Break reminder** (Me → Notifications & wellbeing) is client-only, as in the app: it counts time with the tab visible while you are searching or in a call, and starts over after ten minutes without (`lib/engagement.ts` `BreakTimer`, `stores/wellbeing.ts`).
+- **Invites (Referrals v2).** Any page opened with `?ref=CODE&s=SOURCE` (the landing page's "Use Vibe on the web") keeps the code in `localStorage` (`vibe.ref`, 30 days) and drops both parameters from the address (`lib/referrals.ts`, `stores/referrals.ts`). OTP verify and social sign-in send `inviteCode`, `inviteSource`, `inviteVia: "web"` and `deviceId` (a random id kept in `vibe.deviceId`); the stored code is cleared after any sign-in. The welcome and setup screens show "<Name> invited you", setup and Me offer "Have an invite code?" while the server says `referralClaimable`. `/invite` (Store → Invite a friend, Me, the gift icon in Chats) has the link, WhatsApp/share/copy, milestones and the people you invited, live over `referral:updated` / `referral:milestone`.
+- **Share cards** (Progress card, streak sheet, the recap after a mutual like) are drawn on a canvas (`lib/share-card.ts`, 1080×1350 PNG) and shared with the Web Share API (files when the browser can), else saved / copied / sent to WhatsApp. They never show the other person.
+- **Creator partners** (`/partner`, Me → Creator partner program; the phone app opens this page): apply (verified accounts; code checked as you type), review states, and the dashboard — link per channel + QR (`qrcode`, loaded on demand), balances in USD, 7/30/90-day stats (SVG chart; 90 days as weekly bars), by-channel table, commissions, payouts to the same saved payout accounts as gem cash-outs. The web has no push notifications, so the API's `invite` / `partner` push routes have no web handler; the same events arrive over the socket as toasts.
 - **Moments** are picked with a file input (`accept="image/*"`; JPEG, PNG or WebP up to 5 MB) and posted with `api.uploadFiles`.

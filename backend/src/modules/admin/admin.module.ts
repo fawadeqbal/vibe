@@ -6,6 +6,7 @@ import { MessagingModule } from '../messaging/messaging.module';
 import { MatchingModule } from '../matching/matching.module';
 import { ModerationModule } from '../moderation/moderation.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { ReferralsModule } from '../referrals/referrals.module';
 import { UsersModule } from '../users/users.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { AuditController } from './audit/audit.controller';
@@ -28,6 +29,7 @@ import { AdminUsersController } from './users/admin-users.controller';
 import { AdminUsersService } from './users/admin-users.service';
 import { IntegrationsController } from './ops/integrations.controller';
 import { AdminVerificationsController } from './users/admin-verifications.controller';
+import { AdminGrowthController } from './growth/admin-growth.controller';
 
 /**
  * The back office, under /v1/admin. Each feature is a controller + service
@@ -35,8 +37,8 @@ import { AdminVerificationsController } from './users/admin-verifications.contro
  * same domain services the app uses — no second copy of business rules.
  */
 @Module({
-  imports: [AdminCoreModule, UsersModule, WalletModule, PaymentsModule, ModerationModule, MatchingModule, AnnouncementsModule, MessagingModule],
-  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, FinanceController, OpsController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController],
+  imports: [AdminCoreModule, UsersModule, WalletModule, PaymentsModule, ModerationModule, MatchingModule, AnnouncementsModule, MessagingModule, ReferralsModule],
+  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, FinanceController, OpsController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController, AdminGrowthController],
   providers: [StaffTokenService, StaffAuthService, TeamService, DashboardService, AdminUsersService, AdminReportsService, FinanceService],
 })
 export class AdminModule {}

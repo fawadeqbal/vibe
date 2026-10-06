@@ -9,6 +9,8 @@ import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/models.dart';
 import '../../providers/engagement_provider.dart';
+import '../../providers/session_provider.dart';
+import '../invite/share_cards.dart';
 import 'leaderboard_screen.dart';
 
 /// "Lv 7" — next to a name on profiles, and on the partner in a call
@@ -190,7 +192,29 @@ class _ProgressCardState extends State<ProgressCard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Level ${l.level}', style: VT.title(17)),
+                          Row(
+                            children: [
+                              Expanded(child: Text('Level ${l.level}', style: VT.title(17))),
+                              if (l.level > 0)
+                                Semantics(
+                                  button: true,
+                                  label: 'Share your level',
+                                  excludeSemantics: true,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onTap: () => showShareCardSheet(context, ShareCardData.level(l.level, me: context.read<SessionProvider>().me?.name ?? '')),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                        const Icon(Icons.ios_share_rounded, size: 15, color: V.pinkSoft),
+                                        const SizedBox(width: 4),
+                                        Text('Share', style: VT.label(12.5, color: V.pinkSoft)),
+                                      ]),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                           const SizedBox(height: 2),
                           Text('${Fmt.thousands(l.xpToNext)} XP to Level ${l.level + 1}', style: VT.body(12.5, color: V.text2)),
                           const SizedBox(height: 8),

@@ -278,7 +278,7 @@ void main() {
     expect(find.text('You earned 85 XP this week'), findsOneWidget);
     await t.tap(find.text('See all'));
     await t.pumpAndSettle();
-    expect(find.text('Badges · 2/10'), findsOneWidget);
+    expect(find.text('Badges · 2/11'), findsOneWidget);
     expect(find.text('Night owl'), findsOneWidget);
     await finish(t, h);
   });
@@ -428,6 +428,14 @@ void main() {
 
   testWidgets('lobby: Vibe Hour makes filters free, a free boost shows as such, trophy opens the leaderboard', (t) async {
     final h = await pump(t, (h) => MatchScreen(onOpenStore: () {}, onOpenChats: () {}));
+    // "Free" filters are checked against the wall clock, so put Vibe Hour
+    // around the real time (a fixed date stops matching once it has passed).
+    final start = Economy.vibeHourStart;
+    addTearDown(() => Economy.vibeHourStart = start);
+    final real = DateTime.now().toUtc();
+    final businessMinute = (real.hour * 60 + real.minute + Economy.businessTzOffsetMinutes) % 1440;
+    Economy.vibeHourStart = businessMinute < 5 ? 0 : businessMinute - 5;
+    h.now = real;
     h.match.setFilters(const MatchFilters(gender: GenderFilter.women));
     h.wallet.debugSet(h.wallet.wallet.copyWith(freeBoosts: 1));
     await h.engagement.load();

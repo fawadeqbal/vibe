@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuthProvider, Gender, Prisma, User, UserStatus } from '@prisma/client';
 
@@ -6,23 +6,30 @@ import { cursorArgs, CursorQueryDto, toPage } from '../../common/dto/pagination.
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { Clock } from '../../common/utils/clock';
-import { friendlyCode } from '../../common/utils/crypto';
+import { friendlyCode, hmacSha256Hex } from '../../common/utils/crypto';
+import { AppConfig } from '../../config/app-config.service';
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { StorageProvider } from '../../infra/storage/storage.provider';
 import { EconomyService } from '../catalog/economy.service';
 import { WalletService } from '../wallet/wallet.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { isProfileComplete, PRIVACY_OPENED, PrivacyOpenedEvent, PROFILE_COMPLETED, ProfileCompletedEvent } from './profile.rules';
+import { isProfileComplete, PRIVACY_OPENED, PrivacyOpenedEvent, PROFILE_COMPLETED, ProfileCompletedEvent, USER_ONBOARDED, UserOnboardedEvent, USER_SIGNED_UP, UserSignedUpEvent } from './profile.rules';
 import { SelfieCapture, VerificationService } from './verification/verification.service';
-import { MeProfile, PROFILE_INCLUDE, PublicProfile, toMeProfile, toPublicProfile } from './user.mapper';
+import { ME_INCLUDE, MeProfile, PROFILE_INCLUDE, PublicProfile, toMeProfile, toPublicProfile } from './user.mapper';
 
 export interface NewUserInput {
   email?: string;
   /** A social login to link at creation (Google/Apple/Facebook). */
   identity?: { provider: AuthProvider; subject: string; email?: string; refreshToken?: string };
   name?: string;
+  /** Invite attribution (see USER_SIGNED_UP). */
   inviteCode?: string;
+  inviteSource?: string;
+  inviteVia?: 'link' | 'install' | 'web';
+  /** Raw install id; only its peppered hash is stored. */
+  deviceId?: string;
+  ip?: string;
 }
 
 /** Emitted (awaited) just before an account is wiped, so integrations can revoke what they hold. */
@@ -33,6 +40,8 @@ export interface UserDeletingEvent {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly wallet: WalletService,
@@ -42,36 +51,49 @@ export class UsersService {
     private readonly verification: VerificationService,
     private readonly realtime: RealtimeService,
     private readonly economy: EconomyService,
+    private readonly config: AppConfig,
   ) {}
 
-  /** Creates the account and its wallet (with the welcome bonus) atomically. */
+  /**
+   * Creates the account and its wallet (with the welcome bonus) atomically,
+   * then (outside a caller's transaction) announces the sign-up so the
+   * referral is attributed before the sign-in response goes out.
+   */
   async create(input: NewUserInput, tx?: Tx): Promise<User> {
-    return this.prisma.tx(async (t) => {
-      const inviter = input.inviteCode ? await t.user.findUnique({ where: { inviteCode: input.inviteCode.toUpperCase() }, select: { id: true } }) : null;
-      const user = await t.user.create({
+    const deviceHash = input.deviceId ? hmacSha256Hex(this.config.devicePepper, input.deviceId) : null;
+    const user = await this.prisma.tx(async (t) => {
+      const created = await t.user.create({
         data: {
           email: input.email,
           name: input.name ?? '',
           inviteCode: await this.uniqueInviteCode(t),
-          invitedById: inviter?.id,
+          signupDeviceHash: deviceHash,
           ...(input.identity ? { identities: { create: { ...input.identity, lastUsedAt: this.clock.now() } } } : {}),
         },
       });
-      await this.wallet.open(user.id, t);
-      return user;
+      await this.wallet.open(created.id, t);
+      return created;
     }, tx);
+    if (!tx) {
+      await this.events
+        .emitAsync(USER_SIGNED_UP, { userId: user.id, inviteCode: input.inviteCode, inviteSource: input.inviteSource, inviteVia: input.inviteVia, deviceHash, ip: input.ip } satisfies UserSignedUpEvent)
+        .catch((e: Error) => this.logger.error(`sign-up listeners failed for ${user.id}: ${e.message}`));
+    }
+    return user;
   }
 
+  /** Invite codes share one namespace with creator-partner codes. */
   private async uniqueInviteCode(tx: Tx): Promise<string> {
     for (let i = 0; i < 5; i++) {
       const code = friendlyCode(7);
-      if (!(await tx.user.findUnique({ where: { inviteCode: code }, select: { id: true } }))) return code;
+      const [user, partner] = await Promise.all([tx.user.findUnique({ where: { inviteCode: code }, select: { id: true } }), tx.affiliate.findUnique({ where: { code }, select: { id: true } })]);
+      if (!user && !partner) return code;
     }
     return friendlyCode(10);
   }
 
-  async findActive(id: string): Promise<User & { wallet: { vipUntil: Date | null } | null }> {
-    const u = await this.prisma.user.findUnique({ where: { id }, include: PROFILE_INCLUDE });
+  async findActive(id: string) {
+    const u = await this.prisma.user.findUnique({ where: { id }, include: ME_INCLUDE });
     if (!u || u.status !== UserStatus.ACTIVE) throw AppError.notFound('User');
     return u;
   }
@@ -110,7 +132,7 @@ export class UsersService {
     };
     // A new photo invalidates the selfie match.
     if (dto.avatarUrl && dto.avatarUrl !== before.avatarUrl && before.verified) Object.assign(data, { verified: false, verifiedAt: null });
-    const after = await this.prisma.user.update({ where: { id }, data, include: PROFILE_INCLUDE });
+    const after = await this.prisma.user.update({ where: { id }, data, include: ME_INCLUDE });
     this.emitIfCompleted(before, after);
     if (before.privateAccount && !after.privateAccount) {
       // Waiting follow requests are accepted before we answer, so the counts below are current.
@@ -132,7 +154,8 @@ export class UsersService {
     if (u.name.trim().length < 2 || (u.age ?? 0) < this.economy.rules.minAge) {
       throw new AppError(ErrorCode.PROFILE_INCOMPLETE, 'Add your name and age first');
     }
-    const after = await this.prisma.user.update({ where: { id }, data: { onboardedAt: u.onboardedAt ?? this.clock.now() }, include: PROFILE_INCLUDE });
+    const after = await this.prisma.user.update({ where: { id }, data: { onboardedAt: u.onboardedAt ?? this.clock.now() }, include: ME_INCLUDE });
+    if (!u.onboardedAt) this.events.emit(USER_ONBOARDED, { userId: id } satisfies UserOnboardedEvent);
     return toMeProfile(after, this.clock.now());
   }
 
@@ -146,7 +169,7 @@ export class UsersService {
     if (u.verified) return { ...toMeProfile(u, this.clock.now()), verification: { status: 'APPROVED', reason: null } };
     const r = await this.verification.submit(id, capture, u.avatarUrl);
     if (r.status === 'REJECTED') throw new AppError(ErrorCode.VALIDATION_FAILED, r.reason ?? 'We could not verify you. Try again in good light.');
-    const after = await this.prisma.user.findUniqueOrThrow({ where: { id }, include: PROFILE_INCLUDE });
+    const after = await this.prisma.user.findUniqueOrThrow({ where: { id }, include: ME_INCLUDE });
     return { ...toMeProfile(after, this.clock.now()), verification: { status: r.status, reason: r.reason } };
   }
 

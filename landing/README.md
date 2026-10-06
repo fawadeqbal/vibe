@@ -17,7 +17,8 @@ npm run build                # static site in out/
 |---|---|
 | `NEXT_PUBLIC_WEB_APP_URL` | "Start matching", "Start 3-day free trial", "Invite a friend" → the web app |
 | `NEXT_PUBLIC_ANDROID_URL` | "Get the app", "Android", "Get Vibe for Android" → Play Store or a direct .apk |
-| `NEXT_PUBLIC_VIBE_API` | Live online count: `GET <API>/v1/stats/online` → `{ "online": n }`, polled every 30 s while the tab is visible |
+| `NEXT_PUBLIC_ANDROID_PACKAGE` | Android application id (default `com.pingcrood.vibe_app`): the invite page's Play Store link |
+| `NEXT_PUBLIC_VIBE_API` | Live online count: `GET <API>/v1/stats/online` → `{ "online": n }`, polled every 30 s while the tab is visible; invite pages: `GET <API>/v1/referrals/preview/<code>` |
 | `NEXT_PUBLIC_ONLINE_FALLBACK` | Number shown before the first answer and when the API can't be reached (default 2743) |
 | `NEXT_PUBLIC_BRAND_NAME` | Product name everywhere on the site (default Vibe) |
 | `NEXT_PUBLIC_SITE_URL` | Canonical / Open Graph URLs, sitemap, robots, RSS |
@@ -26,6 +27,26 @@ npm run build                # static site in out/
 
 The online endpoint lives in `backend/src/modules/health/stats.controller.ts`: public, readable from any
 origin (no `CORS_ORIGINS` change needed), cached 10 s per API instance.
+
+## Invite links (`/i/<code>`)
+
+Every invite and creator-partner link (`https://vibe.fawadiqbal.dev/i/<CODE>?s=<channel>`, built by the API's `INVITE_LINK_BASE`) opens one static page, `src/app/i/page.tsx` → `out/i/index.html`. nginx serves it for any `/i/<code>` (`nginx.conf`), the address stays as shared, and the page reads the code from it, calls `GET <API>/v1/referrals/preview/<code>?s=` (public; it also counts the visit) and shows who invited you and the welcome coins. Buttons (`src/lib/invite.ts`):
+
+- **Get it on Google Play** → `https://play.google.com/store/apps/details?id=<NEXT_PUBLIC_ANDROID_PACKAGE>&referrer=<urlencoded vibe_ref=CODE&utm_source=S>` (the app reads the install referrer once on first launch).
+- **Use Vibe on the web** → `<NEXT_PUBLIC_WEB_APP_URL>/?ref=CODE&s=S` (the web app keeps it 30 days and sends it at sign-up).
+- **Already have the app? Open it** → `vibe://invite?code=CODE`.
+
+An unknown code shows the same page without a name or coins. The page is `noindex` and robots.txt disallows `/i/`. Any static host other than nginx needs the same rewrite (`/i/*` → `/i/index.html`, URL unchanged); `?code=CODE` on `/i/` works without one.
+
+**Android App Links** (`https://…/i/<code>` opening the installed app; the app's manifest asks for `autoVerify`) need `public/.well-known/assetlinks.json` with the app's package and the SHA-256 of its *signing* certificate — from Play Console → Setup → App signing → "Digital Asset Links JSON" (or `keytool -list -v -keystore <release keystore>` if you sign yourself):
+
+```json
+[{ "relation": ["delegate_permission/common.handle_all_urls"],
+   "target": { "namespace": "android_app", "package_name": "com.pingcrood.vibe_app",
+               "sha256_cert_fingerprints": ["AA:BB:…"] } }]
+```
+
+nginx already serves that path as `application/json` (404 until the file exists); `next build` copies it into `out/`. Until it's there, Android shows the browser/chooser for `/i/` links, which still works.
 
 ## SEO, brand name and domain
 
@@ -55,7 +76,7 @@ Or upload `out/` to any static host / CDN (security headers are in `nginx.conf`)
 
 ## Layout
 
-- `src/app/` layout (fonts, metadata), page, OG image, robots, sitemap, `globals.css` (tokens)
+- `src/app/` layout (fonts, metadata), page, OG image, robots, sitemap, `globals.css` (tokens), `i/` (invite page)
 - `src/components/sections/` one file per section: hero, how-it-works, gifts, safety, vip, closing (invite, stats, FAQ, final CTA, footer)
-- `src/components/` header (phone menu), CTA links, inline icons, live online pill, call timer, safety switches, FAQ accordion
+- `src/components/invite/` the invite page; `src/components/` header (phone menu), CTA links, inline icons, live online pill, call timer, safety switches, FAQ accordion
 - `src/lib/site.ts` every link and number in one place; `src/lib/icons.ts` Material Symbols Rounded paths (no icon font)

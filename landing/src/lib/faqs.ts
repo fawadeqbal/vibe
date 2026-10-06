@@ -27,7 +27,7 @@ export const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "How does inviting friends work?",
-    a: "Share your invite link from the app. When a friend joins and finishes their profile, you both get 100 coins automatically — no codes to type, no limit on how many friends you bring.",
+    a: "Share your invite link from the app. Your friend gets 50 coins and you get 100 once they've verified their profile and had 3 calls — it all happens automatically. Bring 3, 10 and 25 friends to unlock free VIP and bonus coins.",
   },
   {
     q: "How do cash-outs work?",

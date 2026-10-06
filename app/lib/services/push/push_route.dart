@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 /// Where a tapped notification should take you, from its `data`
-/// (`route`: chat + friendId | friends | inbox | wallet | store | match | profile + userId | follow-requests).
+/// (`route`: chat + friendId | friends | inbox | wallet | store | match | profile + userId | follow-requests | invite | partner).
 @immutable
 class PushRoute {
   const PushRoute(this.target, {this.friendId, this.userId, this.purchaseId, this.cashoutId});
@@ -32,6 +32,10 @@ class PushRoute {
       'match' => const PushRoute(PushTarget.match),
       'profile' => s('userId') != null ? PushRoute(PushTarget.profile, userId: s('userId')) : null,
       'follow-requests' => const PushRoute(PushTarget.followRequests),
+      // A friend joined / got active, a milestone: the Invite friends screen.
+      'invite' => const PushRoute(PushTarget.invite),
+      // Creator partner news: the web dashboard, in the browser.
+      'partner' => const PushRoute(PushTarget.partner),
       _ => null,
     };
   }
@@ -44,7 +48,7 @@ class PushRoute {
   String toString() => 'PushRoute($target${friendId != null ? ', $friendId' : ''})';
 }
 
-enum PushTarget { chat, friends, inbox, wallet, store, match, profile, followRequests }
+enum PushTarget { chat, friends, inbox, wallet, store, match, profile, followRequests, invite, partner }
 
 /// Android notification channels (ids = the server's `category`).
 const pushChannels = <String, String>{

@@ -2,7 +2,7 @@ part of 'session_provider.dart';
 
 /// The offline mock: any e-mail and any 4-digit code sign you in.
 class LocalSessionProvider extends SessionProvider {
-  LocalSessionProvider(this._backend) : super.base();
+  LocalSessionProvider(this._backend, {super.invites}) : super.base();
 
   final MockBackend _backend;
 
@@ -23,7 +23,16 @@ class LocalSessionProvider extends SessionProvider {
   Future<void> requestCode(String email) async {}
 
   @override
-  Future<void> signIn({required String method, String? email, String? code}) => _busyWhile(() async => _me = await _backend.signIn(method: method, email: email));
+  Future<void> signIn({required String method, String? email, String? code}) => _busyWhile(() async {
+        final extra = await _signUpFields();
+        _me = await _backend.signIn(method: method, email: email);
+        // Like the server: a known code makes the referral at sign-up; with
+        // none (or an unknown one) "Have an invite code?" shows for 48 h.
+        final known = MockData.inviteCodes[extra['inviteCode']];
+        _invitedBy = known == null ? null : InvitedBy(name: known.$1);
+        _referralClaimable = known == null;
+        await invites?.consumed();
+      });
 
   @override
   Future<void> saveProfile(Profile p) async {
@@ -126,6 +135,8 @@ class LocalSessionProvider extends SessionProvider {
     _identities.clear();
     _verification = VerificationState.none;
     _wellbeing = const WellbeingSettings();
+    _invitedBy = null;
+    _referralClaimable = false;
     await _backend.signOut();
     _me = null;
     _onboarded = false;

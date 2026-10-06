@@ -44,6 +44,26 @@ export interface Economy {
   xpPerCheckIn: number;
   xpPerStreakDay: number;
   maxEngagementPushesPerDay: number;
+  /** Invites: the new user's coins once they're active (the inviter gets `inviteRewardCoins`). */
+  inviteeRewardCoins: number;
+  /** Calls of a minute or more the new user needs before both get paid. */
+  referralActivationCalls: number;
+  /** 1 = the new user must pass the selfie check too. */
+  referralRequireVerified: number;
+  referralHoldHours: number;
+  /** Friends who became active → VIP days / coins (milestones 1–3). */
+  referralMilestone1: number;
+  referralMilestone1VipDays: number;
+  referralMilestone2: number;
+  referralMilestone2VipDays: number;
+  referralMilestone3: number;
+  referralMilestone3Coins: number;
+  /** Creator partners: share of their users' purchases, and the rest of the terms. */
+  affiliateRevSharePercent: number;
+  affiliateCommissionMonths: number;
+  affiliateCpaUsdCents: number;
+  affiliateHoldDays: number;
+  affiliateMinPayoutUsdCents: number;
   /** Local currency shown next to USD prices. */
   pkrPerUsd: number;
 }
@@ -81,6 +101,21 @@ export const DEFAULT_ECONOMY: Economy = {
   xpPerCheckIn: 5,
   xpPerStreakDay: 2,
   maxEngagementPushesPerDay: 3,
+  inviteeRewardCoins: 50,
+  referralActivationCalls: 3,
+  referralRequireVerified: 1,
+  referralHoldHours: 24,
+  referralMilestone1: 3,
+  referralMilestone1VipDays: 7,
+  referralMilestone2: 10,
+  referralMilestone2VipDays: 30,
+  referralMilestone3: 25,
+  referralMilestone3Coins: 1000,
+  affiliateRevSharePercent: 20,
+  affiliateCommissionMonths: 6,
+  affiliateCpaUsdCents: 10,
+  affiliateHoldDays: 14,
+  affiliateMinPayoutUsdCents: 1000,
   pkrPerUsd: 280,
 };
 

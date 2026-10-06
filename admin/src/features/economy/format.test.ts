@@ -26,3 +26,26 @@ describe("clock rules", () => {
     expect(fromInput(vibeHour, "").error).toMatch(/required/);
   });
 });
+
+describe("referral and partner rules", () => {
+  const flag: RuleField = { key: "referralRequireVerified", label: "Must verify", kind: "flag", min: 0, max: 1 };
+  const days: RuleField = { key: "referralMilestone1VipDays", label: "VIP", kind: "days", min: 0, max: 365 };
+  const cpa: RuleField = { key: "affiliateCpaUsdCents", label: "Per active user", kind: "cents", min: 0, max: 10_000, whole: true };
+
+  it("flags read On/Off and accept on/off words", () => {
+    expect(showRule(flag, 1)).toBe("On");
+    expect(showRule(flag, 0)).toBe("Off");
+    expect(toInput(flag, 1)).toBe("1");
+    expect(fromInput(flag, "off")).toEqual({ value: 0 });
+    expect(fromInput(flag, "1")).toEqual({ value: 1 });
+    expect(fromInput(flag, "maybe").error).toMatch(/on or off/);
+  });
+
+  it("days and whole cents", () => {
+    expect(showRule(days, 1)).toBe("1 day");
+    expect(showRule(days, 30)).toBe("30 days");
+    expect(showRule(cpa, 10)).toBe("$0.10");
+    expect(fromInput(cpa, "0.25")).toEqual({ value: 25 });
+    expect(fromInput(cpa, "0.105").error).toMatch(/whole cents/);
+  });
+});

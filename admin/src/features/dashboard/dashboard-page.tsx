@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertTriangle, ArrowRight, Banknote, CreditCard, DollarSign, Flag, Gem, Sparkles, Timer, UserPlus, Users } from "lucide-react";
+import { Activity, AlertTriangle, ArrowRight, Banknote, CreditCard, DollarSign, Flag, Gem, Gift, Sparkles, Timer, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
@@ -99,7 +99,7 @@ export function DashboardPage() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="Matching · 7 days" />
+          <CardHeader title="Activity · 7 days" />
           <CardBody className="space-y-0 divide-y divide-line py-1">
             <Metric icon={Users} label="Matches today" value={format.number(s?.matches.today)} sub={s && `${format.compact(s.matches.last7d)} in 7 days`} />
             <Metric icon={Timer} label="Average call" value={format.duration(s?.matches.avgSeconds)} />
@@ -112,6 +112,7 @@ export function DashboardPage() {
             />
             <Metric icon={Users} label="Active today" value={format.number(s?.users.activeToday)} sub={s && `${format.number(s.users.active7d)} in 7 days`} />
             <Metric icon={Flag} label="Banned now" value={format.number(s?.users.banned)} />
+            <Metric icon={Gift} label="Referred sign-ups" value={format.number(s?.growth.referredSignups7d)} sub={s && `${format.number(s.growth.partnerSignups7d)} via partners · ${format.number(s.growth.referralsRewarded7d)} rewarded`} />
           </CardBody>
         </Card>
         <Card>
@@ -121,6 +122,8 @@ export function DashboardPage() {
             <Queue href="/finance/cashouts?status=REVIEW" label="Cash-outs to approve" count={s?.queues.cashoutsReview} permission={can(P.FinanceView)} />
             <Queue href="/finance/cashouts?status=PROCESSING" label="Payouts stuck > 30 min" count={s?.queues.cashoutsStuck} permission={can(P.FinanceView)} danger />
             <Queue href="/finance/purchases?status=REQUIRES_ACTION" label="Payments waiting" count={s?.queues.pendingPurchases} permission={can(P.FinanceView)} />
+            <Queue href="/affiliates" label="Partner applications" count={s?.queues.partnersPending} permission={can(P.AffiliatesView)} />
+            <Queue href="/affiliate-payouts" label="Partner payouts to send" count={s?.queues.partnerPayoutsOpen} permission={can(P.AffiliatesView)} />
           </CardBody>
         </Card>
       </div>

@@ -18,6 +18,7 @@ import 'providers/session_provider.dart';
 import 'providers/social_provider.dart';
 import 'providers/wallet_provider.dart';
 import 'services/app_services.dart';
+import 'services/invite/invite_capture.dart';
 import 'services/payments/store_billing.dart';
 import 'screens/home/home_shell.dart';
 import 'screens/onboarding/permissions_screen.dart';
@@ -59,6 +60,9 @@ class _VibeAppState extends State<VibeApp> {
     // Restore everything once; the splash shows meanwhile.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _session.restore();
+      // After the restore, so a link opened by someone signed in isn't
+      // stored as a sign-up code.
+      if (mounted) unawaited(context.read<InviteCapture>().start());
       _session.addListener(_onSessionChanged);
       if (widget.realtime == null) {
         // Offline mock: everything is local, load it all now.

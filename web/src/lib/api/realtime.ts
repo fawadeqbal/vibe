@@ -41,6 +41,9 @@ export const Ev = {
   goalReached: "wallet:goal-reached",
   inboxMessage: "inbox:message",
   catalogUpdated: "catalog:updated",
+  referralUpdated: "referral:updated",
+  referralMilestone: "referral:milestone",
+  affiliateUpdated: "affiliate:updated",
 } as const;
 
 export type EventData = Record<string, unknown>;

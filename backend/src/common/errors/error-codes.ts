@@ -62,6 +62,28 @@ export enum ErrorCode {
   /** Gone, expired, deleted or not visible to you (404). */
   MOMENT_NOT_FOUND = 'MOMENT_NOT_FOUND',
 
+  // referrals and affiliates
+  /** No such invite / partner code (404). */
+  INVITE_CODE_INVALID = 'INVITE_CODE_INVALID',
+  /** Invite codes can be added only within 48 h of sign-up (409). */
+  INVITE_TOO_LATE = 'INVITE_TOO_LATE',
+  /** This account already joined with an invite (409). */
+  INVITE_ALREADY_USED = 'INVITE_ALREADY_USED',
+  /** Your own invite or partner code (403). */
+  INVITE_SELF = 'INVITE_SELF',
+  /** Selfie verification needed first (403). */
+  VERIFICATION_REQUIRED = 'VERIFICATION_REQUIRED',
+  /** Partner code is taken, reserved or malformed (409). */
+  AFFILIATE_CODE_TAKEN = 'AFFILIATE_CODE_TAKEN',
+  /** You already applied (409). */
+  AFFILIATE_EXISTS = 'AFFILIATE_EXISTS',
+  /** No active partner account (403). */
+  AFFILIATE_NOT_ACTIVE = 'AFFILIATE_NOT_ACTIVE',
+  /** A payout is already waiting (409). */
+  AFFILIATE_PAYOUT_OPEN = 'AFFILIATE_PAYOUT_OPEN',
+  /** Available balance is under the minimum payout (400). */
+  AFFILIATE_BELOW_MINIMUM = 'AFFILIATE_BELOW_MINIMUM',
+
   // matching
   NOT_IN_MATCH = 'NOT_IN_MATCH',
   SKIP_COOLDOWN = 'SKIP_COOLDOWN',

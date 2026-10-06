@@ -10,12 +10,13 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { OK } from '../../common/dto/ok.dto';
 import { AuthService } from './auth.service';
-import { LinkIdentityDto, RefreshDto, RequestOtpDto, SocialProviderName, SocialSignInDto, VerifyOtpDto } from './dto/auth.dto';
+import { InviteFields, LinkIdentityDto, RefreshDto, RequestOtpDto, SocialProviderName, SocialSignInDto, VerifyOtpDto } from './dto/auth.dto';
 import { IdentityService } from './identity/identity.service';
 import { ClientInfo } from './token.service';
 
 const client = (req: Request): ClientInfo => ({ userAgent: req.headers['user-agent'], ip: req.ip });
 const toProvider = (p: SocialProviderName): AuthProvider => p.toUpperCase() as AuthProvider;
+const invite = (dto: InviteFields) => ({ inviteCode: dto.inviteCode, inviteSource: dto.inviteSource, inviteVia: dto.inviteVia, deviceId: dto.deviceId });
 const credential = (dto: SocialSignInDto | LinkIdentityDto) => ({ idToken: dto.idToken, accessToken: dto.accessToken, authorizationCode: dto.authorizationCode, nonce: dto.nonce, name: dto.name });
 
 @ApiTags('auth')
@@ -63,7 +64,7 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Sign in (or sign up) with the code' })
   verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
-    return this.auth.verifyOtp(dto.email, dto.code, dto.inviteCode, client(req));
+    return this.auth.verifyOtp(dto.email, dto.code, invite(dto), client(req));
   }
 
   @Post('social')
@@ -71,7 +72,7 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Sign in with Google, Apple or Facebook' })
   social(@Body() dto: SocialSignInDto, @Req() req: Request) {
-    return this.auth.socialSignIn(toProvider(dto.provider), credential(dto), dto.inviteCode, client(req));
+    return this.auth.socialSignIn(toProvider(dto.provider), credential(dto), invite(dto), client(req));
   }
 
   @Post('refresh')

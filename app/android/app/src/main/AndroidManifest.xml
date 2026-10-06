@@ -49,6 +49,26 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="vibe" android:host="payment-return"/>
             </intent-filter>
+            <!-- Invite links before sign-up: vibe://invite?code=CODE[&s=src]
+                 (the landing page's "Already have the app? Open it"). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="vibe" android:host="invite"/>
+            </intent-filter>
+            <!-- App Links: https://vibe.fawadiqbal.dev/i/<CODE> opens the app when
+                 installed. autoVerify needs /.well-known/assetlinks.json on that
+                 host with this app's package and signing-cert SHA-256; until it
+                 is hosted Android shows the chooser / opens the browser. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/>
+                <data android:host="vibe.fawadiqbal.dev"/>
+                <data android:pathPrefix="/i/"/>
+            </intent-filter>
         </activity>
 
         <!-- Sign in with Apple on Android (web flow): the server's callback
@@ -122,6 +142,12 @@
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService"/>
         </intent>
+        <!-- Invites: WhatsApp first (whatsapp://send?text=…), wa.me otherwise. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="whatsapp"/>
+        </intent>
+        <package android:name="com.whatsapp"/>
         <!-- Facebook Login through the Facebook app when installed. -->
         <package android:name="com.facebook.katana"/>
     </queries>

@@ -239,7 +239,7 @@ void main() {
       final e = EngagementProvider(backend) as LocalEngagementProvider;
       await e.load();
       final p = await e.loadProgress();
-      expect(p.badges, hasLength(10));
+      expect(p.badges, hasLength(11));
       expect(p.earned, isNotEmpty);
       final lb = await e.leaderboard(Board.xp);
       expect(lb.top.first.rank, 1);

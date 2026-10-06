@@ -236,4 +236,32 @@ class ApiMap {
             moments: [for (final x in (g['moments'] as List? ?? const [])) Moment.fromJson(Map<String, dynamic>.from(x as Map))],
           ),
       ];
+
+  // ── invites ────────────────────────────────────────────────────────────
+
+  static ReferralPerson referralPerson(Map<String, dynamic> m) => ReferralPerson(
+        id: '${m['id'] ?? ''}',
+        profile: profile(Map<String, dynamic>.from(m['profile'] as Map)),
+        status: ReferralStatus.parse(m['status']),
+        rejectReason: m['rejectReason'] as String?,
+        steps: ReferralSteps.fromJson(Map<String, dynamic>.from(m['steps'] as Map? ?? const {})),
+        coins: i(m['coins']),
+        createdAt: date(m['createdAt']) ?? DateTime.now(),
+        qualifiedAt: date(m['qualifiedAt']),
+        rewardedAt: date(m['rewardedAt']),
+      );
+
+  /// `GET /referrals`.
+  static ReferralsView referrals(Map<String, dynamic> m) {
+    final aff = m['affiliate'];
+    return ReferralsView(
+      code: '${m['code'] ?? ''}',
+      link: '${m['link'] ?? ''}',
+      rewards: m['rewards'] is Map ? ReferralRewards.fromJson(Map<String, dynamic>.from(m['rewards'] as Map)) : ReferralRewards.fromEconomy(),
+      stats: ReferralStats.fromJson(Map<String, dynamic>.from(m['stats'] as Map? ?? const {})),
+      milestones: [for (final x in (m['milestones'] as List? ?? const [])) ReferralMilestone.fromJson(Map<String, dynamic>.from(x as Map))],
+      people: [for (final x in (m['people'] as List? ?? const [])) referralPerson(Map<String, dynamic>.from(x as Map))],
+      affiliate: aff is Map && aff['code'] is String ? PartnerLink(code: aff['code'] as String, link: '${aff['link'] ?? ''}') : null,
+    );
+  }
 }

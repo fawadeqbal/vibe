@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LedgerKind, PaymentMethod, Prisma, ProductType, PurchaseStatus, Subscription, SubscriptionStatus } from '@prisma/client';
 
 import { Clock } from '../../common/utils/clock';
@@ -11,6 +12,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { storeSku } from './adapters/payment-adapter';
 import { AppleTransaction } from './adapters/store/app-store.client';
 import { PlaySubscriptionV2 } from './adapters/store/google-play.client';
+import { PURCHASE_SUCCEEDED, PurchaseEvent } from './payment.events';
 import { PaymentsService } from './payments.service';
 
 /** What a store says about one subscription right now, in our terms. */
@@ -46,6 +48,7 @@ export class StoreSubscriptionsService {
     private readonly economy: EconomyService,
     private readonly events: PaymentEvents,
     private readonly clock: Clock,
+    private readonly emitter: EventEmitter2,
   ) {}
 
   static fromPlay(token: string, sub: PlaySubscriptionV2): StoreSubscriptionState {
@@ -123,6 +126,7 @@ export class StoreSubscriptionsService {
 
   /** A new paid period: a Purchase row for finance, longer VIP, a ledger line. Once per charge. */
   private async recordRenewal(sub: Subscription, s: StoreSubscriptionState): Promise<boolean> {
+    let purchaseId = '';
     const plan = this.economy.plans.find((p) => storeSku(ProductType.VIP_PLAN, p.id) === s.sku) ?? this.economy.findPlan(sub.planId);
     if (!plan) {
       this.logger.warn(`Renewal for unknown plan ${s.sku}`);
@@ -147,6 +151,7 @@ export class StoreSubscriptionsService {
             metadata: { renewalOf: sub.id, product: { plan } } as unknown as Prisma.InputJsonValue,
           },
         });
+        purchaseId = purchase.id;
         await tx.subscription.update({ where: { id: sub.id }, data: { currentPeriodEnd: s.periodEnd!, status: SubscriptionStatus.ACTIVE } });
         const w = await tx.wallet.findUniqueOrThrow({ where: { userId: sub.userId } });
         if (!w.vipUntil || w.vipUntil < s.periodEnd!) await tx.wallet.update({ where: { userId: sub.userId }, data: { vipUntil: s.periodEnd! } });
@@ -158,6 +163,7 @@ export class StoreSubscriptionsService {
       throw e;
     }
     this.wallet.changed([sub.userId]);
+    this.emitter.emit(PURCHASE_SUCCEEDED, { purchaseId, userId: sub.userId } satisfies PurchaseEvent);
     return true;
   }
 

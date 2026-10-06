@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { openShareCard } from "@/components/shared/share-card";
 import { Avatar } from "@/components/ui/avatar";
 import { CircleIconButton, GhostButton, GradientButton, TextButton } from "@/components/ui/button";
 import { Glass } from "@/components/ui/glass";
@@ -75,7 +76,12 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
             </TextButton>
 
             {mutualLike ? (
-              <p className="type-label mt-3 flex h-8 items-center rounded-full bg-pink/14 px-3.5 text-[13px] text-pink-soft">You liked each other 💞</p>
+              <div className="mt-3 flex items-center gap-1.5">
+                <p className="type-label flex h-8 items-center rounded-full bg-pink/14 px-3.5 text-[13px] text-pink-soft">You liked each other 💞</p>
+                <button type="button" onClick={() => void openShareCard({ kind: "match" })} aria-label="Share" title="Share" className="flex size-8 items-center justify-center rounded-full bg-white/8 text-text2 transition-[filter] hover:brightness-125">
+                  <Icon name="ios_share" size={16} />
+                </button>
+              </div>
             ) : null}
 
             <div className="mt-[22px] flex w-full border-y border-line py-4">

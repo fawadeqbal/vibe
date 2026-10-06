@@ -32,6 +32,7 @@ import { isVip, useWallet } from "@/stores/wallet";
 
 import { ProgressCard } from "@/features/engagement/progress-card";
 import { WellbeingSection } from "@/features/engagement/wellbeing-section";
+import { InviteCodeField } from "@/features/referrals/invite-code-field";
 
 import { SignInMethodsCard } from "./sign-in-methods";
 
@@ -46,7 +47,8 @@ export function MeScreen() {
   const session = useSession();
   const me = session.me;
   const wallet = useWallet((s) => s.wallet);
-  const usdPerGem = useCatalog((s) => s.economy.usdPerGem);
+  const economy = useCatalog((s) => s.economy);
+  const usdPerGem = economy.usdPerGem;
   const autoBlur = useMatch((s) => s.autoBlur);
   const history = useMatch((s) => s.history);
   const blocked = useSocial((s) => s.blocked);
@@ -112,6 +114,29 @@ export function MeScreen() {
         </span>
         <Icon name="chevron_right" className="text-gold" />
       </Link>
+
+      <SectionTitle text="Invite & earn" top={26} />
+      <GroupCard>
+        <GroupRow
+          icon="card_giftcard"
+          iconColor="gold"
+          iconBg={alpha("gold", 0.12)}
+          title="Invite friends"
+          subtitle={`Give ${economy.inviteeRewardCoins}, get ${economy.inviteRewardCoins} coins`}
+          trailing={<Icon name="chevron_right" className="text-muted" />}
+          onClick={() => router.push("/invite")}
+        />
+        <GroupRow
+          icon="campaign"
+          iconColor="lavender"
+          iconBg={alpha("violet", 0.14)}
+          title="Creator partner program"
+          subtitle="Earn money for the people you bring"
+          trailing={<Icon name="chevron_right" className="text-muted" />}
+          onClick={() => router.push("/partner")}
+        />
+      </GroupCard>
+      <InviteCodeField className="mt-2.5" />
 
       <SectionTitle text="Recent matches" top={26} bottom={4} />
       {!recent.length ? (

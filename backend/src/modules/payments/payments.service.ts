@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Interval } from '@nestjs/schedule';
 import { LedgerKind, PaymentMethod, Prisma, ProductType, Purchase, PurchaseStatus } from '@prisma/client';
 
@@ -20,6 +21,7 @@ import { ActionData, Money, PaymentAdapter, PaymentContext, PaymentInput, Paymen
 import { appleAccountToken, playAccountToken } from './adapters/store/account-token';
 import { CreatePurchaseDto } from './dto/purchase.dto';
 import { PaymentGateway } from './payment-gateway.service';
+import { PURCHASE_REFUNDED, PURCHASE_SUCCEEDED, PurchaseEvent } from './payment.events';
 import { VipService } from './vip.service';
 
 /** A copy of what was sold, kept on the purchase. */
@@ -69,6 +71,7 @@ export class PaymentsService {
     private readonly events: PaymentEvents,
     private readonly realtime: RealtimeService,
     private readonly redis: RedisService,
+    private readonly emitter: EventEmitter2,
   ) {}
 
   // ── catalogue ────────────────────────────────────────────────────────
@@ -299,6 +302,7 @@ export class PaymentsService {
     await this.events.log({ purchaseId: p.id, provider: source, type: 'refund', message: reason, data: result });
     if (p.productType === ProductType.VIP_PLAN) await this.vip.revoke(p.userId, `refund ${p.id}`);
     this.wallet.changed([p.userId]);
+    this.emitter.emit(PURCHASE_REFUNDED, { purchaseId: p.id, userId: p.userId } satisfies PurchaseEvent);
     this.notify(p.userId, p.id);
     return result;
   }
@@ -385,7 +389,7 @@ export class PaymentsService {
           where: { id: purchase.id, status: { in: [...OPEN, PurchaseStatus.EXPIRED] } },
           data: { status: PurchaseStatus.SUCCEEDED, providerRef: step.providerRef, storeRef: step.storeRef ?? purchase.storeRef, nextAction: null, actionData: Prisma.DbNull, failureReason: null, completedAt: this.clock.now() },
         });
-        if (claimed.count === 0) return tx.purchase.findUniqueOrThrow({ where: { id: purchase.id } }); // already fulfilled (or failed for good)
+        if (claimed.count === 0) return { purchase: await tx.purchase.findUniqueOrThrow({ where: { id: purchase.id } }), fulfilled: false }; // already fulfilled (or failed for good)
         if (purchase.productType === ProductType.COIN_PACK) {
           const pack = this.packOf(purchase);
           const total = this.economy.packTotalCoins(pack);
@@ -403,10 +407,11 @@ export class PaymentsService {
             tx,
           );
         }
-        return tx.purchase.findUniqueOrThrow({ where: { id: purchase.id } });
+        return { purchase: await tx.purchase.findUniqueOrThrow({ where: { id: purchase.id } }), fulfilled: true };
       });
       this.wallet.changed([purchase.userId]);
-      return done;
+      if (done.fulfilled) this.emitter.emit(PURCHASE_SUCCEEDED, { purchaseId: purchase.id, userId: purchase.userId } satisfies PurchaseEvent);
+      return done.purchase;
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         // The same store receipt / provider charge was already redeemed (possibly by another account).

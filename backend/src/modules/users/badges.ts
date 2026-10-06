@@ -11,6 +11,8 @@ export interface BadgeStats {
   giftsSent: number;
   bestStreak: number;
   nightCalls: number;
+  /** Rewarded referrals (friends who joined with your link and became active). */
+  referrals: number;
 }
 
 export interface BadgeDef {
@@ -32,6 +34,7 @@ export const BADGES: readonly BadgeDef[] = [
   { id: 'streak_7', name: 'On fire', emoji: '🔥', target: 7, value: (s) => s.bestStreak },
   { id: 'streak_30', name: 'Unstoppable', emoji: '☄️', target: 30, value: (s) => s.bestStreak },
   { id: 'night_owl', name: 'Night owl', emoji: '🦉', target: 20, value: (s) => s.nightCalls },
+  { id: 'ambassador', name: 'Ambassador', emoji: '🎖️', target: 10, value: (s) => s.referrals },
 ];
 
 export interface BadgeView {
@@ -54,7 +57,7 @@ export function badgesFor(s: BadgeStats): BadgeView[] {
 export const earnedBadgeIds = (s: BadgeStats): string[] => badgesFor(s).filter((b) => b.earned).map((b) => b.id);
 
 /** The counters badges read, straight off a User row. */
-export const badgeStatsOf = (u: { verified: boolean; matchesCount: number; goodCallsCount: number; likesCount: number; giftsSentCount: number; bestStreak: number; nightCallsCount: number }): BadgeStats => ({
+export const badgeStatsOf = (u: { verified: boolean; matchesCount: number; goodCallsCount: number; likesCount: number; giftsSentCount: number; bestStreak: number; nightCallsCount: number; referralsRewarded: number }): BadgeStats => ({
   verified: u.verified,
   matches: u.matchesCount,
   goodCalls: u.goodCallsCount,
@@ -62,4 +65,5 @@ export const badgeStatsOf = (u: { verified: boolean; matchesCount: number; goodC
   giftsSent: u.giftsSentCount,
   bestStreak: u.bestStreak,
   nightCalls: u.nightCallsCount,
+  referrals: u.referralsRewarded,
 });

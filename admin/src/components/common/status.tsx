@@ -47,6 +47,15 @@ const TONE: Record<string, Tone> = {
   EXPORTED: "info",
   // selfie verification (PENDING, REJECTED above)
   APPROVED: "ok",
+  // referrals (PENDING, REJECTED above)
+  QUALIFIED: "trust",
+  REWARDED: "ok",
+  // creator partners (PENDING, ACTIVE, REJECTED above)
+  SUSPENDED: "warn",
+  // partner commissions (PENDING, PAID above)
+  AVAILABLE: "money",
+  HELD: "warn",
+  REVERSED: "neutral",
 };
 
 const LABEL: Record<string, string> = {

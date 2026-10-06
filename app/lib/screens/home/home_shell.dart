@@ -11,12 +11,16 @@ import '../../providers/engagement_provider.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/inbox_provider.dart';
 import '../../providers/match_provider.dart';
+import '../../providers/referrals_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../services/app_services.dart';
+import '../../services/invite/invite_capture.dart';
 import '../../services/push/push_route.dart';
 import '../../services/wellbeing/break_reminder.dart';
+import '../invite/invite_screen.dart';
+import '../invite/invite_share.dart';
 import '../match/match_screen.dart';
 import '../profile/follow_lists_screen.dart';
 import '../profile/profile_screen.dart';
@@ -48,6 +52,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   StreamSubscription<FollowNotice>? _followNotices;
   StreamSubscription<int>? _levelUps;
   StreamSubscription<int>? _goals;
+  final List<StreamSubscription<dynamic>> _inviteSubs = [];
   late final MatchProvider _match;
   late final WalletProvider _wallet;
   late final SessionProvider _session;
@@ -201,6 +206,26 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     _followNotices = context.read<FollowsProvider>().notices.listen((n) {
       if (mounted) toast(context, n.text);
     });
+    // Invites: a friend joined / got active, a milestone, partner news, and
+    // invite links opened while signed in.
+    final referrals = context.read<ReferralsProvider>();
+    _inviteSubs.addAll([
+      referrals.updates.listen((u) {
+        final text = u.notice;
+        if (mounted && text != null) toast(context, text);
+      }),
+      referrals.milestonesReached.listen((m) {
+        if (mounted) showMilestoneSheet(context, m);
+      }),
+      referrals.partnerNotices.listen((text) {
+        if (mounted) toast(context, text);
+      }),
+      context.read<InviteCapture>().signedInLinks.listen((invite) {
+        if (!mounted) return;
+        final claimable = _session.referralClaimable;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => InviteScreen(claimCode: claimable ? invite.code : null)));
+      }),
+    ]);
   }
 
   @override
@@ -209,6 +234,9 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     _followNotices?.cancel();
     _levelUps?.cancel();
     _goals?.cancel();
+    for (final sub in _inviteSubs) {
+      sub.cancel();
+    }
     _breakTimer?.cancel();
     _match.removeListener(_onMatchChanged);
     _wallet.removeListener(_onWalletChanged);
@@ -225,7 +253,8 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   /// A tapped notification: chat → that chat (streak at risk too),
   /// friends/inbox → Chats (the weekly recap is an inbox message),
   /// wallet → Wallet (win-back boost, goal reached), store → Store,
-  /// match → the lobby (Vibe Hour).
+  /// match → the lobby (Vibe Hour), invite → Invite friends, partner → the
+  /// partner dashboard in the browser.
   void _open(PushRoute r) {
     if (!mounted) return;
     final nav = Navigator.of(context);
@@ -250,6 +279,10 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
         nav.push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: r.userId!)));
       case PushTarget.followRequests:
         nav.push(MaterialPageRoute(builder: (_) => const FollowListsScreen(initial: FollowList.requests)));
+      case PushTarget.invite:
+        nav.push(MaterialPageRoute(builder: (_) => const InviteScreen()));
+      case PushTarget.partner:
+        openPartnerPage(context);
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
+import '../invite/invite_banner.dart';
 
 /// First screen ever. Real faces, one promise, the three safety promises
 /// right under it, one button. Slides advance story-style.
@@ -144,6 +145,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // "Ali invited you · finish setup to earn 50 coins".
+                      const InviteWelcomeBanner(),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 220),
                         child: Column(

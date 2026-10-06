@@ -93,10 +93,18 @@ export class VipService {
     return until;
   }
 
-  /** Staff gift of VIP time (no payment, no bonus coins). Extends any active VIP. */
-  async grant(userId: string, days: number, reason: string): Promise<Date> {
+  /**
+   * Gift of VIP time (no payment, no bonus coins): staff grants and referral
+   * milestones. Extends any active VIP. With `idempotencyKey` it happens once
+   * per user (a repeat returns the current end without changing anything).
+   * Inside a caller's `tx` the caller announces the wallet change.
+   */
+  async grant(userId: string, days: number, reason: string, opts: { tx?: Tx; title?: string; idempotencyKey?: string } = {}): Promise<Date> {
     const until = await this.prisma.tx(async (tx) => {
       const now = this.clock.now();
+      if (opts.idempotencyKey && (await tx.ledgerEntry.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey: opts.idempotencyKey } } }))) {
+        return (await tx.wallet.findUniqueOrThrow({ where: { userId } })).vipUntil ?? now;
+      }
       const w = await tx.wallet.findUniqueOrThrow({ where: { userId } });
       const from = w.vipUntil && w.vipUntil > now ? w.vipUntil : now;
       const end = new Date(from.getTime() + days * MS.day);
@@ -105,10 +113,10 @@ export class VipService {
       // Renewal state is the paid plan's; a gift alone never renews.
       if (!active) await tx.subscription.create({ data: { userId, planId: 'staff_grant', status: SubscriptionStatus.CANCELED, canceledAt: now, currentPeriodEnd: end, lastBonusAt: now } });
       await tx.wallet.update({ where: { userId }, data: { vipUntil: end } });
-      await this.ledger.move(userId, { kind: LedgerKind.VIP, title: `VIP ${days} days from the Vibe team`, reference: reason.slice(0, 100) }, { tx });
+      await this.ledger.move(userId, { kind: LedgerKind.VIP, title: opts.title ?? `VIP ${days} days from the Vibe team`, reference: reason.slice(0, 100), idempotencyKey: opts.idempotencyKey }, { tx });
       return end;
-    });
-    this.wallet.changed([userId]);
+    }, opts.tx);
+    if (!opts.tx) this.wallet.changed([userId]);
     return until;
   }
 

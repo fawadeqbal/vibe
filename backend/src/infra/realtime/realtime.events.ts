@@ -57,6 +57,13 @@ export const ServerEvent = {
   LevelUp: 'progress:level-up',
   /** Gems reached the wallet goal: `{ goal }`. */
   GoalReached: 'wallet:goal-reached',
+
+  /** To the inviter: one of their referrals changed `{ referral: ReferralPerson, event: 'joined' | 'qualified' | 'rewarded' | 'rejected', coins }`. */
+  ReferralUpdated: 'referral:updated',
+  /** To the inviter: a referral milestone was reached `{ index, count, reward: { kind: 'vip' | 'coins', amount } }`. */
+  ReferralMilestone: 'referral:milestone',
+  /** To a creator partner: application decided or payout changed `{ status, event, payout? }`. */
+  AffiliateUpdated: 'affiliate:updated',
 } as const;
 
 export type ServerEventName = (typeof ServerEvent)[keyof typeof ServerEvent];

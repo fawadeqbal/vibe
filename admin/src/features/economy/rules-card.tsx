@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { Time } from "@/components/common/bits";
 import { useConfirm } from "@/components/common/confirm";
-import { Tooltip } from "@/components/ui/controls";
+import { Switch, Tooltip } from "@/components/ui/controls";
 import { Input } from "@/components/ui/input";
 import type { Economy, RuleField, RuleGroup, RuleValue } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -168,6 +168,11 @@ export function RulesCard({ group, economy, canEdit, onReload }: { group: RuleGr
                     </label>
                   ))}
                 </div>
+              ) : f.kind === "flag" ? (
+                <span className="flex items-center gap-2">
+                  <Switch id={inputId} checked={draft[f.key] === "1"} onCheckedChange={(on) => set(f.key, on ? "1" : "0")} />
+                  <span className="text-sm text-text-2">{draft[f.key] === "1" ? "On" : "Off"}</span>
+                </span>
               ) : (
                 <UnitInput id={inputId} field={f} value={(draft[f.key] as string) ?? ""} invalid={!!err} onChange={(v) => set(f.key, v)} />
               )}

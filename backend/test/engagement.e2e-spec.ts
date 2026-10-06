@@ -388,7 +388,7 @@ describe('engagement', () => {
       expect(await up).toEqual({ level: 2 });
       const p = (await t.http.get('/v1/me/progress').set(a.auth).expect(200)).body;
       expect(p).toMatchObject({ level: 2, xp: 55, levelXp: 50, nextLevelXp: 150, weekXp: 55 });
-      expect(p.badges).toHaveLength(10);
+      expect(p.badges).toHaveLength(11);
       expect(p.badges[0]).toEqual({ id: 'verified', name: 'Verified', emoji: '✔️', earned: false, progress: 0, target: 1 });
 
       await t.prisma.user.update({ where: { id: a.id }, data: { verified: true, matchesCount: 12 } });

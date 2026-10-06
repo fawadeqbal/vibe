@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { BadgeRow, LevelRing } from "@/components/shared/level-chip";
+import { openShareCard } from "@/components/shared/share-card";
+import { CircleIconButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { ProgressBar } from "@/components/ui/misc";
 import { Panel } from "@/components/ui/panel";
@@ -46,6 +48,7 @@ export function ProgressCard() {
               <ProgressBar value={levelFraction(p)} tone="violet" />
             </div>
           </div>
+          <CircleIconButton icon="ios_share" label="Share my level" iconSize={18} size={36} className="ml-3 self-start bg-surface2" onClick={() => void openShareCard({ kind: "level", level: p.level })} />
         </div>
         <div className="px-4 pt-4 pb-4">
           {earned.length ? (

@@ -40,6 +40,7 @@ dependencies:
   app_links: ^7.2.1 # vibe://payment-return deep link
   webview_flutter: ^4.14.1 # form-POST hosted payment pages (JazzCash)
   package_info_plus: ^10.2.2 # app version sent with the push token
+  share_plus: ^13.3.1
 
 dev_dependencies:
   flutter_test:

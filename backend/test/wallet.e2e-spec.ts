@@ -40,7 +40,7 @@ describe('wallet, payments and VIP', () => {
     expect(res.body.error).toMatchObject({ code: 'INSUFFICIENT_COINS', details: { needed: 50, have: 30 } });
   });
 
-  it('profile bonus needs a complete profile and pays the inviter', async () => {
+  it('profile bonus needs a complete profile (the inviter is paid by referrals v2, not here)', async () => {
     const inviter = await signUp(t);
     const me = await t.http.get('/v1/me').set(inviter.auth);
     const u = await signUp(t, {}, me.body.inviteCode);
@@ -48,8 +48,9 @@ describe('wallet, payments and VIP', () => {
     expect(early.body.error.code).toBe('PROFILE_INCOMPLETE');
     await t.http.patch('/v1/me').set(u.auth).send({ bio: 'hi', interests: ['Music', 'Travel', 'Coffee'], avatarUrl: 'https://i.pravatar.cc/400?img=3' }).expect(200);
     await t.http.post('/v1/wallet/rewards/profile').set(u.auth).expect(200);
-    await new Promise((r) => setTimeout(r, 300)); // inviter reward is event-driven
-    expect((await t.http.get('/v1/wallet').set(inviter.auth)).body.coins).toBe(130);
+    expect((await t.http.get('/v1/wallet').set(u.auth)).body.coins).toBe(80);
+    await new Promise((r) => setTimeout(r, 300));
+    expect((await t.http.get('/v1/wallet').set(inviter.auth)).body.coins).toBe(30);
   });
 
   it('store purchases credit once, even when retried', async () => {

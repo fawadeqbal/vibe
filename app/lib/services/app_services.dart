@@ -9,6 +9,7 @@ import 'media/selfie_camera.dart';
 import 'payments/payment_links.dart';
 import 'payments/store_billing.dart';
 import 'push/push_service.dart';
+import 'share/share_service.dart';
 
 /// The third-party integrations, built once in `main.dart` and provided to
 /// the widget tree. Each one is an interface with a real implementation
@@ -25,8 +26,10 @@ class AppServices {
     PushService? push,
     MediaPicker? media,
     SelfieCamera? selfieCamera,
+    ShareService? share,
     TargetPlatform? platform,
-  })  : billing = billing ?? NoStoreBilling(),
+  })  : share = share ?? const PlatformShare(),
+        billing = billing ?? NoStoreBilling(),
         links = links ?? ManualPaymentLinks(),
         social = social ?? const NoSocialSignIn(),
         ads = ads ?? const NoRewardedAds(),
@@ -49,6 +52,9 @@ class AppServices {
 
   /// The live front camera for the selfie check (pose challenge).
   final SelfieCamera selfieCamera;
+
+  /// Share sheet, WhatsApp, the browser (invites, share cards, partner page).
+  final ShareService share;
   final TargetPlatform platform;
 
   bool get android => platform == TargetPlatform.android;

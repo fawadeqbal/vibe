@@ -62,6 +62,30 @@ export class PushBridge implements OnModuleInit {
       if (p.status === 'FAILED' || p.status === 'EXPIRED') return { title: 'Payment not completed', body: String(p.failureReason ?? 'The payment did not go through. Nothing was charged.'), data: { route: 'store', purchaseId: String(p.id) }, category: 'payments', collapseKey: `pay:${p.id}` };
       return null;
     },
+    [ServerEvent.ReferralUpdated]: (p): PushMessage | null => {
+      const r = (p.referral ?? {}) as { id?: string; profile?: { name?: string }; steps?: { callsNeeded?: number; verifyNeeded?: boolean } };
+      const name = String(r.profile?.name ?? '').trim().split(/\s+/)[0] || 'Your friend';
+      if (p.event === 'joined') {
+        const what = [r.steps?.verifyNeeded ? 'verify' : null, r.steps?.callsNeeded ? `have ${r.steps.callsNeeded} calls` : null].filter(Boolean).join(' and ');
+        return { title: `${name} joined Vibe with your invite 🎉`, body: what ? `When they ${what}, you both get coins.` : 'You both get coins soon.', data: { route: 'invite', referralId: String(r.id ?? '') }, category: 'social', collapseKey: `ref:${r.id}` };
+      }
+      if (p.event === 'rewarded' && Number(p.coins) > 0) return { title: `+${Number(p.coins)} coins`, body: `${name} is now active on Vibe.`, data: { route: 'invite', referralId: String(r.id ?? '') }, category: 'social', collapseKey: `ref:${r.id}` };
+      return null;
+    },
+    [ServerEvent.ReferralMilestone]: (p) => {
+      const reward = (p.reward ?? {}) as { kind?: string; amount?: number };
+      const title = reward.kind === 'vip' ? `You unlocked ${reward.amount} days of VIP 👑` : `+${Number(reward.amount).toLocaleString('en-US')} coins 🎖️`;
+      return { title, body: `${p.count} friends joined Vibe with your invite.`, data: { route: 'invite' }, category: 'social' };
+    },
+    [ServerEvent.AffiliateUpdated]: (p): PushMessage | null => {
+      if (p.event === 'approved') return { title: "You're a Vibe creator partner 🎉", body: 'Your partner link is ready. Open the partner dashboard to start sharing.', data: { route: 'partner' }, category: 'social' };
+      if (p.event === 'rejected') return { title: 'Creator partner application', body: "We couldn't approve your application this time.", data: { route: 'partner' }, category: 'social' };
+      if (p.event === 'suspended') return { title: 'Partner account paused', body: 'Open the partner dashboard for details.', data: { route: 'partner' }, category: 'social' };
+      const payout = (p.payout ?? {}) as { id?: string; usdCents?: number; failureReason?: string };
+      if (p.event === 'payout_paid') return { title: 'Partner payout sent 💸', body: `$${(Number(payout.usdCents ?? 0) / 100).toFixed(2)} is on its way to your account.`, data: { route: 'partner', payoutId: String(payout.id ?? '') }, category: 'payments' };
+      if (p.event === 'payout_rejected') return { title: 'Partner payout returned', body: `Your balance is available again. ${String(payout.failureReason ?? '')}`.trim(), data: { route: 'partner', payoutId: String(payout.id ?? '') }, category: 'payments' };
+      return null;
+    },
     [ServerEvent.CashoutUpdated]: (p) => {
       if (p.status === 'PAID') return { title: 'Cash-out sent 💸', body: 'Your money is on its way to your account.', data: { route: 'wallet', cashoutId: String(p.id) }, category: 'payments' };
       if (p.status === 'REJECTED') return { title: 'Cash-out returned', body: `Your gems are back in your wallet. ${String(p.failureReason ?? '')}`.trim(), data: { route: 'wallet', cashoutId: String(p.id) }, category: 'payments' };

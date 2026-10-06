@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { StreakChip } from "@/components/shared/streak-chip";
 import { TeamAvatar } from "@/components/shared/team-avatar";
 import { Avatar, FaceStack } from "@/components/ui/avatar";
-import { GhostButton, GradientButton } from "@/components/ui/button";
+import { CircleIconButton, GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { EmptyState } from "@/components/ui/misc";
 import { PageHeader } from "@/components/ui/page-header";
@@ -42,7 +42,7 @@ export function ChatsList() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
-      <PageHeader title="Chats" />
+      <PageHeader title="Chats" actions={<CircleIconButton icon="card_giftcard" label="Invite friends" iconSize={20} className="bg-surface2 text-gold" onClick={() => router.push("/invite")} />} />
       {empty ? (
         <>
           <div className="px-5">

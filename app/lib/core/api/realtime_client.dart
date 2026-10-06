@@ -44,6 +44,9 @@ class Ev {
   static const goalReached = 'wallet:goal-reached';
   static const inboxMessage = 'inbox:message';
   static const catalogUpdated = 'catalog:updated';
+  static const referralUpdated = 'referral:updated';
+  static const referralMilestone = 'referral:milestone';
+  static const affiliateUpdated = 'affiliate:updated';
 }
 
 class RealtimeEvent {

@@ -3,6 +3,8 @@ import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 
 
 export const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
 
+export const hmacSha256Hex = (secret: string, value: string): string => createHmac('sha256', secret).update(value).digest('hex');
+
 export const hmacSha1Base64 = (secret: string, value: string): string => createHmac('sha1', secret).update(value).digest('base64');
 
 /** URL-safe random token (refresh tokens, invite codes…). */

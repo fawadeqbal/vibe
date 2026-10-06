@@ -4,8 +4,10 @@
 library;
 
 import 'engagement.dart';
+import 'referrals.dart';
 
 export 'engagement.dart';
+export 'referrals.dart';
 
 enum Gender { male, female, other }
 
@@ -388,6 +390,21 @@ class Economy {
   static int rewardedAdsPerDay = 10;
   static int inviteRewardCoins = 100;
   static int profileCompleteCoins = 50;
+
+  // Invites (admin group "referrals"): the inviter gets [inviteRewardCoins],
+  // the new user [inviteeRewardCoins], once the new user is verified (when
+  // required) and has had [referralActivationCalls] calls of a minute or more.
+  static int inviteeRewardCoins = 50;
+  static int referralActivationCalls = 3;
+  static bool referralRequireVerified = true;
+  static int referralHoldHours = 24;
+
+  /// Friends who joined → reward: VIP days for the first two, coins for the third.
+  static List<ReferralMilestone> referralMilestones = const [
+    ReferralMilestone(count: 3, kind: MilestoneReward.vip, amount: 7),
+    ReferralMilestone(count: 10, kind: MilestoneReward.vip, amount: 30),
+    ReferralMilestone(count: 25, kind: MilestoneReward.coins, amount: 1000),
+  ];
 
   // Sign-up
   static int welcomeCoins = 30;

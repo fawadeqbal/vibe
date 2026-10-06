@@ -44,7 +44,7 @@ class LocalFollowsProvider extends FollowsProvider {
       stats: open ? ProfileStats(matches: p.matches, likes: p.likes, gifts: _seed(userId, 30)) : null,
       online: tier == ProfileTier.friends ? (_social.friend(userId)?.online ?? false) : null,
       level: p.level,
-      badges: [if (p.verified) 'verified', if (p.matches >= 10) 'first_vibes', if (p.matches >= 100) 'social_butterfly', if (p.likes >= 50) 'loved', if (_seed(userId, 4) == 0) 'night_owl'],
+      badges: [if (p.verified) 'verified', if (p.matches >= 10) 'first_vibes', if (p.matches >= 100) 'social_butterfly', if (p.likes >= 50) 'loved', if (_seed(userId, 4) == 0) 'night_owl', if (_seed(userId, 7) == 3) 'ambassador'],
     );
   }
 

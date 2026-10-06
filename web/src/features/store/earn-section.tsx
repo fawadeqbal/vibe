@@ -1,28 +1,27 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { inform } from "@/components/shared/dialogs";
 import { rewardedAds } from "@/components/shared/rewarded-ads";
-import { GhostButton, GradientButton, TextButton } from "@/components/ui/button";
+import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { AlertDialog } from "@/components/ui/overlay";
 import { GroupCard, GroupRow, Panel } from "@/components/ui/panel";
 import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/api/errors";
 import { alpha } from "@/lib/colors";
 import { cn } from "@/lib/cn";
-import { config } from "@/lib/config";
 import { isProfileComplete } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
 import { useSession } from "@/stores/session";
-import { openDialog, toast } from "@/stores/ui";
+import { toast } from "@/stores/ui";
 import { adsLeftToday, checkedInToday, isVip, nextCheckInDay, useWallet } from "@/stores/wallet";
 
 const GOLD_ROW = { iconColor: "gold" as const, iconBg: alpha("gold", 0.12) };
 
-/** Daily check-in streak, rewarded ad (mock in development, see rewarded-ads.tsx), invite, profile bonus. */
+/** Daily check-in streak, rewarded ad (mock in development, see rewarded-ads.tsx), invite (→ Invite friends), profile bonus. */
 export function EarnSection() {
+  const router = useRouter();
   const e = useCatalog((s) => s.economy);
   const day = useWallet(nextCheckInDay);
   const done = useWallet(checkedInToday);
@@ -68,37 +67,6 @@ export function EarnSection() {
     });
   };
 
-  /** Share your code; the reward arrives by itself when the friend finishes their profile. */
-  const invite = async () => {
-    const code = useSession.getState().inviteCode ?? "";
-    if (!code) return inform({ title: "Invite a friend", body: "Your invite code isn't ready yet. Try again in a moment." });
-    const link = `${config.siteUrl}/i/${code}`;
-    await openDialog<void>((close) => (
-      <AlertDialog
-        title="Invite a friend"
-        actions={
-          <>
-            <TextButton className="text-text2" onClick={() => close()}>
-              Close
-            </TextButton>
-            <TextButton
-              onClick={() => {
-                void navigator.clipboard?.writeText(link);
-                close();
-                toast("Invite link copied");
-              }}
-            >
-              Copy link
-            </TextButton>
-          </>
-        }
-      >
-        <p>When they sign up with your code and finish their profile, you get {e.inviteRewardCoins} coins.</p>
-        <p className="type-mono mt-4 rounded-[14px] bg-surface2 px-3.5 py-3 text-[20px] font-semibold text-gold">{code}</p>
-      </AlertDialog>
-    ));
-  };
-
   return (
     <div>
       <Panel className="rounded-[24px] p-[18px]">
@@ -124,7 +92,7 @@ export function EarnSection() {
             onClick={adBusy ? undefined : () => void watchAd()}
           />
         ) : null}
-        <GroupRow icon="person_add" {...GOLD_ROW} title="Invite a friend" subtitle="When they finish their profile" trailing={<Reward text={`+${e.inviteRewardCoins}`} active />} onClick={() => void invite()} />
+        <GroupRow icon="person_add" {...GOLD_ROW} title="Invite a friend" subtitle={`They get ${e.inviteeRewardCoins}, you get ${e.inviteRewardCoins} once they're active`} trailing={<Reward text={`+${e.inviteRewardCoins}`} active />} onClick={() => router.push("/invite")} />
         <GroupRow
           icon="badge"
           {...GOLD_ROW}

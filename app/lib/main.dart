@@ -17,17 +17,20 @@ import 'providers/follows_provider.dart';
 import 'providers/inbox_provider.dart';
 import 'providers/match_provider.dart';
 import 'providers/moments_provider.dart';
+import 'providers/referrals_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/social_provider.dart';
 import 'providers/wallet_provider.dart';
 import 'services/ads/rewarded_ads.dart';
 import 'services/app_services.dart';
 import 'services/auth/social_sign_in.dart';
+import 'services/invite/invite_capture.dart';
 import 'services/media/media_picker.dart';
 import 'services/media/selfie_camera.dart';
 import 'services/payments/payment_links.dart';
 import 'services/payments/store_billing.dart';
 import 'services/push/push_service.dart';
+import 'services/share/share_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +56,16 @@ Future<void> main() async {
   final ApiClient? api = ApiConfig.enabled ? ApiClient(defaultHeaders: {if (config.appStoreHeader != null) 'X-App-Store': config.appStoreHeader!}) : null;
   final RealtimeClient? realtime = api == null ? null : RealtimeClient(api);
 
+  // Invite attribution before sign-up: the Play install referrer (read once,
+  // Android) and vibe://invite / https://…/i/<code> links. Started after
+  // the session is restored (app.dart).
+  final mobile = !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
+  final invites = InviteCapture(
+    store: mobile ? DeviceInviteStore() : MemoryInviteStore(),
+    referrer: !kIsWeb && defaultTargetPlatform == TargetPlatform.android ? const PlayInstallReferrer() : const NoInstallReferrer(),
+    links: mobile ? AppLinksInviteSource() : null,
+  );
+
   final SessionProvider session;
   final WalletProvider wallet;
   final SocialProvider social;
@@ -62,8 +75,9 @@ Future<void> main() async {
   final FollowsProvider follows;
   final EngagementProvider engagement;
   final MomentsProvider moments;
+  final ReferralsProvider referrals;
   if (api != null && realtime != null) {
-    session = RemoteSessionProvider(api);
+    session = RemoteSessionProvider(api, invites: invites);
     wallet = RemoteWalletProvider(api, realtime);
     social = RemoteSocialProvider(api, realtime);
     match = RemoteMatchProvider(api, realtime, wallet, social, session);
@@ -72,8 +86,9 @@ Future<void> main() async {
     follows = RemoteFollowsProvider(api, realtime);
     engagement = RemoteEngagementProvider(api, realtime);
     moments = RemoteMomentsProvider(api, realtime, session);
+    referrals = RemoteReferralsProvider(api, realtime);
   } else {
-    session = SessionProvider(backend);
+    session = SessionProvider(backend, invites: invites);
     wallet = WalletProvider(backend);
     social = SocialProvider(backend, wallet);
     match = MatchProvider(backend, wallet, social, session);
@@ -82,7 +97,9 @@ Future<void> main() async {
     follows = FollowsProvider(backend, social);
     engagement = EngagementProvider(backend);
     moments = MomentsProvider(backend, session);
+    referrals = ReferralsProvider(backend);
   }
+  invites.signedIn = () => session.signedIn;
 
   final services = _buildServices(config, api: api, backend: backend, wallet: wallet);
   if (api != null) {
@@ -93,6 +110,7 @@ Future<void> main() async {
     session.addSignOutHook(() async => engagement.clear());
     session.addSignOutHook(() async => moments.clear());
   }
+  session.addSignOutHook(() async => referrals.clear());
 
   runApp(
     MultiProvider(
@@ -110,6 +128,8 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: catalog),
         ChangeNotifierProvider.value(value: engagement),
         ChangeNotifierProvider.value(value: moments),
+        ChangeNotifierProvider.value(value: referrals),
+        ChangeNotifierProvider.value(value: invites),
       ],
       child: VibeApp(realtime: realtime),
     ),
@@ -149,5 +169,6 @@ AppServices _buildServices(IntegrationsConfig config, {required ApiClient? api, 
     push: push,
     media: mobile ? DeviceMediaPicker() : const NoMediaPicker(),
     selfieCamera: mobile ? const WebRtcSelfieCamera() : const NoSelfieCamera(),
+    share: const PlatformShare(),
   );
 }

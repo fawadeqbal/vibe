@@ -8,6 +8,9 @@ import '../../core/theme/vibe_widgets.dart';
 import '../../models/models.dart';
 import '../../providers/session_provider.dart';
 import '../../services/app_services.dart';
+import '../../services/invite/invite_capture.dart';
+import '../invite/invite_banner.dart';
+import '../invite/invite_code_field.dart';
 
 /// Name, age, gender, country, a few interests. Age gates 18+. The photo is
 /// taken or picked with image_picker and uploaded (`POST /me/avatar`).
@@ -79,6 +82,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   bool _uploading = false;
 
+  InviteCapture? get _invites => context.read<SessionProvider>().invites;
+
   /// Camera or gallery → resized on the device → uploaded right away (the
   /// server stores it and returns the URL). Without a picker (desktop,
   /// tests) the demo cycles stock portraits.
@@ -131,6 +136,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               const Headline('Set up your ', accent: 'profile', size: 34, accentColor: V.pinkSoft),
               const SizedBox(height: 10),
               Text('This is what people see for the first three seconds. Make it count.', style: VT.body(15, color: V.text2, height: 1.5)),
+              Builder(builder: (context) {
+                final by = context.select<SessionProvider, InvitedBy?>((s) => s.invitedBy);
+                if (by == null) return const SizedBox.shrink();
+                return Padding(padding: const EdgeInsets.only(top: 16), child: InviteBannerRow(name: by.name, coins: Economy.inviteeRewardCoins));
+              }),
               const SizedBox(height: 24),
             ],
             Center(
@@ -210,6 +220,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   _chip(i, _interests.contains(i), () => setState(() => _interests.contains(i) ? _interests.remove(i) : _interests.add(i))),
               ],
             ),
+            if (!widget.editing) ...[
+              const SizedBox(height: 18),
+              // Sign-up couldn't use a code (or none was captured): 48 h to add one.
+              InviteCodeField(initialCode: _invites?.lastUsedCode),
+            ],
             if (_error != null) ...[const SizedBox(height: 12), Text(_error!, style: VT.body(13, color: V.bad))],
             const SizedBox(height: 28),
             GradientButton(label: widget.editing ? 'Save' : 'Continue', onTap: _save, busy: _saving),
