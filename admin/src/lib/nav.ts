@@ -42,7 +42,7 @@ export const NAV: NavGroup[] = [
   {
     label: "Money",
     items: [
-      { href: "/finance", label: "Revenue", icon: BarChart3, permission: P.FinanceView },
+      { href: "/finance", label: "Revenue and profit", icon: BarChart3, permission: P.FinanceView },
       { href: "/finance/purchases", label: "Purchases", icon: CreditCard, permission: P.FinanceView, badge: "pendingPurchases" },
       { href: "/finance/cashouts", label: "Cash-outs", icon: Banknote, permission: P.FinanceView, badge: "cashoutsReview" },
       { href: "/finance/payout-batches", label: "Payout batches", icon: Layers, permission: P.FinanceView },

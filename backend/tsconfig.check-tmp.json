@@ -1,0 +1,1 @@
+{ "extends": "./tsconfig.json", "compilerOptions": { "noEmit": true, "incremental": false }, "include": [], "files": ["src/modules/admin/finance/finance.service.ts", "src/modules/catalog/economy.service.ts", "src/modules/catalog/economy.spec.ts"] }

@@ -1,4 +1,4 @@
-import { DEFAULT_GIFTS, DEFAULT_PACKS, DEFAULT_PLANS, DEFAULT_RULES, filterCost, gemsFor, gemsToUsdCents, GiftsSchema, PacksSchema, PlansSchema, RULE_FIELDS, RULE_GROUPS, RulesPatchSchema, RulesSchema } from './economy';
+import { DEFAULT_GIFTS, DEFAULT_PACKS, DEFAULT_PLANS, DEFAULT_RULES, feeShareFor, filterCost, gemsFor, gemsToUsdCents, GiftsSchema, PacksSchema, PlansSchema, publicRules, RULE_FIELDS, RULE_GROUPS, RulesPatchSchema, RulesSchema } from './economy';
 
 const gift = (id: string) => DEFAULT_GIFTS.find((g) => g.id === id)!;
 
@@ -74,6 +74,19 @@ describe('economy', () => {
     expect(RulesPatchSchema.safeParse({ affiliateCpaUsdCents: 10.5 }).success).toBe(false);
     expect(RulesPatchSchema.safeParse({ affiliateCpaUsdCents: 25 }).success).toBe(true);
     expect(RulesPatchSchema.safeParse({ usdCentsPerGem: 0.25 }).success).toBe(true);
+  });
+
+  it('fee rates are staff-only and map to payment methods', () => {
+    expect(RULE_GROUPS.find((g) => g.key === 'fees')!.fields.map((f) => f.key)).toEqual(['storeFeeShare', 'walletFeeShare', 'cardFeeShare', 'bankFeeShare']);
+    expect(feeShareFor('GOOGLE_PLAY', DEFAULT_RULES)).toBe(0.15);
+    expect(feeShareFor('APP_STORE', DEFAULT_RULES)).toBe(0.15);
+    expect(feeShareFor('JAZZCASH', DEFAULT_RULES)).toBe(DEFAULT_RULES.walletFeeShare);
+    expect(feeShareFor('CARD', DEFAULT_RULES)).toBe(DEFAULT_RULES.cardFeeShare);
+    expect(feeShareFor('BANK', DEFAULT_RULES)).toBe(0);
+    expect(publicRules(DEFAULT_RULES)).not.toHaveProperty('storeFeeShare');
+    expect(publicRules(DEFAULT_RULES)).toHaveProperty('welcomeCoins', DEFAULT_RULES.welcomeCoins);
+    expect(RulesPatchSchema.safeParse({ storeFeeShare: 0.3 }).success).toBe(true);
+    expect(RulesPatchSchema.safeParse({ storeFeeShare: 0.6 }).success).toBe(false);
   });
 });
 

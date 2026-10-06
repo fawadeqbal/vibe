@@ -317,17 +317,41 @@ export interface Subscription {
   user?: PersonRef;
 }
 
+export interface FinanceDay {
+  day: string;
+  grossUsd: number;
+  netUsd: number;
+  paidOutUsd: number;
+  profitUsd: number;
+  cumulativeProfitUsd: number;
+}
+
+/** Profit and loss for the last N business days (see FinanceService.summary). */
 export interface FinanceSummary {
   days: number;
+  from: string;
   grossUsd: number;
+  salesCount: number;
   refundsUsd: number;
   refundsCount: number;
+  feesUsd: number;
+  feeRates: { store: number; wallet: number; card: number; bank: number };
+  netUsd: number;
   failedCount: number;
-  byMethod: { method: PaymentMethod; usd: number; count: number }[];
+  creatorPaidUsd: number;
+  creatorPaidCount: number;
+  partnerPaidUsd: number;
+  partnerPaidCount: number;
+  profitUsd: number;
+  margin: number | null;
+  earned: { creatorGems: number; creatorUsd: number; partnerUsd: number; profitUsd: number; margin: number | null };
+  owed: { cashoutsUsd: number; cashoutsCount: number; gems: number; gemsUsd: number; gemsHolders: number; partnersUsd: number; partnerPayoutsRequested: number; totalUsd: number };
+  byMethod: { method: PaymentMethod; usd: number; count: number; refundsUsd: number; feeRate: number; feesUsd: number; netUsd: number }[];
   byProduct: { productType: string; productId: string; usd: number; count: number }[];
   payouts: { status: CashoutStatus; usd: number; count: number }[];
   payoutsPendingUsd: number;
   payoutsPendingCount: number;
+  series: FinanceDay[];
 }
 
 // ── moderation ────────────────────────────────────────────────────────────

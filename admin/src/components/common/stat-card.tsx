@@ -10,6 +10,7 @@ const TONES = {
   primary: "bg-primary-soft text-primary",
   trust: "bg-trust-soft text-trust",
   money: "bg-money-soft text-money",
+  ok: "bg-ok-soft text-ok",
   bad: "bg-bad-soft text-bad",
   warn: "bg-warn-soft text-warn",
   info: "bg-info-soft text-info",

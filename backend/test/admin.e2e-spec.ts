@@ -334,6 +334,20 @@ describe('admin panel API', () => {
       const s = await t.http.get('/v1/admin/finance/summary').set(fin.auth).expect(200);
       expect(s.body.refundsCount).toBeGreaterThanOrEqual(1);
       expect(s.body.byMethod).toEqual(expect.any(Array));
+      // Profit and loss adds up: gross − refunds − fees = net; net − payouts = profit.
+      const b = s.body;
+      const cents = (n: number) => Math.round(n * 100);
+      expect(Math.abs(cents(b.grossUsd - b.refundsUsd - b.feesUsd - b.netUsd))).toBeLessThanOrEqual(1);
+      expect(Math.abs(cents(b.netUsd - b.creatorPaidUsd - b.partnerPaidUsd - b.profitUsd))).toBeLessThanOrEqual(1);
+      expect(Math.abs(cents(b.netUsd - b.earned.creatorUsd - b.earned.partnerUsd - b.earned.profitUsd))).toBeLessThanOrEqual(1);
+      expect(b.creatorPaidUsd).toBeGreaterThanOrEqual(25); // the approved $25 cash-out above
+      expect(b.grossUsd).toBeGreaterThanOrEqual(4.99); // the refunded purchase still counts as a sale, then as a refund
+      expect(b.series).toHaveLength(30);
+      expect(Math.abs(b.series.at(-1).cumulativeProfitUsd - b.profitUsd)).toBeLessThanOrEqual(0.05);
+      expect(b.owed).toMatchObject({ gemsUsd: expect.any(Number), partnersUsd: expect.any(Number), totalUsd: expect.any(Number) });
+      expect((await t.http.get('/v1/admin/finance/summary').query({ days: 7 }).set(fin.auth).expect(200)).body.series).toHaveLength(7);
+      // Fee rates are staff-only.
+      expect((await t.http.get('/v1/catalog').expect(200)).body.economy).not.toHaveProperty('storeFeeShare');
       const l = await t.http.get('/v1/admin/ledger').query({ kind: 'REFUND' }).set(fin.auth).expect(200);
       expect(l.body.items.every((e: { kind: string }) => e.kind === 'REFUND')).toBe(true);
     });

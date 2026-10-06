@@ -25,7 +25,7 @@ describe('economy (editable prices and rules)', () => {
     const e = (await t.http.get('/v1/admin/economy').set(viewer.auth).expect(200)).body;
     expect(e.economy.welcomeCoins).toBe(30);
     expect(e.defaults.packs).toHaveLength(5);
-    expect(e.groups.map((g: { key: string }) => g.key)).toEqual(['matching', 'social', 'rewards', 'gems', 'vip', 'engagement', 'referrals', 'affiliates', 'safety']);
+    expect(e.groups.map((g: { key: string }) => g.key)).toEqual(['matching', 'social', 'rewards', 'gems', 'vip', 'engagement', 'referrals', 'affiliates', 'fees', 'safety']);
     const engagement = e.groups.find((g: { key: string }) => g.key === 'engagement');
     expect(engagement.fields.find((f: { key: string }) => f.key === 'vibeHourStart')).toMatchObject({ kind: 'clock', min: 0, max: 1439 });
     expect(e.sections.rules).toMatchObject({ custom: false, updatedBy: null });

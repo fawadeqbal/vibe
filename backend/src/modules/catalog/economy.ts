@@ -80,6 +80,15 @@ export interface EconomyRules {
   affiliateHoldDays: number;
   affiliateMinPayoutUsdCents: number;
 
+  /**
+   * Fees we pay on each sale, as a fraction of it (0.15 = 15%). Only used to
+   * work out net revenue and profit for staff — nobody is charged these.
+   */
+  storeFeeShare: number;
+  walletFeeShare: number;
+  cardFeeShare: number;
+  bankFeeShare: number;
+
   minAge: number;
   autoBanReports: number;
   autoBanWindowHours: number;
@@ -230,6 +239,17 @@ export const RULE_GROUPS: RuleGroup[] = [
     ],
   },
   {
+    key: 'fees',
+    label: 'Fees we pay',
+    description: 'What the app stores and payment companies keep from each sale. Only used to work out net revenue and profit on the Revenue page; nobody is charged these. Set them to the rates in your agreements.',
+    fields: [
+      { key: 'storeFeeShare', label: 'Google Play and App Store', help: '15% up to $1M a year in sales, 30% above that.', kind: 'share', min: 0, max: 0.5 },
+      { key: 'walletFeeShare', label: 'JazzCash and Easypaisa', kind: 'share', min: 0, max: 0.2 },
+      { key: 'cardFeeShare', label: 'Cards', kind: 'share', min: 0, max: 0.2 },
+      { key: 'bankFeeShare', label: 'Bank transfer', kind: 'share', min: 0, max: 0.2 },
+    ],
+  },
+  {
     key: 'safety',
     label: 'Safety',
     description: 'Age limit and automatic bans. One under-age report always bans.',
@@ -243,6 +263,29 @@ export const RULE_GROUPS: RuleGroup[] = [
 ];
 
 export const RULE_FIELDS: RuleField[] = RULE_GROUPS.flatMap((g) => g.fields);
+
+/** Staff-only numbers, left out of the public catalog the apps download. */
+export const PRIVATE_RULES: readonly RuleKey[] = ['storeFeeShare', 'walletFeeShare', 'cardFeeShare', 'bankFeeShare'];
+
+export const publicRules = (r: EconomyRules): Partial<EconomyRules> => Object.fromEntries(Object.entries(r).filter(([k]) => !PRIVATE_RULES.includes(k as RuleKey))) as Partial<EconomyRules>;
+
+/** The share of a sale the store or payment company keeps, by payment method. */
+export function feeShareFor(method: string, r: Pick<EconomyRules, 'storeFeeShare' | 'walletFeeShare' | 'cardFeeShare' | 'bankFeeShare'>): number {
+  switch (method) {
+    case 'GOOGLE_PLAY':
+    case 'APP_STORE':
+      return r.storeFeeShare;
+    case 'JAZZCASH':
+    case 'EASYPAISA':
+      return r.walletFeeShare;
+    case 'CARD':
+      return r.cardFeeShare;
+    case 'BANK':
+      return r.bankFeeShare;
+    default:
+      return 0;
+  }
+}
 
 export const DEFAULT_RULES: EconomyRules = {
   genderFilterCost: 10,
@@ -305,6 +348,11 @@ export const DEFAULT_RULES: EconomyRules = {
   affiliateStoreFeePercent: 15,
   affiliateHoldDays: 14,
   affiliateMinPayoutUsdCents: 1000,
+
+  storeFeeShare: 0.15,
+  walletFeeShare: 0.02,
+  cardFeeShare: 0.03,
+  bankFeeShare: 0,
 
   minAge: 18,
   autoBanReports: 3,

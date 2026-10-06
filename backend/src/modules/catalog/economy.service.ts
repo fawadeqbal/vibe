@@ -30,6 +30,7 @@ import {
   packTotalCoins,
   PacksSchema,
   PlansSchema,
+  publicRules,
   RULE_FIELDS,
   RULE_GROUPS,
   RulesPatchSchema,
@@ -122,7 +123,7 @@ export class EconomyService implements OnModuleInit, OnModuleDestroy {
   catalog() {
     return {
       version: this.version,
-      economy: this.snap.rules,
+      economy: publicRules(this.snap.rules),
       packs: this.snap.packs.map((p) => ({ ...p, totalCoins: packTotalCoins(p) })),
       plans: this.snap.plans,
       gifts: this.snap.gifts.map((g) => ({ ...g, gems: this.gemsFor(g) })),
@@ -140,6 +141,7 @@ export class EconomyService implements OnModuleInit, OnModuleDestroy {
     const names = new Map(staff.map((s) => [s.id, s.name]));
     return {
       ...this.catalog(),
+      economy: this.snap.rules,
       defaults: {
         economy: DEFAULT_ECONOMY.rules,
         packs: DEFAULT_ECONOMY.packs.map((p) => ({ ...p, totalCoins: packTotalCoins(p) })),
