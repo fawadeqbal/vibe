@@ -12,9 +12,11 @@ import 'core/api/realtime_client.dart';
 import 'core/config/integrations_config.dart';
 import 'core/mock/mock_backend.dart';
 import 'providers/catalog_provider.dart';
+import 'providers/engagement_provider.dart';
 import 'providers/follows_provider.dart';
 import 'providers/inbox_provider.dart';
 import 'providers/match_provider.dart';
+import 'providers/moments_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/social_provider.dart';
 import 'providers/wallet_provider.dart';
@@ -58,6 +60,8 @@ Future<void> main() async {
   final InboxProvider inbox;
   final CatalogProvider catalog;
   final FollowsProvider follows;
+  final EngagementProvider engagement;
+  final MomentsProvider moments;
   if (api != null && realtime != null) {
     session = RemoteSessionProvider(api);
     wallet = RemoteWalletProvider(api, realtime);
@@ -66,6 +70,8 @@ Future<void> main() async {
     inbox = RemoteInboxProvider(api, realtime);
     catalog = RemoteCatalogProvider(api, realtime);
     follows = RemoteFollowsProvider(api, realtime);
+    engagement = RemoteEngagementProvider(api, realtime);
+    moments = RemoteMomentsProvider(api, realtime, session);
   } else {
     session = SessionProvider(backend);
     wallet = WalletProvider(backend);
@@ -74,6 +80,8 @@ Future<void> main() async {
     inbox = InboxProvider();
     catalog = CatalogProvider();
     follows = FollowsProvider(backend, social);
+    engagement = EngagementProvider(backend);
+    moments = MomentsProvider(backend, session);
   }
 
   final services = _buildServices(config, api: api, backend: backend, wallet: wallet);
@@ -82,6 +90,8 @@ Future<void> main() async {
     session.addSignOutHook(() => services.push.unregister(api));
     session.addSignOutHook(services.social.signOut);
     session.addSignOutHook(() async => follows.clear());
+    session.addSignOutHook(() async => engagement.clear());
+    session.addSignOutHook(() async => moments.clear());
   }
 
   runApp(
@@ -98,6 +108,8 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: match),
         ChangeNotifierProvider.value(value: inbox),
         ChangeNotifierProvider.value(value: catalog),
+        ChangeNotifierProvider.value(value: engagement),
+        ChangeNotifierProvider.value(value: moments),
       ],
       child: VibeApp(realtime: realtime),
     ),

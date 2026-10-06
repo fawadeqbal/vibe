@@ -12,6 +12,7 @@ import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { EconomyService } from '../catalog/economy.service';
 import { WalletService } from '../wallet/wallet.service';
 import { FriendsService } from './friends.service';
+import { StreakService } from './streak.service';
 
 export const FRIEND_MESSAGE = 'social.message';
 export interface FriendMessageEvent {
@@ -42,6 +43,7 @@ export class MessagesService {
     private readonly clock: Clock,
     private readonly events: EventEmitter2,
     private readonly economy: EconomyService,
+    private readonly streaks: StreakService,
   ) {}
 
   private toView(m: Message, me: string, friendId: string): MessageView {
@@ -64,6 +66,7 @@ export class MessagesService {
       return msg;
     });
     this.push(m, me, friendId);
+    await this.streaks.noteMessage(me, friendId);
     return this.toView(m, me, friendId);
   }
 
@@ -82,6 +85,7 @@ export class MessagesService {
       return msg;
     });
     this.push(m, me, friendId);
+    await this.streaks.noteMessage(me, friendId);
     return this.toView(m, me, friendId);
   }
 

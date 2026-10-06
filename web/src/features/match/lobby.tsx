@@ -11,13 +11,16 @@ import { OnlineDot, Tag } from "@/components/ui/misc";
 import { CoinAmount, CoinChip } from "@/components/ui/money";
 import type { Tone } from "@/lib/colors";
 import { thousands, until } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { useCatalog } from "@/stores/catalog";
+import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { filterCost, isBoosted, isVip, useWallet } from "@/stores/wallet";
 
 import { openFiltersSheet } from "./filters-sheet";
 import { countryLabel, genderFilterIcon, genderFilterLabel, onlineEstimate } from "./labels";
+import { FriendsOnline, VibeHourBanner } from "./lobby-extras";
 import { openSafetySheet } from "./safety-sheet";
 import { SelfVideo } from "./self-video";
 import { confirmBoost } from "./use-match-actions";
@@ -38,9 +41,15 @@ export function Lobby({ onStart }: { onStart: () => void }) {
   const cameraActive = useMatch((s) => s.cameraActive);
   const lastError = useMatch((s) => s.lastError);
   const setFilters = useMatch((s) => s.setFilters);
+  const vibeHourWindow = useEngagement((s) => s.vibeHour);
+  const now = useNow(5000, !!vibeHourWindow?.startsAt);
+  const vibeHour = isVibeHour({ vibeHour: vibeHourWindow }, now);
   const vip = isVip(wallet);
   const boosted = isBoosted(wallet);
-  const cost = filterCost(filters, vip);
+  const freeBoost = !boosted && wallet.freeBoosts > 0;
+  const cost = filterCost(filters, vip || vibeHour);
+  /** Paid filters read "Free" during Vibe Hour (VIP has them free anyway). */
+  const freeTag = vibeHour && !vip ? <span className="type-label ml-1 rounded-[8px] bg-ok/16 px-1.5 py-0.5 text-[10.5px] text-ok">Free</span> : null;
 
   return (
     <div className="absolute inset-0">
@@ -67,7 +76,15 @@ export function Lobby({ onStart }: { onStart: () => void }) {
               <RoundControl icon="videocam_off" size={40} onClick={() => useMatch.getState().stopPreview()} ariaLabel="Turn off preview" />
             </span>
           ) : null}
+          <span className="mr-2">
+            <RoundControl icon="emoji_events" size={40} onClick={() => router.push("/leaderboard")} ariaLabel="This week's top" />
+          </span>
           <CoinChip coins={wallet.coins} glass onClick={() => router.push("/store")} />
+        </div>
+
+        <div className="mt-3 flex flex-col items-center gap-2 px-4 empty:hidden">
+          <VibeHourBanner />
+          <FriendsOnline />
         </div>
 
         <div className="flex flex-1 items-center justify-center">
@@ -90,10 +107,27 @@ export function Lobby({ onStart }: { onStart: () => void }) {
               fontSize={13}
               icon={genderFilterIcon[filters.gender]}
               label={genderFilterLabel[filters.gender]}
-              trailing={<Icon name="expand_more" size={16} className="text-text2" />}
+              trailing={
+                <>
+                  {filters.gender !== "anyone" ? freeTag : null}
+                  <Icon name="expand_more" size={16} className="text-text2" />
+                </>
+              }
               onClick={() => void openFiltersSheet()}
             />
-            <GlassPill height={40} fontSize={13} icon="public" label={countryLabel(filters.countryCode)} trailing={<Icon name="expand_more" size={16} className="text-text2" />} onClick={() => void openFiltersSheet()} />
+            <GlassPill
+              height={40}
+              fontSize={13}
+              icon="public"
+              label={countryLabel(filters.countryCode)}
+              trailing={
+                <>
+                  {filters.countryCode ? freeTag : null}
+                  <Icon name="expand_more" size={16} className="text-text2" />
+                </>
+              }
+              onClick={() => void openFiltersSheet()}
+            />
             <GlassPill
               height={40}
               fontSize={13}
@@ -111,11 +145,13 @@ export function Lobby({ onStart }: { onStart: () => void }) {
               icon="bolt"
               iconColor="gold"
               tint={boosted ? "gold" : undefined}
-              ariaLabel={boosted ? "Boosted" : `Boost for ${boostCost} coins`}
+              ariaLabel={boosted ? "Boosted" : freeBoost ? "Free boost" : `Boost for ${boostCost} coins`}
               onClick={() => void confirmBoost()}
               label={
                 boosted ? (
                   <span className="type-label text-[11.5px] text-gold">{until(wallet.boostUntil!)}</span>
+                ) : freeBoost ? (
+                  <span className="type-label text-[11.5px] text-gold">Free boost</span>
                 ) : (
                   <span className="type-label text-[11.5px] text-white/85">
                     Boost · <span className="text-gold">{boostCost}</span>

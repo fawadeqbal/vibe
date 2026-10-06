@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -12,15 +13,20 @@ import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/follows.dart';
 import '../../models/models.dart';
+import '../../providers/engagement_provider.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../profile/leaderboard_screen.dart';
+import '../profile/progress.dart';
 import '../profile/user_profile_screen.dart';
 import '../store/store_screen.dart';
 import '../store/vip_screen.dart';
 import 'filters_sheet.dart';
 import 'gift_sheet.dart';
+import 'icebreakers.dart';
+import 'lobby_extras.dart';
 import 'report_sheet.dart';
 import 'safety_sheet.dart';
 
@@ -44,6 +50,8 @@ class _MatchScreenState extends State<MatchScreen> {
   bool _burstReceived = false;
   int _burstSeq = 0;
   int _seenChat = 0;
+  late int _seenMutual = context.read<MatchProvider>().mutualSeq;
+  bool _celebrating = false;
 
   // The camera is not opened here: the lobby preview is opt-in and the
   // provider opens/closes it (see MatchProvider "camera").
@@ -165,6 +173,20 @@ class _MatchScreenState extends State<MatchScreen> {
     }
   }
 
+  Future<void> _play() async {
+    final m = context.read<MatchProvider>();
+    final g = await showGamePicker(context);
+    if (g == null || !mounted) return;
+    await _safely(() async {
+      try {
+        await m.startGame(g);
+      } on ApiException catch (e) {
+        if (e.code == 'RATE_LIMITED' && mounted) return toast(context, 'One moment…', error: true);
+        rethrow;
+      }
+    });
+  }
+
   Future<void> _report() async {
     final m = context.read<MatchProvider>();
     final p = m.partner;
@@ -191,7 +213,7 @@ class _MatchScreenState extends State<MatchScreen> {
 
   Future<void> _reconnect() async {
     final m = context.read<MatchProvider>();
-    if (!await m.reconnect()) await _explainFailure(m, 'Reconnecting costs ${Economy.reconnectCost} coins.');
+    if (!await m.reconnect()) await _explainFailure(m, 'Reconnecting costs ${m.reconnectPrice} coins.');
   }
 
   @override
@@ -217,6 +239,21 @@ class _MatchScreenState extends State<MatchScreen> {
       });
     }
     if (m.state == MatchState.idle || m.state == MatchState.ended) _seenChat = 0;
+    // Both liked each other → "It's a vibe!" once.
+    if (m.mutualSeq > _seenMutual) {
+      _seenMutual = m.mutualSeq;
+      if (m.isConnected) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _celebrating = true);
+        });
+      }
+    }
+    if (!m.isConnected && _celebrating) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _celebrating = false);
+      });
+    }
+    final fs = m.friendState;
 
     return Scaffold(
       backgroundColor: V.bg,
@@ -227,11 +264,24 @@ class _MatchScreenState extends State<MatchScreen> {
           fit: StackFit.expand,
           children: [
             switch (m.state) {
-              MatchState.connected => _Connected(m: m, onNext: _next, onGift: _gift, onAddFriend: _addFriend, onReport: _report, message: _message, chatScroll: _chatScroll),
+              MatchState.connected => _Connected(m: m, onNext: _next, onGift: _gift, onAddFriend: _addFriend, onReport: _report, onPlay: _play, message: _message, chatScroll: _chatScroll),
               MatchState.searching => _Searching(m: m),
               MatchState.ended when m.lastPartner != null => _Ended(m: m, onReconnect: _reconnect, onFindAnother: _start, onReport: _reportLast),
               _ => _Lobby(m: m, onStart: _start, onOpenStore: widget.onOpenStore),
             },
+            if (_celebrating && m.isConnected && m.partner != null)
+              Positioned.fill(
+                child: Center(
+                  child: MutualCelebration(
+                    name: m.partner!.name,
+                    onDone: () {
+                      if (mounted) setState(() => _celebrating = false);
+                    },
+                    // The same in-call friend action as the + button.
+                    onAddFriend: fs == FriendState.none || fs == FriendState.incoming ? _addFriend : null,
+                  ),
+                ),
+              ),
             if (_burst != null)
               Positioned.fill(
                 child: IgnorePointer(
@@ -251,14 +301,17 @@ class _MatchScreenState extends State<MatchScreen> {
 Future<void> confirmBoost(BuildContext context) async {
   final wallet = context.read<WalletProvider>();
   if (wallet.isBoosted) return;
+  final free = wallet.freeBoosts;
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Boost for 30 minutes?'),
-      content: Text('You go to the front of the queue — faster matches, more of them. ${Economy.boostCost} coins.'),
+      title: Text(free > 0 ? 'Use your free boost?' : 'Boost for 30 minutes?'),
+      content: Text(free > 0
+          ? 'You go to the front of the queue for 30 minutes — on us. ${free == 1 ? 'You have 1 free boost.' : 'You have $free free boosts.'}'
+          : 'You go to the front of the queue — faster matches, more of them. ${Economy.boostCost} coins.'),
       actions: [
         TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Not now', style: TextStyle(color: V.text2))),
-        TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text('Boost · ${Economy.boostCost}', style: const TextStyle(color: V.gold))),
+        TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(free > 0 ? 'Free boost' : 'Boost · ${Economy.boostCost}', style: const TextStyle(color: V.gold))),
       ],
     ),
   );
@@ -338,6 +391,8 @@ class _Lobby extends StatelessWidget {
   Widget build(BuildContext context) {
     final wallet = context.watch<WalletProvider>();
     final me = context.watch<SessionProvider>().me;
+    // Vibe Hour: filters are free (the chips say so).
+    final vibeHour = context.watch<EngagementProvider>().vibeHourActive;
     final cost = m.filterCost;
     final f = m.filters;
     final camLive = m.hasLocalVideo && m.camOn;
@@ -378,11 +433,27 @@ class _Lobby extends StatelessWidget {
                         padding: const EdgeInsets.only(right: 8),
                         child: CircleIconButton(icon: Icons.videocam_off_rounded, iconSize: 20, onTap: m.stopPreview, tooltip: 'Turn off preview', background: Colors.black.withValues(alpha: 0.35)),
                       ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: CircleIconButton(
+                        icon: Icons.emoji_events_rounded,
+                        iconSize: 20,
+                        color: V.level,
+                        tooltip: "This week's top",
+                        background: Colors.black.withValues(alpha: 0.35),
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LeaderboardScreen())),
+                      ),
+                    ),
                     CoinChip(coins: wallet.coins, onTap: onOpenStore, glass: true),
                   ],
                 ),
               ),
-              Expanded(child: Center(child: camLive ? const SizedBox.shrink() : (m.previewOn && m.cameraActive ? const _CameraStarting() : _PreviewPrompt(m: m)))),
+              const SizedBox(height: 10),
+              const VibeHourBanner(),
+              // Shrinks on short phones (Vibe Hour banner + friends row take room).
+              Expanded(child: Center(child: camLive ? const SizedBox.shrink() : (m.previewOn && m.cameraActive ? const _CameraStarting() : FittedBox(fit: BoxFit.scaleDown, child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: _PreviewPrompt(m: m)))))),
+              const FriendsOnlineRow(),
+              const SizedBox(height: 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -407,7 +478,7 @@ class _Lobby extends StatelessWidget {
                       fontSize: 13,
                       icon: switch (f.gender) { GenderFilter.women => Icons.female_rounded, GenderFilter.men => Icons.male_rounded, _ => Icons.group_rounded },
                       label: _genderLabel(f.gender),
-                      trailing: const Icon(Icons.expand_more_rounded, size: 16, color: V.text2),
+                      trailing: vibeHour ? const _FreeTag() : const Icon(Icons.expand_more_rounded, size: 16, color: V.text2),
                       onTap: () => showFiltersSheet(context),
                     ),
                     GlassPill(
@@ -415,7 +486,7 @@ class _Lobby extends StatelessWidget {
                       fontSize: 13,
                       icon: Icons.public_rounded,
                       label: _countryLabel(f.countryCode),
-                      trailing: const Icon(Icons.expand_more_rounded, size: 16, color: V.text2),
+                      trailing: vibeHour ? const _FreeTag() : const Icon(Icons.expand_more_rounded, size: 16, color: V.text2),
                       onTap: () => showFiltersSheet(context),
                     ),
                     GlassPill(
@@ -446,8 +517,10 @@ class _Lobby extends StatelessWidget {
                       tint: wallet.isBoosted ? V.gold : null,
                       label: wallet.isBoosted
                           ? Text(Fmt.until(wallet.wallet.boostUntil!), style: VT.label(11.5, color: V.gold))
-                          : Text.rich(TextSpan(children: [TextSpan(text: 'Boost · ', style: VT.label(11.5, color: Colors.white.withValues(alpha: 0.85))), TextSpan(text: '${Economy.boostCost}', style: VT.label(11.5, color: V.gold))])),
-                      semantics: wallet.isBoosted ? 'Boosted' : 'Boost for ${Economy.boostCost} coins',
+                          : wallet.freeBoosts > 0
+                              ? Text('Free boost', style: VT.label(11.5, color: V.gold))
+                              : Text.rich(TextSpan(children: [TextSpan(text: 'Boost · ', style: VT.label(11.5, color: Colors.white.withValues(alpha: 0.85))), TextSpan(text: '${Economy.boostCost}', style: VT.label(11.5, color: V.gold))])),
+                      semantics: wallet.isBoosted ? 'Boosted' : (wallet.freeBoosts > 0 ? 'Use a free boost' : 'Boost for ${Economy.boostCost} coins'),
                       onTap: () => confirmBoost(context),
                     ),
                     _Shutter(onTap: onStart, cost: cost),
@@ -484,6 +557,13 @@ class _Lobby extends StatelessWidget {
     final base = h >= 20 || h < 2 ? 2400 : h >= 12 ? 1500 : 700;
     return base + DateTime.now().minute * 7;
   }
+}
+
+/// "Free" on a filter chip while Vibe Hour runs.
+class _FreeTag extends StatelessWidget {
+  const _FreeTag();
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(left: 4), child: Text('Free', style: VT.label(11.5, color: V.ok)));
 }
 
 /// The big round "shutter" Start button in the thumb zone.
@@ -564,12 +644,48 @@ class _SideAction extends StatelessWidget {
 
 /// A recap, not an alert: their portrait blurs behind, the numbers become a
 /// readable row, and reporting stays reachable after the call.
-class _Ended extends StatelessWidget {
+class _Ended extends StatefulWidget {
   const _Ended({required this.m, required this.onReconnect, required this.onFindAnother, required this.onReport});
   final MatchProvider m;
   final VoidCallback onReconnect;
   final VoidCallback onFindAnother;
   final VoidCallback onReport;
+
+  @override
+  State<_Ended> createState() => _EndedState();
+}
+
+class _EndedState extends State<_Ended> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    // "Free for 9:41" counts down; then the coin price comes back.
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (!widget.m.reconnectFree) {
+        _tick?.cancel();
+        _tick = null;
+      }
+      setState(() {});
+    });
+    if (!widget.m.reconnectFree) {
+      _tick?.cancel();
+      _tick = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  MatchProvider get m => widget.m;
+  VoidCallback get onReconnect => widget.onReconnect;
+  VoidCallback get onFindAnother => widget.onFindAnother;
+  VoidCallback get onReport => widget.onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -659,21 +775,35 @@ class _Ended extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (m.lastMutual) ...[
+                            const SizedBox(height: 14),
+                            Text('You liked each other 💞', textAlign: TextAlign.center, style: VT.label(14, color: V.pinkSoft)),
+                          ],
                           const SizedBox(height: 20),
                           GradientButton(label: 'Find someone else', onTap: onFindAnother, icon: Icons.videocam_rounded),
                           if (!reported) ...[
                             const SizedBox(height: 10),
                             GhostButton(
-                              label: 'Reconnect with ${p.name}',
+                              label: m.reconnectFree ? 'Reconnect' : 'Reconnect with ${p.name}',
                               icon: Icons.replay_rounded,
                               expand: true,
                               onTap: onReconnect,
-                              trailing: Container(
-                                height: 22,
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                decoration: BoxDecoration(color: V.gold.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
-                                child: CoinAmount(Economy.reconnectCost, size: 12),
-                              ),
+                              trailing: m.reconnectFree
+                                  ? Container(
+                                      height: 22,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      decoration: BoxDecoration(color: V.ok.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
+                                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                        Text('Free for ', style: VT.label(12, color: V.ok)),
+                                        Text(countdown(m.freeReconnectUntil!.difference(DateTime.now())), style: VT.mono(12, color: V.ok, weight: FontWeight.w600)),
+                                      ]),
+                                    )
+                                  : Container(
+                                      height: 22,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      decoration: BoxDecoration(color: V.gold.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
+                                      child: CoinAmount(m.reconnectPrice, size: 12),
+                                    ),
                             ),
                             const SizedBox(height: 6),
                             TextButton.icon(
@@ -824,8 +954,12 @@ class _Searching extends StatelessWidget {
                         children: [
                           const Icon(Icons.bolt_rounded, size: 15, color: V.gold),
                           const SizedBox(width: 6),
-                          Text('Boost to the front of the queue · ', style: VT.label(12.5, weight: FontWeight.w500)),
-                          Text('${Economy.boostCost}', style: VT.label(12.5, color: V.gold)),
+                          if (wallet.freeBoosts > 0)
+                            Text('Use your free boost', style: VT.label(12.5, color: V.gold))
+                          else ...[
+                            Text('Boost to the front of the queue · ', style: VT.label(12.5, weight: FontWeight.w500)),
+                            Text('${Economy.boostCost}', style: VT.label(12.5, color: V.gold)),
+                          ],
                         ],
                       ),
                     ),
@@ -851,12 +985,13 @@ class _Searching extends StatelessWidget {
 // ── connected ──────────────────────────────────────────────────────────
 
 class _Connected extends StatelessWidget {
-  const _Connected({required this.m, required this.onNext, required this.onGift, required this.onAddFriend, required this.onReport, required this.message, required this.chatScroll});
+  const _Connected({required this.m, required this.onNext, required this.onGift, required this.onAddFriend, required this.onReport, required this.onPlay, required this.message, required this.chatScroll});
   final MatchProvider m;
   final VoidCallback onNext;
   final VoidCallback onGift;
   final VoidCallback onAddFriend;
   final VoidCallback onReport;
+  final VoidCallback onPlay;
   final TextEditingController message;
   final ScrollController chatScroll;
 
@@ -902,7 +1037,15 @@ class _Connected extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        VAvatar(url: p.avatarUrl, name: p.name, size: 36),
+                        // "Lv 7" pinned under their photo: always room for it.
+                        Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.bottomCenter,
+                          children: [
+                            VAvatar(url: p.avatarUrl, name: p.name, size: 36),
+                            if (p.level > 0) Positioned(bottom: -6, child: LevelChip(level: p.level, glass: true, size: 8.5)),
+                          ],
+                        ),
                         const SizedBox(width: 10),
                         Flexible(
                           child: Column(
@@ -1010,7 +1153,11 @@ class _Connected extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _ChatOverlay(m: m, controller: chatScroll),
+              if (m.game != null) ...[
+                GameCard(m: m, round: m.game!),
+                const SizedBox(height: 10),
+              ],
+              _ChatOverlay(m: m, controller: chatScroll, maxHeight: m.game != null ? 84 : 168),
               const SizedBox(height: 14),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1034,12 +1181,26 @@ class _Connected extends StatelessWidget {
                       color: friendState == FriendState.friends ? V.ok : Colors.white,
                       tint: friendState == FriendState.incoming ? V.violet : null,
                     ),
-                    RoundControl(icon: Icons.more_horiz_rounded, onTap: () => _more(context), label: 'More'),
+                    RoundControl(icon: Icons.casino_rounded, onTap: onPlay, label: 'Play', color: V.lavender, tint: m.game != null ? V.violet : null),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
-              Glass(
+              Row(
+                children: [
+                  // Call options (mute, camera, block, end) sit by the composer.
+                  Semantics(
+                    button: true,
+                    label: 'Call options',
+                    excludeSemantics: true,
+                    child: GestureDetector(
+                      onTap: () => _more(context),
+                      child: Glass(radius: 26, height: 52, padding: EdgeInsets.zero, border: Colors.white.withValues(alpha: 0.14), child: const SizedBox(width: 52, child: Icon(Icons.more_horiz_rounded, color: Colors.white))),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Glass(
                 radius: 26,
                 height: 52,
                 border: Colors.white.withValues(alpha: 0.14),
@@ -1077,6 +1238,9 @@ class _Connected extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1171,9 +1335,10 @@ class _NextButton extends StatelessWidget {
 }
 
 class _ChatOverlay extends StatelessWidget {
-  const _ChatOverlay({required this.m, required this.controller});
+  const _ChatOverlay({required this.m, required this.controller, this.maxHeight = 168});
   final MatchProvider m;
   final ScrollController controller;
+  final double maxHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -1181,7 +1346,7 @@ class _ChatOverlay extends StatelessWidget {
     if (items.isEmpty) return const SizedBox.shrink();
     final maxW = MediaQuery.of(context).size.width * 0.72;
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 168),
+      constraints: BoxConstraints(maxHeight: maxHeight),
       child: ShaderMask(
         // Fade the oldest lines out at the top edge.
         shaderCallback: (r) => const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0, 0.18], colors: [Colors.transparent, Colors.black]).createShader(r),

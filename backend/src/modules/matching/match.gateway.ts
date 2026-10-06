@@ -2,9 +2,12 @@ import { UseFilters, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, SubscribeMessage, WebSocketGateway } from '@nestjs/websockets';
 import type { Socket } from 'socket.io';
 
+import { AppError } from '../../common/errors/app-error';
+import { ErrorCode } from '../../common/errors/error-codes';
 import { WsExceptionFilter } from '../../common/filters/ws-exception.filter';
 import type { AuthUser } from '../../common/types/auth-user';
-import { ChatDto, GiftDto, JoinDto, MatchReportDto, NextDto, SignalDto } from './dto/match.dto';
+import { ChatDto, GameDto, GiftDto, JoinDto, MatchReportDto, NextDto, SignalDto } from './dto/match.dto';
+import { GameAction, MatchGamesService } from './match-games.service';
 import { MatchingService } from './matching.service';
 
 type Ack<T> = { ok: true; data: T };
@@ -19,7 +22,10 @@ const uid = (s: Socket) => (s.data.user as AuthUser).id;
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 @WebSocketGateway()
 export class MatchGateway {
-  constructor(private readonly matching: MatchingService) {}
+  constructor(
+    private readonly matching: MatchingService,
+    private readonly games: MatchGamesService,
+  ) {}
 
   @SubscribeMessage('match:join')
   async join(@ConnectedSocket() s: Socket, @MessageBody() dto: JoinDto) {
@@ -43,10 +49,17 @@ export class MatchGateway {
     return ok(null);
   }
 
+  /** Ack data: `{ mutual }` — true when they had already liked you (both also get `match:mutual`). */
   @SubscribeMessage('match:like')
   async like(@ConnectedSocket() s: Socket) {
-    await this.matching.like(uid(s));
-    return ok(null);
+    return ok(await this.matching.like(uid(s)));
+  }
+
+  /** Icebreaker games: `{ action: start|next|answer|close, game?, choice?, round? }`. */
+  @SubscribeMessage('match:game')
+  async game(@ConnectedSocket() s: Socket, @MessageBody() dto: GameDto) {
+    if (dto.action === 'start' && !dto.game) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Pick a game');
+    return ok(await this.games.handle(uid(s), dto as GameAction));
   }
 
   @SubscribeMessage('match:chat')

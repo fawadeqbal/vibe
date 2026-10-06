@@ -4,13 +4,20 @@ import { GoogleAuth } from '../../integrations/google/google-auth';
 import { FetchLike, ProviderHttp } from '../../integrations/core/provider-http';
 import { ServiceAccountKey } from '../../integrations/core/secrets';
 
+/**
+ * Android channel / notification group. `engagement` (streaks, Vibe Hour,
+ * win-back, recap) is capped per day; quiet hours hold back social,
+ * engagement and inbox — messages and payments always go.
+ */
+export type PushCategory = 'messages' | 'social' | 'payments' | 'inbox' | 'engagement';
+
 export interface PushMessage {
   title: string;
   body: string;
   /** Tells the app where to go when tapped (string values only — FCM rule). */
   data: Record<string, string>;
   /** Groups notifications (one per chat, etc.) and picks the Android channel. */
-  category: 'messages' | 'social' | 'payments' | 'inbox';
+  category: PushCategory;
   /** Replaces an earlier notification with the same key (Android tag / iOS thread). */
   collapseKey?: string;
 }

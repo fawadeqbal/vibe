@@ -35,6 +35,8 @@ export interface Profile {
   vip: boolean;
   matches: number;
   likes: number;
+  /** From XP; shown as a "Lv 7" chip. */
+  level: number;
 }
 
 /** "Photo, bio and 3 interests" unlocks the profile-completion bonus. */
@@ -128,6 +130,10 @@ export interface Wallet {
   streakDay: number;
   lastCheckIn: Date | null;
   profileBonusClaimed: boolean;
+  /** Gems you are saving towards (null = no goal). */
+  gemGoal: number | null;
+  /** Boosts given away (win-back); used before coins. */
+  freeBoosts: number;
 }
 
 export interface MatchFilters {
@@ -146,7 +152,26 @@ export interface Friend {
   lastMessage: string | null;
   unread: number;
   online: boolean;
+  streak: StreakView;
 }
+
+/** A friend streak from your side (the server derives it for "today"). */
+export interface StreakView {
+  count: number;
+  best: number;
+  /** Today already counted. */
+  today: boolean;
+  /** Counted yesterday, not yet today: ends at midnight. */
+  atRisk: boolean;
+  mineToday: boolean;
+  theirsToday: boolean;
+  /** Broke yesterday; `restoreCost` brings back `lostCount` (0 for VIP). */
+  restorable: boolean;
+  lostCount: number;
+  restoreCost: number;
+}
+
+export const NO_STREAK: StreakView = { count: 0, best: 0, today: false, atRisk: false, mineToday: false, theirsToday: false, restorable: false, lostCount: 0, restoreCost: 0 };
 
 export interface ChatMessage {
   id: string;
@@ -154,6 +179,8 @@ export interface ChatMessage {
   text: string;
   at: Date;
   gift?: Gift | null;
+  /** Extra gems on a received gift (Vibe Hour). */
+  bonusGems?: number;
 }
 
 export type ReportReason = "nudity" | "harassment" | "underage" | "spam" | "scam" | "other";
@@ -220,6 +247,9 @@ export interface ProfileView {
   counts: { followers: number; following: number } | null;
   stats: ProfileStats | "hidden" | null;
   online: boolean | null;
+  level: number;
+  /** Earned badge ids. */
+  badges: string[];
 }
 
 export interface FollowEntry {
@@ -234,4 +264,109 @@ export interface FollowSettings {
   following: number;
   privateAccount: boolean;
   hideStats: boolean;
+}
+
+// ── engagement ───────────────────────────────────────────────────────────
+
+/** Level from XP: `levelXp` is where this level started, `nextLevelXp` where the next one starts. */
+export interface LevelProgress {
+  level: number;
+  xp: number;
+  levelXp: number;
+  nextLevelXp: number;
+}
+
+export interface Badge {
+  id: string;
+  name: string;
+  emoji: string;
+  earned: boolean;
+  progress: number;
+  target: number;
+}
+
+/** GET /me/progress. */
+export interface Progress extends LevelProgress {
+  weekXp: number;
+  badges: Badge[];
+}
+
+/** The daily Vibe Hour: the current window if active, else the next one (null when off). */
+export interface VibeHour {
+  active: boolean;
+  startsAt: Date | null;
+  endsAt: Date | null;
+}
+
+export type Board = "xp" | "gems";
+
+export interface LeaderboardRow {
+  rank: number;
+  profile: Profile;
+  score: number;
+}
+
+export interface Leaderboard {
+  board: Board;
+  weekStart: Date;
+  weekEnd: Date;
+  top: LeaderboardRow[];
+  me: { rank: number | null; score: number };
+}
+
+/** Last week's numbers (GET /me/recap). */
+export interface WeeklyRecap {
+  weekStart: Date;
+  weekEnd: Date;
+  gemsEarned: number;
+  giftsReceived: number;
+  likesReceived: number;
+  newFollowers: number;
+  matches: number;
+  bestStreak: number;
+}
+
+/** A 24-hour photo. `viewsCount` only on your own. */
+export interface Moment {
+  id: string;
+  mediaUrl: string;
+  caption: string;
+  createdAt: Date;
+  expiresAt: Date;
+  seen: boolean;
+  viewsCount: number | null;
+}
+
+export interface MomentGroup {
+  author: Profile;
+  moments: Moment[];
+  allSeen: boolean;
+}
+
+export type GameId = "wyr" | "this_or_that" | "questions";
+
+/** The icebreaker on screen during a call. */
+export interface CallGame {
+  game: GameId;
+  round: number;
+  text: string;
+  /** Two options, or null for an open question. */
+  options: [string, string] | null;
+  by: "me" | "partner";
+  /** Your answer (0/1; -1 = answered an open question), null = not yet. */
+  mine: number | null;
+  /** Theirs, only once both answered. */
+  theirs: number | null;
+  partnerAnswered: boolean;
+  revealed: boolean;
+}
+
+/** Your settings from GET /me that the engagement screens edit. */
+export interface MePrefs {
+  xp: number;
+  gemGoal: number | null;
+  quietHoursStart: number | null;
+  quietHoursEnd: number | null;
+  tzOffsetMinutes: number;
+  breakReminderMinutes: number | null;
 }

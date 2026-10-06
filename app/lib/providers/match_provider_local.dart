@@ -64,6 +64,7 @@ class LocalMatchProvider extends MatchProvider {
   void _connect(Profile p) {
     _partner = p;
     _chat.clear();
+    resetCallExtras();
     _likedPartner = false;
     _partnerLikedMe = false;
     _partnerAskedToBeFriends = false;
@@ -80,6 +81,12 @@ class LocalMatchProvider extends MatchProvider {
     for (final ev in _backend.scriptFor(p)) {
       _timers.add(Timer(ev.at, () => _apply(ev)));
     }
+    // Some partners break the ice themselves (deterministic, no extra randomness).
+    if (p.id.hashCode.abs() % 3 == 0) {
+      _timers.add(Timer(const Duration(seconds: 18), () {
+        if (_state == MatchState.connected && _game == null) _showRound(IcebreakerGame.values[p.id.hashCode.abs() % 3], byMe: false);
+      }));
+    }
     notifyListeners();
   }
 
@@ -94,6 +101,7 @@ class LocalMatchProvider extends MatchProvider {
         _partnerLikedMe = true;
         _current = _current?.copyWith(likedMe: true);
         _session.bumpStats(likes: 1);
+        if (_likedPartner && _current != null) noteMutual(_current!.id);
         break;
       case PartnerAction.gift:
         final g = ev.gift;
@@ -113,6 +121,10 @@ class LocalMatchProvider extends MatchProvider {
     }
     notifyListeners();
   }
+
+  /// Test seam: the partner does [a] now (same path as the script).
+  @visibleForTesting
+  void debugPartnerAction(PartnerAction a, {String? text, Gift? gift}) => _apply(PartnerEvent(Duration.zero, a, text: text, gift: gift));
 
   /// Swipe to the next person. Enforces the skip cooldown (5 quick skips
   /// a minute, then a 10 s wait) unless bypassed with coins.
@@ -163,12 +175,18 @@ class LocalMatchProvider extends MatchProvider {
     _timers.clear();
     _ticker?.cancel();
     _ticker = null;
+    final mutual = _likedPartner && _partnerLikedMe;
     if (_current != null) {
       final rec = _current!.copyWith(endedAt: DateTime.now());
       _history.add(rec);
       unawaited(_backend.saveMatches(_history));
       _current = null;
     }
+    _game = null;
+    _lastMutual = mutual;
+    // Like the server: a mutual like keeps reconnecting free for a while.
+    _freeReconnectUntil = mutual && Economy.freeReconnectMinutes > 0 ? DateTime.now().add(Duration(minutes: Economy.freeReconnectMinutes)) : null;
+    _reconnectCost = Economy.reconnectCost;
     _lastPartner = _partner;
     _endReason = reason;
     _state = keepGoing ? MatchState.searching : MatchState.ended;
@@ -183,6 +201,7 @@ class LocalMatchProvider extends MatchProvider {
     if (_state != MatchState.connected || _likedPartner) return;
     _likedPartner = true;
     _current = _current?.copyWith(liked: true);
+    if (_partnerLikedMe && _current != null) noteMutual(_current!.id);
     notifyListeners();
   }
 
@@ -251,10 +270,12 @@ class LocalMatchProvider extends MatchProvider {
   Future<bool> reconnect() async {
     final p = _lastPartner;
     if (p == null || _state == MatchState.connected) return false;
-    if (!await _wallet.spend(Economy.reconnectCost, 'Reconnect with ${p.name}')) {
+    final cost = reconnectPrice;
+    if (cost > 0 && !await _wallet.spend(cost, 'Reconnect with ${p.name}')) {
       _needsCoins = true;
       return false;
     }
+    _freeReconnectUntil = null;
     _state = MatchState.searching;
     _lastPartner = null;
     notifyListeners();
@@ -263,6 +284,65 @@ class LocalMatchProvider extends MatchProvider {
     if (_state != MatchState.searching) return true;
     _connect(p);
     return true;
+  }
+
+  // ── icebreakers ───────────────────────────────────────────────────────
+
+  final Map<IcebreakerGame, int> _usedPrompts = {};
+
+  void _showRound(IcebreakerGame g, {required bool byMe}) {
+    final list = MockData.icebreakers[g]!;
+    final i = (_usedPrompts[g] ?? (_partner?.id.hashCode.abs() ?? 0)) % list.length;
+    _usedPrompts[g] = i + 1;
+    _pendingTheirs = null;
+    final (text, options) = list[i];
+    _game = GameRound(game: g, round: (_game?.round ?? 0) + 1, text: text, options: options, byMe: byMe);
+    _partnerAnswerLater(_game!.round);
+    notifyListeners();
+  }
+
+  /// The mock partner answers a moment later.
+  void _partnerAnswerLater(int round) {
+    final seed = (_partner?.id.hashCode.abs() ?? 0) + round;
+    _timers.add(Timer(Duration(milliseconds: 1200 + seed % 1800), () {
+      final g = _game;
+      if (_state != MatchState.connected || g == null || g.round != round || g.partnerAnswered) return;
+      final theirs = g.hasOptions ? seed % 2 : null;
+      _game = g.answered(partnerAnswered: true, revealed: g.iAnswered, theirs: g.iAnswered ? theirs : null);
+      _pendingTheirs = theirs;
+      notifyListeners();
+    }));
+  }
+
+  int? _pendingTheirs;
+
+  @override
+  Future<void> startGame(IcebreakerGame g) async {
+    if (_state != MatchState.connected) return;
+    _showRound(g, byMe: true);
+  }
+
+  @override
+  Future<void> nextGame() async {
+    final g = _game;
+    if (g == null || _state != MatchState.connected) return;
+    _pendingTheirs = null;
+    _showRound(g.game, byMe: true);
+  }
+
+  @override
+  Future<void> answerGame(int? choice) async {
+    final g = _game;
+    if (g == null || g.iAnswered) return;
+    _game = g.answered(iAnswered: true, mine: choice, revealed: g.partnerAnswered, theirs: g.partnerAnswered ? _pendingTheirs : null);
+    notifyListeners();
+  }
+
+  @override
+  Future<void> closeGame() async {
+    _game = null;
+    _pendingTheirs = null;
+    notifyListeners();
   }
 
   String _filterLabel() {

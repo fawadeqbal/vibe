@@ -18,6 +18,8 @@ import { paymentMethodLabel, type Transaction, type TxKind } from "@/lib/models"
 import { useCatalog } from "@/stores/catalog";
 import { useWallet } from "@/stores/wallet";
 
+import { GemGoalCard, WeeklyRecapCard } from "./goal-cards";
+
 /** Balances, the ledger, and cashing gems out. */
 export function WalletScreen() {
   const router = useRouter();
@@ -54,6 +56,12 @@ export function WalletScreen() {
             <GhostButton label="Cash out" height={36} onClick={() => router.push("/wallet/cashout")} />
           </div>
         </Panel>
+      </div>
+      <div className="mt-2.5">
+        <GemGoalCard />
+      </div>
+      <div className="mt-2.5 empty:hidden">
+        <WeeklyRecapCard />
       </div>
       <SectionTitle text="History" top={26} />
       {!tx.length ? (

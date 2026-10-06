@@ -24,9 +24,12 @@ import { StaffAuthGuard } from './modules/admin/core/staff-auth.guard';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { EngagementCoreModule } from './modules/engagement/engagement-core.module';
+import { EngagementModule } from './modules/engagement/engagement.module';
 import { HealthModule } from './modules/health/health.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
+import { MomentsModule } from './modules/moments/moments.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PushModule } from './modules/push/push.module';
 import { MailTemplatesModule } from './modules/messaging/mail-templates.module';
@@ -90,6 +93,7 @@ function canPrettyPrint(): boolean {
     // Features
     HealthModule,
     CatalogModule,
+    EngagementCoreModule,
     AuthModule,
     UsersModule,
     WalletModule,
@@ -98,6 +102,8 @@ function canPrettyPrint(): boolean {
     SocialModule,
     ModerationModule,
     MatchingModule,
+    MomentsModule,
+    EngagementModule,
     AnnouncementsModule,
     MessagingModule,
     AdminModule,

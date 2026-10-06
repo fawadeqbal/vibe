@@ -1,5 +1,36 @@
 import { country } from "../catalog";
-import type { ChatMessage, FollowEntry, FollowSettings, FollowState, Friend, FriendState, Gender, Gift, MatchRecord, PaymentMethod, Profile, ProfileTier, ProfileView, TeamMessage, Transaction, TxKind, Wallet } from "../models";
+import type {
+  Badge,
+  Board,
+  CallGame,
+  ChatMessage,
+  FollowEntry,
+  FollowSettings,
+  FollowState,
+  Friend,
+  FriendState,
+  GameId,
+  Gender,
+  Gift,
+  Leaderboard,
+  LevelProgress,
+  MatchRecord,
+  MePrefs,
+  Moment,
+  MomentGroup,
+  PaymentMethod,
+  Profile,
+  ProfileTier,
+  ProfileView,
+  Progress,
+  StreakView,
+  TeamMessage,
+  Transaction,
+  TxKind,
+  VibeHour,
+  Wallet,
+  WeeklyRecap,
+} from "../models";
 
 /**
  * JSON from the Vibe API → the app's models. One place, so a field rename on
@@ -36,6 +67,7 @@ export function profile(m: Json): Profile {
     vip: bool(m.vip),
     matches: int(m.matches),
     likes: int(m.likes),
+    level: Math.max(1, int(m.level)),
   };
 }
 
@@ -50,6 +82,8 @@ export function wallet(m: Json): Wallet {
     streakDay: int(checkIn.streakDay),
     lastCheckIn: date(checkIn.lastAt),
     profileBonusClaimed: bool(m.profileBonusClaimed),
+    gemGoal: typeof m.gemGoal === "number" ? Math.trunc(m.gemGoal) : null,
+    freeBoosts: int(m.freeBoosts),
   };
 }
 
@@ -91,8 +125,21 @@ export function friend(m: Json): Friend {
     lastMessage: optStr(m.lastMessage),
     unread: int(m.unread),
     online: bool(m.online),
+    streak: streak(asMap(m.streak)),
   };
 }
+
+export const streak = (m: Json): StreakView => ({
+  count: int(m.count),
+  best: int(m.best),
+  today: bool(m.today),
+  atRisk: bool(m.atRisk),
+  mineToday: bool(m.mineToday),
+  theirsToday: bool(m.theirsToday),
+  restorable: bool(m.restorable),
+  lostCount: int(m.lostCount),
+  restoreCost: int(m.restoreCost),
+});
 
 export function teamMessage(m: Json): TeamMessage {
   return {
@@ -144,6 +191,8 @@ export function profileView(m: Json): ProfileView {
     counts: counts ? { followers: int(counts.followers), following: int(counts.following) } : null,
     stats: stats === "hidden" ? "hidden" : stats && typeof stats === "object" ? { matches: int(asMap(stats).matches), likes: int(asMap(stats).likes), gifts: int(asMap(stats).gifts) } : null,
     online: typeof m.online === "boolean" ? m.online : null,
+    level: Math.max(1, int(m.level ?? asMap(m.profile).level)),
+    badges: asList(m.badges).filter((x): x is string => typeof x === "string"),
   };
 }
 
@@ -151,3 +200,90 @@ export const followEntry = (m: Json): FollowEntry => ({ profile: profile(asMap(m
 
 /** The follow part of GET/PATCH /me. */
 export const followSettings = (m: Json): FollowSettings => ({ followers: int(m.followers), following: int(m.following), privateAccount: bool(m.privateAccount), hideStats: bool(m.hideStats) });
+
+const optInt = (v: unknown) => (typeof v === "number" ? Math.trunc(v) : null);
+
+/** The engagement fields of GET/PATCH /me. */
+export const mePrefs = (m: Json): MePrefs => ({
+  xp: int(m.xp),
+  gemGoal: optInt(m.gemGoal),
+  quietHoursStart: optInt(m.quietHoursStart),
+  quietHoursEnd: optInt(m.quietHoursEnd),
+  tzOffsetMinutes: typeof m.tzOffsetMinutes === "number" ? Math.trunc(m.tzOffsetMinutes) : 300,
+  breakReminderMinutes: optInt(m.breakReminderMinutes),
+});
+
+export const levelProgress = (m: Json): LevelProgress => ({ level: Math.max(1, int(m.level)), xp: int(m.xp), levelXp: int(m.levelXp), nextLevelXp: int(m.nextLevelXp) });
+
+const badge = (m: Json): Badge => ({ id: str(m.id), name: str(m.name), emoji: str(m.emoji), earned: bool(m.earned), progress: int(m.progress), target: Math.max(1, int(m.target)) });
+
+export const progress = (m: Json): Progress => ({ ...levelProgress(m), weekXp: int(m.weekXp), badges: asList(m.badges).map((b) => badge(asMap(b))) });
+
+export const vibeHour = (m: Json): VibeHour => ({ active: bool(m.active), startsAt: date(m.startsAt), endsAt: date(m.endsAt) });
+
+export const leaderboard = (m: Json): Leaderboard => {
+  const me = asMap(m.me);
+  return {
+    board: (m.board === "gems" ? "gems" : "xp") as Board,
+    weekStart: date(m.weekStart) ?? new Date(),
+    weekEnd: date(m.weekEnd) ?? new Date(),
+    top: asList(m.top).map((r) => {
+      const row = asMap(r);
+      return { rank: int(row.rank), profile: profile(asMap(row.profile)), score: int(row.score) };
+    }),
+    me: { rank: optInt(me.rank), score: int(me.score) },
+  };
+};
+
+export const weeklyRecap = (m: Json): WeeklyRecap => ({
+  weekStart: date(m.weekStart) ?? new Date(),
+  weekEnd: date(m.weekEnd) ?? new Date(),
+  gemsEarned: int(m.gemsEarned),
+  giftsReceived: int(m.giftsReceived),
+  likesReceived: int(m.likesReceived),
+  newFollowers: int(m.newFollowers),
+  matches: int(m.matches),
+  bestStreak: int(m.bestStreak),
+});
+
+export const moment = (m: Json): Moment => ({
+  id: str(m.id),
+  mediaUrl: str(m.mediaUrl),
+  caption: str(m.caption),
+  createdAt: date(m.createdAt) ?? new Date(),
+  expiresAt: date(m.expiresAt) ?? new Date(),
+  seen: bool(m.seen),
+  viewsCount: optInt(m.viewsCount),
+});
+
+export const momentFeed = (m: Json): { mine: Moment[]; people: MomentGroup[] } => ({
+  mine: asList(m.mine).map((x) => moment(asMap(x))),
+  people: asList(m.people)
+    .map((x) => {
+      const g = asMap(x);
+      return { author: profile(asMap(g.author)), moments: asList(g.moments).map((y) => moment(asMap(y))), allSeen: bool(g.allSeen) };
+    })
+    .filter((g) => g.moments.length > 0),
+});
+
+const GAMES: GameId[] = ["wyr", "this_or_that", "questions"];
+
+/** `match:game` (event or start/next ack) → a fresh round. */
+export function callGame(m: Json): CallGame | null {
+  const game = GAMES.find((g) => g === m.game);
+  const prompt = asMap(m.prompt);
+  if (!game || typeof m.round !== "number") return null;
+  const opts = asList(prompt.options).filter((x): x is string => typeof x === "string");
+  return { game, round: m.round, text: str(prompt.text), options: opts.length === 2 ? [opts[0], opts[1]] : null, by: m.by === "partner" ? "partner" : "me", mine: null, theirs: null, partnerAnswered: false, revealed: false };
+}
+
+/** `match:game-answer` applied to the open round (ignored for another round). */
+export function applyGameAnswer(g: CallGame, m: Json): CallGame {
+  if (m.round !== g.round) return g;
+  const choice = (v: unknown, answered: boolean) => (v === 0 || v === 1 ? v : answered ? -1 : null);
+  const revealed = bool(m.revealed);
+  const partnerAnswered = bool(m.partnerAnswered) || revealed;
+  // `mine` is null for an open question even once answered; the server only says so through `revealed`/our own ack.
+  const mine = choice(m.mine, revealed) ?? g.mine;
+  return { ...g, mine, theirs: revealed ? choice(m.theirs, true) : null, partnerAnswered, revealed };
+}

@@ -108,6 +108,12 @@ abstract class WalletProvider extends ChangeNotifier implements CheckoutBackend 
   }
 
   bool get canCashOut => _wallet.gems >= Economy.cashoutMinGems;
+
+  /// Gems you are saving up for (null = none set).
+  int? get gemGoal => _wallet.gemGoal;
+
+  /// Free 30-minute boosts waiting (used before coins).
+  int get freeBoosts => _wallet.freeBoosts;
   int filterCost(MatchFilters f) => f.costFor(vip: isVip);
 
   /// True when the server is the source of truth (invites pay automatically,
@@ -130,7 +136,14 @@ abstract class WalletProvider extends ChangeNotifier implements CheckoutBackend 
   /// arrives by itself when they finish their profile.
   Future<int> claimInvite(String friendName);
 
+  /// A 30-minute boost: a free credit when you have one, else coins.
   Future<bool> boost();
+
+  /// Sets (100 … 10,000,000) or clears the gem goal.
+  Future<void> setGemGoal(int? goal);
+
+  static const minGemGoal = 100;
+  static const maxGemGoal = 10000000;
 
   /// How VIP is billed (store subscriptions are managed in the store).
   Future<VipStatus> vipStatus();

@@ -18,6 +18,8 @@ import type { ChatMessage } from "@/lib/models";
 import { useSocial } from "@/stores/social";
 import { toast } from "@/stores/ui";
 
+import { StreakHeaderChip } from "./streak";
+
 /**
  * Text chat with a friend. Gifts here earn them gems too — that is what keeps
  * friends on the app between matches.
@@ -105,6 +107,7 @@ export function ChatView({ friendId }: { friendId: string }) {
           <span className={cn("type-label block text-[11.5px] font-medium", f.online ? "text-ok" : "text-muted")}>{f.online ? "Online" : `Last seen ${ago(f.since)}`}</span>
         </span>
         </button>
+        <StreakHeaderChip f={f} />
       </AppBar>
 
       {!msgs?.length ? (

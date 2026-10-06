@@ -13,6 +13,7 @@ export function Avatar({
   name,
   size = 48,
   ring = false,
+  ringMuted = false,
   gapColor = "var(--color-bg)",
   blur = 0,
   border,
@@ -22,6 +23,8 @@ export function Avatar({
   name: string;
   size?: number;
   ring?: boolean;
+  /** A quiet grey ring instead of the brand one (moments already seen). */
+  ringMuted?: boolean;
   gapColor?: string;
   blur?: number;
   /** 1.5px hairline colour around the photo. */
@@ -41,7 +44,7 @@ export function Avatar({
   const ringW = size >= 80 ? 3 : 2.5;
   const gapW = size >= 80 ? 3 : 2;
   return (
-    <span className={cn("bg-brand inline-flex shrink-0 rounded-full", className)} style={{ width: size, height: size, padding: ringW }}>
+    <span className={cn("inline-flex shrink-0 rounded-full", ringMuted ? "bg-white/22" : "bg-brand", className)} style={{ width: size, height: size, padding: ringW }}>
       <span className="inline-flex rounded-full" style={{ padding: gapW, backgroundColor: gapColor }}>
         <Photo url={url} name={name} size={size - 2 * (ringW + gapW)} blur={blur} />
       </span>

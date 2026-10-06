@@ -6,7 +6,10 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { Integration, IntegrationMode, IntegrationReporter, IntegrationStatus, missingKeys, ProviderSwitch, resolveMode } from '../../integrations/core/integration.types';
 import { readServiceAccount } from '../../integrations/core/secrets';
 import { GoogleAuth } from '../../integrations/google/google-auth';
+import { RedisService } from '../../infra/redis/redis.service';
+import { EconomyService } from '../catalog/economy.service';
 import { DevPushSender, FcmPushSender, PushMessage, PushSender } from './push-sender';
+import { inQuietHours, QUIET_CATEGORIES } from './quiet-hours';
 
 const MAX_TOKENS_PER_USER = 10;
 
@@ -24,6 +27,8 @@ export class PushService implements IntegrationReporter {
     private readonly config: AppConfig,
     private readonly clock: Clock,
     googleAuth: GoogleAuth,
+    private readonly redis: RedisService,
+    private readonly economy: EconomyService,
   ) {
     const saKey = config.get('FCM_SERVICE_ACCOUNT_JSON') ? 'FCM_SERVICE_ACCOUNT_JSON' : 'GOOGLE_SERVICE_ACCOUNT_JSON';
     this.required = ['FCM_PROJECT_ID', saKey];
@@ -47,9 +52,14 @@ export class PushService implements IntegrationReporter {
     await this.prisma.pushToken.deleteMany({ where: { userId, token } });
   }
 
-  /** Sends to every device of the user; drops tokens FCM says are dead. Never throws. */
+  /**
+   * Sends to every device of the user; drops tokens FCM says are dead. Never
+   * throws. Quiet hours hold back social/engagement/inbox pushes, and
+   * engagement pushes (reminders) are capped per user per business day.
+   */
   async sendToUser(userId: string, msg: PushMessage): Promise<number> {
     if (!this.sender) return 0;
+    if (!(await this.allowed(userId, msg))) return 0;
     const tokens = await this.prisma.pushToken.findMany({ where: { userId }, select: { token: true } });
     let ok = 0;
     await Promise.all(
@@ -64,6 +74,18 @@ export class PushService implements IntegrationReporter {
       }),
     );
     return ok;
+  }
+
+  private async allowed(userId: string, msg: PushMessage): Promise<boolean> {
+    if (QUIET_CATEGORIES.has(msg.category)) {
+      const q = await this.prisma.user.findUnique({ where: { id: userId }, select: { quietHoursStart: true, quietHoursEnd: true, tzOffsetMinutes: true } });
+      if (!q || inQuietHours(this.clock.now().getTime(), q)) return false;
+    }
+    if (msg.category === 'engagement') {
+      const key = `push:engagement:${userId}:${this.clock.dayIndex()}`;
+      if ((await this.redis.incrWithTtl(key, 2 * 86_400)) > this.economy.rules.maxEngagementPushesPerDay) return false;
+    }
+    return true;
   }
 
   integrationStatus(): IntegrationStatus {

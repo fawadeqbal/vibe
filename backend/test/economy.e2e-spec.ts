@@ -9,6 +9,8 @@ describe('economy (editable prices and rules)', () => {
     t = await createTestApp();
     await resetState(t);
     owner = await staffLogin(t, 'owner');
+    // resetState turns Vibe Hour off through a rules override; these tests start from the code defaults.
+    await t.http.post('/v1/admin/economy/rules/reset').set(owner.auth).expect(200);
   });
   afterEach(async () => {
     for (const s of ['rules', 'packs', 'plans', 'gifts']) await t.http.post(`/v1/admin/economy/${s}/reset`).set(owner.auth).expect(200);
@@ -23,7 +25,9 @@ describe('economy (editable prices and rules)', () => {
     const e = (await t.http.get('/v1/admin/economy').set(viewer.auth).expect(200)).body;
     expect(e.economy.welcomeCoins).toBe(30);
     expect(e.defaults.packs).toHaveLength(5);
-    expect(e.groups.map((g: { key: string }) => g.key)).toEqual(['matching', 'social', 'rewards', 'gems', 'vip', 'safety']);
+    expect(e.groups.map((g: { key: string }) => g.key)).toEqual(['matching', 'social', 'rewards', 'gems', 'vip', 'engagement', 'safety']);
+    const engagement = e.groups.find((g: { key: string }) => g.key === 'engagement');
+    expect(engagement.fields.find((f: { key: string }) => f.key === 'vibeHourStart')).toMatchObject({ kind: 'clock', min: 0, max: 1439 });
     expect(e.sections.rules).toMatchObject({ custom: false, updatedBy: null });
     await t.http.put('/v1/admin/economy/rules').set(viewer.auth).send({ value: { welcomeCoins: 99 } }).expect(403);
     const finance = await staffLogin(t, 'finance');

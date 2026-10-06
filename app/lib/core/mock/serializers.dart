@@ -20,6 +20,7 @@ class Json {
         'gemsEarned': p.gemsEarned,
         'matches': p.matches,
         'likes': p.likes,
+        'level': p.level,
       };
 
   static Profile toProfile(Map<String, dynamic> m) => Profile(
@@ -36,6 +37,7 @@ class Json {
         gemsEarned: (m['gemsEarned'] as num?)?.toInt() ?? 0,
         matches: (m['matches'] as num?)?.toInt() ?? 0,
         likes: (m['likes'] as num?)?.toInt() ?? 0,
+        level: (m['level'] as num?)?.toInt() ?? 0,
       );
 
   static Map<String, dynamic> wallet(Wallet w) => {
@@ -50,6 +52,8 @@ class Json {
         'freeFriendRequestsToday': w.freeFriendRequestsToday,
         'friendRequestsDay': w.friendRequestsDay?.toIso8601String(),
         'profileBonusClaimed': w.profileBonusClaimed,
+        'gemGoal': w.gemGoal,
+        'freeBoosts': w.freeBoosts,
       };
 
   static Wallet toWallet(Map<String, dynamic> m) => Wallet(
@@ -64,6 +68,8 @@ class Json {
         freeFriendRequestsToday: (m['freeFriendRequestsToday'] as num?)?.toInt() ?? 0,
         friendRequestsDay: _date(m['friendRequestsDay']),
         profileBonusClaimed: m['profileBonusClaimed'] as bool? ?? false,
+        gemGoal: (m['gemGoal'] as num?)?.toInt(),
+        freeBoosts: (m['freeBoosts'] as num?)?.toInt() ?? 0,
       );
 
   static Map<String, dynamic> transaction(Transaction t) => {
@@ -97,6 +103,7 @@ class Json {
         'lastMessage': f.lastMessage,
         'unread': f.unread,
         'online': f.online,
+        'streak': f.streak.toJson(),
       };
 
   static Friend toFriend(Map<String, dynamic> m) => Friend(
@@ -106,6 +113,7 @@ class Json {
         lastMessage: m['lastMessage'] as String?,
         unread: (m['unread'] as num?)?.toInt() ?? 0,
         online: m['online'] as bool? ?? false,
+        streak: m['streak'] is Map ? StreakView.fromJson(Map<String, dynamic>.from(m['streak'] as Map)) : StreakView.none,
       );
 
   static Map<String, dynamic> message(ChatMessage c) => {

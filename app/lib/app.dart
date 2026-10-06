@@ -9,9 +9,11 @@ import 'core/api/system_notices.dart';
 import 'core/theme/vibe_theme.dart';
 import 'models/payments.dart';
 import 'providers/catalog_provider.dart';
+import 'providers/engagement_provider.dart';
 import 'providers/follows_provider.dart';
 import 'providers/inbox_provider.dart';
 import 'providers/match_provider.dart';
+import 'providers/moments_provider.dart';
 import 'providers/session_provider.dart';
 import 'providers/social_provider.dart';
 import 'providers/wallet_provider.dart';
@@ -120,6 +122,10 @@ class _VibeAppState extends State<VibeApp> {
     await context.read<MatchProvider>().load();
     if (!mounted) return;
     await context.read<InboxProvider>().load();
+    if (!mounted) return;
+    await context.read<EngagementProvider>().load();
+    if (!mounted) return;
+    await context.read<MomentsProvider>().load();
   }
 
   @override

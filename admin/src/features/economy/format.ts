@@ -13,7 +13,21 @@ export const UNIT: Record<RuleField["kind"], { prefix?: string; suffix?: string 
   share: { suffix: "%" },
   age: { suffix: "years" },
   days7: { suffix: "coins" },
+  clock: { suffix: "HH:MM" },
 };
+
+/** Minutes after midnight → "21:00". */
+export const clockText = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+/** "21:00" / "9:30" → minutes after midnight; null when it is not a time of day. */
+export function parseClock(raw: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(raw.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
 
 const dollars = (cents: number) => `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 === 0 ? 0 : 2, maximumFractionDigits: 4 })}`;
 
@@ -38,6 +52,8 @@ export function showRule(f: RuleField, v: RuleValue | undefined): string {
       return `${format.number(v)} ${v === 1 ? "hour" : "hours"}`;
     case "age":
       return `${v} years`;
+    case "clock":
+      return clockText(v);
     default:
       return format.number(v);
   }
@@ -47,6 +63,7 @@ export function showRule(f: RuleField, v: RuleValue | undefined): string {
 export function toInput(f: RuleField, v: number): string {
   if (f.kind === "share") return String(+(v * 100).toFixed(2));
   if (f.kind === "cents") return String(+(v / 100).toFixed(6));
+  if (f.kind === "clock") return clockText(v);
   return String(v);
 }
 
@@ -54,6 +71,11 @@ export function toInput(f: RuleField, v: number): string {
 export function fromInput(f: RuleField, raw: string, label = f.label): { value?: number; error?: string } {
   const t = raw.trim();
   if (!t) return { error: `${label} is required` };
+  if (f.kind === "clock") {
+    const minutes = parseClock(t);
+    if (minutes === null || minutes < f.min || minutes > f.max) return { error: `${label}: a time like 21:00` };
+    return { value: minutes };
+  }
   let n = Number(t);
   if (!Number.isFinite(n)) return { error: `${label}: enter a number` };
   if (f.kind === "share") n = +(n / 100).toFixed(4);

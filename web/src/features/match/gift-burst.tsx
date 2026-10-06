@@ -5,8 +5,8 @@ import { giftGems } from "@/lib/catalog";
 import type { Gift } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
 
-/** The floating "+20 🌹" moment when a gift is sent or received. */
-export function GiftBurst({ gift, received }: { gift: Gift; received: boolean }) {
+/** The floating "+20 🌹" moment when a gift is sent or received (with the Vibe Hour bonus on top). */
+export function GiftBurst({ gift, received, bonusGems = 0 }: { gift: Gift; received: boolean; bonusGems?: number }) {
   const e = useCatalog((s) => s.economy);
   return (
     <div
@@ -21,7 +21,7 @@ export function GiftBurst({ gift, received }: { gift: Gift; received: boolean })
           fontSize={13.5}
           icon={received ? "diamond" : "redeem"}
           iconColor={received ? "gem" : "gold"}
-          label={received ? `${gift.name} · +${giftGems(gift, e)} gems` : `Sent a ${gift.name}`}
+          label={received ? `${gift.name} · +${giftGems(gift, e) + bonusGems} gems${bonusGems > 0 ? " · Vibe Hour bonus" : ""}` : `Sent a ${gift.name}`}
         />
       </span>
     </div>

@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Screen } from "@/components/layout/screen";
-import { confirm, useNeedCoins } from "@/components/shared/dialogs";
+import { confirm } from "@/components/shared/dialogs";
+import { BadgeRow, LevelChip } from "@/components/shared/level-chip";
 import { pickReport } from "@/components/shared/report-sheet";
 import { Avatar } from "@/components/ui/avatar";
 import { GhostButton, GradientButton } from "@/components/ui/button";
@@ -18,13 +19,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { SectionTitle } from "@/components/ui/typography";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
+import { streakDays } from "@/lib/engagement";
 import { thousands } from "@/lib/format";
 import type { FollowState, FriendState, ProfileView } from "@/lib/models";
-import { economy } from "@/stores/catalog";
 import { followStateOf, useFollows } from "@/stores/follows";
 import { friendStateOf, useSocial } from "@/stores/social";
 import { openSheet, toast } from "@/stores/ui";
-import { freeFriendRequestsLeft, useWallet } from "@/stores/wallet";
 
 /**
  * Someone else's profile. It opens up as you get closer: matched → following
@@ -33,9 +33,9 @@ import { freeFriendRequestsLeft, useWallet } from "@/stores/wallet";
  */
 export function UserProfileBody({ userId, inCall = false, onGone }: { userId: string; inCall?: boolean; onGone?: () => void }) {
   const router = useRouter();
-  const needCoins = useNeedCoins();
   const follow = useFollows((s) => followStateOf(s, userId));
   const friend = useSocial((s) => friendStateOf(s, userId));
+  const streak = useSocial((s) => s.all.find((f) => f.profile.id === userId && f.state === "friends")?.streak ?? null);
   /** undefined = loading, null = may not see it. */
   const [view, setView] = useState<ProfileView | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
@@ -102,16 +102,6 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
       return;
     }
     if (friend === "incoming") return run(() => useSocial.getState().accept(userId));
-    if (friend !== "none") return;
-    const e = economy();
-    if (freeFriendRequestsLeft(useWallet.getState()) === 0) {
-      const ok = await confirm({ title: "Send a friend request?", body: `Your ${e.freeFriendRequestsPerDay} free requests for today are used. This one costs ${e.friendRequestCost} coins.`, ok: `Send for ${e.friendRequestCost}` });
-      if (!ok) return;
-    }
-    await run(async () => {
-      if (await useSocial.getState().sendRequest(p)) toast("Request sent");
-      else await needCoins(`A friend request costs ${e.friendRequestCost} coins once your free ones are used.`);
-    });
   };
 
   const onReport = async () => {
@@ -153,11 +143,19 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
             </span>
             {p.verified ? <Icon name="verified" size={20} className="ml-1.5 text-trust" label="Verified" /> : null}
             {p.vip ? <Icon name="workspace_premium" size={19} className="ml-1 text-gold" label="VIP" /> : null}
+            <LevelChip level={view.level} className="ml-1.5" />
           </span>
           <span className="type-body mt-1 block text-[13px] text-text2">
             {p.country.flag} {p.country.name}
             {view.online ? " · Online now" : ""}
           </span>
+          {streak && streak.count > 0 ? (
+            <span className="type-label mt-1 flex items-center text-[13px]" style={{ color: streak.today ? "var(--color-flame)" : streak.atRisk ? "var(--color-warn)" : "var(--color-text2)" }}>
+              <Icon name="local_fire_department" size={16} className="mr-1" />
+              {streakDays(streak.count)}
+              {streak.atRisk ? " · ends tonight" : ""}
+            </span>
+          ) : null}
           {view.followsYou ? (
             <span className="mt-2 inline-block">
               <Tag text="Follows you" tone="violet" />
@@ -172,10 +170,19 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
           <span className="flex-1">
             <FollowButton state={follow} busy={busy} onFollow={() => void onFollow()} onUndo={() => void onUnfollow()} />
           </span>
-          <span className="flex-1">
-            <FriendButton state={friend} inCall={inCall} onClick={() => void onFriend()} />
-          </span>
+          {/* Friend requests are only sent from a live call (the + on the call screen); a profile can only accept or open chat. */}
+          {friend !== "none" && friend !== "blocked" ? (
+            <span className="flex-1">
+              <FriendButton state={friend} inCall={inCall} onClick={() => void onFriend()} />
+            </span>
+          ) : null}
         </div>
+      ) : null}
+      {!self && friend === "none" ? (
+        <p className="type-body mt-2.5 flex items-center gap-2 text-[12.5px] text-text2">
+          <Icon name="videocam" size={16} className="text-muted" />
+          {inCall ? `Tap + on the call to add ${p.name} as a friend` : `Friends are made on video calls. Match again to add ${p.name}.`}
+        </p>
       ) : null}
 
       {view.counts ? (
@@ -189,6 +196,13 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
       <div className="mt-4">
         <StatsBlock view={view} />
       </div>
+
+      {view.badges.length ? (
+        <>
+          <SectionTitle text="Badges" top={22} bottom={10} />
+          <BadgeRow ids={view.badges} />
+        </>
+      ) : null}
 
       {p.bio.trim() ? (
         <>
@@ -220,7 +234,7 @@ function FriendButton({ state, inCall, onClick }: { state: FriendState; inCall: 
   if (state === "incoming") return <GhostButton label="Accept friend" icon="how_to_reg" height={46} expand onClick={onClick} />;
   if (state === "requested") return <GhostButton label="Request sent" icon="hourglass_top" height={46} expand disabled />;
   if (state === "blocked") return null;
-  return <GhostButton label="Add friend" icon="person_add" height={46} expand onClick={onClick} />;
+  return null;
 }
 
 /** Matches · Likes · Gifts, or why you can't see them. */

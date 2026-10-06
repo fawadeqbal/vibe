@@ -5,6 +5,7 @@ import { AppError } from '../../common/errors/app-error';
 import { Clock } from '../../common/utils/clock';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
+import { badgeStatsOf, earnedBadgeIds } from '../users/badges';
 import { PROFILE_INCLUDE, toPublicProfile } from '../users/user.mapper';
 import { BlocksService } from './blocks.service';
 import { FollowsService } from './follows.service';
@@ -48,6 +49,7 @@ export class ProfilesService {
       hideStats: u.hideStats,
       counts: { followers: u.followersCount, following: u.followingCount },
       stats: { matches: u.matchesCount, likes: u.likesCount, gifts: u.giftsReceivedCount },
+      badges: earnedBadgeIds(badgeStatsOf(u)),
     });
     if (!view) throw AppError.notFound('User');
     return view;

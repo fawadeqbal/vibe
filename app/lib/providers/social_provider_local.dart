@@ -101,6 +101,7 @@ class LocalSocialProvider extends SocialProvider {
     final t = text.trim();
     if (t.isEmpty) return;
     _append(friendId, ChatMessage(id: 'm${DateTime.now().microsecondsSinceEpoch}', fromMe: true, text: t, at: DateTime.now()));
+    _noteStreak(friendId, mine: true);
     await _persist();
     _scheduleReply(friendId);
   }
@@ -111,6 +112,7 @@ class LocalSocialProvider extends SocialProvider {
     if (f == null) return false;
     if (!await _wallet.spend(gift.coins, '${gift.name} to ${f.profile.name}', kind: TxKind.gift)) return false;
     _append(friendId, ChatMessage(id: 'g${DateTime.now().microsecondsSinceEpoch}', fromMe: true, text: 'Sent a ${gift.name}', at: DateTime.now(), gift: gift));
+    _noteStreak(friendId, mine: true);
     await _persist();
     _scheduleReply(friendId, thanks: true);
     return true;
@@ -130,9 +132,35 @@ class LocalSocialProvider extends SocialProvider {
         if (friend(friendId) == null) return;
         final text = thanks ? 'aww thank you!! 🥹' : _backend.friendReply();
         _append(friendId, ChatMessage(id: 'r${DateTime.now().microsecondsSinceEpoch}', fromMe: false, text: text, at: DateTime.now()), unread: true);
+        _noteStreak(friendId, mine: false);
         _persist();
       }),
     );
+  }
+
+  /// Mock streak day: once both of you sent something today it counts
+  /// (the server does the same per business day).
+  void _noteStreak(String friendId, {required bool mine}) {
+    final f = friend(friendId);
+    if (f == null || f.state != FriendState.friends) return;
+    var s = f.streak.copyWith(mineToday: mine ? true : null, theirsToday: mine ? null : true);
+    if (s.mineToday && s.theirsToday && !s.today) {
+      final count = s.atRisk || s.count > 0 ? s.count + 1 : 1;
+      s = s.copyWith(count: count, best: count > s.best ? count : s.best, today: true, atRisk: false, restorable: false, lostCount: 0);
+      if (count % 7 == 0) unawaited(_wallet.earn(Economy.streakWeeklyCoins, 'Streak · $count days with ${f.profile.name}'));
+    }
+    _upsert(f.copyWith(streak: s));
+  }
+
+  @override
+  Future<bool> restoreStreak(String friendId) async {
+    final f = friend(friendId);
+    if (f == null || !f.streak.restorable) throw ApiException('STREAK_NOT_RESTORABLE', 'This streak can no longer be restored', status: 409);
+    final cost = _wallet.isVip ? 0 : Economy.streakRestoreCost;
+    if (cost > 0 && !await _wallet.spend(cost, 'Streak restored · ${f.profile.name}')) return false;
+    _upsert(f.copyWith(streak: f.streak.copyWith(count: f.streak.lostCount, restorable: false, lostCount: 0, atRisk: true, today: false)));
+    await _persist();
+    return true;
   }
 
   void _append(String friendId, ChatMessage m, {bool unread = false}) {

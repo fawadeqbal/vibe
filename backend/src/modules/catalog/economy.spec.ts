@@ -37,6 +37,11 @@ describe('economy', () => {
     expect(RulesPatchSchema.safeParse({ checkInRewards: [1, 2, 3] }).success).toBe(false);
     expect(RulesPatchSchema.safeParse({ giftGemShare: 1.5 }).success).toBe(false);
     expect(RulesPatchSchema.safeParse({ nope: 1 }).success).toBe(false);
+    // Clock rules are whole minutes after midnight.
+    expect(RulesPatchSchema.safeParse({ vibeHourStart: 1439 }).success).toBe(true);
+    expect(RulesPatchSchema.safeParse({ vibeHourStart: 1440 }).success).toBe(false);
+    expect(RulesPatchSchema.safeParse({ vibeHourStart: 600.5 }).success).toBe(false);
+    expect(RulesPatchSchema.safeParse({ maxEngagementPushesPerDay: 21 }).success).toBe(false);
     expect(PacksSchema.safeParse([...DEFAULT_PACKS, { ...DEFAULT_PACKS[0] }]).success).toBe(false); // duplicate id
     expect(PacksSchema.safeParse([]).success).toBe(false);
     expect(PlansSchema.safeParse(DEFAULT_PLANS.map((p) => ({ ...p, highlighted: true }))).success).toBe(false);

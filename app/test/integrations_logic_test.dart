@@ -285,7 +285,8 @@ void main() {
       expect(PushRoute.fromData({'route': 'store', 'purchaseId': 'p1'})!.purchaseId, 'p1');
       expect(PushRoute.fromData({'route': 'somewhere-new'}), isNull);
       expect(PushRoute.fromData(const {}), isNull);
-      expect(pushChannels.keys, ['messages', 'social', 'payments', 'inbox']);
+      expect(PushRoute.fromData({'route': 'match'})!.target, PushTarget.match);
+      expect(pushChannels.keys, ['messages', 'social', 'payments', 'inbox', 'engagement']);
     });
   });
 

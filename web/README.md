@@ -37,6 +37,7 @@ src/
     (onboarding)/         welcome, sign-in, setup, permissions
     (app)/                everything behind sign-in, wrapped in the AppShell
       match/ chats/ chats/[friendId]/ chats/inbox/ store/ vip/ checkout/ wallet/ wallet/cashout/ me/ me/edit/
+      leaderboard/ u/[id]/
     payment-return/       where hosted payment pages come back to
   components/
     ui/                   design-system primitives (no data): Button family, Glass/GlassPill/RoundControl,
@@ -45,8 +46,10 @@ src/
     shared/               composed pieces used by several features: gift sheet, report sheet, selfie
                           verification, camera capture, dialogs (confirm / need-coins), video view…
     layout/               AppRuntime (session gate, splash, toasts, overlays), AppShell (bar / rail), Screen
-  features/               one folder per area — onboarding, match, chats, store, wallet, profile
-  stores/                 zustand stores, one per Flutter provider: session, wallet, social, match, inbox, catalog
+  features/               one folder per area — onboarding, match, chats, store, wallet, profile, engagement
+                          (progress & badges, leaderboard, wellbeing settings, level-up / break-reminder host)
+  stores/                 zustand stores, one per Flutter provider: session, wallet, social, match, inbox, catalog,
+                          follows, engagement (Vibe Hour, level, leaderboards, recap), moments, wellbeing (break reminder)
                           (+ services.ts: the one API client and socket; runtime.ts: sign-in/sign-out lifecycle;
                           ui.ts: toasts, and sheets/dialogs as promises — `await pickGift(name)`)
   lib/                    framework-free logic: API client (token refresh), realtime client, JSON mappers,
@@ -75,3 +78,5 @@ Rules the code follows:
 - **Rewarded ads** are AdMob, which only exists in the phone apps. Like the app's debug builds, `npm run dev` shows the Store's "Watch an ad" row with a 5-second mock ad (`components/shared/rewarded-ads.tsx`) that a backend with `ADS_VERIFIER=dev` pays for; production builds hide the row (`NEXT_PUBLIC_DEV_ADS` overrides).
 - **Sign in with Apple / Facebook** need their web SDKs wired before they can be offered for real; in development they work with `NEXT_PUBLIC_DEV_SIGN_IN=true`.
 - **"People online now"** uses the same estimate as the app.
+- **Break reminder** (Me → Notifications & wellbeing) is client-only, as in the app: it counts time with the tab visible while you are searching or in a call, and starts over after ten minutes without (`lib/engagement.ts` `BreakTimer`, `stores/wellbeing.ts`).
+- **Moments** are picked with a file input (`accept="image/*"`; JPEG, PNG or WebP up to 5 MB) and posted with `api.uploadFiles`.

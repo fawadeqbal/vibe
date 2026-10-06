@@ -112,6 +112,15 @@ class RemoteWalletProvider extends WalletProvider {
     }
   }
 
+  @override
+  Future<void> setGemGoal(int? goal) async {
+    final me = Map<String, dynamic>.from(await _api.patch('/me', {'gemGoal': goal}) as Map);
+    final g = (me['gemGoal'] as num?)?.toInt();
+    _view = {..._view, 'gemGoal': g};
+    _wallet = g == null ? _wallet.copyWith(clearGemGoal: true) : _wallet.copyWith(gemGoal: g);
+    notifyListeners();
+  }
+
   // ── checkout ──────────────────────────────────────────────────────────
 
   @override

@@ -30,7 +30,8 @@ lib/
   core/theme/                   V (tokens), VT (type), shared widgets
   core/mock/                    MockBackend + MockData — the offline demo
   models/models.dart            Profile, Wallet, CoinPack, VipPlan, Gift, Transaction, MatchFilters, Friend, ChatMessage, MatchRecord, TeamMessage, Economy
-  providers/                    Session / Wallet / Social / Match / Inbox — each an abstract API with
+  models/engagement.dart        StreakView, VibeHour, LevelProgress, badges, Leaderboard, WeeklyRecap, Moment, GameRound, WellbeingSettings
+  providers/                    Session / Wallet / Social / Match / Inbox / Follows / Engagement / Moments — each an abstract API with
                                 *_local.dart (offline mock) and *_remote.dart (Vibe API) implementations
   screens/…                     unchanged by the mode: they only talk to providers
 test/                           economy + match loop tests (offline), server_test.dart (against a running API)

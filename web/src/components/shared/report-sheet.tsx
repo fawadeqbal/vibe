@@ -31,9 +31,11 @@ const ICONS: Record<ReportReason, string> = {
  * Two taps to report: pick a reason, submit. Block is on by default — nobody
  * reports someone they want to meet again.
  */
-export const pickReport = (name: string, afterCall = false) => openSheet<ReportChoice>((close) => <ReportSheet name={name} afterCall={afterCall} onDone={close} />);
+export const pickReport = (name: string, context: boolean | "moment" = false) => openSheet<ReportChoice>((close) => <ReportSheet name={name} context={context === true ? "afterCall" : context || "call"} onDone={close} />);
 
-function ReportSheet({ name, afterCall, onDone }: { name: string; afterCall: boolean; onDone: (c?: ReportChoice) => void }) {
+const INTRO = { call: "The match ends now.", afterCall: "The call is over.", moment: "We'll look at this moment and their account." } as const;
+
+function ReportSheet({ name, context, onDone }: { name: string; context: keyof typeof INTRO; onDone: (c?: ReportChoice) => void }) {
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [block, setBlock] = useState(true);
   const [note, setNote] = useState("");
@@ -47,7 +49,7 @@ function ReportSheet({ name, afterCall, onDone }: { name: string; afterCall: boo
         <h2 className="type-title-lg ml-3.5 flex-1 text-[22px]">Report {name}</h2>
       </div>
       <p className="type-body mt-2.5 text-[13px] leading-[1.45] text-text2">
-        {afterCall ? "The call is over." : "The match ends now."} Our team reviews every report; three in a day removes the account.
+        {INTRO[context]} Our team reviews every report; three in a day removes the account.
       </p>
 
       <div className="mt-4 flex flex-col gap-2" role="radiogroup" aria-label="Reason">

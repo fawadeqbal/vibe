@@ -23,6 +23,9 @@ export interface Ticket {
   enqueuedAt: number;
   /** People they must not meet: blocks both ways and the last partner. */
   exclude: string[];
+  /** For partner scoring (optional: tickets queued before these existed). */
+  interests?: string[];
+  vibeScore?: number;
 }
 
 export interface ActiveMatch {

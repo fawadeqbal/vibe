@@ -102,6 +102,11 @@ export class UsersService {
       privateAccount: dto.privateAccount,
       hideStats: dto.hideStats,
       avatarUrl: dto.avatarUrl,
+      gemGoal: dto.gemGoal,
+      quietHoursStart: dto.quietHoursStart,
+      quietHoursEnd: dto.quietHoursEnd,
+      tzOffsetMinutes: dto.tzOffsetMinutes,
+      breakReminderMinutes: dto.breakReminderMinutes,
     };
     // A new photo invalidates the selfie match.
     if (dto.avatarUrl && dto.avatarUrl !== before.avatarUrl && before.verified) Object.assign(data, { verified: false, verifiedAt: null });

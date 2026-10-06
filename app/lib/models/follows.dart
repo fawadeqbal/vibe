@@ -30,6 +30,8 @@ class ProfileView {
     this.stats,
     this.statsHidden = false,
     this.online,
+    this.level = 0,
+    this.badges = const [],
   });
 
   final Profile profile;
@@ -42,6 +44,12 @@ class ProfileView {
   final ProfileStats? stats;
   final bool statsHidden;
   final bool? online;
+
+  /// "Lv 7"; 0 = unknown.
+  final int level;
+
+  /// Earned badge ids (see `Badges`).
+  final List<String> badges;
 }
 
 /// A row in your followers / following / requests list.

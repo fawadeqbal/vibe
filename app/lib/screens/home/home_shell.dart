@@ -7,15 +7,20 @@ import 'package:provider/provider.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/follows.dart';
+import '../../providers/engagement_provider.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/inbox_provider.dart';
 import '../../providers/match_provider.dart';
+import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
+import '../../providers/wallet_provider.dart';
 import '../../services/app_services.dart';
 import '../../services/push/push_route.dart';
+import '../../services/wellbeing/break_reminder.dart';
 import '../match/match_screen.dart';
 import '../profile/follow_lists_screen.dart';
 import '../profile/profile_screen.dart';
+import '../profile/progress.dart';
 import '../profile/user_profile_screen.dart';
 import '../social/chat_screen.dart';
 import '../social/chats_screen.dart';
@@ -41,7 +46,15 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   int _index = 0;
   StreamSubscription<PushRoute>? _taps;
   StreamSubscription<FollowNotice>? _followNotices;
+  StreamSubscription<int>? _levelUps;
+  StreamSubscription<int>? _goals;
   late final MatchProvider _match;
+  late final WalletProvider _wallet;
+  late final SessionProvider _session;
+  final _breaks = BreakReminder();
+  Timer? _breakTimer;
+  bool _breakOpen = false;
+  int? _lastGems;
   late final AppLifecycleListener _lifecycle;
   PageRoute<dynamic>? _route;
   bool _covered = false; // a page (store, chat, profile…) is on top of the tabs
@@ -68,7 +81,71 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
         return;
     }
     _match.setAppInBackground(!_foreground);
+    _breaks.setForeground(_foreground);
     _syncCamera();
+    // Back in the app: Vibe Hour, level and streaks may have moved on.
+    if (s == AppLifecycleState.resumed) unawaited(context.read<EngagementProvider>().load());
+  }
+
+  /// Searching or in a call counts toward the break reminder.
+  void _onMatchChanged() {
+    _breaks.setActive(_match.isSearching || _match.isConnected);
+  }
+
+  void _onSessionChanged() {
+    _breaks.minutes = _session.wellbeing.breakReminderMinutes;
+  }
+
+  /// Offline demo: the server announces reached goals; locally we notice.
+  void _onWalletChanged() {
+    final gems = _wallet.gems;
+    final goal = _wallet.gemGoal;
+    final before = _lastGems;
+    _lastGems = gems;
+    if (_wallet.isRemote || before == null || goal == null) return;
+    if (before < goal && gems >= goal) _goalReached(goal);
+  }
+
+  void _goalReached(int goal) {
+    if (mounted) toast(context, 'Goal reached 🎯 ${goal >= 1000 ? '${(goal / 1000).toStringAsFixed(goal % 1000 == 0 ? 0 : 1)}k' : goal} gems');
+  }
+
+  Future<void> _checkBreak() async {
+    if (_breakOpen || !mounted || !_breaks.due) return;
+    _breakOpen = true;
+    final minutes = _breaks.minutes ?? 60;
+    final takeBreak = await showVibeSheet<bool>(
+      context,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(18)),
+              child: const Icon(Icons.self_improvement_rounded, size: 30, color: V.trust),
+            ),
+            const SizedBox(height: 14),
+            Headline("You've been vibing for $minutes minutes. ", accent: 'Time for a break?', size: 24, textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text('Stretch, drink some water. Your friends and coins will be here.', textAlign: TextAlign.center, style: VT.body(14, color: V.text2)),
+            const SizedBox(height: 20),
+            GhostButton(label: 'Take a break', icon: Icons.self_improvement_rounded, color: V.trust, expand: true, onTap: () => Navigator.of(context).pop(true)),
+            const SizedBox(height: 10),
+            GhostButton(label: 'Keep going', expand: true, color: V.text2, onTap: () => Navigator.of(context).pop(false)),
+          ],
+        ),
+      ),
+    );
+    _breakOpen = false;
+    _breaks.reset();
+    if (takeBreak == true && mounted) {
+      _match.stop();
+      _match.dismissEnded();
+      go(0);
+    }
   }
 
   @override
@@ -98,6 +175,19 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   void initState() {
     super.initState();
     _match = context.read<MatchProvider>();
+    _wallet = context.read<WalletProvider>();
+    _session = context.read<SessionProvider>();
+    _lastGems = _wallet.gems;
+    _match.addListener(_onMatchChanged);
+    _wallet.addListener(_onWalletChanged);
+    _session.addListener(_onSessionChanged);
+    _onSessionChanged();
+    _breakTimer = Timer.periodic(const Duration(seconds: 20), (_) => _checkBreak());
+    final engagement = context.read<EngagementProvider>();
+    _levelUps = engagement.levelUps.listen((level) {
+      if (mounted) showLevelUpSheet(context, level);
+    });
+    _goals = engagement.goalsReached.listen(_goalReached);
     _lifecycle = AppLifecycleListener(onStateChange: _onLifecycle);
     final life = WidgetsBinding.instance.lifecycleState;
     _foreground = life == null || life == AppLifecycleState.resumed || life == AppLifecycleState.inactive;
@@ -117,6 +207,12 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   void dispose() {
     _taps?.cancel();
     _followNotices?.cancel();
+    _levelUps?.cancel();
+    _goals?.cancel();
+    _breakTimer?.cancel();
+    _match.removeListener(_onMatchChanged);
+    _wallet.removeListener(_onWalletChanged);
+    _session.removeListener(_onSessionChanged);
     _lifecycle.dispose();
     vibeRouteObserver.unsubscribe(this);
     // Signed out / left the tabs: close the lobby camera (after this frame,
@@ -126,8 +222,10 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     super.dispose();
   }
 
-  /// A tapped notification: chat → that chat, friends/inbox → Chats,
-  /// wallet → Wallet, store → Store.
+  /// A tapped notification: chat → that chat (streak at risk too),
+  /// friends/inbox → Chats (the weekly recap is an inbox message),
+  /// wallet → Wallet (win-back boost, goal reached), store → Store,
+  /// match → the lobby (Vibe Hour).
   void _open(PushRoute r) {
     if (!mounted) return;
     final nav = Navigator.of(context);
@@ -144,6 +242,10 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
         nav.push(MaterialPageRoute(builder: (_) => const WalletScreen()));
       case PushTarget.store:
         go(2);
+      case PushTarget.match:
+        // Vibe Hour started: the lobby, with the banner.
+        nav.popUntil((route) => route.isFirst);
+        go(0);
       case PushTarget.profile:
         nav.push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: r.userId!)));
       case PushTarget.followRequests:

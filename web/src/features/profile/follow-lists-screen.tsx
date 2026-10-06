@@ -10,9 +10,9 @@ import { GhostButton, GradientButton, TextButton } from "@/components/ui/button"
 import { MenuButton } from "@/components/ui/menu";
 import { EmptyState } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
+import { Tabs } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/api/errors";
-import { cn } from "@/lib/cn";
 import { ago } from "@/lib/format";
 import type { FollowEntry, FollowList } from "@/lib/models";
 import { useFollows } from "@/stores/follows";
@@ -34,20 +34,7 @@ export function FollowListsScreen({ initialTab }: { initialTab: FollowList }) {
   const shown = tabs.includes(tab) ? tab : "followers";
   return (
     <Screen header={<AppBar title="Followers" onBack={() => router.push("/me")} />}>
-      <div role="tablist" className="mb-2 flex gap-1 border-b border-line-soft">
-        {tabs.map((x) => (
-          <button
-            key={x}
-            role="tab"
-            type="button"
-            aria-selected={shown === x}
-            onClick={() => setTab(x)}
-            className={cn("type-label -mb-px border-b-2 px-3 py-2.5 text-[14px] font-medium", shown === x ? "border-pink text-text" : "border-transparent text-muted hover:text-text2")}
-          >
-            {LABEL[x]}
-          </button>
-        ))}
-      </div>
+      <Tabs className="mb-2" tabs={tabs.map((x) => ({ value: x, label: LABEL[x] }))} value={shown} onChange={setTab} />
       <FollowListTab key={shown} which={shown} />
     </Screen>
   );

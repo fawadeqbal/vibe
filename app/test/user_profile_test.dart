@@ -84,7 +84,9 @@ void main() {
     expect(find.text('Sana, 23'), findsOneWidget);
     expect(find.text('Coffee first'), findsOneWidget);
     expect(find.text('Follow'), findsOneWidget);
-    expect(find.text('Add friend'), findsOneWidget);
+    // Friend requests are only sent from a live call, never from a profile.
+    expect(find.text('Add friend'), findsNothing);
+    expect(find.textContaining('Friends are made on video calls'), findsOneWidget);
     expect(find.text('Follow to see their stats'), findsOneWidget);
     expect(find.textContaining('follower'), findsNothing);
   });

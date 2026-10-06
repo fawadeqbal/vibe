@@ -2,10 +2,10 @@ import { create } from "zustand";
 
 import { newIdempotencyKey } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
-import { asList, asMap, type Json, matchRecord, profile as mapProfile } from "@/lib/api/mappers";
+import { applyGameAnswer, asList, asMap, callGame, date as mapDate, type Json, matchRecord, profile as mapProfile } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
 import { config } from "@/lib/config";
-import type { ChatMessage, Gift, MatchFilters, MatchRecord, Profile, ReportReason } from "@/lib/models";
+import type { CallGame, ChatMessage, GameId, Gift, MatchFilters, MatchRecord, Profile, ReportReason } from "@/lib/models";
 import { matchLengthSeconds } from "@/lib/models";
 import { sameDay } from "@/lib/format";
 
@@ -18,6 +18,15 @@ export type MatchStatus = "idle" | "searching" | "connected" | "ended";
 
 /** Why the last match ended — drives the copy on the recap. */
 export type EndReason = "skipped" | "partnerLeft" | "stopped" | "reported";
+
+/** What `match:ended` adds for the recap: the mutual like and the reconnect price. */
+export interface EndedInfo {
+  mutualLike: boolean;
+  /** Coins once the free window (if any) is over. */
+  reconnectCost: number;
+  /** Reconnect is free until then (dropped call or mutual like). */
+  freeReconnectUntil: Date | null;
+}
 
 /**
  * The match loop: idle → searching → connected → (next) → searching …
@@ -40,6 +49,12 @@ interface MatchState {
   likedPartner: boolean;
   partnerLikedMe: boolean;
   partnerAskedToBeFriends: boolean;
+  /** Both liked each other in this call ("It's a vibe!"). */
+  mutual: boolean;
+  /** The icebreaker on screen, if any. */
+  game: CallGame | null;
+  /** The last `match:ended` extras (recap). */
+  ended: EndedInfo | null;
   elapsed: number;
   cooldownUntil: number | null;
   blurred: boolean;
@@ -82,6 +97,11 @@ interface MatchState {
   next: (payToBypass?: boolean) => Promise<boolean>;
   stop: () => void;
   like: () => void;
+  /** Icebreakers: start a game, the next prompt, answer (0/1, or nothing for an open question), close. Reject with ApiError. */
+  startGame: (game: GameId) => Promise<void>;
+  nextGame: () => Promise<void>;
+  answerGame: (choice?: 0 | 1) => Promise<void>;
+  closeGame: () => Promise<void>;
   sendMessage: (text: string) => void;
   sendGift: (g: Gift) => Promise<boolean>;
   /** False when it could not be paid for. */
@@ -205,6 +225,9 @@ export const useMatch = create<MatchState>()((set, get) => {
     likedPartner: false,
     partnerLikedMe: false,
     partnerAskedToBeFriends: false,
+    mutual: false,
+    game: null,
+    ended: null,
     elapsed: 0,
     cooldownUntil: null,
     blurred: false,
@@ -393,7 +416,44 @@ export const useMatch = create<MatchState>()((set, get) => {
       const s = get();
       if (s.status !== "connected" || s.likedPartner) return;
       set({ likedPartner: true, current: s.current ? { ...s.current, liked: true } : null });
-      realtime.request("match:like").catch(() => {});
+      const id = matchId;
+      realtime
+        .request<Json | null>("match:like")
+        .then((r) => {
+          if (asMap(r).mutual === true && id === matchId) setMutual();
+        })
+        .catch(() => {});
+    },
+
+    async startGame(game) {
+      if (get().status !== "connected") return;
+      applyGame(await realtime.request<Json>("match:game", { action: "start", game }));
+    },
+
+    async nextGame() {
+      if (get().status !== "connected" || !get().game) return;
+      applyGame(await realtime.request<Json>("match:game", { action: "next" }));
+    },
+
+    async answerGame(choice) {
+      const g = get().game;
+      if (get().status !== "connected" || !g || g.mine != null) return;
+      set({ game: { ...g, mine: choice ?? -1 } });
+      try {
+        const r = await realtime.request<Json>("match:game", { action: "answer", round: g.round, ...(choice != null ? { choice } : {}) });
+        const now = get().game;
+        if (now) set({ game: applyGameAnswer(now, r) });
+      } catch (e) {
+        const now = get().game;
+        if (now?.round === g.round) set({ game: { ...now, mine: null } });
+        throw e;
+      }
+    },
+
+    async closeGame() {
+      if (!get().game) return;
+      set({ game: null });
+      await realtime.request("match:game", { action: "close" }).catch(() => {});
     },
 
     sendMessage(text) {
@@ -485,7 +545,7 @@ export const useMatch = create<MatchState>()((set, get) => {
       matchId = null;
       lastMatchId = null;
       get().releaseCamera();
-      set({ status: "idle", partner: null, lastPartner: null, current: null, history: [], chat: [], endReason: null, lastError: null, needsCoins: false, previewOn: false });
+      set({ status: "idle", partner: null, lastPartner: null, current: null, history: [], chat: [], endReason: null, ended: null, game: null, mutual: false, lastError: null, needsCoins: false, previewOn: false });
     },
   };
 });
@@ -559,6 +619,9 @@ realtime.on(Ev.matchFound, (e) => {
     likedPartner: false,
     partnerLikedMe: false,
     partnerAskedToBeFriends: false,
+    mutual: false,
+    game: null,
+    ended: null,
     elapsed: 0,
     remoteStream: null,
     current: { id: matchId, partner: p, startedAt: new Date(), endedAt: null, liked: false, likedMe: false, giftsSent: 0, giftsReceived: 0, coinsSpent: typeof e.coinsSpent === "number" ? e.coinsSpent : 0 },
@@ -594,10 +657,43 @@ realtime.on(Ev.matchGift, (e) => {
   if (e.matchId !== matchId || e.fromMe === true) return;
   const g = useCatalog.getState().gift(asMap(e.gift).id);
   if (!g) return;
+  const bonusGems = typeof e.bonusGems === "number" ? e.bonusGems : 0;
   set((s) => ({
-    chat: [...s.chat, { id: `pg${Date.now()}`, fromMe: false, text: `Sent you a ${g.name}`, at: new Date(), gift: g }],
+    chat: [...s.chat, { id: `pg${Date.now()}`, fromMe: false, text: `Sent you a ${g.name}`, at: new Date(), gift: g, bonusGems }],
     current: s.current ? { ...s.current, giftsReceived: s.current.giftsReceived + 1 } : null,
   }));
+});
+
+/** Both liked each other: once per call, from the like ack or `match:mutual`, whichever comes first. */
+function setMutual() {
+  if (get().mutual) return;
+  set((s) => ({ mutual: true, likedPartner: true, partnerLikedMe: true, current: s.current ? { ...s.current, liked: true, likedMe: true } : null }));
+}
+
+realtime.on(Ev.matchMutual, (e) => {
+  if (e.matchId === matchId) setMutual();
+});
+
+/** A new prompt (start/next, by either of you). Ack and event carry the same round: the first one wins. */
+function applyGame(e: Json) {
+  if (e.matchId !== matchId || get().status !== "connected") return;
+  const g = callGame(e);
+  if (!g) return;
+  const cur = get().game;
+  if (cur && cur.round === g.round) return;
+  set({ game: g });
+}
+
+realtime.on(Ev.matchGame, applyGame);
+
+realtime.on(Ev.matchGameAnswer, (e) => {
+  const g = get().game;
+  if (e.matchId !== matchId || !g) return;
+  set({ game: applyGameAnswer(g, e) });
+});
+
+realtime.on(Ev.matchGameClosed, (e) => {
+  if (e.matchId === matchId) set({ game: null });
 });
 
 realtime.on(Ev.matchFriendRequest, () => set({ partnerAskedToBeFriends: true }));
@@ -634,13 +730,18 @@ realtime.on(Ev.matchEnded, (e) => {
     likedMe: typeof e.likedMe === "boolean" ? e.likedMe : base.likedMe,
     giftsReceived: typeof e.giftsReceived === "number" ? e.giftsReceived : base.giftsReceived,
   };
+  const ended: EndedInfo = {
+    mutualLike: e.mutualLike === true || (rec.liked && rec.likedMe),
+    reconnectCost: typeof e.reconnectCost === "number" ? e.reconnectCost : useCatalog.getState().economy.reconnectCost,
+    freeReconnectUntil: mapDate(e.freeReconnectUntil),
+  };
   lastMatchId = matchId;
   matchId = null;
   const endReason: EndReason =
     reason === "skipped" ? "skipped" : reason === "stopped" || reason === "disconnected" ? "stopped" : reason === "reported" || reason === "blocked" || reason === "banned" ? "reported" : "partnerLeft";
   // Skipping puts you straight back in the queue; anything else ends here.
   const keepGoing = byMe && reason === "skipped";
-  set({ history: [...s.history, rec], current: null, lastPartner: s.partner, endReason, status: keepGoing ? "searching" : "ended", blurred: false });
+  set({ history: [...s.history, rec], current: null, lastPartner: s.partner, endReason, ended, game: null, mutual: false, status: keepGoing ? "searching" : "ended", blurred: false });
   // Not going on: the status change closes the camera (see useMatch.subscribe).
   void useSession.getState().refreshMe();
 });

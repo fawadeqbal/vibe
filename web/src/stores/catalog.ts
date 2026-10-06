@@ -66,6 +66,18 @@ export const useCatalog = create<CatalogState>()((set, get) => ({
       inviteRewardCoins: n("inviteRewardCoins", prev.inviteRewardCoins),
       profileCompleteCoins: n("profileCompleteCoins", prev.profileCompleteCoins),
       welcomeCoins: n("welcomeCoins", prev.welcomeCoins),
+      streakRestoreCost: n("streakRestoreCost", prev.streakRestoreCost),
+      streakWeeklyCoins: n("streakWeeklyCoins", prev.streakWeeklyCoins),
+      freeReconnectMinutes: n("freeReconnectMinutes", prev.freeReconnectMinutes),
+      vibeHourStart: n("vibeHourStart", prev.vibeHourStart),
+      vibeHourMinutes: n("vibeHourMinutes", prev.vibeHourMinutes),
+      vibeHourGemBonusPercent: n("vibeHourGemBonusPercent", prev.vibeHourGemBonusPercent),
+      xpPerGoodCall: n("xpPerGoodCall", prev.xpPerGoodCall),
+      xpPerLikeReceived: n("xpPerLikeReceived", prev.xpPerLikeReceived),
+      xpPerGiftReceived: n("xpPerGiftReceived", prev.xpPerGiftReceived),
+      xpPerCheckIn: n("xpPerCheckIn", prev.xpPerCheckIn),
+      xpPerStreakDay: n("xpPerStreakDay", prev.xpPerStreakDay),
+      maxEngagementPushesPerDay: n("maxEngagementPushesPerDay", prev.maxEngagementPushesPerDay),
     };
     const list = (k: string) => asList(c[k]).map(asMap);
     const packs: CoinPack[] = list("packs").map((p) => ({

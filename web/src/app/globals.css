@@ -50,6 +50,8 @@
   --color-bad: #fb7185;
   --color-bad-deep: #e11d48;
   --color-warn: #fbbf24;
+  /* Friend streaks: the flame (counted today); at risk it turns amber (warn). */
+  --color-flame: #ff8a3d;
   --color-on-gold: #1a1200;
   --color-on-gold-icon: #4a2e00;
   --color-on-gem: #062a26;
@@ -286,6 +288,53 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* A streak that ends tonight breathes. */
+@keyframes vibe-flame-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.94);
+  }
+}
+/* Moment progress bar: one segment fills over its duration (paused on hold). */
+@keyframes vibe-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+/* "It's a vibe!": pop in, then rings burst outward. */
+@keyframes vibe-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes vibe-burst-ring {
+  from {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.8);
+    opacity: 0;
   }
 }
 

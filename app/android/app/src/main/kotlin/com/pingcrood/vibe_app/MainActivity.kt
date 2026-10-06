@@ -25,6 +25,7 @@ class MainActivity : FlutterActivity() {
             NotificationChannel("social", "Friends", NotificationManager.IMPORTANCE_DEFAULT).apply { description = "Friend requests and new friends" },
             NotificationChannel("payments", "Payments", NotificationManager.IMPORTANCE_HIGH).apply { description = "Purchases and cash-outs" },
             NotificationChannel("inbox", "News from Vibe", NotificationManager.IMPORTANCE_DEFAULT).apply { description = "Messages from the Vibe team" },
+            NotificationChannel("engagement", "Streaks and Vibe Hour", NotificationManager.IMPORTANCE_DEFAULT).apply { description = "Streaks about to end, Vibe Hour, your weekly recap" },
         )
         manager.createNotificationChannels(channels)
     }

@@ -13,6 +13,9 @@ import { RewardsService } from '../wallet/rewards.service';
 import { WalletService } from '../wallet/wallet.service';
 import { BlocksService } from './blocks.service';
 import { haveMet } from './met';
+import type { StreakView } from './streaks';
+import { StreakService } from './streak.service';
+import { isVip } from '../wallet/wallet.mapper';
 
 export type FriendState = 'friends' | 'requested' | 'incoming';
 
@@ -24,6 +27,8 @@ export interface FriendView {
   lastMessageAt: string | null;
   unread: number;
   online: boolean;
+  /** Friend streak from your side (zeros for pending requests). */
+  streak: StreakView;
 }
 
 /**
@@ -39,6 +44,7 @@ export class FriendsService {
     private readonly wallet: WalletService,
     private readonly realtime: RealtimeService,
     private readonly clock: Clock,
+    private readonly streaks: StreakService,
   ) {}
 
   pairWhere(a: string, b: string): Prisma.FriendshipWhereUniqueInput {
@@ -53,7 +59,12 @@ export class FriendsService {
     return f;
   }
 
-  async request(me: string, targetId: string): Promise<{ state: FriendState; paidCoins: number }> {
+  /**
+   * Sends a friend request, or accepts theirs if they asked first. New
+   * requests only come from a live call (`viaCall`, see MatchingService):
+   * people connect on the call screen, not by browsing profiles later.
+   */
+  async request(me: string, targetId: string, opts: { viaCall?: boolean } = {}): Promise<{ state: FriendState; paidCoins: number }> {
     if (me === targetId) throw AppError.forbidden("That's you");
     if (await this.blocks.eitherBlocked(me, targetId)) throw new AppError(ErrorCode.BLOCKED, 'Not available', HttpStatus.FORBIDDEN);
     const existing = await this.prisma.friendship.findUnique({ where: this.pairWhere(me, targetId) });
@@ -63,6 +74,7 @@ export class FriendsService {
       await this.accept(me, targetId);
       return { state: 'friends', paidCoins: 0 };
     }
+    if (!opts.viaCall) throw new AppError(ErrorCode.FRIEND_IN_CALL_ONLY, 'Add friends during a video call', HttpStatus.FORBIDDEN);
     if (!(await haveMet(this.prisma, me, targetId))) throw new AppError(ErrorCode.NEVER_MATCHED, 'You can add people you have met in a match', HttpStatus.FORBIDDEN);
     const target = await this.prisma.user.findUniqueOrThrow({ where: { id: targetId }, select: { name: true } });
     const [low, high] = orderedPair(me, targetId);
@@ -108,7 +120,7 @@ export class FriendsService {
     if (!rows.length) return [];
     const otherIds = rows.map((f) => (f.userLowId === me ? f.userHighId : f.userLowId));
     const ids = rows.map((f) => f.id);
-    const [users, last, unread, online] = await Promise.all([
+    const [users, last, unread, online, myWallet] = await Promise.all([
       this.prisma.user.findMany({ where: { id: { in: otherIds } }, include: PROFILE_INCLUDE }),
       this.prisma.$queryRaw<{ friendshipId: string; text: string; giftId: string | null; createdAt: Date }[]>`
         SELECT DISTINCT ON ("friendshipId") "friendshipId", "text", "giftId", "createdAt"
@@ -116,11 +128,13 @@ export class FriendsService {
          ORDER BY "friendshipId", "createdAt" DESC`,
       this.prisma.message.groupBy({ by: ['friendshipId'], where: { friendshipId: { in: ids }, senderId: { not: me }, readAt: null }, _count: { _all: true } }),
       this.realtime.onlineMap(otherIds),
+      this.prisma.wallet.findUnique({ where: { userId: me }, select: { vipUntil: true } }),
     ]);
     const byUser = new Map(users.map((u) => [u.id, u]));
     const lastBy = new Map(last.map((m) => [m.friendshipId, m]));
     const unreadBy = new Map(unread.map((u) => [u.friendshipId, u._count._all]));
     const now = this.clock.now();
+    const vip = isVip(myWallet, now);
     return rows.flatMap((f) => {
       const otherId = f.userLowId === me ? f.userHighId : f.userLowId;
       const u = byUser.get(otherId);
@@ -135,6 +149,7 @@ export class FriendsService {
           lastMessageAt: m?.createdAt.toISOString() ?? null,
           unread: unreadBy.get(f.id) ?? 0,
           online: online[otherId] ?? false,
+          streak: this.streaks.view(f, me, vip),
         } satisfies FriendView,
       ];
     });

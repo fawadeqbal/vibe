@@ -34,6 +34,7 @@ class ApiMap {
     vip: m['vip'] as bool? ?? false,
     matches: i(m['matches']),
     likes: i(m['likes']),
+    level: i(m['level']),
   );
 
   /// The server's wallet view, folded back into the app's [Wallet] so the
@@ -57,6 +58,8 @@ class ApiMap {
       freeFriendRequestsToday: Economy.freeFriendRequestsPerDay - freeLeft,
       friendRequestsDay: now,
       profileBonusClaimed: m['profileBonusClaimed'] as bool? ?? false,
+      gemGoal: (m['gemGoal'] as num?)?.toInt(),
+      freeBoosts: i(m['freeBoosts']),
     );
   }
 
@@ -116,6 +119,7 @@ class ApiMap {
     lastMessage: m['lastMessage'] as String?,
     unread: i(m['unread']),
     online: m['online'] as bool? ?? false,
+    streak: m['streak'] is Map ? StreakView.fromJson(Map<String, dynamic>.from(m['streak'] as Map)) : StreakView.none,
   );
 
   static FollowState followState(Object? s) => switch (s) {
@@ -151,6 +155,8 @@ class ApiMap {
       stats: stats is Map ? ProfileStats(matches: i(stats['matches']), likes: i(stats['likes']), gifts: i(stats['gifts'])) : null,
       statsHidden: stats == 'hidden',
       online: m['online'] as bool?,
+      level: i(m['level']),
+      badges: [for (final b in (m['badges'] as List? ?? const [])) '$b'],
     );
   }
 
@@ -205,4 +211,29 @@ class ApiMap {
       coinsSpent: i(m['coinsSpent']),
     );
   }
+
+  // ── engagement ──
+  static Leaderboard leaderboard(Map<String, dynamic> m) {
+    final me = Map<String, dynamic>.from(m['me'] as Map? ?? const {});
+    return Leaderboard(
+      board: m['board'] == 'gems' ? Board.gems : Board.xp,
+      weekStart: date(m['weekStart']),
+      weekEnd: date(m['weekEnd']),
+      top: [
+        for (final r in (m['top'] as List? ?? const []))
+          LeaderRow(rank: i((r as Map)['rank']), profile: profile(Map<String, dynamic>.from(r['profile'] as Map)), score: i(r['score'])),
+      ],
+      myRank: (me['rank'] as num?)?.toInt(),
+      myScore: i(me['score']),
+    );
+  }
+
+  static List<MomentGroup> momentFeed(Map<String, dynamic> m, Profile? me) => [
+        if (me != null) MomentGroup(author: me, mine: true, moments: [for (final x in (m['mine'] as List? ?? const [])) Moment.fromJson(Map<String, dynamic>.from(x as Map))]),
+        for (final g in (m['people'] as List? ?? const []))
+          MomentGroup(
+            author: profile(Map<String, dynamic>.from((g as Map)['author'] as Map)),
+            moments: [for (final x in (g['moments'] as List? ?? const [])) Moment.fromJson(Map<String, dynamic>.from(x as Map))],
+          ),
+      ];
 }

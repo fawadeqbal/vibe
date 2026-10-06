@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+import { StreakChip } from "@/components/shared/streak-chip";
 import { TeamAvatar } from "@/components/shared/team-avatar";
 import { Avatar, FaceStack } from "@/components/ui/avatar";
 import { GhostButton, GradientButton } from "@/components/ui/button";
@@ -18,6 +19,9 @@ import { useInbox } from "@/stores/inbox";
 import { friendsOf, incomingOf, requestedOf, useSocial } from "@/stores/social";
 import { isVip, useWallet } from "@/stores/wallet";
 
+import { MomentsBar } from "./moments-bar";
+import { useRestoreStreak } from "./streak";
+
 /**
  * Friends you made in matches. Requests on top with labelled Accept/Decline,
  * the "liked you" teaser for free users, then a calm, unboxed conversation list.
@@ -29,6 +33,7 @@ export function ChatsList() {
   const vip = useWallet((s) => isVip(s.wallet));
   const latest = useInbox((s) => s.messages[0] ?? null);
   const teamUnread = useInbox((s) => s.unread);
+  const restore = useRestoreStreak();
   useNow(60_000);
   const friends = friendsOf(social);
   const incoming = incomingOf(social);
@@ -39,16 +44,22 @@ export function ChatsList() {
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
       <PageHeader title="Chats" />
       {empty ? (
-        <EmptyState
-          className="flex-1"
-          icon="chat_bubble_outline"
-          title="No friends "
-          accent="yet"
-          body="Tap Add during a match. When they accept, you can keep talking here — text and gifts, any time."
-          action={<GradientButton label="Find people" icon="videocam" expand={false} onClick={() => router.push("/match")} />}
-        />
+        <>
+          <div className="px-5">
+            <MomentsBar />
+          </div>
+          <EmptyState
+            className="flex-1"
+            icon="chat_bubble_outline"
+            title="No friends "
+            accent="yet"
+            body="Tap Add during a match. When they accept, you can keep talking here — text and gifts, any time."
+            action={<GradientButton label="Find people" icon="videocam" expand={false} onClick={() => router.push("/match")} />}
+          />
+        </>
       ) : (
         <div className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-8">
+          <MomentsBar />
           {latest ? <TeamRow latest={latest} unread={teamUnread} active={path === "/chats/inbox"} /> : null}
           {incoming.length ? (
             <>
@@ -81,7 +92,7 @@ export function ChatsList() {
           <SectionTitle text={`Friends · ${friends.length}`} top={26} bottom={4} />
           {!friends.length ? <p className="type-body px-0.5 py-3 text-[13px] text-text2">Nobody has accepted yet.</p> : null}
           {friends.map((f, i) => (
-            <FriendRow key={f.profile.id} f={f} last={i === friends.length - 1} active={path === `/chats/${f.profile.id}`} />
+            <FriendRow key={f.profile.id} f={f} last={i === friends.length - 1} active={path === `/chats/${f.profile.id}`} onRestore={() => void restore(f)} />
           ))}
         </div>
       )}
@@ -141,35 +152,57 @@ function UnreadBadge({ n }: { n: number }) {
   return <span className="type-label ml-2 flex h-5 min-w-5 items-center justify-center rounded-[10px] bg-pink px-1.5 text-[11px] font-bold text-white">{n > 99 ? "99+" : n}</span>;
 }
 
-function FriendRow({ f, last, active }: { f: Friend; last: boolean; active: boolean }) {
+function FriendRow({ f, last, active, onRestore }: { f: Friend; last: boolean; active: boolean; onRestore: () => void }) {
   const msgs = useSocial((s) => s.chats[f.profile.id]);
   const at = msgs?.length ? msgs[msgs.length - 1].at : f.since;
   const unread = f.unread > 0;
+  const restorable = f.streak.restorable && f.streak.lostCount > 0;
+  // The whole row opens the chat (a stretched link), so "Restore" can be its own button.
   return (
-    <Link
-      href={`/chats/${f.profile.id}`}
-      onClick={() => useSocial.getState().markRead(f.profile.id)}
-      aria-current={active ? "page" : undefined}
-      className={cn("relative flex items-center py-3 transition-colors hover:bg-white/3", !last && "border-b border-line-soft", active && "bg-white/5")}
-    >
-      <span className="relative shrink-0">
+    <div className={cn("relative flex items-center py-3 transition-colors hover:bg-white/3", !last && "border-b border-line-soft", active && "bg-white/5")}>
+      <Link
+        href={`/chats/${f.profile.id}`}
+        onClick={() => useSocial.getState().markRead(f.profile.id)}
+        aria-current={active ? "page" : undefined}
+        aria-label={`Chat with ${f.profile.name}${unread ? `, ${f.unread} unread` : ""}`}
+        className="absolute inset-0 z-0"
+      />
+      <span className="pointer-events-none relative shrink-0">
         <Avatar url={f.profile.avatarUrl} name={f.profile.name} size={52} />
         {f.online ? <span className="absolute right-0 bottom-0 size-3.5 rounded-full border-[2.5px] border-bg bg-ok" /> : null}
       </span>
-      <span className="ml-3.5 min-w-0 flex-1">
+      <span className="pointer-events-none relative ml-3.5 min-w-0 flex-1">
         <span className="flex items-center">
           <span className="flex min-w-0 flex-1 items-center">
             <span className="type-title truncate text-[16px] font-semibold">{f.profile.name}</span>
-            {f.profile.verified ? <Icon name="verified" size={15} className="ml-1 text-trust" label="Verified" /> : null}
+            {f.profile.verified ? <Icon name="verified" size={15} className="ml-1 shrink-0 text-trust" label="Verified" /> : null}
+            <StreakChip streak={f.streak} riskLabel className="ml-1.5" />
           </span>
-          <span className={cn("type-label text-[12px]", unread ? "font-semibold text-pink-soft" : "font-normal text-muted")}>{agoShort(at)}</span>
+          <span className={cn("type-label ml-2 shrink-0 text-[12px]", unread ? "font-semibold text-pink-soft" : "font-normal text-muted")}>{agoShort(at)}</span>
         </span>
         <span className="mt-0.5 flex items-center">
-          <span className={cn("type-body min-w-0 flex-1 truncate text-[14px]", unread ? "font-medium text-text" : "text-text2")}>{f.lastMessage ?? "Say hi 👋"}</span>
+          {restorable ? (
+            <span className="flex min-w-0 flex-1 items-center">
+              <span className="type-body truncate text-[13.5px] text-muted">Streak lost ·</span>
+              <button
+                type="button"
+                onClick={onRestore}
+                className="pointer-events-auto ml-1.5 flex h-7 shrink-0 items-center rounded-full border border-gold/30 bg-gold/12 pr-2.5 pl-2 transition-[filter] hover:brightness-125"
+              >
+                <span className="type-label text-[12.5px] text-gold">Restore</span>
+                <Icon name="local_fire_department" size={14} className="ml-1 text-flame" />
+                <span className="type-number text-[12.5px] text-gold">{f.streak.lostCount}</span>
+              </button>
+            </span>
+          ) : (
+            <span className={cn("type-body min-w-0 flex-1 truncate text-[14px]", unread ? "font-medium text-text" : "text-text2")}>
+              {f.lastMessage ?? "Say hi 👋"}
+            </span>
+          )}
           {unread ? <UnreadBadge n={f.unread} /> : null}
         </span>
       </span>
-    </Link>
+    </div>
   );
 }
 
@@ -180,7 +213,11 @@ function TeamRow({ latest, unread, active }: { latest: TeamMessage; unread: numb
     <Link
       href="/chats/inbox"
       aria-label={hasUnread ? `Messages from Vibe, ${unread} new` : "Messages from Vibe"}
-      className={cn("flex items-center rounded-card border bg-surface p-3 transition-[filter] hover:brightness-110", hasUnread ? "border-pink/32" : "border-line", active && "brightness-125")}
+      className={cn(
+        "flex items-center rounded-card border bg-surface p-3 transition-[filter] hover:brightness-110",
+        hasUnread ? "border-pink/32" : "border-line",
+        active && "brightness-125",
+      )}
     >
       <TeamAvatar size={46} />
       <span className="ml-3 min-w-0 flex-1">

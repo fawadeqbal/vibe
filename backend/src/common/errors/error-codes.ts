@@ -51,8 +51,16 @@ export enum ErrorCode {
   BLOCKED = 'BLOCKED',
   NOT_FRIENDS = 'NOT_FRIENDS',
   NEVER_MATCHED = 'NEVER_MATCHED',
+  /** Friend requests are only sent from a live call (`match:friend`); REST can only accept one. */
+  FRIEND_IN_CALL_ONLY = 'FRIEND_IN_CALL_ONLY',
   /** Too many new follows today (economy rule maxFollowsPerDay). */
   FOLLOW_LIMIT = 'FOLLOW_LIMIT',
+  /** Only a streak that broke yesterday (and was 3+ days) can be restored. */
+  STREAK_NOT_RESTORABLE = 'STREAK_NOT_RESTORABLE',
+  /** At most 10 moments live at once (429). */
+  MOMENT_LIMIT = 'MOMENT_LIMIT',
+  /** Gone, expired, deleted or not visible to you (404). */
+  MOMENT_NOT_FOUND = 'MOMENT_NOT_FOUND',
 
   // matching
   NOT_IN_MATCH = 'NOT_IN_MATCH',

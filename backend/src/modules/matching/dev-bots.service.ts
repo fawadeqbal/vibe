@@ -11,6 +11,7 @@ import { FriendsService } from '../social/friends.service';
 import { FRIEND_MESSAGE, FriendMessageEvent, MessagesService } from '../social/messages.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { compatible } from './compatibility';
+import { MATCH_GAME, MatchGameEvent, MatchGamesService } from './match-games.service';
 import { MatchQueueService } from './match-queue.service';
 import { MatchSessionStore } from './match-session.store';
 import { MATCH_ACTION, MATCH_ENDED, MATCH_STARTED, MatchActionEvent, MatchingService, MatchStartedEvent } from './matching.service';
@@ -74,6 +75,7 @@ export class DevBotsService implements OnApplicationBootstrap, OnModuleDestroy {
     private readonly friends: FriendsService,
     private readonly messages: MessagesService,
     private readonly economy: EconomyService,
+    private readonly games: MatchGamesService,
   ) {}
 
   private get enabled(): boolean {
@@ -116,6 +118,8 @@ export class DevBotsService implements OnApplicationBootstrap, OnModuleDestroy {
       boosted: false,
       enqueuedAt: 0,
       exclude: [],
+      interests: u.interests,
+      vibeScore: 0.5,
     }));
   }
 
@@ -179,6 +183,14 @@ export class DevBotsService implements OnApplicationBootstrap, OnModuleDestroy {
     if (e.action === 'chat') this.later(e.matchId, between(2000, 4500), () => this.matching.chat(e.to, pick(REPLIES)));
     if (e.action === 'gift') this.later(e.matchId, 2000, () => this.matching.chat(e.to, `omg thank you for the ${e.text?.toLowerCase()} 🥹`));
     if (e.action === 'friend') this.later(e.matchId, between(2000, 5000), () => this.friends.request(e.to, e.from));
+  }
+
+  /** Bots play along with icebreakers: they pick an option after a few seconds. */
+  @OnEvent(MATCH_GAME)
+  onGame(e: MatchGameEvent): void {
+    if (!this.bots.some((b) => b.userId === e.to)) return;
+    const choice = (Math.random() < 0.5 ? 0 : 1) as 0 | 1;
+    this.later(e.matchId, between(2000, 5000), () => this.games.handle(e.to, { action: 'answer', choice: e.prompt.options ? choice : undefined, round: e.round }));
   }
 
   /** Bot friends answer messages too. */

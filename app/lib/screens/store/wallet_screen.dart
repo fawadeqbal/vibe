@@ -5,13 +5,31 @@ import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/models.dart';
+import '../../providers/engagement_provider.dart';
 import '../../providers/wallet_provider.dart';
 import 'cashout_screen.dart';
 import 'store_screen.dart';
+import 'wallet_cards.dart';
 
-/// Balances, the ledger, and cashing gems out.
-class WalletScreen extends StatelessWidget {
+/// Balances, your gem goal, last week's recap (early in the week), the
+/// ledger, and cashing gems out.
+class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
+
+  @override
+  State<WalletScreen> createState() => _WalletScreenState();
+}
+
+class _WalletScreenState extends State<WalletScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final e = context.read<EngagementProvider>();
+      if (e.recap == null && DateTime.now().weekday <= DateTime.wednesday) e.loadRecap();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +78,9 @@ class WalletScreen extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          const GemGoalCard(),
+          const WeeklyRecapCard(),
           const SectionTitle('History', top: 26),
           if (tx.isEmpty)
             const EmptyState(icon: Icons.receipt_long_rounded, title: 'Nothing yet', body: 'Purchases, gifts, rewards and spends all show up here.')

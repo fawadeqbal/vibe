@@ -135,7 +135,7 @@ Conventions that keep it maintainable:
 - **Stateless API instances.** All shared state (match queue, live sessions, presence, OTPs, idempotency, rate limits, locks) is in Redis; durable state is in Postgres. Run as many instances as you like behind a load balancer. Sockets need sticky sessions only if you enable the polling transport; the app uses WebSocket only.
 - **Cross-instance realtime.** The Socket.IO Redis adapter delivers `toUser()` to whichever instance holds that user's socket.
 - **Matching** pairs with a Lua script that removes both users from the queue only if both are still there, so two instances can never hand the same person out twice. A 1 s sweeper (guarded by a distributed lock) retries waiting users. VIP/boost get a head start in the queue score, not the front of the line.
-- **Background jobs** (VIP bonus/expiry, cash-out retries, the sweeper) run under Redis locks, so exactly one instance runs each.
+- **Background jobs** (VIP bonus/expiry, cash-out retries, the sweeper, engagement reminders, moments cleanup) run under Redis locks, so exactly one instance runs each. Daily engagement jobs (streak reminder 20:00, win-back 12:00, weekly recap Monday 10:00, Vibe Hour start/end) also claim a Redis day key, so a late or repeated tick never sends twice. Reminder pushes (category `engagement`) are capped per person per day (`maxEngagementPushesPerDay`), and quiet hours hold back social, engagement and inbox pushes.
 - **Video is peer-to-peer** (WebRTC). The server only relays signalling. Phones on different networks often can't reach each other directly, so production needs a TURN relay: `turn/` is a ready-to-run coturn server (step-by-step guide in `turn/README.md`). Set `TURN_URLS` + `TURN_SECRET` and the API hands each user a 24-hour TURN login; `npm run turn:check` tests the relay with those settings.
 - **Next steps when traffic grows:** Postgres read replicas for history/feeds, a CDN in front of `/media` (set `S3_PUBLIC_URL`), a BullMQ worker for payouts, and partitioning `LedgerEntry` by month.
 
@@ -146,11 +146,13 @@ REST is under `/v1`. Full schema at `/docs`; OpenAPI JSON at `/docs/openapi.json
 | Area | Endpoints |
 |---|---|
 | Auth | `POST /auth/otp/request {email}`, `/auth/otp/verify {email, code}`, `/auth/social`, `/auth/refresh`, `/auth/logout` |
-| Me | `GET/PATCH/DELETE /me`, `POST /me/avatar`, `/me/onboarding/complete`, `/me/verification`, `GET /me/stats`, `/me/matches` |
+| Me | `GET/PATCH/DELETE /me` (PATCH also takes `gemGoal`, `quietHoursStart/End`, `tzOffsetMinutes`, `breakReminderMinutes`), `POST /me/avatar`, `/me/onboarding/complete`, `/me/verification`, `GET /me/stats`, `/me/matches`, `/me/progress`, `/me/recap` |
 | Catalog | `GET /catalog` |
-| Wallet | `GET /wallet`, `/wallet/transactions`, `POST /wallet/check-in`, `/wallet/rewards/ad`, `/wallet/rewards/profile`, `/wallet/boost`, `GET/POST /wallet/cashouts` |
+| Wallet | `GET /wallet` (incl. `gemGoal`, `freeBoosts`), `/wallet/transactions`, `POST /wallet/check-in`, `/wallet/rewards/ad`, `/wallet/rewards/profile`, `/wallet/boost` (uses a free boost first), `GET/POST /wallet/cashouts` |
 | Payments | `POST /payments/purchases` (Idempotency-Key), `POST /payments/purchases/:id/confirm`, `GET /payments/purchases/:id`, `GET /vip`, `POST /vip/cancel` |
-| Social | `GET /friends`, `POST /friends/:id/request · accept · decline · read`, `DELETE /friends/:id`, `GET/POST /friends/:id/messages`, `POST /friends/:id/gifts`, `GET/POST/DELETE /blocks`, `GET /likes/received` |
+| Social | `GET /friends`, `POST /friends/:id/request · accept · decline · read`, `DELETE /friends/:id`, `GET/POST /friends/:id/messages`, `POST /friends/:id/gifts`, `POST /friends/:id/streak/restore`, `GET/POST/DELETE /blocks`, `GET /likes/received`, `GET /users/:id/view` (with `level`, `badges`) |
+| Engagement | `GET /engagement` (Vibe Hour, level, streaks at risk), `GET /leaderboards?board=xp\|gems` |
+| Moments | `POST /moments` (multipart `photo` + `caption`), `GET /moments/feed`, `POST /moments/:id/view`, `GET /moments/:id/viewers`, `DELETE /moments/:id`, `POST /moments/:id/report` |
 | Safety | `POST /reports` |
 | Matching | `GET /rtc/ice-servers`, `GET /match/online` |
 | Webhooks | `POST /webhooks/payments` (HMAC), `GET /webhooks/admob/ssv` |
@@ -175,7 +177,8 @@ Connect to the server root with `auth: { token: <access token> }` over WebSocket
 | `match:join` | `{ gender: ANYONE\|WOMEN\|MEN, countryCode?, safeMode, autoBlur }` | Checks you can afford paid filters; charges only when a match is made. |
 | `match:next` | `{ payToBypass? }` | Ends the call, then rejoins the queue. Returns `SKIP_COOLDOWN` with `seconds` after 5 quick skips. |
 | `match:leave` / `match:end` | — | Leave the queue / hang up. |
-| `match:like`, `match:chat {text}`, `match:gift {giftId, idempotencyKey?}`, `match:friend`, `match:report {reason, note?, block}`, `match:reconnect` | | |
+| `match:like`, `match:chat {text}`, `match:gift {giftId, idempotencyKey?}`, `match:friend`, `match:report {reason, note?, block}`, `match:reconnect` | | `match:like` acks `{ mutual }`; `match:reconnect` acks `{ reconnected, paidCoins }` (free shortly after a dropped call or mutual like). |
+| `match:game` | `{ action: start\|next\|answer\|close, game?: wyr\|this_or_that\|questions, choice?: 0\|1, round? }` | Icebreakers; `start/next` at most once per 2 s per call (`RATE_LIMITED`). |
 | `rtc:signal` | `{ type: offer\|answer\|ice\|hangup, data }` | Relayed as-is to your partner. |
 | `presence:ping` | — | Optional keep-alive. |
 
@@ -183,10 +186,16 @@ Connect to the server root with `auth: { token: <access token> }` over WebSocket
 |---|---|
 | `match:searching`, `match:found {matchId, partner, role: caller\|callee, blur, sharedInterests}` | Queue and pairing; the caller sends the WebRTC offer. |
 | `match:chat`, `match:liked`, `match:gift`, `match:friend-request`, `rtc:signal` | Partner actions. |
-| `match:ended {reason, byMe, durationSeconds, liked, likedMe, giftsReceived}` | `reason` is `partner_left` for the other side. |
+| `match:mutual {matchId}` | Both liked each other ("It's a vibe!"). |
+| `match:game`, `match:game-answer`, `match:game-closed` | Icebreaker prompt, answers (the partner's choice only once both answered), closed. |
+| `match:ended {reason, byMe, durationSeconds, liked, likedMe, mutualLike, giftsReceived, giftsSent, reconnectCost, freeReconnectUntil}` | `reason` is `partner_left` for the other side. |
 | `match:error` | Pairing failed (e.g. couldn't pay filters). |
 | `wallet:updated` | Any balance change, with the full wallet view. |
 | `social:friend-request`, `social:friend-accepted`, `social:friend-removed`, `social:message` | Friends and chat. |
+| `social:streak {friendId, streak}` | A friend streak was counted or restored. |
+| `engagement:vibe-hour {active, startsAt, endsAt}` | Vibe Hour started or ended (broadcast). |
+| `moments:new {authorId}` | Someone you follow, or a friend, posted a moment. |
+| `progress:level-up {level}`, `wallet:goal-reached {goal}` | Level up; gems reached your goal. |
 | `account:banned {until}` | Sent just before the server disconnects you. |
 | `account:warning {message}` | A moderator warned you. |
 | `inbox:message {campaignId, title, body, buttonLabel, buttonUrl}` | The Vibe team sent you a message (also in `GET /inbox`). |

@@ -271,10 +271,22 @@ class LocalWalletProvider extends WalletProvider {
   @override
   Future<bool> boost() async {
     if (isBoosted) return true;
-    if (!await spend(Economy.boostCost, 'Boost · 30 min priority')) return false;
+    if (_wallet.freeBoosts > 0) {
+      // A free credit is used before coins.
+      _wallet = _wallet.copyWith(freeBoosts: _wallet.freeBoosts - 1);
+      _tx.add(_entry(TxKind.earn, 'Free boost · 30 min priority', coins: 0));
+    } else if (!await spend(Economy.boostCost, 'Boost · 30 min priority')) {
+      return false;
+    }
     _wallet = _wallet.copyWith(boostUntil: _clock().add(Economy.boostLength));
     await _persist();
     return true;
+  }
+
+  @override
+  Future<void> setGemGoal(int? goal) async {
+    _wallet = goal == null ? _wallet.copyWith(clearGemGoal: true) : _wallet.copyWith(gemGoal: goal);
+    await _persist();
   }
 
   @override

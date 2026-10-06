@@ -23,6 +23,13 @@ export const ServerEvent = {
   MatchGift: 'match:gift',
   MatchFriendRequest: 'match:friend-request',
   MatchError: 'match:error',
+  /** Both liked each other in this call: `{ matchId }` ("It's a vibe!"). */
+  MatchMutual: 'match:mutual',
+  /** An icebreaker prompt: `{ matchId, game, round, prompt: { text, options? }, by: 'me' | 'partner' }`. */
+  MatchGame: 'match:game',
+  /** `{ matchId, round, mine, theirs, revealed, partnerAnswered }` — theirs only once both answered. */
+  MatchGameAnswer: 'match:game-answer',
+  MatchGameClosed: 'match:game-closed',
 
   RtcSignal: 'rtc:signal',
 
@@ -39,6 +46,17 @@ export const ServerEvent = {
   FollowRemoved: 'social:follow-removed',
   Message: 'social:message',
   PresenceChanged: 'social:presence',
+  /** A friend streak changed (counted, restored): `{ friendId, streak }`. */
+  Streak: 'social:streak',
+
+  /** Vibe Hour started or ended: `{ active, startsAt, endsAt }` (broadcast). */
+  VibeHour: 'engagement:vibe-hour',
+  /** Someone you follow or a friend posted a moment: `{ authorId }`. Refresh the feed. */
+  MomentNew: 'moments:new',
+  /** `{ level }` */
+  LevelUp: 'progress:level-up',
+  /** Gems reached the wallet goal: `{ goal }`. */
+  GoalReached: 'wallet:goal-reached',
 } as const;
 
 export type ServerEventName = (typeof ServerEvent)[keyof typeof ServerEvent];

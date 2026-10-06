@@ -23,6 +23,10 @@ class Ev {
   static const matchGift = 'match:gift';
   static const matchFriendRequest = 'match:friend-request';
   static const matchError = 'match:error';
+  static const matchMutual = 'match:mutual';
+  static const matchGame = 'match:game';
+  static const matchGameAnswer = 'match:game-answer';
+  static const matchGameClosed = 'match:game-closed';
   static const rtcSignal = 'rtc:signal';
   static const friendRequest = 'social:friend-request';
   static const friendAccepted = 'social:friend-accepted';
@@ -32,6 +36,12 @@ class Ev {
   static const followAccepted = 'social:follow-accepted';
   static const followRemoved = 'social:follow-removed';
   static const message = 'social:message';
+  static const presence = 'social:presence';
+  static const streak = 'social:streak';
+  static const vibeHour = 'engagement:vibe-hour';
+  static const momentNew = 'moments:new';
+  static const levelUp = 'progress:level-up';
+  static const goalReached = 'wallet:goal-reached';
   static const inboxMessage = 'inbox:message';
   static const catalogUpdated = 'catalog:updated';
 }
@@ -67,6 +77,10 @@ class RealtimeClient {
       _url,
       io.OptionBuilder()
           .setTransports(['websocket'])
+          // Our own manager: socket_io_client caches one per URL, which would
+          // hand a later client (a new sign-in, a second account in tests)
+          // the old connection and its auth.
+          .enableForceNew()
           .disableAutoConnect()
           .enableReconnection()
           .setReconnectionDelay(1000)

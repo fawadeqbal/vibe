@@ -121,9 +121,44 @@ class MockData {
         gemsEarned: rnd.nextInt(20000),
         matches: 40 + rnd.nextInt(900),
         likes: rnd.nextInt(400),
+        level: 2 + (i * 7) % 14,
       );
     });
   }
+
+  /// Icebreakers for the offline demo (the server has 40+ of each).
+  static const icebreakers = <IcebreakerGame, List<(String, List<String>?)>>{
+    IcebreakerGame.wyr: [
+      ('Would you rather…', ['Travel back in time', 'Jump to the future']),
+      ('Would you rather…', ['Only eat biryani forever', 'Never eat it again']),
+      ('Would you rather…', ['Live by the sea', 'Live in the mountains']),
+      ('Would you rather…', ['Be able to fly', 'Be invisible']),
+      ('Would you rather…', ['Always be 10 min late', 'Always be 20 min early']),
+      ('Would you rather…', ['Have a cat', 'Have a dog']),
+      ('Would you rather…', ['Sing in public', 'Dance in public']),
+      ('Would you rather…', ['Read minds', 'See the future']),
+    ],
+    IcebreakerGame.thisOrThat: [
+      ('This or that?', ['Chai', 'Coffee']),
+      ('This or that?', ['🍕 Pizza', '🍔 Burger']),
+      ('This or that?', ['Sunrise', 'Sunset']),
+      ('This or that?', ['Movies', 'Series']),
+      ('This or that?', ['Texting', 'Calling']),
+      ('This or that?', ['Beach', 'City']),
+      ('This or that?', ['Night owl', 'Early bird']),
+      ('This or that?', ['Cricket', 'Football']),
+    ],
+    IcebreakerGame.questions: [
+      ('What made you smile today?', null),
+      ("What's a song you have on repeat right now?", null),
+      ("What's the best trip you've ever taken?", null),
+      ('If you could learn one skill overnight, what would it be?', null),
+      ("What's something people always get wrong about you?", null),
+      ('What does a perfect weekend look like for you?', null),
+      ("What's the last thing you were really proud of?", null),
+      ('Which food could you never give up?', null),
+    ],
+  };
 
   static const openers = <String>[
     'hey! where are you from?',

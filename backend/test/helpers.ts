@@ -9,6 +9,7 @@ import { hashPassword } from '../src/common/utils/password';
 import { SystemRolesSync } from '../src/modules/admin/core/admin-core.module';
 import { EconomyService } from '../src/modules/catalog/economy.service';
 import { SettingsService } from '../src/modules/settings/settings.service';
+import { FriendsService } from '../src/modules/social/friends.service';
 import { PrismaService } from '../src/infra/prisma/prisma.service';
 import { RedisService } from '../src/infra/redis/redis.service';
 import { configureApp } from '../src/main';
@@ -47,6 +48,9 @@ export async function resetState(t: TestApp): Promise<void> {
   await t.redis.client.flushdb();
   await t.app.get(SystemRolesSync).sync();
   t.app.get(SettingsService).invalidate();
+  // Vibe Hour depends on the wall clock (free filters, double XP); keep it off
+  // so results don't change with the time of day. Tests that need it turn it on.
+  await t.prisma.appSetting.create({ data: { key: 'economy.rules', value: { vibeHourMinutes: 0 } } });
   await t.app.get(EconomyService).reload();
 }
 
@@ -142,4 +146,12 @@ export async function payByCard(t: TestApp, auth: { Authorization: string }, bod
   await t.http.get(path).expect(200);
   await t.http.post(path).type('form').send({ action }).expect(303);
   return t.http.get(`/v1/payments/purchases/${started.body.id}`).set(auth).expect(200);
+}
+
+/**
+ * A friend request as the call screen sends it (`match:friend`). REST can
+ * only accept requests, so tests that need a request start here.
+ */
+export function requestFriend(t: TestApp, from: TestUser, to: TestUser) {
+  return t.app.get(FriendsService).request(from.id, to.id, { viaCall: true });
 }

@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 ///
 /// Rules from the redesign:
 /// * The gradient is reserved for the one primary action per screen.
-/// * Teal means trust — verified, blur, safe mode, safety.
+/// * Teal means trust — verified, blur, safe mode, safety, wellbeing.
+/// * Orange is the streak flame; lavender marks levels and XP.
 /// * Gold means money — coins, VIP, prices.
 /// * Geist carries the UI; Instrument Serif italic marks a few emotional
 ///   words ("right now.", "for you", "VIP").
@@ -39,6 +40,13 @@ class V {
   static const Color ok = Color(0xFF34D399);
   static const Color bad = Color(0xFFFB7185);
   static const Color warn = Color(0xFFFBBF24);
+
+  /// Friend streaks (the flame): orange when today counted, amber ([warn])
+  /// when it ends tonight. Never used for anything else.
+  static const Color flame = Color(0xFFFF8A3D);
+
+  /// Levels and XP ("Lv 7"): the soft violet of the brand, not the gradient.
+  static const Color level = lavender;
 
   /// Text/icons that sit on gold or teal fills.
   static const Color onGold = Color(0xFF1A1200);

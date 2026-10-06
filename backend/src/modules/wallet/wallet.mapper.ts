@@ -17,6 +17,10 @@ export interface WalletView {
   ads: { leftToday: number; perDay: number; reward: number };
   freeFriendRequestsLeft: number;
   profileBonusClaimed: boolean;
+  /** Gems the user is saving towards (null = no goal). */
+  gemGoal: number | null;
+  /** Boosts given away (win-back); POST /wallet/boost uses one before coins. */
+  freeBoosts: number;
 }
 
 export function nextCheckInDay(w: Pick<Wallet, 'lastCheckInAt' | 'streakDay'>, clock: Clock, rules: Pick<Rules, 'checkInRewards'>): number {
@@ -39,7 +43,11 @@ export function freeFriendRequestsLeft(w: Pick<Wallet, 'friendRequestsDay' | 'fr
 export const isVip = (w: Pick<Wallet, 'vipUntil'> | null | undefined, now: Date): boolean => !!w?.vipUntil && w.vipUntil > now;
 export const isBoosted = (w: Pick<Wallet, 'boostUntil'> | null | undefined, now: Date): boolean => !!w?.boostUntil && w.boostUntil > now;
 
-export function toWalletView(w: Wallet, clock: Clock, rules: Rules): WalletView {
+/** Wallet row, optionally with the owner's gem goal joined (`include: WALLET_INCLUDE`). */
+export type WalletRow = Wallet & { user?: { gemGoal: number | null } | null };
+export const WALLET_INCLUDE = { user: { select: { gemGoal: true } } } as const;
+
+export function toWalletView(w: WalletRow, clock: Clock, rules: Rules): WalletView {
   const now = clock.now();
   return {
     coins: w.coins,
@@ -58,6 +66,8 @@ export function toWalletView(w: Wallet, clock: Clock, rules: Rules): WalletView 
     ads: { leftToday: adsLeftToday(w, clock, rules), perDay: rules.rewardedAdsPerDay, reward: rules.rewardedAdCoins },
     freeFriendRequestsLeft: freeFriendRequestsLeft(w, clock, rules),
     profileBonusClaimed: w.profileBonusClaimed,
+    gemGoal: w.user?.gemGoal ?? null,
+    freeBoosts: w.freeBoosts,
   };
 }
 

@@ -9,6 +9,7 @@ import { SendGiftDto, SendMessageDto } from './dto/social.dto';
 import { FriendsService } from './friends.service';
 import { LikesService } from './likes.service';
 import { MessagesService } from './messages.service';
+import { StreakService } from './streak.service';
 
 @ApiTags('friends')
 @ApiBearerAuth()
@@ -17,6 +18,7 @@ export class FriendsController {
   constructor(
     private readonly friends: FriendsService,
     private readonly messages: MessagesService,
+    private readonly streaks: StreakService,
   ) {}
 
   @Get()
@@ -27,7 +29,7 @@ export class FriendsController {
 
   @Post(':userId/request')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Send a friend request (3 free a day, then coins); accepts if they asked first' })
+  @ApiOperation({ summary: 'Accepts their friend request if they asked first. New requests are only sent from a live call (match:friend); otherwise 403 FRIEND_IN_CALL_ONLY' })
   request(@CurrentUser('id') me: string, @Param('userId') userId: string) {
     return this.friends.request(me, userId);
   }
@@ -65,6 +67,13 @@ export class FriendsController {
   @Post(':userId/gifts')
   gift(@CurrentUser('id') me: string, @Param('userId') userId: string, @Body() dto: SendGiftDto, @Headers('idempotency-key') key?: string) {
     return this.messages.sendGift(me, userId, dto.giftId, key);
+  }
+
+  @Post(':userId/streak/restore')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Restore a 3+ day streak that broke yesterday: streakRestoreCost coins (VIP free); 409 STREAK_NOT_RESTORABLE otherwise' })
+  restoreStreak(@CurrentUser('id') me: string, @Param('userId') userId: string) {
+    return this.streaks.restore(me, userId);
   }
 
   @Post(':userId/read')

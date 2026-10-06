@@ -5,6 +5,7 @@ import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/models.dart';
+import '../../providers/engagement_provider.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
@@ -13,9 +14,11 @@ import '../../providers/wallet_provider.dart';
 import '../match/safety_sheet.dart' show VerifyPill;
 import '../onboarding/profile_setup_screen.dart';
 import 'follow_lists_screen.dart';
+import 'progress.dart';
 import 'sign_in_methods.dart';
 import 'user_profile_screen.dart';
 import 'verification_flow.dart';
+import 'wellbeing_section.dart';
 import '../store/vip_screen.dart';
 import '../store/wallet_screen.dart';
 
@@ -58,6 +61,8 @@ class ProfileScreen extends StatelessWidget {
                   _ProfileCard(me: me, vip: wallet.isVip),
                   const SizedBox(height: 12),
                   _StatsCard(me: me, friends: social.friends.length, match: match),
+                  const SizedBox(height: 10),
+                  const ProgressCard(),
                   const SizedBox(height: 10),
                   const _FollowSection(),
                   const SectionTitle('Safety & trust', top: 26),
@@ -164,6 +169,8 @@ class ProfileScreen extends StatelessWidget {
                     Padding(padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2), child: Text('Your last matches will show up here.', style: VT.body(13, color: V.text2)))
                   else
                     for (final (i, r) in match.history.take(8).indexed) _matchRow(context, r, last: i == (match.history.length.clamp(0, 8) - 1)),
+                  const SectionTitle('Notifications & wellbeing', top: 22),
+                  const WellbeingSection(),
                   const SectionTitle('Sign-in methods', top: 22),
                   const SignInMethodsCard(),
                   const SectionTitle('Account', top: 22),
@@ -301,6 +308,11 @@ class _ProfileCard extends StatelessWidget {
                   children: [
                     Flexible(child: Text('${me.name}, ${me.age}', overflow: TextOverflow.ellipsis, style: VT.display(28, height: 1.1))),
                     if (me.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.verified_rounded, color: V.trust, size: 22, semanticLabel: 'Verified')),
+                    Builder(builder: (context) {
+                      final e = context.watch<EngagementProvider>();
+                      final lvl = e.loaded ? e.level.level : me.level;
+                      return lvl > 0 ? Padding(padding: const EdgeInsets.only(left: 8), child: LevelChip(level: lvl, glass: true, size: 12)) : const SizedBox.shrink();
+                    }),
                   ],
                 ),
                 const SizedBox(height: 2),

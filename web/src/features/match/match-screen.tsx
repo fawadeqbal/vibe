@@ -21,7 +21,7 @@ export function MatchScreen() {
   const status = useMatch((s) => s.status);
   const hasLast = useMatch((s) => s.lastPartner != null);
   const chat = useMatch((s) => s.chat);
-  const [burst, setBurst] = useState<{ gift: Gift; received: boolean; seq: number } | null>(null);
+  const [burst, setBurst] = useState<{ gift: Gift; received: boolean; bonusGems?: number; seq: number } | null>(null);
   const seen = useRef(0);
   const actions = useMatchActions((g) => setBurst((b) => ({ gift: g, received: false, seq: (b?.seq ?? 0) + 1 })));
 
@@ -46,8 +46,9 @@ export function MatchScreen() {
     if (chat.length < seen.current) seen.current = 0;
     const fresh = chat.slice(seen.current).filter((c) => !c.fromMe && c.gift);
     seen.current = chat.length;
-    const g = fresh.at(-1)?.gift;
-    if (g) setBurst((b) => ({ gift: g, received: true, seq: (b?.seq ?? 0) + 1 }));
+    const last = fresh.at(-1);
+    const g = last?.gift;
+    if (g) setBurst((b) => ({ gift: g, received: true, bonusGems: last?.bonusGems, seq: (b?.seq ?? 0) + 1 }));
   }, [chat]);
 
   return (
@@ -63,7 +64,7 @@ export function MatchScreen() {
       )}
       {burst ? (
         <div key={`${burst.gift.id}-${burst.seq}`} className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <GiftBurst gift={burst.gift} received={burst.received} />
+          <GiftBurst gift={burst.gift} received={burst.received} bonusGems={burst.bonusGems} />
         </div>
       ) : null}
     </div>

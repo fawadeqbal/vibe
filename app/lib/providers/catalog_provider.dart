@@ -51,6 +51,18 @@ class CatalogProvider extends ChangeNotifier {
     Economy.inviteRewardCoins = i('inviteRewardCoins', Economy.inviteRewardCoins);
     Economy.profileCompleteCoins = i('profileCompleteCoins', Economy.profileCompleteCoins);
     Economy.welcomeCoins = i('welcomeCoins', Economy.welcomeCoins);
+    Economy.streakRestoreCost = i('streakRestoreCost', Economy.streakRestoreCost);
+    Economy.streakWeeklyCoins = i('streakWeeklyCoins', Economy.streakWeeklyCoins);
+    Economy.freeReconnectMinutes = i('freeReconnectMinutes', Economy.freeReconnectMinutes);
+    Economy.vibeHourStart = i('vibeHourStart', Economy.vibeHourStart);
+    Economy.vibeHourMinutes = i('vibeHourMinutes', Economy.vibeHourMinutes);
+    Economy.vibeHourGemBonusPercent = i('vibeHourGemBonusPercent', Economy.vibeHourGemBonusPercent);
+    Economy.xpPerGoodCall = i('xpPerGoodCall', Economy.xpPerGoodCall);
+    Economy.xpPerLikeReceived = i('xpPerLikeReceived', Economy.xpPerLikeReceived);
+    Economy.xpPerGiftReceived = i('xpPerGiftReceived', Economy.xpPerGiftReceived);
+    Economy.xpPerCheckIn = i('xpPerCheckIn', Economy.xpPerCheckIn);
+    Economy.xpPerStreakDay = i('xpPerStreakDay', Economy.xpPerStreakDay);
+    Economy.maxEngagementPushesPerDay = i('maxEngagementPushesPerDay', Economy.maxEngagementPushesPerDay);
 
     List<Map<String, dynamic>> list(String k) => [for (final x in (c[k] as List? ?? const [])) Map<String, dynamic>.from(x as Map)];
     final packs = [

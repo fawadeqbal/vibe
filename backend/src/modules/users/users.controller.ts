@@ -23,7 +23,7 @@ export class MeController {
   }
 
   @Patch()
-  @ApiOperation({ summary: 'Update name, age, gender, country, bio, interests' })
+  @ApiOperation({ summary: 'Update profile and settings: name, age, gender, country, bio, interests, privacy, gemGoal, quiet hours, tzOffsetMinutes, breakReminderMinutes' })
   update(@CurrentUser('id') id: string, @Body() dto: UpdateProfileDto) {
     return this.users.update(id, dto);
   }

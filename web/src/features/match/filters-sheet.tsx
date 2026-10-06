@@ -16,6 +16,7 @@ import { alpha } from "@/lib/colors";
 import { cn } from "@/lib/cn";
 import type { GenderFilter, MatchFilters } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
+import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { useMatch } from "@/stores/match";
 import { openSheet } from "@/stores/ui";
 import { filterCost, isVip, useWallet } from "@/stores/wallet";
@@ -34,10 +35,12 @@ export const TRUST_ROW = { iconColor: "trust" as const, iconBg: alpha("trust", 0
 function FiltersSheet({ onDone }: { onDone: () => void }) {
   const router = useRouter();
   const vip = useWallet((s) => isVip(s.wallet));
+  const vibeHour = useEngagement((s) => isVibeHour(s));
   const e = useCatalog((s) => s.economy);
   const [f, setF] = useState<MatchFilters>(() => useMatch.getState().filters);
   const [autoBlur, setAutoBlur] = useState(() => useMatch.getState().autoBlur);
-  const cost = filterCost(f, vip);
+  const cost = filterCost(f, vip || vibeHour);
+  const free = vip || vibeHour;
 
   const seg = (g: GenderFilter, price: number | null) => {
     const on = f.gender === g;
@@ -45,7 +48,7 @@ function FiltersSheet({ onDone }: { onDone: () => void }) {
       <ChoiceTile key={g} selected={on} onClick={() => setF({ ...f, gender: g })} className="h-[72px] rounded-[18px]">
         <Icon name={genderFilterIcon[g]} size={20} className={on ? "text-pink-soft" : "text-text2"} />
         <span className={cn("type-title mt-1 text-[14px] font-semibold", on ? "text-text" : "text-text2")}>{genderFilterLabel[g]}</span>
-        <span className="mt-0.5 flex h-[13px] items-center">{price == null || vip ? <span className="type-label text-[11px] text-ok">free</span> : <CoinAmount amount={price} size={11} />}</span>
+        <span className="mt-0.5 flex h-[13px] items-center">{price == null || free ? <span className="type-label text-[11px] text-ok">free</span> : <CoinAmount amount={price} size={11} />}</span>
       </ChoiceTile>
     );
   };
@@ -53,7 +56,9 @@ function FiltersSheet({ onDone }: { onDone: () => void }) {
   return (
     <div className="flex flex-col px-5 pt-2.5 pb-5">
       <Headline as="h2" text="Who do you want to " accent="meet?" size={24} />
-      <p className="type-body mt-1.5 text-[13px] leading-[1.45] text-text2">{vip ? "VIP: every filter is free." : "Gender and country filters cost coins per match. VIP makes them free."}</p>
+      <p className="type-body mt-1.5 text-[13px] leading-[1.45] text-text2">
+        {vip ? "VIP: every filter is free." : vibeHour ? "Vibe Hour: every filter is free for everyone right now." : "Gender and country filters cost coins per match. VIP makes them free."}
+      </p>
 
       <SectionTitle text="Gender" top={22} />
       <div className="flex gap-2">
@@ -62,7 +67,7 @@ function FiltersSheet({ onDone }: { onDone: () => void }) {
         {seg("men", e.genderFilterCost)}
       </div>
 
-      <SectionTitle text="Country" top={22} note={vip ? "Free with VIP" : `${e.regionFilterCost} coins per match`} />
+      <SectionTitle text="Country" top={22} note={vip ? "Free with VIP" : vibeHour ? "Free during Vibe Hour" : `${e.regionFilterCost} coins per match`} />
       <Select
         label="Country"
         icon="expand_more"
@@ -102,7 +107,7 @@ function FiltersSheet({ onDone }: { onDone: () => void }) {
           </>
         )}
         <span className="flex-1" />
-        {!vip && cost > 0 ? (
+        {!free && cost > 0 ? (
           <button
             type="button"
             className="flex items-center py-1.5"

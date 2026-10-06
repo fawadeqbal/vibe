@@ -1,11 +1,14 @@
 import { useCatalog } from "./catalog";
+import { useEngagement } from "./engagement";
 import { useFollows } from "./follows";
 import { useInbox } from "./inbox";
 import { useMatch } from "./match";
+import { useMoments } from "./moments";
 import { realtime } from "./services";
 import { useSession } from "./session";
 import { useSocial } from "./social";
 import { useWallet } from "./wallet";
+import { startBreakReminder, stopBreakReminder } from "./wellbeing";
 
 /**
  * App lifecycle (the Flutter `VibeApp` state): restore the session once,
@@ -17,7 +20,16 @@ let live = false;
 
 async function loadAll() {
   await useCatalog.getState().load();
-  await Promise.allSettled([useWallet.getState().load(), useSocial.getState().load(), useFollows.getState().load(), useMatch.getState().load(), useInbox.getState().load()]);
+  await Promise.allSettled([
+    useWallet.getState().load(),
+    useSocial.getState().load(),
+    useFollows.getState().load(),
+    useMatch.getState().load(),
+    useInbox.getState().load(),
+    useEngagement.getState().load(),
+    useMoments.getState().load(),
+    useSession.getState().syncTimezone(),
+  ]);
 }
 
 function onSessionChanged(signedIn: boolean) {
@@ -26,6 +38,7 @@ function onSessionChanged(signedIn: boolean) {
     realtime.connect();
     void loadAll();
     void useSession.getState().loadVerification();
+    startBreakReminder();
   } else if (!signedIn && live) {
     live = false;
     realtime.disconnect();
@@ -34,6 +47,9 @@ function onSessionChanged(signedIn: boolean) {
     useSocial.getState().reset();
     useFollows.getState().reset();
     useInbox.getState().reset();
+    useEngagement.getState().reset();
+    useMoments.getState().reset();
+    stopBreakReminder();
   }
 }
 

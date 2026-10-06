@@ -25,6 +25,10 @@ export interface ProfileStats {
 export interface ProfileView {
   profile: PublicProfile;
   tier: ProfileTier;
+  /** Same as profile.level; at every tier. */
+  level: number;
+  /** Earned badge ids (users/badges.ts), at every tier. */
+  badges: string[];
   rel: Relationship;
   counts?: ProfileCounts;
   stats?: ProfileStats | 'hidden';
@@ -40,6 +44,8 @@ export interface ProfileFacts {
   online: boolean;
   counts: ProfileCounts;
   stats: ProfileStats;
+  /** Earned badge ids. */
+  badges: string[];
 }
 
 export const NO_RELATIONSHIP: Relationship = { follow: 'none', followsYou: false, friend: 'none' };
@@ -60,7 +66,7 @@ export function resolveTier(f: Pick<ProfileFacts, 'self' | 'met' | 'rel'>): Prof
 export function buildProfileView(profile: PublicProfile, f: ProfileFacts): ProfileView | null {
   const tier = resolveTier(f);
   if (!tier) return null;
-  const view: ProfileView = { profile, tier, rel: f.rel };
+  const view: ProfileView = { profile, tier, level: profile.level, badges: f.badges, rel: f.rel };
   if (tier === 'matched') return view;
   view.counts = f.counts;
   view.stats = f.hideStats && tier !== 'self' ? 'hidden' : f.stats;

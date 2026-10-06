@@ -1,6 +1,6 @@
 import { DevPushSender } from '../src/modules/push/push-sender';
 import { PushService } from '../src/modules/push/push.service';
-import { connect, createTestApp, next, resetState, signUp, sleep, staffLogin, TestApp, TestUser } from './helpers';
+import { connect, createTestApp, next, resetState, signUp, sleep, staffLogin, TestApp, TestUser, requestFriend } from './helpers';
 
 describe('follows and profiles', () => {
   let t: TestApp;
@@ -13,7 +13,7 @@ describe('follows and profiles', () => {
   const met = (a: TestUser, b: TestUser) => t.prisma.match.create({ data: { userAId: a.id, userBId: b.id, endedAt: new Date() } });
   const counts = (u: TestUser) => t.prisma.user.findUniqueOrThrow({ where: { id: u.id }, select: { followersCount: true, followingCount: true, giftsReceivedCount: true } });
   const befriend = async (a: TestUser, b: TestUser) => {
-    await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(200);
+    await requestFriend(t, a, b);
     await t.http.post(`/v1/friends/${a.id}/accept`).set(b.auth).expect(200);
   };
   const waitFor = async (check: () => Promise<boolean>, ms = 3000) => {

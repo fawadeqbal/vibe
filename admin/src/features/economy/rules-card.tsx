@@ -187,7 +187,8 @@ function UnitInput({ id, field, value, invalid, onChange }: { id: string; field:
       {unit.prefix && <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted">{unit.prefix}</span>}
       <Input
         id={id}
-        inputMode="decimal"
+        inputMode={field.kind === "clock" ? "text" : "decimal"}
+        placeholder={field.kind === "clock" ? "21:00" : undefined}
         value={value}
         aria-invalid={invalid}
         onChange={(e) => onChange(e.target.value)}

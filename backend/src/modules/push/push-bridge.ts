@@ -41,7 +41,10 @@ export class PushBridge implements OnModuleInit {
     [ServerEvent.FollowNew]: async (p, userId) => {
       const from = (p.from ?? {}) as { id?: string; name?: string };
       if (!(await this.firstToday(`push:follow:${from.id}:${userId}`))) return null;
-      return { title: 'New follower', body: `${from.name || 'Someone'} started following you`, data: { route: 'profile', userId: String(from.id ?? '') }, category: 'social' };
+      // You already follow them: it's a follow-back.
+      const back = from.id ? await this.prisma.follow.findUnique({ where: { followerId_followeeId: { followerId: userId, followeeId: from.id } }, select: { status: true } }) : null;
+      const body = back?.status === 'ACTIVE' ? `${from.name || 'Someone'} followed you back` : `${from.name || 'Someone'} started following you`;
+      return { title: 'New follower', body, data: { route: 'profile', userId: String(from.id ?? '') }, category: 'social' };
     },
     [ServerEvent.FollowRequest]: async (p, userId) => {
       const from = (p.from ?? {}) as { id?: string; name?: string };
@@ -52,6 +55,7 @@ export class PushBridge implements OnModuleInit {
       const by = (p.by ?? {}) as { id?: string; name?: string };
       return { title: 'Request accepted', body: `${by.name || 'Someone'} accepted your follow request`, data: { route: 'profile', userId: String(by.id ?? '') }, category: 'social' };
     },
+    [ServerEvent.GoalReached]: (p) => ({ title: 'Goal reached 🎯', body: `You reached your goal of ${Number(p.goal).toLocaleString('en-US')} gems.`, data: { route: 'wallet' }, category: 'payments' }),
     [ServerEvent.InboxMessage]: (p) => ({ title: String(p.title ?? 'Message from Vibe'), body: String(p.body ?? '').slice(0, 160), data: { route: 'inbox' }, category: 'inbox' }),
     [ServerEvent.PaymentUpdated]: (p) => {
       if (p.status === 'SUCCEEDED') return { title: 'Payment received', body: p.productType === 'VIP_PLAN' ? 'Your VIP is active. Enjoy!' : 'Your coins are in your wallet.', data: { route: 'wallet', purchaseId: String(p.id) }, category: 'payments', collapseKey: `pay:${p.id}` };

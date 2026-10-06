@@ -64,4 +64,37 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsBoolean()
   hideStats?: boolean;
+
+  @ApiPropertyOptional({ nullable: true, example: 5000, description: 'Gems you are saving towards (100–10,000,000); null clears it' })
+  @IsOptional()
+  @IsInt()
+  @Min(100)
+  @Max(10_000_000)
+  gemGoal?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 1320, description: 'Quiet hours start, minutes after midnight in tzOffsetMinutes (null = off)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1439)
+  quietHoursStart?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 420, description: 'Quiet hours end, minutes after midnight (null = off)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1439)
+  quietHoursEnd?: number | null;
+
+  @ApiPropertyOptional({ example: 300, description: "The device's UTC offset in minutes (Pakistan = 300)" })
+  @IsOptional()
+  @IsInt()
+  @Min(-720)
+  @Max(840)
+  tzOffsetMinutes?: number;
+
+  @ApiPropertyOptional({ nullable: true, enum: [30, 60, 90, 120], description: 'Break reminder after this many minutes in a call; null = off' })
+  @IsOptional()
+  @IsIn([30, 60, 90, 120])
+  breakReminderMinutes?: number | null;
 }

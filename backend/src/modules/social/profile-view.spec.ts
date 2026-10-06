@@ -1,7 +1,7 @@
 import type { PublicProfile } from '../users/user.mapper';
 import { buildProfileView, NO_RELATIONSHIP, ProfileFacts } from './profile-view';
 
-const profile: PublicProfile = { id: 'u2', name: 'Sana', age: 23, gender: 'female', countryCode: 'PK', avatarUrl: '', bio: 'coffee first', interests: ['Music'], verified: false, vip: false };
+const profile: PublicProfile = { id: 'u2', name: 'Sana', age: 23, gender: 'female', countryCode: 'PK', avatarUrl: '', bio: 'coffee first', interests: ['Music'], verified: false, vip: false, level: 3 };
 const facts = (over: Partial<ProfileFacts> = {}): ProfileFacts => ({
   self: false,
   met: true,
@@ -10,6 +10,7 @@ const facts = (over: Partial<ProfileFacts> = {}): ProfileFacts => ({
   online: true,
   counts: { followers: 5, following: 2 },
   stats: { matches: 40, likes: 9, gifts: 3 },
+  badges: ['first_vibes'],
   ...over,
 });
 
@@ -19,7 +20,7 @@ describe('profile tiers', () => {
   });
 
   it('matched: the public profile and the relationship, nothing more', () => {
-    expect(buildProfileView(profile, facts())).toEqual({ profile, tier: 'matched', rel: NO_RELATIONSHIP });
+    expect(buildProfileView(profile, facts())).toEqual({ profile, tier: 'matched', level: 3, badges: ['first_vibes'], rel: NO_RELATIONSHIP });
   });
 
   it('a pending follow request is still the matched tier', () => {

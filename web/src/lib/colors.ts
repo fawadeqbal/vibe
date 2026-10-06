@@ -10,6 +10,7 @@ export type Tone =
   | "ok"
   | "bad"
   | "warn"
+  | "flame"
   | "text"
   | "text2"
   | "muted"

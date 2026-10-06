@@ -36,8 +36,11 @@ class _FiltersSheetState extends State<_FiltersSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final vip = context.watch<WalletProvider>().isVip;
-    final cost = _f.costFor(vip: vip);
+    final isVip = context.watch<WalletProvider>().isVip;
+    // Vibe Hour makes every filter free for everyone, like VIP.
+    final vibeHour = Economy.filtersFree;
+    final vip = isVip || vibeHour;
+    final cost = _f.costFor(vip: isVip);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       child: Column(
@@ -45,7 +48,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
         children: [
           const Headline('Who do you want to ', accent: 'meet?', size: 24),
           const SizedBox(height: 6),
-          Text(vip ? 'VIP: every filter is free.' : 'Gender and country filters cost coins per match. VIP makes them free.', style: VT.body(13, color: V.text2, height: 1.45)),
+          Text(vibeHour && !isVip ? 'Vibe Hour: every filter is free right now.' : (isVip ? 'VIP: every filter is free.' : 'Gender and country filters cost coins per match. VIP makes them free.'), style: VT.body(13, color: V.text2, height: 1.45)),
           const SectionTitle('Gender', top: 22),
           Row(
             children: [
@@ -56,7 +59,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
               _seg('Men', Icons.male_rounded, GenderFilter.men, Economy.genderFilterCost, vip),
             ],
           ),
-          SectionTitle('Country', top: 22, note: vip ? 'Free with VIP' : '${Economy.regionFilterCost} coins per match'),
+          SectionTitle('Country', top: 22, note: isVip ? 'Free with VIP' : (vibeHour ? 'Free during Vibe Hour' : '${Economy.regionFilterCost} coins per match')),
           Container(
             decoration: BoxDecoration(color: V.surface2, borderRadius: BorderRadius.circular(18), border: Border.all(color: V.line)),
             child: DropdownButtonHideUnderline(
@@ -90,7 +93,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
               GroupRow(
                 icon: Icons.blur_on_rounded,
                 title: 'Blur the first 3 seconds',
-                subtitle: vip ? 'Off for VIP by default; you can keep it on.' : 'Both videos start blurred, so nobody gets flashed.',
+                subtitle: isVip ? 'Off for VIP by default; you can keep it on.' : 'Both videos start blurred, so nobody gets flashed.',
                 trailing: Switch(value: _autoBlur, onChanged: (v) => setState(() => _autoBlur = v)),
               ),
             ],
@@ -100,7 +103,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
             children: [
               if (cost == 0) ...[const Icon(Icons.check_circle_rounded, size: 18, color: V.ok), const SizedBox(width: 6), Text('Free to match', style: VT.title(15, color: V.ok, weight: FontWeight.w600))] else ...[CoinAmount(cost, size: 15), const SizedBox(width: 6), Text('per match', style: VT.body(14, color: V.text2))],
               const Spacer(),
-              if (!vip && cost > 0)
+              if (!isVip && cost > 0)
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {

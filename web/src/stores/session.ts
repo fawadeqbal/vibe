@@ -2,9 +2,10 @@ import { create } from "zustand";
 
 import { ApiError } from "@/lib/api/errors";
 import { tokenStore } from "@/lib/api/tokens";
-import { asList, asMap, type Json, profile as mapProfile } from "@/lib/api/mappers";
+import { asList, asMap, type Json, mePrefs, profile as mapProfile } from "@/lib/api/mappers";
+import { tzOffsetMinutes } from "@/lib/engagement";
 import { type LivenessChallenge, parseChallenge } from "@/lib/liveness";
-import type { Profile } from "@/lib/models";
+import type { MePrefs, Profile } from "@/lib/models";
 import {
   type IdentitiesView,
   NO_VERIFICATION,
@@ -35,6 +36,8 @@ interface SessionState {
   emailUpdates: boolean;
   inviteCode: string | null;
   verificationState: VerificationState;
+  /** Gem goal, quiet hours, time zone and break reminder (GET /me). */
+  prefs: MePrefs;
 
   restore: () => Promise<void>;
   requestCode: (email: string) => Promise<void>;
@@ -56,6 +59,10 @@ interface SessionState {
   /** False when the change could not be saved (the switch flips back). */
   setEmailUpdates: (on: boolean) => Promise<boolean>;
   refreshMe: () => Promise<void>;
+  /** PATCH /me with engagement settings. False when it could not be saved. */
+  savePrefs: (patch: Partial<Omit<MePrefs, "xp">>) => Promise<boolean>;
+  /** Sends this device's UTC offset when the server has another (quiet hours run on it). */
+  syncTimezone: () => Promise<void>;
   refreshPermissions: () => Promise<void>;
   requestPermissions: () => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -73,6 +80,7 @@ export const useSession = create<SessionState>()((set, get) => {
       onboarded: m.onboarded === true,
       inviteCode: typeof m.inviteCode === "string" ? m.inviteCode : null,
       emailUpdates: m.marketingEmails !== false,
+      prefs: mePrefs(m),
     });
 
   const busyWhile = async <T,>(fn: () => Promise<T>): Promise<T> => {
@@ -103,6 +111,7 @@ export const useSession = create<SessionState>()((set, get) => {
     emailUpdates: true,
     inviteCode: null,
     verificationState: NO_VERIFICATION,
+    prefs: mePrefs({}),
 
     async restore() {
       try {
@@ -210,6 +219,24 @@ export const useSession = create<SessionState>()((set, get) => {
       try {
         applyMe(asMap(await api.get("/me")));
       } catch {}
+    },
+
+    async savePrefs(patch) {
+      const before = get().prefs;
+      set({ prefs: { ...before, ...patch } });
+      try {
+        applyMe(asMap(await api.patch("/me", patch)));
+        return true;
+      } catch {
+        set({ prefs: before });
+        return false;
+      }
+    },
+
+    async syncTimezone() {
+      const tz = tzOffsetMinutes();
+      if (!get().me || get().prefs.tzOffsetMinutes === tz || tz < -720 || tz > 840) return;
+      await get().savePrefs({ tzOffsetMinutes: tz });
     },
 
     async refreshPermissions() {

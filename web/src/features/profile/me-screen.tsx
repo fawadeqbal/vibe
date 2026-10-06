@@ -30,6 +30,9 @@ import { friendsOf, useSocial } from "@/stores/social";
 import { toast } from "@/stores/ui";
 import { isVip, useWallet } from "@/stores/wallet";
 
+import { ProgressCard } from "@/features/engagement/progress-card";
+import { WellbeingSection } from "@/features/engagement/wellbeing-section";
+
 import { SignInMethodsCard } from "./sign-in-methods";
 
 const TRUST = { iconColor: "trust" as const, iconBg: alpha("trust", 0.12) };
@@ -74,6 +77,7 @@ export function MeScreen() {
         <StatsCard me={me} />
       </div>
       <FollowSection />
+      <ProgressCard />
 
       <SectionTitle text="Safety & trust" top={26} />
       <GroupCard className="border-trust/22">
@@ -91,6 +95,8 @@ export function MeScreen() {
         ) : null}
         <GroupRow icon="support_agent" title="Help and safety" trailing={<Icon name="chevron_right" className="text-muted" />} onClick={() => toast("The help centre opens here soon")} />
       </GroupCard>
+
+      <WellbeingSection />
 
       <SectionTitle text="Wallet" top={26} />
       <div className="flex gap-2.5">

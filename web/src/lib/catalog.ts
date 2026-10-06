@@ -27,6 +27,23 @@ export interface Economy {
   inviteRewardCoins: number;
   profileCompleteCoins: number;
   welcomeCoins: number;
+  /** Restore a friend streak that broke yesterday (VIP free). */
+  streakRestoreCost: number;
+  /** Both friends get this every 7th streak day. */
+  streakWeeklyCoins: number;
+  /** Reconnect is free this long after a dropped call or a mutual like. */
+  freeReconnectMinutes: number;
+  /** Minutes after business midnight (UTC+5). */
+  vibeHourStart: number;
+  /** 0 = off. */
+  vibeHourMinutes: number;
+  vibeHourGemBonusPercent: number;
+  xpPerGoodCall: number;
+  xpPerLikeReceived: number;
+  xpPerGiftReceived: number;
+  xpPerCheckIn: number;
+  xpPerStreakDay: number;
+  maxEngagementPushesPerDay: number;
   /** Local currency shown next to USD prices. */
   pkrPerUsd: number;
 }
@@ -52,6 +69,18 @@ export const DEFAULT_ECONOMY: Economy = {
   inviteRewardCoins: 100,
   profileCompleteCoins: 50,
   welcomeCoins: 30,
+  streakRestoreCost: 30,
+  streakWeeklyCoins: 10,
+  freeReconnectMinutes: 10,
+  vibeHourStart: 1260,
+  vibeHourMinutes: 60,
+  vibeHourGemBonusPercent: 0,
+  xpPerGoodCall: 10,
+  xpPerLikeReceived: 5,
+  xpPerGiftReceived: 5,
+  xpPerCheckIn: 5,
+  xpPerStreakDay: 2,
+  maxEngagementPushesPerDay: 3,
   pkrPerUsd: 280,
 };
 

@@ -42,6 +42,12 @@ abstract class SocialProvider extends ChangeNotifier {
   bool get loaded => _loaded;
   int get unreadTotal => _friends.fold(0, (a, f) => a + f.unread);
 
+  /// Friends online right now (the lobby's "3 friends online" row).
+  List<Friend> get onlineFriends => friends.where((f) => f.online).toList();
+
+  /// Streaks that end tonight unless you both talk.
+  int get streaksAtRisk => friends.where((f) => f.streak.atRisk).length;
+
   DateTime _lastAt(Friend f) {
     final list = _chats[f.profile.id];
     return list == null || list.isEmpty ? f.since : list.last.at;
@@ -85,4 +91,22 @@ abstract class SocialProvider extends ChangeNotifier {
   Future<void> sendMessage(String friendId, String text);
   Future<bool> sendGift(String friendId, Gift gift);
   void markRead(String friendId);
+
+  /// Brings back a streak that broke yesterday for `restoreCost` coins (free
+  /// for VIP). False when it could not be paid for; throws [ApiException]
+  /// `STREAK_NOT_RESTORABLE` when it is too late.
+  Future<bool> restoreStreak(String friendId);
+
+  /// Replaces one friend's streak (server push, restore answer).
+  @protected
+  void setStreak(String friendId, StreakView streak) {
+    final i = _friends.indexWhere((x) => x.profile.id == friendId);
+    if (i < 0) return;
+    _friends[i] = _friends[i].copyWith(streak: streak);
+    notifyListeners();
+  }
+
+  /// Test seam.
+  @visibleForTesting
+  void debugSetStreak(String friendId, StreakView streak) => setStreak(friendId, streak);
 }

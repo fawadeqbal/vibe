@@ -106,6 +106,13 @@ class LocalSessionProvider extends SessionProvider {
   }
 
   @override
+  Future<bool> saveWellbeing(WellbeingSettings w) async {
+    _wellbeing = WellbeingSettings(quietHoursStart: w.quietHoursStart, quietHoursEnd: w.quietHoursEnd, breakReminderMinutes: w.breakReminderMinutes, tzOffsetMinutes: SessionProvider.deviceTzOffsetMinutes());
+    notifyListeners();
+    return true;
+  }
+
+  @override
   void bumpStats({int matches = 0, int likes = 0}) {
     if (_me == null) return;
     _me = _me!.copyWith(matches: _me!.matches + matches, likes: _me!.likes + likes);
@@ -118,6 +125,7 @@ class LocalSessionProvider extends SessionProvider {
     await _runSignOutHooks();
     _identities.clear();
     _verification = VerificationState.none;
+    _wellbeing = const WellbeingSettings();
     await _backend.signOut();
     _me = null;
     _onboarded = false;

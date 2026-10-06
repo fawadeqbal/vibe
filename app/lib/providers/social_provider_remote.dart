@@ -10,6 +10,11 @@ class RemoteSocialProvider extends SocialProvider {
       _rt.on(Ev.friendAccepted).listen((_) => _reloadFriends()),
       _rt.on(Ev.friendRemoved).listen((_) => _reloadFriends()),
       _rt.on(Ev.matchEnded).listen((_) => _reloadLikes()),
+      _rt.on(Ev.streak).listen((e) {
+        final id = e['friendId'] as String?;
+        if (id != null && e['streak'] is Map) setStreak(id, StreakView.fromJson(Map<String, dynamic>.from(e['streak'] as Map)));
+      }),
+      _rt.on(Ev.presence).listen(_onPresence),
     ];
   }
 
@@ -70,6 +75,28 @@ class RemoteSocialProvider extends SocialProvider {
     }
     if (_openChat == friendId && !msg.fromMe) markRead(friendId);
     notifyListeners();
+  }
+
+  /// `{ userId, online }` — a friend came online or left.
+  void _onPresence(Map<String, dynamic> e) {
+    final id = (e['userId'] ?? e['friendId']) as String?;
+    final online = e['online'];
+    final f = id == null ? null : friend(id);
+    if (f == null || online is! bool || f.online == online) return;
+    _replace(f.copyWith(online: online));
+    notifyListeners();
+  }
+
+  @override
+  Future<bool> restoreStreak(String friendId) async {
+    try {
+      final r = Map<String, dynamic>.from(await _api.post('/friends/$friendId/streak/restore') as Map);
+      if (r['streak'] is Map) setStreak(friendId, StreakView.fromJson(Map<String, dynamic>.from(r['streak'] as Map)));
+      return true;
+    } on ApiException catch (e) {
+      if (e.isInsufficientCoins) return false;
+      rethrow;
+    }
   }
 
   void _replace(Friend f) {

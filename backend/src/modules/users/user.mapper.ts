@@ -1,5 +1,6 @@
 import type { Gender, User, Wallet } from '@prisma/client';
 
+import { levelOf } from './levels';
 import { isProfileComplete, isProfileReady } from './profile.rules';
 
 export type GenderView = 'male' | 'female' | 'other';
@@ -17,6 +18,8 @@ export interface PublicProfile {
   interests: string[];
   verified: boolean;
   vip: boolean;
+  /** From XP (users/levels.ts); shown as a "Lv 7" chip. */
+  level: number;
 }
 
 /** Your own profile, with account state. */
@@ -39,6 +42,15 @@ export interface MeProfile extends PublicProfile {
   profileComplete: boolean;
   bannedUntil: string | null;
   createdAt: string;
+  xp: number;
+  /** Gems the wallet goal card counts toward (null = none). */
+  gemGoal: number | null;
+  /** Minutes after midnight in `tzOffsetMinutes`; quiet hours are on when both are set. */
+  quietHoursStart: number | null;
+  quietHoursEnd: number | null;
+  tzOffsetMinutes: number;
+  /** 30 / 60 / 90 / 120, or null when off. */
+  breakReminderMinutes: number | null;
 }
 
 type WithWallet = User & { wallet?: Pick<Wallet, 'vipUntil'> | null };
@@ -57,6 +69,7 @@ export function toPublicProfile(u: WithWallet, now: Date = new Date()): PublicPr
     interests: u.interests,
     verified: u.verified,
     vip: vipNow(u, now),
+    level: levelOf(u.xp),
   };
 }
 
@@ -78,6 +91,12 @@ export function toMeProfile(u: WithWallet, now: Date = new Date()): MeProfile {
     profileComplete: isProfileComplete(u),
     bannedUntil: u.bannedUntil && u.bannedUntil > now ? u.bannedUntil.toISOString() : null,
     createdAt: u.createdAt.toISOString(),
+    xp: u.xp,
+    gemGoal: u.gemGoal,
+    quietHoursStart: u.quietHoursStart,
+    quietHoursEnd: u.quietHoursEnd,
+    tzOffsetMinutes: u.tzOffsetMinutes,
+    breakReminderMinutes: u.breakReminderMinutes,
   };
 }
 

@@ -9,6 +9,7 @@ import '../../providers/social_provider.dart';
 import '../match/gift_sheet.dart';
 import '../profile/user_profile_screen.dart';
 import '../store/store_screen.dart';
+import 'streaks.dart';
 
 /// Text chat with a friend. Gifts here earn them gems too — that is what
 /// keeps friends on the app between matches.
@@ -118,6 +119,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     children: [
                       Flexible(child: Text(f.profile.name, overflow: TextOverflow.ellipsis, style: VT.title(16, weight: FontWeight.w600))),
                       if (f.profile.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified_rounded, size: 15, color: V.trust)),
+                      if (f.streak.count > 0) Padding(padding: const EdgeInsets.only(left: 6), child: StreakChip(streak: f.streak, showEndsTonight: false, onTap: () => showStreakSheet(context, f))),
+                      if (f.streak.restorable) Padding(padding: const EdgeInsets.only(left: 6), child: RestoreStreakButton(friend: f)),
                     ],
                   ),
                   Text(f.online ? 'Online' : 'Last seen ${Fmt.ago(f.since)}', style: VT.label(11.5, color: f.online ? V.ok : V.muted, weight: FontWeight.w500)),

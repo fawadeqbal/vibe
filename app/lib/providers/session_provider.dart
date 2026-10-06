@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -33,6 +34,7 @@ abstract class SessionProvider extends ChangeNotifier {
   bool _cameraGranted = false;
   bool _micGranted = false;
   bool _emailUpdates = true;
+  WellbeingSettings _wellbeing = const WellbeingSettings();
   VerificationState _verification = VerificationState.none;
   final List<Future<void> Function()> _signOutHooks = [];
 
@@ -48,6 +50,9 @@ abstract class SessionProvider extends ChangeNotifier {
   /// News and offers by e-mail. Sign-in codes and important account notices
   /// arrive either way.
   bool get emailUpdates => _emailUpdates;
+
+  /// Quiet hours (no social/engagement pushes) and break reminders.
+  WellbeingSettings get wellbeing => _wellbeing;
 
   /// True once the profile has the three things the matcher needs.
   bool get profileReady => _me != null && _me!.name.trim().isNotEmpty && _me!.age >= 18;
@@ -111,6 +116,13 @@ abstract class SessionProvider extends ChangeNotifier {
 
   /// False when the change could not be saved (the switch flips back).
   Future<bool> setEmailUpdates(bool on);
+
+  /// Saves quiet hours / break reminder. False when it could not be saved
+  /// (the settings flip back).
+  Future<bool> saveWellbeing(WellbeingSettings w);
+
+  /// This device's UTC offset in minutes, as the server wants it.
+  static int deviceTzOffsetMinutes([DateTime? now]) => (now ?? DateTime.now()).timeZoneOffset.inMinutes.clamp(-720, 840);
 
   /// Re-reads the profile (counts change after matches).
   Future<void> refreshMe() async {}

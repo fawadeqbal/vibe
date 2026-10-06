@@ -11,6 +11,8 @@ import '../../providers/wallet_provider.dart';
 import '../store/vip_screen.dart';
 import 'chat_screen.dart';
 import 'inbox_screen.dart';
+import 'moments.dart';
+import 'streaks.dart';
 
 /// Friends you made in matches. Requests on top with labelled
 /// Accept/Decline, the "liked you" teaser for free users, then a calm,
@@ -35,6 +37,7 @@ class ChatsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const PageHeader('Chats'),
+            const MomentsBar(),
             Expanded(
               child: empty
                   ? EmptyState(
@@ -228,6 +231,7 @@ class _FriendRow extends StatelessWidget {
                           children: [
                             Flexible(child: Text(f.profile.name, style: VT.title(16, weight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                             if (f.profile.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified_rounded, size: 15, color: V.trust)),
+                            if (f.streak.count > 0) Padding(padding: const EdgeInsets.only(left: 6), child: StreakChip(streak: f.streak)),
                           ],
                         ),
                       ),
@@ -237,14 +241,19 @@ class _FriendRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          f.lastMessage ?? 'Say hi 👋',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: VT.body(14, color: unread ? V.text : V.text2, weight: unread ? FontWeight.w500 : FontWeight.w400),
+                      if (f.streak.restorable) ...[
+                        Flexible(child: Text('Streak lost · ', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(13.5, color: V.muted))),
+                        RestoreStreakButton(friend: f),
+                        const Spacer(),
+                      ] else
+                        Expanded(
+                          child: Text(
+                            f.lastMessage ?? 'Say hi 👋',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: VT.body(14, color: unread ? V.text : V.text2, weight: unread ? FontWeight.w500 : FontWeight.w400),
+                          ),
                         ),
-                      ),
                       if (unread)
                         Container(
                           margin: const EdgeInsets.only(left: 8),

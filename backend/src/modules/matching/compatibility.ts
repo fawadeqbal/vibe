@@ -24,7 +24,47 @@ export function queueScore(t: Pick<Ticket, 'enqueuedAt' | 'vip' | 'boosted'>): n
   return t.enqueuedAt - headStartMs;
 }
 
-/** Picks the best candidate for `me` from queue-ordered tickets. */
-export function pickPartner(me: Ticket, candidates: Ticket[]): Ticket | undefined {
-  return candidates.find((c) => compatible(me, c));
+/** How many compatible people (in queue order) the matcher compares. */
+export const PICK_WINDOW = 8;
+/** The longest-waiting compatible person gets a fairness bonus after this long. */
+export const FAIR_WAIT_MS = 20_000;
+
+/** Interests both have (tickets from before interests were added have none). */
+export const sharedInterests = (a: Pick<Ticket, 'interests'>, b: Pick<Ticket, 'interests'>): number => {
+  const mine = new Set(a.interests ?? []);
+  return new Set((b.interests ?? []).filter((i) => mine.has(i))).size;
+};
+
+/**
+ * How good a pairing `c` is for `me`: shared interests (up to 3) and a
+ * similar vibe score, plus +4 for the oldest candidate once it has waited
+ * over 20 s so nobody starves behind better-scored newcomers.
+ */
+export function partnerScore(me: Ticket, c: Ticket, opts: { oldest: boolean; nowMs: number }): number {
+  const shared = Math.min(sharedInterests(me, c), 3);
+  const closeness = 1 - Math.abs((me.vibeScore ?? 0.5) - (c.vibeScore ?? 0.5));
+  const fairness = opts.oldest && opts.nowMs - c.enqueuedAt > FAIR_WAIT_MS ? 4 : 0;
+  return 2 * shared + 3 * closeness + fairness;
+}
+
+/**
+ * Picks the best candidate for `me` from queue-ordered tickets: the
+ * highest score among the first 8 compatible ones; ties go to whoever is
+ * earlier in the queue.
+ */
+export function pickPartner(me: Ticket, candidates: Ticket[], nowMs: number = Date.now()): Ticket | undefined {
+  const pool: Ticket[] = [];
+  for (const c of candidates) {
+    if (compatible(me, c)) pool.push(c);
+    if (pool.length >= PICK_WINDOW) break;
+  }
+  if (pool.length <= 1) return pool[0];
+  const oldest = pool.reduce((o, c) => (c.enqueuedAt < o.enqueuedAt ? c : o));
+  let best = pool[0];
+  let bestScore = -Infinity;
+  for (const c of pool) {
+    const score = partnerScore(me, c, { oldest: c === oldest, nowMs });
+    if (score > bestScore) [best, bestScore] = [c, score];
+  }
+  return best;
 }

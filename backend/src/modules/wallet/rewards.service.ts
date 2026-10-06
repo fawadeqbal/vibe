@@ -7,6 +7,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import { Clock, MS } from '../../common/utils/clock';
 import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { EconomyService } from '../catalog/economy.service';
+import { ProgressService } from '../engagement/progress.service';
 import { isProfileComplete, PROFILE_COMPLETED, ProfileCompletedEvent } from '../users/profile.rules';
 import { AdsService } from './ads/ads.service';
 import { LedgerService } from './ledger.service';
@@ -29,6 +30,7 @@ export class RewardsService {
     private readonly clock: Clock,
     private readonly ads: AdsService,
     private readonly economy: EconomyService,
+    private readonly progress: ProgressService,
   ) {}
 
   private async locked(tx: Tx, userId: string): Promise<Wallet> {
@@ -49,6 +51,7 @@ export class RewardsService {
       return { reward, day };
     });
     this.wallet.changed([userId]);
+    await this.progress.award(userId, this.economy.rules.xpPerCheckIn, 'check-in');
     return res;
   }
 
@@ -86,17 +89,19 @@ export class RewardsService {
     return { reward: this.economy.rules.profileCompleteCoins };
   }
 
-  async boost(userId: string): Promise<{ until: string }> {
-    const until = await this.prisma.tx(async (tx) => {
+  /** Paid priority in the queue; a free boost credit (win-back) is used before coins. */
+  async boost(userId: string): Promise<{ until: string; free: boolean; paidCoins: number }> {
+    const r = await this.prisma.tx(async (tx) => {
       const w = await this.locked(tx, userId);
-      if (isBoosted(w, this.clock.now())) return w.boostUntil!;
-      await this.wallet.spend(userId, this.economy.rules.boostCost, `Boost · ${this.economy.rules.boostMinutes} min priority`, { tx });
+      if (isBoosted(w, this.clock.now())) return { end: w.boostUntil!, free: false, paidCoins: 0 };
+      const free = w.freeBoosts > 0;
+      if (!free) await this.wallet.spend(userId, this.economy.rules.boostCost, `Boost · ${this.economy.rules.boostMinutes} min priority`, { tx });
       const end = this.clock.plus(this.economy.rules.boostMinutes * MS.minute);
-      await tx.wallet.update({ where: { userId }, data: { boostUntil: end } });
-      return end;
+      await tx.wallet.update({ where: { userId }, data: { boostUntil: end, ...(free ? { freeBoosts: { decrement: 1 } } : {}) } });
+      return { end, free, paidCoins: free ? 0 : this.economy.rules.boostCost };
     });
     this.wallet.changed([userId]);
-    return { until: until.toISOString() };
+    return { until: r.end.toISOString(), free: r.free, paidCoins: r.paidCoins };
   }
 
   /**

@@ -1,4 +1,4 @@
-import { createTestApp, resetState, signUp, TestApp, TestUser } from './helpers';
+import { createTestApp, resetState, signUp, TestApp, TestUser, requestFriend } from './helpers';
 
 describe('friends, chat, blocks, likes', () => {
   let t: TestApp;
@@ -13,15 +13,26 @@ describe('friends, chat, blocks, likes', () => {
   it('you can only add people you have met', async () => {
     const a = await signUp(t);
     const b = await signUp(t);
+    await expect(requestFriend(t, a, b)).rejects.toMatchObject({ code: 'NEVER_MATCHED' });
+  });
+
+  it('new requests only come from a call: REST refuses them but still accepts theirs', async () => {
+    const a = await signUp(t);
+    const b = await signUp(t);
+    await met(a, b);
     const res = await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(403);
-    expect(res.body.error.code).toBe('NEVER_MATCHED');
+    expect(res.body.error.code).toBe('FRIEND_IN_CALL_ONLY');
+    expect(await t.prisma.friendship.count({ where: { requesterId: a.id } })).toBe(0);
+    await requestFriend(t, b, a);
+    const back = await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(200);
+    expect(back.body).toMatchObject({ state: 'friends', paidCoins: 0 });
   });
 
   it('request → accept → chat with unread counts → read', async () => {
     const a = await signUp(t, { name: 'Priya' });
     const b = await signUp(t, { name: 'Mert' });
     await met(a, b);
-    await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(200);
+    await requestFriend(t, a, b);
     const incoming = await t.http.get('/v1/friends').set(b.auth).expect(200);
     expect(incoming.body[0]).toMatchObject({ state: 'incoming', profile: { name: 'Priya' } });
     await t.http.post(`/v1/friends/${a.id}/accept`).set(b.auth).expect(200);
@@ -42,7 +53,7 @@ describe('friends, chat, blocks, likes', () => {
     for (let i = 0; i < 4; i++) {
       const other = await signUp(t);
       await met(me, other);
-      paid.push((await t.http.post(`/v1/friends/${other.id}/request`).set(me.auth).expect(200)).body.paidCoins);
+      paid.push((await requestFriend(t, me, other)).paidCoins);
     }
     expect(paid).toEqual([0, 0, 0, 10]);
   });
@@ -51,7 +62,7 @@ describe('friends, chat, blocks, likes', () => {
     const a = await signUp(t);
     const b = await signUp(t);
     await met(a, b);
-    await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(200);
+    await requestFriend(t, a, b);
     await t.http.post(`/v1/friends/${a.id}/accept`).set(b.auth).expect(200);
     const m = await t.http.post(`/v1/friends/${b.id}/gifts`).set(a.auth).send({ giftId: 'rose' }).expect(201);
     expect(m.body).toMatchObject({ giftId: 'rose', text: 'Sent a Rose' });
@@ -62,7 +73,7 @@ describe('friends, chat, blocks, likes', () => {
     const a = await signUp(t);
     const b = await signUp(t);
     await met(a, b);
-    await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(200);
+    await requestFriend(t, a, b);
     await t.http.post(`/v1/friends/${a.id}/accept`).set(b.auth).expect(200);
     await t.http.post(`/v1/blocks/${b.id}`).set(a.auth).expect(200);
     expect((await t.http.get('/v1/friends').set(a.auth)).body).toHaveLength(0);

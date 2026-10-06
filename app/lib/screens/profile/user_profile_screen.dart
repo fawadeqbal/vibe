@@ -9,9 +9,9 @@ import '../../models/follows.dart';
 import '../../models/models.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/social_provider.dart';
-import '../../providers/wallet_provider.dart';
 import '../match/report_sheet.dart';
 import '../social/chat_screen.dart';
+import 'progress.dart';
 
 /// Someone else's profile. It opens up as you get closer: matched → following
 /// (counts, stats) → friends (online, Message).
@@ -120,25 +120,6 @@ class _UserProfileBodyState extends State<UserProfileBody> {
       case FriendState.incoming:
         await _run(() async => social.accept(p.id));
       case FriendState.none:
-        if (context.read<WalletProvider>().freeFriendRequestsLeft == 0) {
-          final ok = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Send a friend request?'),
-              content: Text('Your ${Economy.freeFriendRequestsPerDay} free requests for today are used. This one costs ${Economy.friendRequestCost} coins.'),
-              actions: [
-                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel', style: TextStyle(color: V.text2))),
-                TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text('Send for ${Economy.friendRequestCost}')),
-              ],
-            ),
-          );
-          if (ok != true || !mounted) return;
-        }
-        await _run(() async {
-          final sent = await social.sendRequest(p);
-          if (!mounted) return;
-          toast(context, sent ? 'Request sent' : 'Not enough coins for another request today', error: !sent);
-        });
       case FriendState.requested:
       case FriendState.blocked:
         return;
@@ -170,6 +151,7 @@ class _UserProfileBodyState extends State<UserProfileBody> {
   Widget build(BuildContext context) {
     final follow = context.select<FollowsProvider, FollowState>((f) => f.stateOf(widget.userId));
     final friend = context.select<SocialProvider, FriendState>((s) => s.stateOf(widget.userId));
+    final streak = context.select<SocialProvider, StreakView>((s) => s.friend(widget.userId)?.streak ?? StreakView.none);
     if (_loading) return const Padding(padding: EdgeInsets.symmetric(vertical: 80), child: Center(child: CircularProgressIndicator(color: V.pink)));
     final v = _view;
     if (v == null) {
@@ -204,10 +186,20 @@ class _UserProfileBodyState extends State<UserProfileBody> {
                       Flexible(child: Text('${p.name}, ${p.age}', overflow: TextOverflow.ellipsis, style: VT.display(26, height: 1.1))),
                       if (p.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.verified_rounded, color: V.trust, size: 20, semanticLabel: 'Verified')),
                       if (p.vip) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.workspace_premium_rounded, color: V.gold, size: 19, semanticLabel: 'VIP')),
+                      if (v.level > 0) Padding(padding: const EdgeInsets.only(left: 8), child: LevelChip(level: v.level)),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text('${p.country.flag} ${p.country.name}${v.online == true ? ' · Online now' : ''}', style: VT.body(13, color: V.text2)),
+                  if (friend == FriendState.friends && streak.count > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(children: [
+                        Icon(Icons.local_fire_department_rounded, size: 16, color: streak.atRisk ? V.warn : V.flame),
+                        const SizedBox(width: 4),
+                        Text('${streak.count}-day streak${streak.atRisk ? ' · ends tonight' : ''}', style: VT.label(13, color: streak.atRisk ? V.warn : V.flame)),
+                      ]),
+                    ),
                   if (v.followsYou) const Padding(padding: EdgeInsets.only(top: 8), child: Tag('Follows you', color: V.violet)),
                 ],
               ),
@@ -231,10 +223,22 @@ class _UserProfileBodyState extends State<UserProfileBody> {
           Row(
             children: [
               Expanded(child: _followButton(p, follow)),
-              const SizedBox(width: 10),
-              Expanded(child: _friendButton(p, friend)),
+              // Friend requests are only sent from a live call (the + button
+              // on the call screen); a profile can only accept or open chat.
+              if (friend != FriendState.none && friend != FriendState.blocked) ...[
+                const SizedBox(width: 10),
+                Expanded(child: _friendButton(p, friend)),
+              ],
             ],
           ),
+          if (friend == FriendState.none) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              const Icon(Icons.videocam_rounded, size: 16, color: V.muted),
+              const SizedBox(width: 8),
+              Expanded(child: Text(widget.inCall ? 'Tap + on the call to add ${p.name} as a friend' : 'Friends are made on video calls. Match again to add ${p.name}.', style: VT.body(12.5, color: V.text2))),
+            ]),
+          ],
         ],
         if (v.followers != null) ...[
           const SizedBox(height: 16),
@@ -248,6 +252,10 @@ class _UserProfileBodyState extends State<UserProfileBody> {
         ],
         const SizedBox(height: 16),
         _StatsBlock(view: v),
+        if (v.badges.isNotEmpty) ...[
+          const SectionTitle('Badges', top: 22, bottom: 10),
+          BadgesRow(ids: v.badges),
+        ],
         if (p.bio.trim().isNotEmpty) ...[
           const SectionTitle('About', top: 22, bottom: 8),
           Text(p.bio, style: VT.body(14.5, color: V.text)),
@@ -271,7 +279,7 @@ class _UserProfileBodyState extends State<UserProfileBody> {
         FriendState.incoming => GhostButton(label: 'Accept friend', icon: Icons.how_to_reg_rounded, height: 46, expand: true, onTap: () => _friendAction(p, s)),
         FriendState.requested => const GhostButton(label: 'Request sent', icon: Icons.hourglass_top_rounded, height: 46, expand: true),
         FriendState.blocked => const SizedBox.shrink(),
-        FriendState.none => GhostButton(label: 'Add friend', icon: Icons.person_add_rounded, height: 46, expand: true, onTap: () => _friendAction(p, s)),
+        FriendState.none => const SizedBox.shrink(),
       };
 }
 

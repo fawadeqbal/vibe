@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
+import { LevelChip } from "@/components/shared/level-chip";
 import { VideoView } from "@/components/shared/video-view";
 import { Avatar } from "@/components/ui/avatar";
 import { VideoScrims } from "@/components/ui/brand";
@@ -20,6 +21,9 @@ import { cooldownSeconds, mutualLike, useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { friendStateOf, useSocial } from "@/stores/social";
 import { openSheet } from "@/stores/ui";
+
+import { GameCard, gameError, openGamePicker } from "./game";
+import { MutualCelebration } from "./mutual";
 
 export interface ConnectedActions {
   next: () => void;
@@ -56,8 +60,11 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
               {p.verified ? <Icon name="verified" size={16} className="ml-1 text-trust" label="Verified" /> : null}
               {p.vip ? <Icon name="workspace_premium" size={15} className="ml-1 text-gold" label="VIP" /> : null}
             </span>
-            <span className="type-body truncate text-[11.5px] leading-[1.2] text-white/72">
-              {p.country.flag} {p.country.name}
+            <span className="flex min-w-0 items-center">
+              <span className="type-body truncate text-[11.5px] leading-[1.2] text-white/72">
+                {p.country.flag} {p.country.name}
+              </span>
+              <LevelChip level={p.level} glass className="ml-1.5 h-4 text-[10px]" />
             </span>
           </span>
         </Glass>
@@ -80,9 +87,14 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
       {/* You, picture-in-picture. */}
       <SelfPip />
 
-      {/* Bottom: chat, controls, composer. */}
+      {/* Bottom: chat, the icebreaker, controls, composer. */}
       <div className="absolute inset-x-3 bottom-[calc(16px+env(safe-area-inset-bottom))] mx-auto max-w-[560px]">
-        <ChatOverlay partnerName={p.name} />
+        <ChatOverlay partnerName={p.name} compact={!!m.game} />
+        {m.game ? (
+          <div className="mt-2.5">
+            <GameCard game={m.game} partnerName={p.name} />
+          </div>
+        ) : null}
         <div className="mt-3.5 flex items-end justify-between px-1">
           <RoundControl
             icon={m.likedPartner ? "favorite" : "favorite_border"}
@@ -93,13 +105,27 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
           />
           <RoundControl icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
           <NextButton onClick={actions.next} />
+          <RoundControl icon="casino" iconColor={m.game ? "lavender" : "white"} tint={m.game ? "violet" : undefined} onClick={() => void playGame()} label="Play" />
           <FriendControl state={friendState} onAdd={actions.addFriend} />
           <RoundControl icon="more_horiz" onClick={() => void openCallOptions()} label="More" />
         </div>
         <Composer />
       </div>
+
+      {m.mutual && m.current ? <MutualCelebration key={m.current.id} matchId={m.current.id} friendState={friendState} onAddFriend={actions.addFriend} /> : null}
     </div>
   );
+}
+
+/** Play → pick a game → it opens for both of you. */
+async function playGame() {
+  const g = await openGamePicker();
+  if (!g) return;
+  try {
+    await useMatch.getState().startGame(g);
+  } catch (e) {
+    gameError(e);
+  }
 }
 
 /** The partner's video, or their portrait while it connects (or for a dev bot). */
@@ -201,7 +227,7 @@ function FriendControl({ state, onAdd }: { state: FriendState; onAdd: () => void
 }
 
 /** The in-match chat, fading out at the top edge. */
-function ChatOverlay({ partnerName }: { partnerName: string }) {
+function ChatOverlay({ partnerName, compact = false }: { partnerName: string; compact?: boolean }) {
   const chat = useMatch((s) => s.chat);
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -211,7 +237,7 @@ function ChatOverlay({ partnerName }: { partnerName: string }) {
   return (
     <div
       ref={list}
-      className="no-scrollbar flex max-h-[168px] flex-col gap-1.5 overflow-y-auto"
+      className={cn("no-scrollbar flex flex-col gap-1.5 overflow-y-auto", compact ? "max-h-[84px]" : "max-h-[168px]")}
       style={{ maskImage: "linear-gradient(to bottom, transparent 0, black 18%)", WebkitMaskImage: "linear-gradient(to bottom, transparent 0, black 18%)" }}
     >
       {chat.map((c) => {

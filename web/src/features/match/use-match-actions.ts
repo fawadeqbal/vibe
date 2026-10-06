@@ -7,7 +7,9 @@ import { pickGift } from "@/components/shared/gift-sheet";
 import { pickReport } from "@/components/shared/report-sheet";
 import { errorMessage } from "@/lib/api/errors";
 import type { Gift } from "@/lib/models";
+import { freeReconnectLeft } from "@/lib/engagement";
 import { economy } from "@/stores/catalog";
+import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { cooldownSeconds, useMatch } from "@/stores/match";
 import { toast } from "@/stores/ui";
 import { filterCost, freeFriendRequestsLeft, isBoosted, isVip, useWallet } from "@/stores/wallet";
@@ -30,7 +32,7 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
     [needCoins],
   );
 
-  const currentFilterCost = () => filterCost(useMatch.getState().filters, isVip(useWallet.getState().wallet));
+  const currentFilterCost = () => filterCost(useMatch.getState().filters, isVip(useWallet.getState().wallet) || isVibeHour(useEngagement.getState()));
 
   const start = useCallback(async () => {
     if (!(await useMatch.getState().start())) await explainFailure(`These filters cost ${currentFilterCost()} coins per match.`);
@@ -110,21 +112,24 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
   }, []);
 
   const reconnect = useCallback(async () => {
-    if (!(await useMatch.getState().reconnect())) await explainFailure(`Reconnecting costs ${economy().reconnectCost} coins.`);
+    const ended = useMatch.getState().ended;
+    const cost = ended?.reconnectCost ?? economy().reconnectCost;
+    if (!(await useMatch.getState().reconnect())) await explainFailure(freeReconnectLeft(ended?.freeReconnectUntil ?? null) > 0 ? "Reconnecting is free right now — try again." : `Reconnecting costs ${cost} coins.`);
   }, [explainFailure]);
 
   return useMemo(() => ({ start, next, gift, addFriend, report, reportLast, reconnect }), [start, next, gift, addFriend, report, reportLast, reconnect]);
 }
 
-/** Asks before spending on a boost; shared by the lobby and the search. */
+/** Asks before spending on a boost (or using a free one); shared by the lobby and the search. */
 export async function confirmBoost() {
   const w = useWallet.getState();
   if (isBoosted(w.wallet)) return;
   const e = economy();
+  const free = w.wallet.freeBoosts > 0;
   const ok = await confirm({
-    title: `Boost for ${e.boostMinutes} minutes?`,
-    body: `You go to the front of the queue — faster matches, more of them. ${e.boostCost} coins.`,
-    ok: `Boost · ${e.boostCost}`,
+    title: free ? `Use your free ${e.boostMinutes}-minute boost?` : `Boost for ${e.boostMinutes} minutes?`,
+    body: `You go to the front of the queue — faster matches, more of them. ${free ? "This one's on us." : `${e.boostCost} coins.`}`,
+    ok: free ? "Boost · Free" : `Boost · ${e.boostCost}`,
     cancel: "Not now",
     okTone: "gold",
   });

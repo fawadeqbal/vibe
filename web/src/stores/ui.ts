@@ -13,7 +13,7 @@ export interface Toast {
   error: boolean;
 }
 
-export type OverlayKind = "sheet" | "dialog";
+export type OverlayKind = "sheet" | "dialog" | "screen";
 
 export interface Overlay {
   id: number;
@@ -67,6 +67,9 @@ export const openSheet = <T,>(render: (close: (value?: T) => void) => ReactNode)
 /** A modal dialog. Resolves with what it closes with. */
 export const openDialog = <T,>(render: (close: (value?: T) => void) => ReactNode, dismissible = true, opts: { bare?: boolean } = {}) =>
   open<T>("dialog", render, dismissible, opts.bare);
+
+/** Full-screen over everything (the moments viewer). Escape closes it. */
+export const openScreen = <T,>(render: (close: (value?: T) => void) => ReactNode) => open<T>("screen", render);
 
 /** Closes every open overlay (e.g. on navigation). */
 export function closeAllOverlays() {

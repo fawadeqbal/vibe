@@ -1,8 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ReportReason } from '@prisma/client';
-import { IsBoolean, IsEnum, IsIn, IsOptional, IsString, Length } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Length, Min } from 'class-validator';
 
 import { COUNTRY_CODES } from '../../catalog/economy';
+import { GAME_IDS, GameId } from '../icebreakers';
 
 export class JoinDto {
   @ApiPropertyOptional({ enum: ['ANYONE', 'WOMEN', 'MEN'], default: 'ANYONE' })
@@ -67,4 +68,25 @@ export class SignalDto {
   /** SDP or ICE candidate — opaque to the server. */
   @IsOptional()
   data?: unknown;
+}
+
+export class GameDto {
+  @IsIn(['start', 'next', 'answer', 'close'])
+  action!: 'start' | 'next' | 'answer' | 'close';
+
+  /** Required for `start`. */
+  @IsOptional()
+  @IsIn(GAME_IDS)
+  game?: GameId;
+
+  /** `answer` on a two-option prompt: 0 or 1. */
+  @IsOptional()
+  @IsIn([0, 1])
+  choice?: 0 | 1;
+
+  /** `answer`: the round being answered (stale answers are refused). */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  round?: number;
 }

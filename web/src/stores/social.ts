@@ -2,9 +2,9 @@ import { create } from "zustand";
 
 import { newIdempotencyKey } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
-import { asList, asMap, friend as mapFriend, type Json, message as mapMessage, profile as mapProfile } from "@/lib/api/mappers";
+import { asList, asMap, friend as mapFriend, type Json, message as mapMessage, profile as mapProfile, streak as mapStreak } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
-import type { ChatMessage, Friend, FriendState, Gift, Profile } from "@/lib/models";
+import type { ChatMessage, Friend, FriendState, Gift, Profile, StreakView } from "@/lib/models";
 
 import { useCatalog } from "./catalog";
 import { api, realtime } from "./services";
@@ -24,6 +24,8 @@ interface SocialState {
   loaded: boolean;
 
   load: () => Promise<void>;
+  /** Re-reads just the friends list (presence, streaks). */
+  refreshFriends: () => Promise<void>;
   /** Loads a conversation the first time it is opened. */
   ensureMessages: (friendId: string) => Promise<void>;
   leaveChat: (friendId: string) => void;
@@ -38,6 +40,8 @@ interface SocialState {
   /** False when there aren't enough coins. */
   sendGift: (friendId: string, gift: Gift) => Promise<boolean>;
   markRead: (friendId: string) => void;
+  /** Brings back a streak that broke yesterday. False when there aren't enough coins. */
+  restoreStreak: (friendId: string) => Promise<boolean>;
   reset: () => void;
 }
 
@@ -73,6 +77,7 @@ export const useSocial = create<SocialState>()((set, get) => {
               vip: false,
               matches: 0,
               likes: 0,
+              level: 1,
             })),
       });
     } catch {}
@@ -96,6 +101,8 @@ export const useSocial = create<SocialState>()((set, get) => {
       await Promise.all([reloadFriends(), reloadLikes(), reloadBlocks()]);
       set({ loaded: true });
     },
+
+    refreshFriends: () => (api.hasSession ? reloadFriends() : Promise.resolve()),
 
     async ensureMessages(friendId) {
       openChat = friendId;
@@ -181,6 +188,18 @@ export const useSocial = create<SocialState>()((set, get) => {
       api.post(`/friends/${friendId}/read`).catch(() => {});
     },
 
+    async restoreStreak(friendId) {
+      try {
+        const r = asMap(await api.post(`/friends/${friendId}/streak/restore`));
+        setStreak(friendId, mapStreak(asMap(r.streak)));
+        return true;
+      } catch (e) {
+        if (e instanceof ApiError && e.isInsufficientCoins) return false;
+        if (e instanceof ApiError && e.code === "STREAK_NOT_RESTORABLE") void reloadFriends();
+        throw e;
+      }
+    },
+
     reset() {
       loadedChats.clear();
       openChat = null;
@@ -202,6 +221,10 @@ function onMessage(m: Json) {
   });
   useSocial.setState({ chats: { ...s.chats, [friendId]: [...list, msg] }, all });
   if (openChat === friendId && !msg.fromMe) s.markRead(friendId);
+}
+
+function setStreak(friendId: string, streak: StreakView) {
+  useSocial.setState((s) => ({ all: s.all.map((f) => (f.profile.id === friendId ? { ...f, streak } : f)) }));
 }
 
 // ── selectors ─────────────────────────────────────────────────────────────
@@ -228,3 +251,12 @@ realtime.on(Ev.friendRequest, reload);
 realtime.on(Ev.friendAccepted, reload);
 realtime.on(Ev.friendRemoved, reload);
 realtime.on(Ev.matchEnded, reload);
+realtime.on(Ev.streak, (d) => {
+  if (typeof d.friendId === "string") setStreak(d.friendId, mapStreak(asMap(d.streak)));
+});
+// Presence: `{ userId, online }` (only if the server sends it; GET /friends carries it too).
+realtime.on(Ev.presence, (d) => {
+  const id = typeof d.userId === "string" ? d.userId : typeof d.friendId === "string" ? d.friendId : null;
+  if (!id || typeof d.online !== "boolean") return;
+  useSocial.setState((s) => ({ all: s.all.map((f) => (f.profile.id === id ? { ...f, online: d.online === true } : f)) }));
+});

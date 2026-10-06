@@ -3,6 +3,10 @@
 /// same objects to the same screens.
 library;
 
+import 'engagement.dart';
+
+export 'engagement.dart';
+
 enum Gender { male, female, other }
 
 extension GenderLabel on Gender {
@@ -39,6 +43,7 @@ class Profile {
     this.gemsEarned = 0,
     this.matches = 0,
     this.likes = 0,
+    this.level = 0,
   });
 
   final String id;
@@ -55,6 +60,9 @@ class Profile {
   final int matches;
   final int likes;
 
+  /// From XP on the server ("Lv 7" chip); 0 = unknown (offline people).
+  final int level;
+
   Profile copyWith({
     String? name,
     int? age,
@@ -68,6 +76,7 @@ class Profile {
     int? gemsEarned,
     int? matches,
     int? likes,
+    int? level,
   }) {
     return Profile(
       id: id,
@@ -83,6 +92,7 @@ class Profile {
       gemsEarned: gemsEarned ?? this.gemsEarned,
       matches: matches ?? this.matches,
       likes: likes ?? this.likes,
+      level: level ?? this.level,
     );
   }
 
@@ -190,7 +200,7 @@ extension PaymentMethodInfo on PaymentMethod {
 }
 
 class Wallet {
-  const Wallet({required this.coins, required this.gems, this.vipUntil, this.boostUntil, this.streakDay = 0, this.lastCheckIn, this.adsWatchedToday = 0, this.adsDay, this.freeFriendRequestsToday = 0, this.friendRequestsDay, this.profileBonusClaimed = false});
+  const Wallet({required this.coins, required this.gems, this.vipUntil, this.boostUntil, this.streakDay = 0, this.lastCheckIn, this.adsWatchedToday = 0, this.adsDay, this.freeFriendRequestsToday = 0, this.friendRequestsDay, this.profileBonusClaimed = false, this.gemGoal, this.freeBoosts = 0});
 
   final int coins;
   final int gems;
@@ -203,6 +213,12 @@ class Wallet {
   final int freeFriendRequestsToday;
   final DateTime? friendRequestsDay;
   final bool profileBonusClaimed;
+
+  /// Gems you are saving up for (null = no goal).
+  final int? gemGoal;
+
+  /// Free 30-minute boosts (win-back gift); used before coins.
+  final int freeBoosts;
 
   bool get isVip => vipUntil != null && vipUntil!.isAfter(DateTime.now());
   bool get isBoosted => boostUntil != null && boostUntil!.isAfter(DateTime.now());
@@ -220,6 +236,9 @@ class Wallet {
     int? freeFriendRequestsToday,
     DateTime? friendRequestsDay,
     bool? profileBonusClaimed,
+    int? gemGoal,
+    bool clearGemGoal = false,
+    int? freeBoosts,
   }) {
     return Wallet(
       coins: coins ?? this.coins,
@@ -233,6 +252,8 @@ class Wallet {
       freeFriendRequestsToday: freeFriendRequestsToday ?? this.freeFriendRequestsToday,
       friendRequestsDay: friendRequestsDay ?? this.friendRequestsDay,
       profileBonusClaimed: profileBonusClaimed ?? this.profileBonusClaimed,
+      gemGoal: clearGemGoal ? null : (gemGoal ?? this.gemGoal),
+      freeBoosts: freeBoosts ?? this.freeBoosts,
     );
   }
 }
@@ -253,9 +274,10 @@ class MatchFilters {
     );
   }
 
-  /// Coins a single match costs with these filters (0 for VIP).
+  /// Coins a single match costs with these filters (0 for VIP, and for
+  /// everyone during Vibe Hour).
   int costFor({required bool vip}) {
-    if (vip) return 0;
+    if (vip || Economy.filtersFree) return 0;
     var cost = 0;
     if (gender != GenderFilter.anyone) cost += Economy.genderFilterCost;
     if (countryCode != null) cost += Economy.regionFilterCost;
@@ -266,16 +288,17 @@ class MatchFilters {
 enum FriendState { none, requested, incoming, friends, blocked }
 
 class Friend {
-  const Friend({required this.profile, required this.state, required this.since, this.lastMessage, this.unread = 0, this.online = false});
+  const Friend({required this.profile, required this.state, required this.since, this.lastMessage, this.unread = 0, this.online = false, this.streak = StreakView.none});
   final Profile profile;
   final FriendState state;
   final DateTime since;
   final String? lastMessage;
   final int unread;
   final bool online;
+  final StreakView streak;
 
-  Friend copyWith({FriendState? state, String? lastMessage, int? unread, bool? online}) {
-    return Friend(profile: profile, state: state ?? this.state, since: since, lastMessage: lastMessage ?? this.lastMessage, unread: unread ?? this.unread, online: online ?? this.online);
+  Friend copyWith({FriendState? state, String? lastMessage, int? unread, bool? online, StreakView? streak}) {
+    return Friend(profile: profile, state: state ?? this.state, since: since, lastMessage: lastMessage ?? this.lastMessage, unread: unread ?? this.unread, online: online ?? this.online, streak: streak ?? this.streak);
   }
 }
 
@@ -368,6 +391,32 @@ class Economy {
 
   // Sign-up
   static int welcomeCoins = 30;
+
+  // Streaks, levels and Vibe Hour (admin group "engagement")
+  static int streakRestoreCost = 30;
+  static int streakWeeklyCoins = 10;
+  static int freeReconnectMinutes = 10;
+
+  /// Minutes after business midnight (1260 = 21:00).
+  static int vibeHourStart = 1260;
+
+  /// 0 = Vibe Hour off.
+  static int vibeHourMinutes = 60;
+  static int vibeHourGemBonusPercent = 0;
+  static int xpPerGoodCall = 10;
+  static int xpPerLikeReceived = 5;
+  static int xpPerGiftReceived = 5;
+  static int xpPerCheckIn = 5;
+  static int xpPerStreakDay = 2;
+  static int maxEngagementPushesPerDay = 3;
+
+  /// The server's business day (Pakistan, UTC+5): streak days, Vibe Hour.
+  static const int businessTzOffsetMinutes = 300;
+
+  /// Vibe Hour: filters are free for everyone until then. Kept current by
+  /// `EngagementProvider` (display only — the server charges).
+  static DateTime? freeFiltersUntil;
+  static bool get filtersFree => freeFiltersUntil != null && freeFiltersUntil!.isAfter(DateTime.now());
 
   // Local currency for the payment mock
   static const double pkrPerUsd = 280;

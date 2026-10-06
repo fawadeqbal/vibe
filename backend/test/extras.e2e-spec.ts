@@ -2,7 +2,7 @@ import { DevPushSender } from '../src/modules/push/push-sender';
 import { PushService } from '../src/modules/push/push.service';
 import { ManualVerificationProvider } from '../src/modules/users/verification/verification.provider';
 import { VerificationService } from '../src/modules/users/verification/verification.service';
-import { createTestApp, resetState, signUp, staffLogin, TestApp, TestStaff, TestUser } from './helpers';
+import { createTestApp, resetState, signUp, staffLogin, TestApp, TestStaff, TestUser, requestFriend } from './helpers';
 
 /** Push notifications, selfie verification review, rewarded-ad tokens, private storage. */
 describe('push, KYC, ads, storage', () => {
@@ -18,7 +18,7 @@ describe('push, KYC, ads, storage', () => {
   const sent = () => (t.app.get(PushService).sender as DevPushSender).sent;
   const friends = async (a: TestUser, b: TestUser) => {
     await t.prisma.match.create({ data: { userAId: a.id, userBId: b.id, endedAt: new Date() } });
-    await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(200);
+    await requestFriend(t, a, b);
     await t.http.post(`/v1/friends/${a.id}/accept`).set(b.auth).expect(200);
   };
   const settle = () => new Promise((r) => setTimeout(r, 150));

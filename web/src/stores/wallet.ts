@@ -25,6 +25,8 @@ import { normaliseAccount } from "@/lib/pk-validation";
 
 import { economy } from "./catalog";
 import { api, realtime } from "./services";
+import { useSession } from "./session";
+import { toast } from "./ui";
 
 /**
  * Coins, gems, VIP, boosts, the ledger, checkout and cash-outs. The Vibe API
@@ -49,8 +51,10 @@ interface WalletState {
   claimProfileBonus: () => Promise<number | null>;
   /** Pays for a watched rewarded ad (null: today's ads are used up). */
   rewardAd: (adToken: string) => Promise<number | null>;
-  /** False when there aren't enough coins. */
+  /** False when there aren't enough coins. Uses a free boost credit first. */
   boost: () => Promise<boolean>;
+  /** Gems to save towards (100…10,000,000), or null to clear. False when it could not be saved. */
+  setGemGoal: (goal: number | null) => Promise<boolean>;
   vipStatus: () => Promise<VipStatus>;
   /** Stops renewal. Store subscriptions reject (409) with `details.manageUrl`. */
   cancelVip: () => Promise<void>;
@@ -71,7 +75,7 @@ interface WalletState {
   reset: () => void;
 }
 
-const EMPTY_WALLET: Wallet = { coins: 0, gems: 0, vipUntil: null, boostUntil: null, streakDay: 0, lastCheckIn: null, profileBonusClaimed: false };
+const EMPTY_WALLET: Wallet = { coins: 0, gems: 0, vipUntil: null, boostUntil: null, streakDay: 0, lastCheckIn: null, profileBonusClaimed: false, gemGoal: null, freeBoosts: 0 };
 /** How long to wait before re-claiming an ad whose server-side callback has not landed yet (the app's adRetryDelay). */
 const AD_RETRY_MS = 2000;
 
@@ -167,6 +171,12 @@ export const useWallet = create<WalletState>()((set, get) => {
       }
     },
 
+    async setGemGoal(goal) {
+      if (!(await useSession.getState().savePrefs({ gemGoal: goal }))) return false;
+      set((s) => ({ wallet: { ...s.wallet, gemGoal: goal }, view: { ...s.view, gemGoal: goal } }));
+      return true;
+    },
+
     vipStatus: async () => parseVipStatus(asMap(await api.get("/vip"))),
 
     async cancelVip() {
@@ -245,9 +255,9 @@ export const freeFriendRequestsLeft = (s: Pick<WalletState, "view">) =>
 export const canCashOut = (s: Pick<WalletState, "view" | "wallet">) =>
   typeof s.view.canCashOut === "boolean" ? s.view.canCashOut : s.wallet.gems >= economy().cashoutMinGems;
 
-/** Coins a single match costs with these filters (0 for VIP). */
-export function filterCost(f: MatchFilters, vip: boolean): number {
-  if (vip) return 0;
+/** Coins a single match costs with these filters (0 for VIP and during Vibe Hour: pass `free`). */
+export function filterCost(f: MatchFilters, free: boolean): number {
+  if (free) return 0;
   const e = economy();
   return (f.gender !== "anyone" ? e.genderFilterCost : 0) + (f.countryCode ? e.regionFilterCost : 0);
 }
@@ -257,6 +267,11 @@ realtime.on(Ev.walletUpdated, (w) => {
   useWallet.setState({ view: w, wallet: mapWallet(w) });
   clearTimeout(ledgerDebounce);
   ledgerDebounce = setTimeout(() => void s.refresh(), 600);
+});
+
+realtime.on(Ev.goalReached, (d) => {
+  const goal = typeof d.goal === "number" ? d.goal : useWallet.getState().wallet.gemGoal;
+  toast(goal ? `Goal reached 🎯 ${goal.toLocaleString("en-US")} gems` : "Goal reached 🎯");
 });
 
 realtime.on(Ev.paymentUpdated, (m) => {

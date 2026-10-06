@@ -477,7 +477,7 @@ export interface Setting {
 
 // ── economy ───────────────────────────────────────────────────────────────
 
-export type RuleKind = "coins" | "count" | "seconds" | "minutes" | "hours" | "gems" | "cents" | "share" | "age" | "days7";
+export type RuleKind = "coins" | "count" | "seconds" | "minutes" | "hours" | "gems" | "cents" | "share" | "age" | "days7" | "clock";
 export type RuleValue = number | number[];
 export type EconomyRules = Record<string, RuleValue>;
 

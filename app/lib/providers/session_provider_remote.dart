@@ -21,6 +21,17 @@ class RemoteSessionProvider extends SessionProvider {
     _onboarded = m['onboarded'] as bool? ?? false;
     _inviteCode = m['inviteCode'] as String?;
     _emailUpdates = m['marketingEmails'] as bool? ?? true;
+    _wellbeing = WellbeingSettings.fromJson(m);
+  }
+
+  /// Tells the server this device's UTC offset (quiet hours are in local
+  /// time) when it differs from what it has.
+  Future<void> _syncTimezone() async {
+    final mine = SessionProvider.deviceTzOffsetMinutes();
+    if (_me == null || _wellbeing.tzOffsetMinutes == mine) return;
+    try {
+      _applyMe(Map<String, dynamic>.from(await _api.patch('/me', {'tzOffsetMinutes': mine}) as Map));
+    } on ApiException catch (_) {}
   }
 
   @override
@@ -30,6 +41,7 @@ class RemoteSessionProvider extends SessionProvider {
       if (_api.hasSession) {
         try {
           _applyMe(Map<String, dynamic>.from(await _api.get('/me') as Map));
+          unawaited(_syncTimezone());
         } on ApiException catch (e) {
           if (e.isUnauthenticated) await _api.clearSession();
           // Offline at launch: stay signed out of the UI until we can reach the server.
@@ -61,6 +73,7 @@ class RemoteSessionProvider extends SessionProvider {
     await _api.setTokens(Map<String, dynamic>.from(res['tokens'] as Map));
     _applyMe(Map<String, dynamic>.from(res['user'] as Map));
     _verification = VerificationState.none;
+    unawaited(_syncTimezone());
   }
 
   List<String>? _providers;
@@ -160,6 +173,28 @@ class RemoteSessionProvider extends SessionProvider {
   }
 
   @override
+  Future<bool> saveWellbeing(WellbeingSettings w) async {
+    final before = _wellbeing;
+    _wellbeing = WellbeingSettings(quietHoursStart: w.quietHoursStart, quietHoursEnd: w.quietHoursEnd, breakReminderMinutes: w.breakReminderMinutes, tzOffsetMinutes: before.tzOffsetMinutes);
+    notifyListeners();
+    try {
+      final tz = SessionProvider.deviceTzOffsetMinutes();
+      _applyMe(Map<String, dynamic>.from(await _api.patch('/me', {
+        'quietHoursStart': w.quietHoursStart,
+        'quietHoursEnd': w.quietHoursEnd,
+        'breakReminderMinutes': w.breakReminderMinutes,
+        if (tz != before.tzOffsetMinutes) 'tzOffsetMinutes': tz,
+      }) as Map));
+      notifyListeners();
+      return true;
+    } on ApiException catch (_) {
+      _wellbeing = before;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  @override
   Future<void> refreshMe() async {
     if (!_api.hasSession) return;
     try {
@@ -185,6 +220,7 @@ class RemoteSessionProvider extends SessionProvider {
     _me = null;
     _onboarded = false;
     _verification = VerificationState.none;
+    _wellbeing = const WellbeingSettings();
     notifyListeners();
   }
 }

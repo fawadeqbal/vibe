@@ -9,6 +9,8 @@ import { Icon } from "@/components/ui/icon";
 import { VDivider } from "@/components/ui/misc";
 import { CoinAmount } from "@/components/ui/money";
 import { openUserProfileSheet } from "@/features/profile/user-profile";
+import { useNow } from "@/hooks/use-now";
+import { countdown, freeReconnectLeft } from "@/lib/engagement";
 import { duration } from "@/lib/format";
 import { matchLengthSeconds } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
@@ -22,10 +24,17 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
   const p = useMatch((s) => s.lastPartner)!;
   const endReason = useMatch((s) => s.endReason);
   const last = useMatch((s) => (s.history.length ? s.history[s.history.length - 1] : null));
-  const reconnectCost = useCatalog((s) => s.economy.reconnectCost);
+  const catalogCost = useCatalog((s) => s.economy.reconnectCost);
+  const ended = useMatch((s) => s.ended);
+  const reconnectCost = ended?.reconnectCost ?? catalogCost;
+  const now = useNow(1000, !!ended?.freeReconnectUntil);
+  const freeLeft = freeReconnectLeft(ended?.freeReconnectUntil ?? null, now);
+  const mutualLike = ended?.mutualLike ?? (!!last?.liked && !!last?.likedMe);
   const reported = endReason === "reported";
   const why = endReason === "partnerLeft" ? `${p.name} left` : endReason === "skipped" ? `You skipped ${p.name}` : endReason === "reported" ? "Reported" : "Call ended";
-  const like = last?.likedMe
+  const like = mutualLike
+    ? { icon: "favorite", cls: "text-pink", label: "Both liked" }
+    : last?.likedMe
     ? { icon: "favorite", cls: "text-pink", label: "Liked you" }
     : last?.liked
       ? { icon: "favorite", cls: "text-pink-soft", label: "You liked" }
@@ -65,6 +74,10 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
               View profile
             </TextButton>
 
+            {mutualLike ? (
+              <p className="type-label mt-3 flex h-8 items-center rounded-full bg-pink/14 px-3.5 text-[13px] text-pink-soft">You liked each other 💞</p>
+            ) : null}
+
             <div className="mt-[22px] flex w-full border-y border-line py-4">
               <Stat label="Call length">
                 <span className="type-mono text-[18px] text-text">{last ? duration(matchLengthSeconds(last)) : "—"}</span>
@@ -89,14 +102,21 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
               <>
                 <div className="mt-2.5 w-full">
                   <GhostButton
-                    label={`Reconnect with ${p.name}`}
+                    label={freeLeft > 0 ? "Reconnect" : `Reconnect with ${p.name}`}
                     icon="replay"
                     expand
                     onClick={onReconnect}
+                    aria-label={freeLeft > 0 ? `Reconnect with ${p.name}, free for ${countdown(freeLeft)}` : `Reconnect with ${p.name}, ${reconnectCost} coins`}
                     trailing={
-                      <span className="flex h-[22px] items-center rounded-[11px] bg-gold/14 px-2">
-                        <CoinAmount amount={reconnectCost} size={12} />
-                      </span>
+                      freeLeft > 0 ? (
+                        <span className="type-label flex h-[22px] items-center rounded-[11px] bg-ok/14 px-2 text-[12px] text-ok">
+                          Free for <span className="type-number ml-1 tabular-nums">{countdown(freeLeft)}</span>
+                        </span>
+                      ) : (
+                        <span className="flex h-[22px] items-center rounded-[11px] bg-gold/14 px-2">
+                          <CoinAmount amount={reconnectCost} size={12} />
+                        </span>
+                      )
                     }
                   />
                 </div>

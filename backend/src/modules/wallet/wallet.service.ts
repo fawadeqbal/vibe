@@ -11,7 +11,9 @@ import { RealtimeService } from '../../infra/realtime/realtime.service';
 import type { Gift } from '../catalog/economy';
 import { EconomyService } from '../catalog/economy.service';
 import { LedgerService } from './ledger.service';
-import { isVip, toTransactionView, toWalletView, WalletView } from './wallet.mapper';
+import { EngagementService } from '../engagement/engagement.service';
+import { ProgressService } from '../engagement/progress.service';
+import { isVip, toTransactionView, toWalletView, WALLET_INCLUDE, WalletView } from './wallet.mapper';
 import { MoveResult, WALLET_CHANGED, WalletChangedEvent } from './wallet.types';
 
 /**
@@ -28,6 +30,8 @@ export class WalletService {
     private readonly events: EventEmitter2,
     private readonly realtime: RealtimeService,
     private readonly economy: EconomyService,
+    private readonly engagement: EngagementService,
+    private readonly progress: ProgressService,
   ) {}
 
   /** New account: a wallet with the welcome bonus, in the sign-up transaction. */
@@ -37,7 +41,7 @@ export class WalletService {
   }
 
   async view(userId: string): Promise<WalletView> {
-    const w = await this.prisma.wallet.findUnique({ where: { userId } });
+    const w = await this.prisma.wallet.findUnique({ where: { userId }, include: WALLET_INCLUDE });
     if (!w) throw AppError.notFound('Wallet');
     return toWalletView(w, this.clock, this.economy.rules);
   }
@@ -67,10 +71,13 @@ export class WalletService {
 
   /**
    * Sender pays coins, receiver earns gems — both entries and the transfer
-   * record commit together or not at all.
+   * record commit together or not at all. During Vibe Hour the house adds
+   * bonus gems (a separate EARN entry). Then: XP for the receiver, the
+   * weekly "most gifted" board, and the gem-goal check.
    */
   async sendGift(fromId: string, toId: string, gift: Gift, ctx: { fromName: string; toName: string; matchId?: string; idempotencyKey?: string }) {
     const gems = this.economy.gemsFor(gift);
+    const bonus = this.engagement.bonusGems(gems);
     const result = await this.prisma.tx(async (tx) => {
       const sent = await this.ledger.move(
         fromId,
@@ -78,12 +85,29 @@ export class WalletService {
         { tx },
       );
       if (!sent.applied) return null;
-      await this.ledger.move(toId, { gems, kind: LedgerKind.GIFT_RECEIVED, title: `${gift.name} from ${ctx.fromName}` }, { tx });
+      let received = await this.ledger.move(toId, { gems, kind: LedgerKind.GIFT_RECEIVED, title: `${gift.name} from ${ctx.fromName}` }, { tx });
+      if (bonus > 0) received = await this.ledger.move(toId, { gems: bonus, kind: LedgerKind.EARN, title: `Vibe Hour bonus · ${gift.name}` }, { tx });
       await tx.user.update({ where: { id: toId }, data: { giftsReceivedCount: { increment: 1 } } });
-      return tx.giftTransfer.create({ data: { giftId: gift.id, fromId, toId, coins: gift.coins, gems, matchId: ctx.matchId } });
+      await tx.user.update({ where: { id: fromId }, data: { giftsSentCount: { increment: 1 } } });
+      const transfer = await tx.giftTransfer.create({ data: { giftId: gift.id, fromId, toId, coins: gift.coins, gems, matchId: ctx.matchId } });
+      return { transfer, gemsAfter: received.gems };
     });
     this.changed([fromId, toId]);
-    return { transfer: result, gems };
+    if (result) {
+      await this.progress.award(toId, this.economy.rules.xpPerGiftReceived, 'gift');
+      await this.progress.addGems(toId, gems + bonus);
+      await this.checkGoal(toId, result.gemsAfter - gems - bonus, result.gemsAfter);
+    }
+    return { transfer: result?.transfer ?? null, gems: gems + bonus, bonusGems: bonus };
+  }
+
+  /** Gems crossed the user's goal: tell them once per goal value (`wallet:goal-reached`; offline → push). */
+  private async checkGoal(userId: string, before: number, after: number): Promise<void> {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { gemGoal: true, gemGoalReachedFor: true } });
+    const goal = u?.gemGoal;
+    if (!goal || before >= goal || after < goal || u.gemGoalReachedFor === goal) return;
+    const won = await this.prisma.user.updateMany({ where: { id: userId, gemGoal: goal, OR: [{ gemGoalReachedFor: null }, { gemGoalReachedFor: { not: goal } }] }, data: { gemGoalReachedFor: goal } });
+    if (won.count) this.realtime.toUser(userId, ServerEvent.GoalReached, { goal });
   }
 
   /** Push fresh balances to the users' sockets (after commit). */
@@ -93,7 +117,7 @@ export class WalletService {
 
   @OnEvent(WALLET_CHANGED, { async: true })
   async pushBalances(e: WalletChangedEvent): Promise<void> {
-    const wallets = await this.prisma.wallet.findMany({ where: { userId: { in: e.userIds } } });
+    const wallets = await this.prisma.wallet.findMany({ where: { userId: { in: e.userIds } }, include: WALLET_INCLUDE });
     for (const w of wallets) this.realtime.toUser(w.userId, ServerEvent.WalletUpdated, toWalletView(w, this.clock, this.economy.rules));
   }
 }

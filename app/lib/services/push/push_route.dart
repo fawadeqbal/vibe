@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 /// Where a tapped notification should take you, from its `data`
-/// (`route`: chat + friendId | friends | inbox | wallet | store | profile + userId | follow-requests).
+/// (`route`: chat + friendId | friends | inbox | wallet | store | match | profile + userId | follow-requests).
 @immutable
 class PushRoute {
   const PushRoute(this.target, {this.friendId, this.userId, this.purchaseId, this.cashoutId});
@@ -28,6 +28,8 @@ class PushRoute {
       'inbox' => const PushRoute(PushTarget.inbox),
       'wallet' => PushRoute(PushTarget.wallet, purchaseId: s('purchaseId'), cashoutId: s('cashoutId')),
       'store' => PushRoute(PushTarget.store, purchaseId: s('purchaseId')),
+      // Vibe Hour started: back to the lobby.
+      'match' => const PushRoute(PushTarget.match),
       'profile' => s('userId') != null ? PushRoute(PushTarget.profile, userId: s('userId')) : null,
       'follow-requests' => const PushRoute(PushTarget.followRequests),
       _ => null,
@@ -42,7 +44,7 @@ class PushRoute {
   String toString() => 'PushRoute($target${friendId != null ? ', $friendId' : ''})';
 }
 
-enum PushTarget { chat, friends, inbox, wallet, store, profile, followRequests }
+enum PushTarget { chat, friends, inbox, wallet, store, match, profile, followRequests }
 
 /// Android notification channels (ids = the server's `category`).
 const pushChannels = <String, String>{
@@ -50,4 +52,5 @@ const pushChannels = <String, String>{
   'social': 'Friends',
   'payments': 'Payments',
   'inbox': 'News from Vibe',
+  'engagement': 'Streaks and Vibe Hour',
 };

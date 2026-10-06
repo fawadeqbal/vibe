@@ -40,6 +40,21 @@ export interface EconomyRules {
 
   vipMonthlyBonusCoins: number;
 
+  streakRestoreCost: number;
+  streakWeeklyCoins: number;
+  freeReconnectMinutes: number;
+  /** Minutes after business midnight (0–1439). */
+  vibeHourStart: number;
+  /** 0 turns Vibe Hour off. */
+  vibeHourMinutes: number;
+  vibeHourGemBonusPercent: number;
+  xpPerGoodCall: number;
+  xpPerLikeReceived: number;
+  xpPerGiftReceived: number;
+  xpPerCheckIn: number;
+  xpPerStreakDay: number;
+  maxEngagementPushesPerDay: number;
+
   minAge: number;
   autoBanReports: number;
   autoBanWindowHours: number;
@@ -47,7 +62,8 @@ export interface EconomyRules {
 }
 
 export type RuleKey = keyof EconomyRules;
-type RuleKind = 'coins' | 'count' | 'seconds' | 'minutes' | 'hours' | 'gems' | 'cents' | 'share' | 'age' | 'days7';
+/** `clock`: a time of day as whole minutes after midnight (0–1439); the admin panel shows HH:MM. */
+type RuleKind = 'coins' | 'count' | 'seconds' | 'minutes' | 'hours' | 'gems' | 'cents' | 'share' | 'age' | 'days7' | 'clock';
 
 export interface RuleField {
   key: RuleKey;
@@ -132,6 +148,25 @@ export const RULE_GROUPS: RuleGroup[] = [
     fields: [coins('vipMonthlyBonusCoins', 'Monthly VIP coins', undefined, 100_000)],
   },
   {
+    key: 'engagement',
+    label: 'Streaks, levels and Vibe Hour',
+    description: 'Friend streaks, XP for levels and the weekly leaderboard, the daily Vibe Hour (free filters, double XP) and how many reminders people get.',
+    fields: [
+      coins('streakRestoreCost', 'Restore a lost friend streak', 'Only the day after it broke. VIP members restore for free.', 10_000),
+      coins('streakWeeklyCoins', 'Streak reward every 7th day', 'Both friends get it.', 10_000),
+      { key: 'freeReconnectMinutes', label: 'Free reconnect window', help: 'After a dropped call or a mutual like. 0 = never free.', kind: 'minutes', min: 0, max: 120 },
+      { key: 'vibeHourStart', label: 'Vibe Hour starts at', help: 'Business time (Pakistan).', kind: 'clock', min: 0, max: 1439 },
+      { key: 'vibeHourMinutes', label: 'Vibe Hour length', help: '0 turns Vibe Hour off.', kind: 'minutes', min: 0, max: 600 },
+      count('vibeHourGemBonusPercent', 'Extra gems on gifts during Vibe Hour, %', 0, 200, 'Paid by the house, on top of the normal share.'),
+      count('xpPerGoodCall', 'XP per call of a minute or more', 0, 1000),
+      count('xpPerLikeReceived', 'XP per like received', 0, 1000),
+      count('xpPerGiftReceived', 'XP per gift received', 0, 1000),
+      count('xpPerCheckIn', 'XP per daily check-in', 0, 1000),
+      count('xpPerStreakDay', 'XP per streak day', 0, 1000, 'Each friend, each day the streak grows.'),
+      count('maxEngagementPushesPerDay', 'Reminder pushes per person per day', 0, 20, 'Streak, Vibe Hour, win-back and weekly recap pushes. Messages and payments are never capped.'),
+    ],
+  },
+  {
     key: 'safety',
     label: 'Safety',
     description: 'Age limit and automatic bans. One under-age report always bans.',
@@ -175,6 +210,19 @@ export const DEFAULT_RULES: EconomyRules = {
   kycThresholdUsdCentsPerMonth: 10_000,
 
   vipMonthlyBonusCoins: 200,
+
+  streakRestoreCost: 30,
+  streakWeeklyCoins: 10,
+  freeReconnectMinutes: 10,
+  vibeHourStart: 21 * 60,
+  vibeHourMinutes: 60,
+  vibeHourGemBonusPercent: 0,
+  xpPerGoodCall: 10,
+  xpPerLikeReceived: 5,
+  xpPerGiftReceived: 5,
+  xpPerCheckIn: 5,
+  xpPerStreakDay: 2,
+  maxEngagementPushesPerDay: 3,
 
   minAge: 18,
   autoBanReports: 3,

@@ -10,6 +10,7 @@ import '../core/api/api_exception.dart';
 import '../core/api/mappers.dart';
 import '../core/api/realtime_client.dart';
 import '../core/mock/mock_backend.dart';
+import '../core/mock/mock_data.dart';
 import '../models/models.dart';
 import 'session_provider.dart';
 import 'social_provider.dart';
@@ -62,6 +63,14 @@ abstract class MatchProvider extends ChangeNotifier {
   bool _autoBlur = true;
   String? _lastError;
 
+  // Engagement in a call
+  GameRound? _game;
+  int _mutualSeq = 0;
+  String? _mutualFor;
+  bool _lastMutual = false;
+  DateTime? _freeReconnectUntil;
+  int _reconnectCost = Economy.reconnectCost;
+
   // Local media
   final RTCVideoRenderer localRenderer = RTCVideoRenderer();
   MediaStream? _localStream;
@@ -91,6 +100,22 @@ abstract class MatchProvider extends ChangeNotifier {
   bool get partnerLikedMe => _partnerLikedMe;
   bool get mutualLike => _likedPartner && _partnerLikedMe;
   bool get partnerAskedToBeFriends => _partnerAskedToBeFriends;
+
+  /// The icebreaker on screen (null = none).
+  GameRound? get game => _game;
+
+  /// Goes up each time both of you liked each other ("It's a vibe!").
+  int get mutualSeq => _mutualSeq;
+
+  /// The call that just ended had a mutual like (the recap's "💞" line).
+  bool get lastMutual => _lastMutual;
+
+  /// Reconnecting is free until then (a dropped call or a mutual like).
+  DateTime? get freeReconnectUntil => _freeReconnectUntil;
+  bool get reconnectFree => _freeReconnectUntil != null && _freeReconnectUntil!.isAfter(DateTime.now());
+
+  /// What `reconnect()` costs right now.
+  int get reconnectPrice => reconnectFree ? 0 : _reconnectCost;
   Duration get elapsed => _elapsed;
   bool get micOn => _micOn;
   bool get camOn => _camOn;
@@ -442,8 +467,34 @@ abstract class MatchProvider extends ChangeNotifier {
   Future<void> reportLast(ReportReason reason, {String? note, bool block = false});
   Future<void> blockPartner();
 
-  /// Call the last person again (paid). False when unaffordable or unavailable.
+  /// Call the last person again (paid, or free in the window). False when
+  /// unaffordable or unavailable.
   Future<bool> reconnect();
+
+  // ── icebreakers (either person can start, skip, answer or close) ──────
+
+  /// Puts a prompt on both screens. Throws [ApiException] (`RATE_LIMITED`).
+  Future<void> startGame(IcebreakerGame g);
+  Future<void> nextGame();
+
+  /// [choice] 0/1 for a two-option prompt; null answers an open question.
+  Future<void> answerGame(int? choice);
+  Future<void> closeGame();
+
+  /// Both liked each other in this call: celebrate once per match.
+  @protected
+  void noteMutual(String matchId) {
+    if (_mutualFor == matchId) return;
+    _mutualFor = matchId;
+    _mutualSeq++;
+  }
+
+  /// A new call starts with a clean slate.
+  @protected
+  void resetCallExtras() {
+    _game = null;
+    _mutualFor = null;
+  }
 
   /// Back to idle from the ended card.
   void dismissEnded() {

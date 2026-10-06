@@ -20,6 +20,19 @@ class RemoteMatchProvider extends MatchProvider {
         notifyListeners();
       }),
       _rt.on(Ev.matchEnded).listen(_onEnded),
+      _rt.on(Ev.matchMutual).listen((e) {
+        final id = e['matchId'] as String?;
+        if (id == null || id != _matchId) return;
+        noteMutual(id);
+        notifyListeners();
+      }),
+      _rt.on(Ev.matchGame).listen(_onGame),
+      _rt.on(Ev.matchGameAnswer).listen(_onGameAnswer),
+      _rt.on(Ev.matchGameClosed).listen((e) {
+        if (e['matchId'] != _matchId || _game == null) return;
+        _game = null;
+        notifyListeners();
+      }),
       _rt.on(Ev.matchError).listen((e) => _fail(ApiException(e['code'] as String? ?? 'INTERNAL', e['message'] as String? ?? 'Could not start the match'))),
       _rt.on(Ev.rtcSignal).listen(_onSignal),
       _rt.on(Ev.accountBanned).listen((_) => _fail(ApiException('ACCOUNT_BANNED', 'Your account is paused after reports. Try again later.'))),
@@ -134,7 +147,14 @@ class RemoteMatchProvider extends MatchProvider {
     _likedPartner = true;
     _current = _current?.copyWith(liked: true);
     notifyListeners();
-    _rt.request('match:like').catchError((_) => null);
+    final id = _matchId;
+    _rt.request('match:like').then((r) {
+      // `{ mutual }`: the partner had already liked you in this call.
+      if (r is Map && r['mutual'] == true && id != null && id == _matchId) {
+        noteMutual(id);
+        notifyListeners();
+      }
+    }).catchError((_) => null);
   }
 
   @override
@@ -217,7 +237,8 @@ class RemoteMatchProvider extends MatchProvider {
     _needsCoins = false;
     unawaited(ensureCamera());
     try {
-      await _rt.request('match:reconnect');
+      await _rt.request('match:reconnect'); // { reconnected, paidCoins }
+      _freeReconnectUntil = null;
       return true;
     } on ApiException catch (e) {
       _needsCoins = e.isInsufficientCoins;
@@ -235,6 +256,7 @@ class RemoteMatchProvider extends MatchProvider {
     _matchId = e['matchId'] as String;
     _partner = p;
     _chat.clear();
+    resetCallExtras();
     _likedPartner = false;
     _partnerLikedMe = false;
     _partnerAskedToBeFriends = false;
@@ -276,7 +298,9 @@ class RemoteMatchProvider extends MatchProvider {
     if (e['matchId'] != _matchId || e['fromMe'] == true) return;
     final g = ApiMap.gift((e['gift'] as Map?)?['id']);
     if (g == null) return;
-    _chat.add(ChatMessage(id: 'pg${DateTime.now().microsecondsSinceEpoch}', fromMe: false, text: 'Sent you a ${g.name}', at: DateTime.now(), gift: g));
+    // Vibe Hour pays extra gems on gifts (`bonusGems`).
+    final bonus = ApiMap.i(e['bonusGems']);
+    _chat.add(ChatMessage(id: 'pg${DateTime.now().microsecondsSinceEpoch}', fromMe: false, text: 'Sent you a ${g.name}${bonus > 0 ? ' · +$bonus Vibe Hour gems' : ''}', at: DateTime.now(), gift: g));
     _current = _current?.copyWith(giftsReceived: (_current?.giftsReceived ?? 0) + 1);
     notifyListeners();
   }
@@ -298,6 +322,10 @@ class RemoteMatchProvider extends MatchProvider {
     );
     _history.add(rec);
     _current = null;
+    _game = null;
+    _lastMutual = e['mutualLike'] == true || (rec.liked && rec.likedMe);
+    _freeReconnectUntil = ApiMap.date(e['freeReconnectUntil']);
+    _reconnectCost = (e['reconnectCost'] as num?)?.toInt() ?? Economy.reconnectCost;
     _lastPartner = _partner;
     _lastMatchId = _matchId;
     _matchId = null;
@@ -313,6 +341,70 @@ class RemoteMatchProvider extends MatchProvider {
     // Not going on: the state change below closes the camera (see _syncCamera).
     notifyListeners();
     _session.refreshMe();
+  }
+
+  // ── icebreakers ───────────────────────────────────────────────────────
+
+  Future<void> _gameRequest(Map<String, dynamic> payload) async {
+    if (_state != MatchState.connected) return;
+    final r = await _rt.request('match:game', payload);
+    if (r is Map) {
+      final m = Map<String, dynamic>.from(r);
+      if (m.containsKey('prompt')) {
+        _onGame(m);
+      } else if (m.containsKey('revealed')) {
+        _onGameAnswer(m);
+      } else if (payload['action'] == 'close') {
+        _game = null;
+        notifyListeners();
+      }
+    }
+  }
+
+  @override
+  Future<void> startGame(IcebreakerGame g) => _gameRequest({'action': 'start', 'game': g.wire});
+
+  @override
+  Future<void> nextGame() => _gameRequest({'action': 'next'});
+
+  @override
+  Future<void> answerGame(int? choice) async {
+    final g = _game;
+    if (g == null || g.iAnswered) return;
+    // Optimistic: your pick shows at once; the server's answer confirms it.
+    _game = g.answered(iAnswered: true, mine: choice);
+    notifyListeners();
+    try {
+      await _gameRequest({'action': 'answer', 'choice': ?choice, 'round': g.round});
+    } on ApiException catch (_) {
+      if (_game?.round == g.round) _game = g;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> closeGame() => _gameRequest({'action': 'close'});
+
+  /// `match:game` (event or start/next ack): a new prompt. The ack and the
+  /// event carry the same round, so only the first one counts.
+  void _onGame(Map<String, dynamic> e) {
+    if (e['matchId'] != _matchId) return;
+    final r = GameRound.fromJson(e);
+    if (r == null || (_game != null && _game!.round >= r.round)) return;
+    _game = r;
+    notifyListeners();
+  }
+
+  /// `match:game-answer`: where both answers are; theirs only once both answered.
+  void _onGameAnswer(Map<String, dynamic> e) {
+    final g = _game;
+    if (e['matchId'] != _matchId || g == null || ApiMap.i(e['round']) != g.round) return;
+    final mine = (e['mine'] as num?)?.toInt();
+    final theirs = (e['theirs'] as num?)?.toInt();
+    final revealed = e['revealed'] == true;
+    _game = g.answered(mine: mine ?? g.mine, theirs: theirs, iAnswered: g.iAnswered || mine != null || revealed, partnerAnswered: e['partnerAnswered'] == true || revealed, revealed: revealed);
+    notifyListeners();
   }
 
   // ── WebRTC ────────────────────────────────────────────────────────────

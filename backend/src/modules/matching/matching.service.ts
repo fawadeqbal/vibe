@@ -13,15 +13,20 @@ import { SOCKET_DISCONNECTED, SocketLifecycleEvent } from '../../infra/realtime/
 import { ServerEvent } from '../../infra/realtime/realtime.events';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { EconomyService } from '../catalog/economy.service';
+import { EngagementService } from '../engagement/engagement.service';
+import { ProgressService } from '../engagement/progress.service';
 import { ModerationService, USER_BANNED, UserBannedEvent } from '../moderation/moderation.service';
 import { BlocksService, USER_BLOCKED, UserBlockedEvent } from '../social/blocks.service';
 import { FriendsService } from '../social/friends.service';
+import { StreakService } from '../social/streak.service';
 import { isProfileReady } from '../users/profile.rules';
 import { PROFILE_INCLUDE, PublicProfile, toPublicProfile } from '../users/user.mapper';
 import { isBoosted, isVip } from '../wallet/wallet.mapper';
 import { WalletService } from '../wallet/wallet.service';
 import { SettingsService } from '../settings/settings.service';
+import { MatchGamesService } from './match-games.service';
 import { MatchQueueService } from './match-queue.service';
+import { callSignal, freeReconnectUntil, GOOD_CALL_SECONDS, isFreeReconnect, isNightCall, VIBE_SCORE_ALPHA } from './match-rules';
 import { MatchSessionStore } from './match-session.store';
 import { ActiveMatch, EndedReason, MatchPrefs, Ticket } from './matching.types';
 import { SkipCooldownService } from './skip-cooldown.service';
@@ -39,6 +44,13 @@ export interface MatchFoundPayload {
 
 export const MATCH_STARTED = 'match.started';
 export const MATCH_ENDED = 'match.ended';
+/** MATCH_ENDED payload: the pair, plus how the call went. */
+export interface MatchEndedEvent extends MatchStartedEvent {
+  durationSeconds: number;
+  reason: keyof typeof END_REASON_DB;
+  byUserId: string;
+  mutualLike: boolean;
+}
 export const MATCH_ACTION = 'match.action';
 export interface MatchStartedEvent {
   matchId: string;
@@ -51,6 +63,24 @@ export interface MatchActionEvent {
   to: string;
   action: 'chat' | 'gift' | 'friend';
   text?: string;
+}
+
+/** What `match:ended` tells each person. */
+export interface MatchEndedPayload {
+  matchId: string;
+  reason: EndedReason;
+  byMe: boolean;
+  durationSeconds: number;
+  liked: boolean;
+  likedMe: boolean;
+  /** Both liked each other ("You liked each other 💞"). */
+  mutualLike: boolean;
+  giftsReceived: number;
+  giftsSent: number;
+  /** Coin price of `match:reconnect` once the free window (if any) is over. */
+  reconnectCost: number;
+  /** Reconnect is free until then (dropped call or mutual like); null = not free. */
+  freeReconnectUntil: string | null;
 }
 
 const END_REASON_DB: Record<'skipped' | 'stopped' | 'reported' | 'blocked' | 'disconnected' | 'banned', MatchEndReason> = {
@@ -88,6 +118,10 @@ export class MatchingService {
     private readonly events: EventEmitter2,
     private readonly settings: SettingsService,
     private readonly economy: EconomyService,
+    private readonly engagement: EngagementService,
+    private readonly progress: ProgressService,
+    private readonly streaks: StreakService,
+    private readonly games: MatchGamesService,
   ) {}
 
   // ── queue ─────────────────────────────────────────────────────────────
@@ -105,7 +139,8 @@ export class MatchingService {
     if (!isProfileReady(user)) throw new AppError(ErrorCode.PROFILE_INCOMPLETE, 'Add your name and age first', HttpStatus.FORBIDDEN);
     const now = this.clock.now();
     const vip = isVip(user.wallet, now);
-    const cost = this.economy.filterCost({ gender: prefs.gender, countryCode: prefs.countryCode }, vip);
+    // Vibe Hour: filters are free for everyone.
+    const cost = this.engagement.isVibeHour(now) ? 0 : this.economy.filterCost({ gender: prefs.gender, countryCode: prefs.countryCode }, vip);
     if (cost > (user.wallet?.coins ?? 0)) throw AppError.insufficientCoins(cost, user.wallet?.coins ?? 0);
 
     const last = await this.sessions.lastPartner(userId);
@@ -122,6 +157,8 @@ export class MatchingService {
       boosted: isBoosted(user.wallet, now),
       enqueuedAt: now.getTime(),
       exclude,
+      interests: user.interests,
+      vibeScore: user.vibeScore,
     };
     await this.sessions.savePrefs(userId, prefs);
     await this.queue.enqueue(ticket);
@@ -241,13 +278,20 @@ export class MatchingService {
     if (m) await this.endMatch(m, userId, 'stopped');
   }
 
-  async like(userId: string): Promise<void> {
+  /** Like the partner; if they already liked you in this call, both get `match:mutual`. */
+  async like(userId: string): Promise<{ mutual: boolean }> {
     const { m, partnerId } = await this.requireMatch(userId);
     const created = await this.prisma.matchLike.createMany({ data: [{ matchId: m.id, fromId: userId, toId: partnerId }], skipDuplicates: true });
-    if (created.count) {
-      await this.prisma.user.update({ where: { id: partnerId }, data: { likesCount: { increment: 1 } } });
-      this.realtime.toUser(partnerId, ServerEvent.MatchLiked, { matchId: m.id });
+    if (!created.count) return { mutual: !!(await this.prisma.matchLike.findUnique({ where: { matchId_fromId: { matchId: m.id, fromId: partnerId } } })) };
+    await this.prisma.user.update({ where: { id: partnerId }, data: { likesCount: { increment: 1 } } });
+    this.realtime.toUser(partnerId, ServerEvent.MatchLiked, { matchId: m.id });
+    await this.progress.award(partnerId, this.economy.rules.xpPerLikeReceived, 'like');
+    const mutual = !!(await this.prisma.matchLike.findUnique({ where: { matchId_fromId: { matchId: m.id, fromId: partnerId } } }));
+    if (mutual) {
+      this.realtime.toUser(userId, ServerEvent.MatchMutual, { matchId: m.id });
+      this.realtime.toUser(partnerId, ServerEvent.MatchMutual, { matchId: m.id });
     }
+    return { mutual };
   }
 
   async chat(userId: string, text: string): Promise<{ at: string }> {
@@ -266,8 +310,8 @@ export class MatchingService {
     const { m, partnerId } = await this.requireMatch(userId);
     const names = await this.prisma.user.findMany({ where: { id: { in: [userId, partnerId] } }, select: { id: true, name: true } });
     const name = (id: string) => names.find((n) => n.id === id)?.name || 'someone';
-    await this.wallet.sendGift(userId, partnerId, gift, { fromName: name(userId), toName: name(partnerId), matchId: m.id, idempotencyKey });
-    const payload = { matchId: m.id, gift: { ...gift, gems: this.economy.gemsFor(gift) } };
+    const sent = await this.wallet.sendGift(userId, partnerId, gift, { fromName: name(userId), toName: name(partnerId), matchId: m.id, idempotencyKey });
+    const payload = { matchId: m.id, gift: { ...gift, gems: this.economy.gemsFor(gift) }, bonusGems: sent.bonusGems };
     this.realtime.toUser(partnerId, ServerEvent.MatchGift, { ...payload, fromMe: false });
     this.events.emit(MATCH_ACTION, { matchId: m.id, from: userId, to: partnerId, action: 'gift', text: gift.name } satisfies MatchActionEvent);
     return { ...payload, fromMe: true };
@@ -275,7 +319,7 @@ export class MatchingService {
 
   async addFriend(userId: string) {
     const { m, partnerId } = await this.requireMatch(userId);
-    const r = await this.friends.request(userId, partnerId);
+    const r = await this.friends.request(userId, partnerId, { viaCall: true });
     if (r.state === 'requested') this.realtime.toUser(partnerId, ServerEvent.MatchFriendRequest, { matchId: m.id });
     this.events.emit(MATCH_ACTION, { matchId: m.id, from: userId, to: partnerId, action: 'friend' } satisfies MatchActionEvent);
     return r;
@@ -287,7 +331,10 @@ export class MatchingService {
     return this.moderation.report(userId, { userId: partnerId, matchId: m.id, reason: input.reason, note: input.note, block: input.block });
   }
 
-  /** Call the last person again (paid), if they are online and free. */
+  /**
+   * Call the last person again, if they are online and free. Paid, except
+   * within `freeReconnectMinutes` of a dropped call or a mutual like.
+   */
   async reconnect(userId: string) {
     await this.moderation.assertNotBanned(userId);
     const partnerId = await this.sessions.lastPartner(userId);
@@ -296,20 +343,35 @@ export class MatchingService {
     if ((await this.sessions.forUser(partnerId)) || !(partnerIsBot || (await this.realtime.isOnline(partnerId))) || (await this.blocks.eitherBlocked(userId, partnerId))) {
       throw new AppError(ErrorCode.PARTNER_UNAVAILABLE, "They're not available right now", HttpStatus.CONFLICT);
     }
+    const free = isFreeReconnect(await this.freeReconnectWith(userId, partnerId), this.clock.now());
+    const cost = free ? 0 : this.economy.rules.reconnectCost;
     await this.queue.remove(userId);
     await this.queue.remove(partnerId);
-    await this.wallet.spend(userId, this.economy.rules.reconnectCost, 'Reconnect');
-    this.wallet.changed([userId]);
+    if (cost > 0) {
+      await this.wallet.spend(userId, cost, 'Reconnect');
+      this.wallet.changed([userId]);
+    }
     const users = await this.prisma.user.findMany({ where: { id: { in: [userId, partnerId] } }, include: { wallet: true } });
     const now = this.clock.now();
     const prefs = (await this.sessions.prefs(userId)) ?? { gender: 'ANYONE' as const, countryCode: null, safeMode: false, autoBlur: true };
     const ticketOf = (id: string, p: MatchPrefs): Ticket => {
       const u = users.find((x) => x.id === id)!;
-      return { userId: id, gender: u.gender, countryCode: u.countryCode, verified: u.verified, prefs: p, cost: 0, vip: isVip(u.wallet, now), boosted: false, enqueuedAt: Date.now(), exclude: [] };
+      return { userId: id, gender: u.gender, countryCode: u.countryCode, verified: u.verified, prefs: p, cost: 0, vip: isVip(u.wallet, now), boosted: false, enqueuedAt: Date.now(), exclude: [], interests: u.interests, vibeScore: u.vibeScore };
     };
     const partnerPrefs = (await this.sessions.prefs(partnerId)) ?? prefs;
     await this.connect(ticketOf(userId, prefs), ticketOf(partnerId, partnerPrefs), true);
-    return { reconnected: true };
+    return { reconnected: true, paidCoins: cost };
+  }
+
+  /** When reconnecting with `partnerId` stops being free (null = not free), from your last call together. */
+  private async freeReconnectWith(userId: string, partnerId: string): Promise<Date | null> {
+    const last = await this.prisma.match.findFirst({
+      where: { OR: [{ userAId: userId, userBId: partnerId }, { userAId: partnerId, userBId: userId }], endedAt: { not: null } },
+      orderBy: { endedAt: 'desc' },
+      include: { likes: { select: { fromId: true } } },
+    });
+    if (!last) return null;
+    return freeReconnectUntil({ endedAt: last.endedAt, endReason: last.endReason, mutualLike: new Set(last.likes.map((l) => l.fromId)).size === 2 }, this.economy.rules.freeReconnectMinutes);
   }
 
   /** WebRTC offer/answer/ICE — relayed verbatim to the partner. */
@@ -350,7 +412,9 @@ export class MatchingService {
       data: { endedAt: this.clock.now(), endReason: END_REASON_DB[reason], endedById: byUserId },
       include: { likes: true, gifts: { select: { fromId: true, toId: true } } },
     });
-    const durationSeconds = Math.round((ended.endedAt!.getTime() - ended.startedAt.getTime()) / 1000);
+    const durationSeconds = Math.max(0, Math.round((ended.endedAt!.getTime() - ended.startedAt.getTime()) / 1000));
+    const mutualLike = new Set(ended.likes.map((l) => l.fromId)).size === 2;
+    const freeUntil = freeReconnectUntil({ endedAt: ended.endedAt, endReason: ended.endReason, mutualLike }, this.economy.rules.freeReconnectMinutes);
     for (const uid of [m.a, m.b]) {
       const mine = uid === byUserId;
       // The other person only ever hears that their partner left.
@@ -362,11 +426,46 @@ export class MatchingService {
         durationSeconds,
         liked: ended.likes.some((l) => l.fromId === uid),
         likedMe: ended.likes.some((l) => l.toId === uid),
+        mutualLike,
         giftsReceived: ended.gifts.filter((g) => g.toId === uid).length,
         giftsSent: ended.gifts.filter((g) => g.fromId === uid).length,
-      });
+        reconnectCost: this.economy.rules.reconnectCost,
+        freeReconnectUntil: freeUntil?.toISOString() ?? null,
+      } satisfies MatchEndedPayload);
     }
-    this.events.emit(MATCH_ENDED, { matchId: m.id, a: m.a, b: m.b } satisfies MatchStartedEvent);
+    await this.games.clear(m.id).catch(() => undefined);
+    await this.afterCall({ matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike }, ended.startedAt, ended.likes);
+    this.events.emit(MATCH_ENDED, { matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike } satisfies MatchEndedEvent);
+  }
+
+  /**
+   * Engagement bookkeeping once a call is over: good calls (≥ 60 s) give XP,
+   * count toward badges and keep friend streaks alive; every call nudges
+   * both people's vibe score. Never fails the hang-up.
+   */
+  private async afterCall(e: MatchEndedEvent, startedAt: Date, likes: { fromId: string; toId: string }[]): Promise<void> {
+    try {
+      if (e.durationSeconds >= GOOD_CALL_SECONDS) {
+        const night = isNightCall(this.clock.minuteOfDay(startedAt));
+        await this.prisma.user.updateMany({ where: { id: { in: [e.a, e.b] } }, data: { goodCallsCount: { increment: 1 }, ...(night ? { nightCallsCount: { increment: 1 } } : {}) } });
+        for (const id of [e.a, e.b]) await this.progress.award(id, this.economy.rules.xpPerGoodCall, 'good-call');
+        await this.streaks.noteCall(e.a, e.b);
+      }
+      for (const [me, other] of [
+        [e.a, e.b],
+        [e.b, e.a],
+      ]) {
+        const signal = callSignal({
+          durationSeconds: e.durationSeconds,
+          likedByPartner: likes.some((l) => l.fromId === other),
+          reportedByPartner: e.reason === 'reported' && e.byUserId === other,
+          skippedByPartner: e.reason === 'skipped' && e.byUserId === other,
+        });
+        if (signal !== null) await this.prisma.$executeRaw`UPDATE "User" SET "vibeScore" = "vibeScore" + ${VIBE_SCORE_ALPHA} * (${signal} - "vibeScore") WHERE "id" = ${me}`;
+      }
+    } catch (err) {
+      this.logger.warn(`after-call bookkeeping for ${e.matchId} failed: ${(err as Error).message}`);
+    }
   }
 
   @OnEvent(SOCKET_DISCONNECTED, { async: true })

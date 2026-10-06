@@ -31,6 +31,12 @@ export function OverlayHost() {
       {overlays.map((o) => {
         const dismiss = o.dismissible ? () => o.resolve(undefined) : undefined;
         const content = o.render(o.resolve);
+        if (o.kind === "screen")
+          return (
+            <div key={o.id} role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-black" style={{ animation: "vibe-fade-in 150ms ease-out" }}>
+              {content}
+            </div>
+          );
         return o.kind === "sheet" ? (
           <SheetFrame key={o.id} onDismiss={dismiss}>
             {content}
