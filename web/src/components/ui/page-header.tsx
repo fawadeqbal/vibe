@@ -23,7 +23,7 @@ export function PageHeader({ title, actions, onBack, className }: { title: strin
 /** App bar for pushed pages (wallet, checkout, edit profile): round back button, quiet title. */
 export function AppBar({ title, onBack, actions, children, className }: { title?: string; onBack?: () => void; actions?: ReactNode; children?: ReactNode; className?: string }) {
   return (
-    <header className={cn("flex h-16 shrink-0 items-center bg-bg pr-3", !onBack && "pl-5", className)}>
+    <header className={cn("flex h-16 shrink-0 items-center pr-3", !onBack && "pl-5", className)}>
       {onBack ? (
         <span className="flex w-16 shrink-0 justify-center">
           <CircleIconButton icon="arrow_back" label="Back" onClick={onBack} />

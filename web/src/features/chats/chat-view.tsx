@@ -122,7 +122,7 @@ export function ChatView({ friendId }: { friendId: string }) {
 
       <form onSubmit={send} className="flex items-center px-3 pt-2 pb-[calc(10px+env(safe-area-inset-bottom))]">
         <CircleIconButton icon="redeem" label="Send a gift" size={52} iconSize={24} className="bg-gold/12 text-gold" onClick={() => void gift()} />
-        <div className="ml-2 flex h-[52px] flex-1 items-center rounded-[26px] border border-line bg-surface pr-1.5 pl-[18px]">
+        <div className="glass relative ml-2 flex h-[52px] flex-1 items-center rounded-[26px] pr-1.5 pl-[18px]">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}

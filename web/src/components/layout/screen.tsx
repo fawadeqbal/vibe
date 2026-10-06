@@ -31,6 +31,8 @@ export function Screen({
       {header ? <div className={cn("relative mx-auto w-full shrink-0", max)}>{header}</div> : null}
       <div className="quiet-scroll relative min-h-0 flex-1 overflow-y-auto">
         <div className={cn("mx-auto w-full px-5 pb-8", max, bodyClassName)}>{children}</div>
+        {/* Lets the last row scroll clear of the floating tab bar (0 when there is none). */}
+        <div className="tabbar-spacer" aria-hidden />
       </div>
       {footer ? <div className={cn("absolute inset-x-0 bottom-0 mx-auto w-full", max)}>{footer}</div> : null}
     </div>

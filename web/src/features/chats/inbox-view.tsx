@@ -64,7 +64,7 @@ export function InboxView() {
 
 function MessageCard({ m }: { m: TeamMessage }) {
   return (
-    <article className={cn("rounded-card border bg-surface p-4", m.read ? "border-line" : "border-pink/35")} aria-label={m.read ? undefined : "Unread"}>
+    <article className={cn("glass relative rounded-card border p-4", m.read ? "border-transparent" : "border-pink/35")} aria-label={m.read ? undefined : "Unread"}>
       <div className="flex items-center">
         <TeamAvatar size={30} />
         <span className="type-body ml-2.5 flex-1 text-[12.5px] text-text2">Vibe team · {agoShort(m.at)}</span>

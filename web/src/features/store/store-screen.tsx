@@ -92,7 +92,7 @@ function VipBanner() {
 function HeroPack({ pack }: { pack: CoinPack }) {
   const router = useRouter();
   return (
-    <div className="rounded-[24px] border-[1.5px] border-gold/55 bg-surface p-[18px]">
+    <div className="glass relative rounded-[24px] border-[1.5px] border-gold/55 p-[18px]">
       <div className="flex items-start">
         <CoinIcon size={44} />
         <div className="ml-3.5 flex-1">
@@ -113,7 +113,7 @@ function HeroPack({ pack }: { pack: CoinPack }) {
 function PackCard({ pack }: { pack: CoinPack }) {
   const tag = pack.bonusPercent > 0 ? <Tag text={`+${pack.bonusPercent}% bonus`} tone="ok" /> : pack.tag ? <Tag text={pack.tag} tone="pink" /> : null;
   return (
-    <Link href={buyHref(pack)} className="flex flex-col rounded-[22px] border border-line bg-surface p-3.5 transition-[filter] hover:brightness-110 active:brightness-125">
+    <Link href={buyHref(pack)} className="glass relative flex flex-col rounded-[22px] p-3.5 transition-[filter] hover:brightness-110 active:brightness-125">
       <span className="flex h-6 items-center">
         <CoinIcon size={22} />
         <span className="ml-2 flex min-w-0 flex-1 justify-end">{tag}</span>

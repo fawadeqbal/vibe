@@ -47,7 +47,7 @@ function AccountRow({ a, on, onSelect, onAction }: { a: PayoutAccount; on: boole
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && onSelect()}
-      className={cn("flex cursor-pointer items-center rounded-[18px] border py-3 pr-1 pl-4 transition-colors", on ? "border-[1.5px] border-gem bg-gem/8" : "border-line bg-surface")}
+      className={cn("glass relative flex cursor-pointer items-center rounded-[18px] border py-3 pr-1 pl-4 transition-colors", on ? "border-[1.5px] border-gem bg-gem/8" : "border-transparent")}
     >
       <PaymentMethodIcon method={a.method} size={40} iconSize={20} />
       <span className="ml-3 min-w-0 flex-1">

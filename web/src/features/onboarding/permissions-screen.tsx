@@ -35,7 +35,7 @@ export function PermissionsScreen() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col px-6 pt-8 pb-6 lg:my-auto lg:flex-none">
         <Headline text="Vibe needs your camera and " accent="mic" size={32} accentColor="pink-soft" />
         <p className="type-body mt-2.5 text-[15px] leading-[1.5] text-text2">

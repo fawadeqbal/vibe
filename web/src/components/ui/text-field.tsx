@@ -6,9 +6,9 @@ import { cn } from "@/lib/cn";
 
 import { Icon } from "./icon";
 
-/** The app's input look: surface2 fill, 18px radius, hairline, violet focus ring. */
+/** The input look: frosted glass, 18px radius, hairline, violet focus ring. */
 const FIELD =
-  "w-full rounded-[18px] border border-line bg-surface2 px-[18px] py-4 text-text outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-violet focus:shadow-[inset_0_0_0_0.5px_var(--color-violet)]";
+  "w-full rounded-[18px] border border-line bg-surface2 px-[18px] py-4 backdrop-blur-[16px] backdrop-saturate-150 text-text outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-violet focus:shadow-[inset_0_0_0_0.5px_var(--color-violet)]";
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   /** Material icon shown at the start (e.g. "mail_outline"). */
@@ -63,7 +63,7 @@ export function Select({
   icon?: string;
 }) {
   return (
-    <div className={cn("relative rounded-[18px] border border-line bg-surface2", className)}>
+    <div className={cn("relative rounded-[18px] border border-line bg-surface2 backdrop-blur-[16px] backdrop-saturate-150", className)}>
       <select
         aria-label={label}
         value={value}
@@ -71,7 +71,7 @@ export function Select({
         className="type-body h-12 w-full cursor-pointer appearance-none rounded-[18px] bg-transparent pr-10 pl-3.5 text-[15px] text-text outline-none focus-visible:outline-2 focus-visible:outline-lavender"
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value} className="bg-surface2 text-text">
+          <option key={o.value} value={o.value} className="bg-surface2-solid text-text">
             {o.label}
           </option>
         ))}

@@ -81,7 +81,7 @@ function Photo({ url, name, size, blur }: { url: string; name: string; size: num
 }
 
 /** Overlapping blurred faces — the "N people liked you" teaser. */
-export function FaceStack({ urls, size = 34, overlap = 10, blur = 2.5, borderColor = "var(--color-surface)" }: { urls: string[]; size?: number; overlap?: number; blur?: number; borderColor?: string }) {
+export function FaceStack({ urls, size = 34, overlap = 10, blur = 2.5, borderColor = "var(--color-surface-solid)" }: { urls: string[]; size?: number; overlap?: number; blur?: number; borderColor?: string }) {
   if (!urls.length) return null;
   return (
     <span className="relative inline-block shrink-0" style={{ width: size + (urls.length - 1) * (size - overlap), height: size }}>

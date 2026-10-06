@@ -51,18 +51,18 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
         ) : null}
       </div>
       <div className="absolute inset-0 bg-bg/70" />
-      <div className="absolute inset-0 flex flex-col pt-[env(safe-area-inset-top)] pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0">
+      <div className="absolute inset-0 flex flex-col pt-[env(safe-area-inset-top)] pb-[calc(84px+env(safe-area-inset-bottom))] lg:pb-0">
         <div className="flex items-center px-4 pt-3">
           <CircleIconButton icon="close" label="Close" onClick={() => useMatch.getState().dismissEnded()} />
           <p className="type-overline flex-1 text-center text-[12px] tracking-[1.2px] text-text2">Call ended</p>
           <span className="w-10" />
         </div>
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 pt-4 pb-6">
-          <Glass radius={30} className="flex w-full max-w-[420px] flex-col items-center border-white/10 bg-surface/88 px-[22px] pt-7 pb-5">
+          <Glass radius={30} className="flex w-full max-w-[420px] flex-col items-center border-white/10 bg-[rgb(26_23_36/.72)] px-[22px] pt-7 pb-5">
             <span className="relative">
-              <Avatar url={p.avatarUrl} name={p.name} size={92} ring gapColor="var(--color-surface)" />
+              <Avatar url={p.avatarUrl} name={p.name} size={92} ring gapColor="var(--color-surface-solid)" />
               {p.verified ? (
-                <span className="absolute -right-0.5 bottom-0.5 flex size-[26px] items-center justify-center rounded-full bg-surface">
+                <span className="absolute -right-0.5 bottom-0.5 flex size-[26px] items-center justify-center rounded-full bg-surface-solid">
                   <Icon name="verified" size={20} className="text-trust" label="Verified" />
                 </span>
               ) : null}

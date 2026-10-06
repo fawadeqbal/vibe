@@ -135,7 +135,7 @@ export function VipScreen() {
       <SectionTitle text="What you get" top={26} />
       <div className="grid grid-cols-2 gap-2.5">
         {perks.map(([icon, title, sub]) => (
-          <div key={title} className="rounded-[18px] border border-white/7 bg-surface p-3.5">
+          <div key={title} className="glass relative rounded-[18px] p-3.5">
             <Icon name={icon} size={20} className="text-gold" />
             <p className="type-title mt-2.5 text-[13.5px] font-semibold">{title}</p>
             <p className="type-body mt-0.5 text-[11.5px] text-text2">{sub}</p>
@@ -155,7 +155,7 @@ export function VipScreen() {
 
 function LikedCard({ liked, count, vip }: { liked: Profile[]; count: number; vip: boolean }) {
   return (
-    <div className="flex items-center rounded-[22px] border border-gold/22 bg-surface px-4 py-3.5">
+    <div className="glass relative flex items-center rounded-[22px] border border-gold/22 px-4 py-3.5">
       <FaceStack urls={liked.slice(0, 4).map((p) => p.avatarUrl)} size={38} overlap={12} blur={vip ? 0 : 3} />
       <div className="ml-3.5 min-w-0 flex-1">
         <p className="type-title text-[15px] font-semibold">
@@ -178,7 +178,7 @@ function PlanRow({ plan, on, onClick }: { plan: VipPlan; on: boolean; onClick: (
       aria-checked={on}
       aria-label={`${plan.label}, ${usd(plan.usd)}`}
       onClick={onClick}
-      className={cn("flex items-center rounded-[18px] border px-4 py-3.5 text-left transition-colors duration-150", on ? "border-[1.5px] border-gold bg-gold/8" : "border-line bg-surface hover:bg-surface2")}
+      className={cn("glass relative flex items-center rounded-[18px] border px-4 py-3.5 text-left transition-colors duration-150", on ? "border-[1.5px] border-gold bg-gold/8" : "border-transparent hover:bg-surface2")}
     >
       <RadioDot on={on} tone="gold" />
       <span className="ml-3 flex-1">

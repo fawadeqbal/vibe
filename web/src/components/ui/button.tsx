@@ -66,16 +66,21 @@ export function GradientButton({
       aria-busy={busy || undefined}
       onClick={onClick}
       className={cn(
-        "relative isolate flex min-w-0 items-center justify-center rounded-full px-6 transition-[opacity,filter] duration-150",
+        "relative isolate flex min-w-0 items-center justify-center rounded-full px-6 transition-[opacity,filter,transform] duration-300 ease-(--ease-spring)",
         expand ? "w-full" : "w-auto",
         t.fg,
-        enabled ? "hover:brightness-110 active:brightness-95" : busy ? "" : "opacity-45",
+        enabled ? "hover:brightness-110 active:scale-[0.97] active:brightness-95" : busy ? "" : "opacity-45",
         className,
       )}
-      style={{ height, boxShadow: enabled ? `0 10px 35.6px ${t.glow}` : undefined }}
+      style={{
+        height,
+        // Liquid glass on a coloured pill: a lit top edge, a soft inner shade at the bottom, and the glow.
+        boxShadow: `inset 0 1px 0.5px rgb(255 255 255 / .45), inset 0 -3px 8px rgb(0 0 0 / .14)${enabled ? `, 0 10px 35.6px ${t.glow}` : ""}`,
+      }}
       {...rest}
     >
       <GradientFill gradient={t.gradient} className="-z-10" />
+      <span aria-hidden className="glass-sheen -z-[5]" />
       {busy ? <Spinner size={18} stroke={2.2} className="mr-2.5 text-current" /> : icon && !iconAfter ? <Icon name={icon} size={20} className="mr-2.5" /> : null}
       <span className={cn("type-title truncate text-[16px]", bold ? "font-bold" : "font-semibold")}>{label}</span>
       {!busy && icon && iconAfter ? <Icon name={icon} size={20} className="ml-2.5" /> : null}
@@ -84,7 +89,7 @@ export function GradientButton({
   );
 }
 
-/** Secondary action: a quiet translucent pill with a hairline. */
+/** Secondary action: a clear glass pill with a specular rim. */
 export function GhostButton({
   label,
   icon,
@@ -114,9 +119,9 @@ export function GhostButton({
       disabled={!enabled}
       onClick={onClick}
       className={cn(
-        "flex min-w-0 items-center justify-center rounded-full border border-white/10 bg-white/6 px-[18px] text-text transition-colors",
+        "glass relative flex min-w-0 items-center justify-center rounded-full px-[18px] text-text transition-[background-color,transform] duration-300 ease-(--ease-spring)",
         expand ? "w-full" : "w-auto",
-        enabled ? "hover:bg-white/9 active:bg-white/12" : "opacity-50",
+        enabled ? "hover:bg-white/6 active:scale-[0.97] active:bg-white/10" : "opacity-50",
         labelClassName,
         className,
       )}
@@ -158,7 +163,7 @@ export function TextButton({
   );
 }
 
-/** 40px round icon button on a soft fill (back, close, edit). */
+/** 40px round glass icon button (back, close, edit). */
 export function CircleIconButton({
   icon,
   label,
@@ -175,7 +180,10 @@ export function CircleIconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={cn("flex shrink-0 items-center justify-center rounded-full bg-white/8 text-text transition-[filter] hover:brightness-125 active:brightness-150", className)}
+      className={cn(
+        "glass relative flex shrink-0 items-center justify-center rounded-full text-text transition-[filter,transform] duration-300 ease-(--ease-spring) hover:brightness-125 active:scale-90",
+        className,
+      )}
       style={{ width: size, height: size }}
       {...rest}
     >

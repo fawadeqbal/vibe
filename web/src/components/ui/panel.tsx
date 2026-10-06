@@ -11,7 +11,7 @@ import { GradientFill } from "./gradient-fill";
 import { Icon, type IconVariant } from "./icon";
 
 /**
- * A card on a screen (not over video): surface fill, 22px radius, hairline.
+ * A card on a screen (not over video): glass with a specular rim, 22px radius.
  * Override padding / fill / border / radius with classes.
  */
 export function Panel({
@@ -29,7 +29,7 @@ export function Panel({
   style?: CSSProperties;
   ariaLabel?: string;
 }) {
-  const cls = cn("relative isolate block w-full rounded-card border border-line bg-surface p-4 text-left", gradient && "bg-transparent", className);
+  const cls = cn("relative isolate block w-full rounded-card p-4 text-left", gradient ? "glass-rim" : "glass", className);
   const fill = gradient ? <GradientFill gradient={gradient} className="-z-10" /> : null;
   if (!onClick)
     return (
@@ -39,7 +39,7 @@ export function Panel({
       </div>
     );
   return (
-    <button type="button" onClick={onClick} aria-label={ariaLabel} className={cn(cls, "transition-[filter] hover:brightness-110 active:brightness-125")} style={style}>
+    <button type="button" onClick={onClick} aria-label={ariaLabel} className={cn(cls, "transition-[filter,transform] duration-300 ease-(--ease-spring) hover:brightness-110 active:scale-[0.985] active:brightness-125")} style={style}>
       {fill}
       {children}
     </button>
@@ -50,7 +50,7 @@ export function Panel({
 export function GroupCard({ children, dividerInset = 70, className }: { children: ReactNode; dividerInset?: number; className?: string }) {
   const rows = Children.toArray(children).filter(Boolean);
   return (
-    <div className={cn("overflow-hidden rounded-card border border-line bg-surface", className)}>
+    <div className={cn("glass relative overflow-hidden rounded-card", className)}>
       {rows.map((row, i) => (
         <Fragment key={i}>
           {i > 0 ? <div className="h-px bg-line-soft" style={{ marginLeft: dividerInset }} /> : null}

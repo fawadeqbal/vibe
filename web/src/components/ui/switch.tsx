@@ -3,8 +3,8 @@
 import { cn } from "@/lib/cn";
 
 /**
- * Material 3 switch. Toggles in Vibe are almost all safety toggles: teal
- * track, dark knob when on.
+ * iOS switch: a 52×32 capsule with a white knob that stretches while pressed.
+ * Toggles in Vibe are almost all safety toggles, so "on" is teal.
  */
 export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label?: string; disabled?: boolean }) {
   return (
@@ -15,12 +15,16 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={cn("group relative h-8 w-[52px] shrink-0 rounded-full transition-colors duration-200", checked ? "bg-trust" : "bg-surface3", disabled && "opacity-40")}
+      className={cn(
+        "group relative h-8 w-[52px] shrink-0 rounded-full transition-colors duration-300 ease-(--ease-spring)",
+        checked ? "bg-trust" : "bg-white/16 shadow-[inset_0_0_0_1px_rgb(255_255_255/.06)]",
+        disabled && "opacity-40",
+      )}
     >
       <span
         className={cn(
-          "absolute top-1/2 -translate-y-1/2 rounded-full transition-all duration-200 ease-out",
-          checked ? "left-6 size-6 bg-bg group-active:left-[22px] group-active:size-7" : "left-2 size-4 bg-text2 group-active:left-0.5 group-active:size-7",
+          "absolute top-[2px] h-7 rounded-full bg-white shadow-[0_3px_8px_rgb(0_0_0/.3),0_1px_1px_rgb(0_0_0/.16)] transition-all duration-300 ease-(--ease-spring)",
+          checked ? "left-[22px] w-7 group-active:left-[16px] group-active:w-[34px]" : "left-[2px] w-7 group-active:w-[34px]",
         )}
       />
     </button>
