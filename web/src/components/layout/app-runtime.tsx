@@ -31,8 +31,8 @@ function redirectFor(stage: Stage, path: string): string | null {
   }
 }
 
-/** Long enough for the splash rings and the wordmark to land. */
-const SPLASH_MIN_MS = 1500;
+/** Entrance (rings + wordmark) plus a couple of breathing loops — same as the app's SplashGate.minVisible. */
+const SPLASH_MIN_MS = 3500;
 
 /**
  * The whole app's runtime: starts the session/socket lifecycle, keeps

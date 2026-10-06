@@ -173,8 +173,8 @@ class SplashGate extends StatefulWidget {
   final bool ready;
   final WidgetBuilder builder;
 
-  /// Long enough for the rings and the wordmark to land.
-  static const minVisible = Duration(milliseconds: 1500);
+  /// Entrance (rings + wordmark) plus a couple of breathing loops.
+  static const minVisible = Duration(milliseconds: 3500);
 
   @override
   State<SplashGate> createState() => _SplashGateState();
