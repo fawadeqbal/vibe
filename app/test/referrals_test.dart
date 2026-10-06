@@ -220,6 +220,20 @@ void main() {
       expect(session.invitedBy?.name, 'Sana');
     });
 
+    test('a bad reply to the background time-zone sync never escapes as an error (any runner time zone)', () async {
+      // The server's offset differs from this device's, so sign-in fires the
+      // unawaited PATCH /me; the reply is malformed on purpose.
+      final serverTz = SessionProvider.deviceTzOffsetMinutes() == 300 ? 0 : 300;
+      final api = client((r) async {
+        if (r.url.path.endsWith('/auth/otp/verify')) return json({...signedIn(), 'user': {...signedIn()['user'] as Map, 'tzOffsetMinutes': serverTz}});
+        return json({});
+      });
+      final session = RemoteSessionProvider(api, invites: InviteCapture(store: MemoryInviteStore(checked: true)));
+      await session.signIn(method: 'email', email: 'tz@vibe.test', code: '1234');
+      await pumpEventQueue();
+      expect(sent.where((r) => r.method == 'PATCH' && r.url.path.endsWith('/me')), hasLength(1));
+    });
+
     test('GET /referrals maps people, steps, milestones and the partner link', () {
       final v = ApiMap.referrals(_overview(affiliate: {'code': 'ZARA', 'link': 'https://vibe.fawadiqbal.dev/i/ZARA'}));
       expect(v.code, 'SARA7K');

@@ -31,9 +31,11 @@ class RemoteSessionProvider extends SessionProvider {
   Future<void> _syncTimezone() async {
     final mine = SessionProvider.deviceTzOffsetMinutes();
     if (_me == null || _wellbeing.tzOffsetMinutes == mine) return;
+    // Fire-and-forget (unawaited): it must never throw, or the error escapes
+    // as an uncaught async error. Any failure just means we try next sign-in.
     try {
       _applyMe(Map<String, dynamic>.from(await _api.patch('/me', {'tzOffsetMinutes': mine}) as Map));
-    } on ApiException catch (_) {}
+    } catch (_) {}
   }
 
   @override
