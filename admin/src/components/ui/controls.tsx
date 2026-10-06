@@ -44,15 +44,56 @@ export function Checkbox({ className, ...props }: React.ComponentProps<typeof C.
 export const Tabs = T.Root;
 export const TabsContent = T.Content;
 
-export function TabsList({ className, ...props }: React.ComponentProps<typeof T.List>) {
-  return <T.List className={cn("flex items-center gap-1 overflow-x-auto border-b border-line", className)} {...props} />;
+export function TabsList({ className, style, ...props }: React.ComponentProps<typeof T.List>) {
+  // Scrolls sideways when the tabs don't fit, never up/down. The baseline is an
+  // inset shadow (not a border + -1px margin on the tabs, which made the
+  // content 1px taller than the bar and showed a tiny vertical scrollbar).
+  // The scrollbar itself is hidden; a fade on the side with more tabs shows
+  // there is more, and the mouse wheel scrolls the row.
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [more, setMore] = React.useState({ left: false, right: false });
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setMore({ left: el.scrollLeft > 1, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1 });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    Array.from(el.children).forEach((c) => ro.observe(c));
+    // Vertical wheel → sideways, only while the row can still move that way
+    // (then the page scrolls as usual). Native + non-passive so the page
+    // doesn't scroll at the same time.
+    const wheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const before = el.scrollLeft;
+      el.scrollLeft += e.deltaY;
+      if (el.scrollLeft !== before) e.preventDefault();
+    };
+    el.addEventListener("scroll", update, { passive: true });
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", update);
+      el.removeEventListener("wheel", wheel);
+    };
+  }, []);
+  const fade = 28;
+  const mask = more.left || more.right ? `linear-gradient(to right, ${more.left ? `transparent, #000 ${fade}px` : "#000"}, ${more.right ? `#000 calc(100% - ${fade}px), transparent` : "#000"})` : undefined;
+  return (
+    <T.List
+      ref={ref}
+      className={cn("flex items-center gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--color-line)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}
+      style={{ maskImage: mask, WebkitMaskImage: mask, ...style }}
+      {...props}
+    />
+  );
 }
 
 export function TabsTrigger({ className, count, children, ...props }: React.ComponentProps<typeof T.Trigger> & { count?: number }) {
   return (
     <T.Trigger
       className={cn(
-        "-mb-px inline-flex h-9 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-sm font-medium whitespace-nowrap text-muted transition-colors hover:text-text data-[state=active]:border-primary data-[state=active]:text-text",
+        "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-sm font-medium whitespace-nowrap text-muted transition-colors hover:text-text data-[state=active]:border-primary data-[state=active]:text-text",
         className,
       )}
       {...props}
