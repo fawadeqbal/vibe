@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/vibe_dock.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/follows.dart';
@@ -68,6 +68,23 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   void go(int i) {
     setState(() => _index = i);
     _syncCamera();
+  }
+
+  /// One scroll controller per tab, so tapping the tab you're already on
+  /// can take that page back to the top (as on iOS).
+  final _scrollers = [for (var i = 0; i < 4; i++) ScrollController()];
+
+  void _onDockTap(int i) {
+    if (i != _index) return go(i);
+    final reduce = MediaQuery.of(context).disableAnimations;
+    for (final p in _scrollers[i].positions) {
+      if (p.pixels <= p.minScrollExtent) continue;
+      if (reduce) {
+        p.jumpTo(p.minScrollExtent);
+      } else {
+        p.animateTo(p.minScrollExtent, duration: VMotion.travel, curve: VMotion.out);
+      }
+    }
   }
 
   /// The lobby camera may only run while you're looking at it: Match tab,
@@ -243,6 +260,9 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     _session.removeListener(_onSessionChanged);
     _lifecycle.dispose();
     vibeRouteObserver.unsubscribe(this);
+    for (final c in _scrollers) {
+      c.dispose();
+    }
     // Signed out / left the tabs: close the lobby camera (after this frame,
     // listeners can't rebuild while the tree is being torn down).
     final match = _match;
@@ -294,8 +314,9 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     final onVideo = _index == 0;
     // While a match is live the tab bar hides: the match owns the screen.
     return Scaffold(
-      // On Match the bar floats, frosted, over your camera.
-      extendBody: onVideo,
+      // The dock floats over every tab: over your camera on Match, over the
+      // page (which scrolls under it) everywhere else.
+      extendBody: true,
       // Any touch keeps the lobby preview from timing out.
       body: Listener(
         behavior: HitTestBehavior.translucent,
@@ -304,108 +325,25 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
           index: _index,
           children: [
             MatchScreen(onOpenStore: () => go(2), onOpenChats: () => go(1)),
-            ChatsScreen(onFindPeople: () => go(0)),
-            const StoreScreen(),
-            ProfileScreen(onOpenStore: () => go(2)),
+            PrimaryScrollController(controller: _scrollers[1], child: ChatsScreen(onFindPeople: () => go(0))),
+            PrimaryScrollController(controller: _scrollers[2], child: const StoreScreen()),
+            PrimaryScrollController(controller: _scrollers[3], child: ProfileScreen(onOpenStore: () => go(2))),
           ],
         ),
       ),
       bottomNavigationBar: live && onVideo
           ? null
-          : _NavBar(
+          : VibeDock(
               index: _index,
-              frosted: onVideo,
-              onTap: go,
+              overVideo: onVideo,
+              onTap: _onDockTap,
               items: [
-                const _NavItem(Icons.videocam_outlined, Icons.videocam_rounded, 'Match'),
-                _NavItem(Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Chats', badge: unread + teamUnread),
-                const _NavItem(Icons.storefront_outlined, Icons.storefront_rounded, 'Store'),
-                const _NavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Me'),
+                const VibeDockItem(icon: Icons.videocam_outlined, activeIcon: Icons.videocam_rounded, label: 'Match'),
+                VibeDockItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Chats', badge: unread + teamUnread),
+                const VibeDockItem(icon: Icons.storefront_outlined, activeIcon: Icons.storefront_rounded, label: 'Store'),
+                const VibeDockItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Me'),
               ],
             ),
-    );
-  }
-}
-
-class _NavItem {
-  const _NavItem(this.icon, this.activeIcon, this.label, {this.badge = 0});
-  final IconData icon;
-  final IconData activeIcon;
-  final String label;
-  final int badge;
-}
-
-class _NavBar extends StatelessWidget {
-  const _NavBar({required this.index, required this.items, required this.onTap, required this.frosted});
-  final int index;
-  final List<_NavItem> items;
-  final ValueChanged<int> onTap;
-  final bool frosted;
-
-  @override
-  Widget build(BuildContext context) {
-    final bar = Container(
-      decoration: BoxDecoration(
-        color: frosted ? V.bg.withValues(alpha: 0.88) : V.bg,
-        border: const Border(top: BorderSide(color: V.lineSoft)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(children: [for (var i = 0; i < items.length; i++) Expanded(child: _tab(i, items[i]))]),
-        ),
-      ),
-    );
-    if (!frosted) return bar;
-    return ClipRect(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), child: bar));
-  }
-
-  Widget _tab(int i, _NavItem it) {
-    final on = i == index;
-    return Semantics(
-      selected: on,
-      button: true,
-      label: it.badge > 0 ? '${it.label}, ${it.badge} new' : it.label,
-      child: InkWell(
-        onTap: () => onTap(i),
-        splashColor: Colors.transparent,
-        highlightColor: Colors.transparent,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOut,
-              width: 56,
-              height: 30,
-              decoration: BoxDecoration(color: on ? V.pink.withValues(alpha: 0.16) : Colors.transparent, borderRadius: BorderRadius.circular(15)),
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  Icon(on ? it.activeIcon : it.icon, size: 22, color: on ? V.pink : V.muted),
-                  if (it.badge > 0)
-                    Positioned(
-                      left: 32,
-                      top: 1,
-                      child: Container(
-                        constraints: const BoxConstraints(minWidth: 16),
-                        height: 16,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(color: V.pink, borderRadius: BorderRadius.circular(8)),
-                        child: Text(it.badge > 99 ? '99+' : '${it.badge}', style: VT.label(10, color: Colors.white, weight: FontWeight.w700)),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(it.label, style: VT.label(11, color: on ? V.text : V.muted, weight: on ? FontWeight.w600 : FontWeight.w500)),
-          ],
-        ),
-      ),
     );
   }
 }

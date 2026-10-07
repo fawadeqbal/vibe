@@ -71,6 +71,51 @@ class V {
   static const double rSm = 12;
   static const double rLg = 32;
 
+  // ── Floating chrome ─────────────────────────────────────────────────
+  // Anything that hovers above content (the tab dock, floating action
+  // rows) is Liquid-Glass-style: a frosted capsule with a lit rim, lifted
+  // off the page by [lift].
+
+  /// The tab dock: a 62-tall capsule, 20 in from the screen edges.
+  static const double dockHeight = 62;
+  static const double dockInset = 20;
+
+  /// Minimum space between the dock and the bottom of the screen.
+  static const double dockLift = 8;
+
+  /// How far the dock sinks into a gesture-nav strip (iOS puts the tab
+  /// bar right on top of the home indicator).
+  static const double dockSink = 10;
+
+  /// How far above the dock the page starts fading out.
+  static const double dockFade = 20;
+
+  /// The dock stays phone-sized on tablets and in landscape.
+  static const double dockMaxWidth = 440;
+
+  /// Dock glass on pages and (thinner) over video.
+  static const Color dockFill = Color(0xC7221F2C); // 78%
+  static const Color dockFillVideo = Color(0x8C1C1A26); // 55%
+
+  /// The selection lens: clear glass, lighter at the top.
+  static const Color dockLensTop = Color(0x29FFFFFF); // 16%
+  static const Color dockLens = Color(0x14FFFFFF); // 8%
+
+  /// The lens held up under a finger: clearer in the middle, so what it
+  /// magnifies shows through.
+  static const Color dockLensLiftTop = Color(0x33FFFFFF); // 20%
+  static const Color dockLensLift = Color(0x0AFFFFFF); // 4%
+
+  /// Light on the top edge of glass.
+  static const Color specular = Color(0x17FFFFFF); // 9%
+
+  /// Elevation for floating chrome: a wide soft fall plus a tight contact
+  /// shadow, both cast downward.
+  static const List<BoxShadow> lift = [
+    BoxShadow(color: Color(0x80000000), blurRadius: 30, offset: Offset(0, 12), spreadRadius: -8),
+    BoxShadow(color: Color(0x40000000), blurRadius: 6, offset: Offset(0, 2), spreadRadius: -2),
+  ];
+
   static const String sans = 'Geist';
   static const String serif = 'InstrumentSerif';
   static const String monoFamily = 'GeistMono';
@@ -183,4 +228,32 @@ class VT {
 
   static TextStyle mono(double size, {Color color = V.text2, FontWeight weight = FontWeight.w500}) =>
       TextStyle(fontFamily: V.monoFamily, fontSize: size, fontWeight: weight, color: color, height: 1.3, fontFeatures: _tabular);
+}
+
+/// Motion. Things arrive fast and settle softly; nothing bounces except a
+/// deliberate [pop]. Honour `MediaQuery.disableAnimations` by cutting to
+/// the end state.
+class VMotion {
+  VMotion._();
+
+  /// Press feedback, small toggles.
+  static const Duration fast = Duration(milliseconds: 160);
+
+  /// Most state changes: badges, fades, swaps.
+  static const Duration base = Duration(milliseconds: 260);
+
+  /// Something travelling across the screen (the dock pill).
+  static const Duration travel = Duration(milliseconds: 520);
+
+  /// Exponential ease-out: quick start, long settle. The default.
+  static const Curve out = Cubic(0.16, 1, 0.3, 1);
+
+  /// Ease-in-out for the trailing half of a stretch.
+  static const Curve inOut = Cubic(0.65, 0, 0.35, 1);
+
+  /// A small overshoot for things that should feel springy.
+  static const Curve pop = Cubic(0.34, 1.36, 0.64, 1);
+
+  /// A bigger overshoot: glass dropping back into place and wobbling once.
+  static const Curve jelly = Cubic(0.3, 1.8, 0.5, 1);
 }

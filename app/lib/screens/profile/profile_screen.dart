@@ -60,7 +60,8 @@ class ProfileScreen extends StatelessWidget {
             ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                // Clear the floating dock (its height arrives as bottom padding).
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 32 + MediaQuery.paddingOf(context).bottom),
                 children: [
                   _ProfileCard(me: me, vip: wallet.isVip),
                   const SizedBox(height: 12),

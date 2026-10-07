@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { VibeLogo } from "@/components/ui/brand";
-import { Icon } from "@/components/ui/icon";
+import { TabIcon, type TabIconName } from "@/components/ui/tab-icons";
 import { cn } from "@/lib/cn";
 import { useInbox } from "@/stores/inbox";
 import { useMatch } from "@/stores/match";
@@ -14,9 +14,8 @@ import { incomingOf, unreadTotal, useSocial } from "@/stores/social";
 interface Tab {
   href: string;
   label: string;
-  icon: string;
-  iconVariant: "round" | "outlined";
-  activeIcon: string;
+  /** Solar glyph: outline when idle, bold when selected (same as the app). */
+  icon: TabIconName;
   badge?: number;
 }
 
@@ -24,10 +23,10 @@ function useTabs(): Tab[] {
   const chatsBadge = useSocial((s) => unreadTotal(s) + incomingOf(s).length);
   const teamUnread = useInbox((s) => s.unread);
   return [
-    { href: "/match", label: "Match", icon: "videocam", iconVariant: "outlined", activeIcon: "videocam" },
-    { href: "/chats", label: "Chats", icon: "chat_bubble_outline", iconVariant: "round", activeIcon: "chat_bubble", badge: chatsBadge + teamUnread },
-    { href: "/store", label: "Store", icon: "storefront", iconVariant: "outlined", activeIcon: "storefront" },
-    { href: "/me", label: "Me", icon: "person_outline", iconVariant: "round", activeIcon: "person" },
+    { href: "/match", label: "Match", icon: "match" },
+    { href: "/chats", label: "Chats", icon: "chats", badge: chatsBadge + teamUnread },
+    { href: "/store", label: "Store", icon: "store" },
+    { href: "/me", label: "Me", icon: "me" },
   ];
 }
 
@@ -44,7 +43,7 @@ function TabItem({ tab, on, className }: { tab: Tab; on: boolean; className?: st
       className={cn("group flex flex-col items-center justify-center", className)}
     >
       <span className={cn("relative flex h-[30px] w-14 items-center justify-center rounded-[15px] transition-colors duration-200 ease-out", on ? "bg-pink/16" : "group-hover:bg-white/5")}>
-        <Icon name={on ? tab.activeIcon : tab.icon} variant={on ? "round" : tab.iconVariant} size={22} className={on ? "text-pink" : "text-muted"} />
+        <TabIcon name={tab.icon} filled={on} size={23} className={on ? "text-pink" : "text-muted"} />
         {badge > 0 ? (
           <span className="type-label absolute top-px left-8 flex h-4 min-w-4 items-center justify-center rounded-[8px] bg-pink px-1 text-[10px] font-bold text-white">{badge > 99 ? "99+" : badge}</span>
         ) : null}

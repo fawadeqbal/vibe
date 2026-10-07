@@ -52,15 +52,19 @@ class ChatsScreen extends StatelessWidget {
             const MomentsBar(),
             Expanded(
               child: empty
-                  ? EmptyState(
-                      icon: Icons.chat_bubble_outline_rounded,
-                      title: 'No friends ',
-                      accent: 'yet',
-                      body: 'Tap Add during a match. When they accept, you can keep talking here — text and gifts, any time.',
-                      action: GradientButton(label: 'Find people', icon: Icons.videocam_rounded, expand: false, onTap: onFindPeople),
+                  ? Padding(
+                      padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+                      child: EmptyState(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        title: 'No friends ',
+                        accent: 'yet',
+                        body: 'Tap Add during a match. When they accept, you can keep talking here — text and gifts, any time.',
+                        action: GradientButton(label: 'Find people', icon: Icons.videocam_rounded, expand: false, onTap: onFindPeople),
+                      ),
                     )
                   : ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                      // Clear the floating dock (its height arrives as bottom padding).
+                      padding: EdgeInsets.fromLTRB(20, 0, 20, 32 + MediaQuery.paddingOf(context).bottom),
                       children: [
                         if (inbox.latest != null) _TeamRow(latest: inbox.latest!, unread: inbox.unread),
                         if (incoming.isNotEmpty) ...[

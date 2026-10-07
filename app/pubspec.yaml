@@ -41,6 +41,7 @@ dependencies:
   webview_flutter: ^4.14.1 # form-POST hosted payment pages (JazzCash)
   package_info_plus: ^10.2.2 # app version sent with the push token
   share_plus: ^13.3.1
+  solar_icons: ^0.2.0 # modern outline/bold icon pairs (tab dock)
 
 dev_dependencies:
   flutter_test:
