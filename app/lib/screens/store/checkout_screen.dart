@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -156,7 +157,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
             width: 48,
             height: 48,
             decoration: BoxDecoration(color: widget.pack != null ? V.gold.withValues(alpha: 0.12) : null, gradient: widget.pack != null ? null : V.goldGrad, borderRadius: BorderRadius.circular(14)),
-            child: widget.pack != null ? const Center(child: CoinIcon(size: 26)) : const Icon(Icons.workspace_premium_rounded, color: V.onGoldIcon, size: 26),
+            child: widget.pack != null ? const Center(child: CoinIcon(size: 26)) : const Icon(SolarIconsBold.crown, color: V.onGoldIcon, size: 26),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -182,12 +183,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
 
   Widget _methodIcon(PaymentMethod m) {
     final (icon, color) = switch (m) {
-      PaymentMethod.googlePlay => (Icons.play_arrow_rounded, V.ok),
+      PaymentMethod.googlePlay => (SolarIconsBold.play, V.ok),
       PaymentMethod.appStore => (Icons.apple_rounded, V.text),
-      PaymentMethod.jazzCash => (Icons.account_balance_wallet_rounded, const Color(0xFFE0245E)),
-      PaymentMethod.easypaisa => (Icons.account_balance_wallet_rounded, const Color(0xFF3DB54A)),
-      PaymentMethod.card => (Icons.credit_card_rounded, V.violet),
-      PaymentMethod.bank => (Icons.account_balance_rounded, V.text2),
+      PaymentMethod.jazzCash => (SolarIconsBold.wallet, const Color(0xFFE0245E)),
+      PaymentMethod.easypaisa => (SolarIconsBold.wallet, const Color(0xFF3DB54A)),
+      PaymentMethod.card => (SolarIconsBold.card, V.violet),
+      PaymentMethod.bank => (SolarIconsBold.banknote, V.text2),
     };
     return Container(width: 42, height: 42, decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: color));
   }
@@ -220,7 +221,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: V.muted),
+                const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               ],
             ),
           ),
@@ -342,7 +343,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
           child: PulseRings(
             size: 150,
             color: V.gold,
-            child: Container(width: 64, height: 64, decoration: BoxDecoration(shape: BoxShape.circle, color: V.gold.withValues(alpha: 0.15)), child: const Icon(Icons.phone_iphone_rounded, size: 32, color: V.gold)),
+            child: Container(width: 64, height: 64, decoration: BoxDecoration(shape: BoxShape.circle, color: V.gold.withValues(alpha: 0.15)), child: const Icon(SolarIconsBold.smartphone, size: 32, color: V.gold)),
           ),
         ),
         const SizedBox(height: 8),
@@ -378,14 +379,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
       children: [
         _summary(),
         const SizedBox(height: 28),
-        const Center(child: Icon(Icons.open_in_browser_rounded, size: 56, color: V.violet)),
+        const Center(child: Icon(SolarIconsBold.squareArrowRightUp, size: 56, color: V.violet)),
         const SizedBox(height: 12),
         Text('Finish on the secure page', textAlign: TextAlign.center, style: VT.display(24)),
         const SizedBox(height: 8),
         Text(_c.purchase?.action?.instructions ?? 'Complete the payment on the page that opened. You will come back here automatically.', textAlign: TextAlign.center, style: VT.body(14, color: V.text2, height: 1.45)),
         _errorLine(),
         const SizedBox(height: 26),
-        GradientButton(label: 'Open payment page', icon: Icons.lock_rounded, onTap: _openHosted),
+        GradientButton(label: 'Open payment page', icon: SolarIconsBold.lockKeyhole, onTap: _openHosted),
         const SizedBox(height: 8),
         GhostButton(label: "I've paid", expand: true, onTap: _c.busy ? null : _c.checkNow),
         const SizedBox(height: 8),
@@ -406,7 +407,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
                 IconButton(
                   tooltip: 'Copy $k',
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.copy_rounded, size: 18, color: V.text2),
+                  icon: const Icon(SolarIconsBold.copy, size: 18, color: V.text2),
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: v));
                     toast(context, '$k copied');
@@ -439,7 +440,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
         Text(b != null ? 'Write the reference ${b.reference} in the transfer note so we can match it.' : '', style: VT.body(12.5, color: V.text2, height: 1.4)),
         const SectionTitle('Already sent it?', top: 22),
         if (_c.bankReferenceSent)
-          Row(children: [const Icon(Icons.check_circle_rounded, color: V.ok, size: 18), const SizedBox(width: 8), Expanded(child: Text('Thanks — we will match it with your transfer.', style: VT.body(13, color: V.text2)))])
+          Row(children: [const Icon(SolarIconsBold.checkCircle, color: V.ok, size: 18), const SizedBox(width: 8), Expanded(child: Text('Thanks — we will match it with your transfer.', style: VT.body(13, color: V.text2)))])
         else ...[
           TextField(key: const ValueKey('bankRef'), controller: _bankRef, decoration: const InputDecoration(hintText: "Your bank's transaction reference (optional)")),
           const SizedBox(height: 10),
@@ -448,7 +449,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
         _errorLine(),
         const SizedBox(height: 18),
         Row(children: [
-          const Icon(Icons.notifications_active_rounded, size: 16, color: V.gold),
+          const Icon(SolarIconsBold.bellBing, size: 16, color: V.gold),
           const SizedBox(width: 8),
           Expanded(child: Text("We'll notify you when the money arrives — usually within a working day.", style: VT.body(12.5, color: V.text2))),
         ]),
@@ -472,7 +473,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
             width: 96,
             height: 96,
             decoration: BoxDecoration(shape: BoxShape.circle, gradient: V.goldGrad, boxShadow: [BoxShadow(color: V.gold.withValues(alpha: 0.4), blurRadius: 40)]),
-            child: Icon(widget.pack != null ? Icons.check_rounded : Icons.workspace_premium_rounded, size: 52, color: V.onGoldIcon),
+            child: Icon(widget.pack != null ? Icons.check_rounded : SolarIconsBold.crown, size: 52, color: V.onGoldIcon),
           ),
           const SizedBox(height: 20),
           Text(widget.pack != null ? 'Coins added' : 'You are VIP', style: VT.display(28), textAlign: TextAlign.center),
@@ -512,7 +513,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
             width: 96,
             height: 96,
             decoration: BoxDecoration(shape: BoxShape.circle, color: (expired ? V.warn : V.bad).withValues(alpha: 0.18)),
-            child: Icon(expired ? Icons.timer_off_rounded : Icons.close_rounded, size: 52, color: expired ? V.warn : V.bad),
+            child: Icon(expired ? SolarIconsBold.alarmTurnOff : Icons.close_rounded, size: 52, color: expired ? V.warn : V.bad),
           ),
           const SizedBox(height: 20),
           Text(expired ? 'Payment not completed' : 'Payment did not go through', style: VT.display(26), textAlign: TextAlign.center),

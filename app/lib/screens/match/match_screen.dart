@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/mock/mock_data.dart';
@@ -363,7 +364,7 @@ class _PreviewPrompt extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.08),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
               ),
-              child: const Icon(Icons.videocam_rounded, size: 30, color: Colors.white),
+              child: const Icon(SolarIconsBold.videocamera, size: 30, color: Colors.white),
             ),
             const SizedBox(height: 12),
             Text('Tap to preview your camera', style: VT.label(14, color: Colors.white, weight: FontWeight.w600)),
@@ -420,7 +421,7 @@ class _Lobby extends StatelessWidget {
                           const SizedBox(height: 1),
                           Row(
                             children: [
-                              Icon(camLive ? Icons.lock_rounded : Icons.videocam_off_rounded, size: 13, color: Colors.white.withValues(alpha: 0.72)),
+                              Icon(camLive ? SolarIconsBold.lockKeyhole : Icons.videocam_off_rounded, size: 13, color: Colors.white.withValues(alpha: 0.72)),
                               const SizedBox(width: 4),
                               Flexible(child: Text(camLive ? 'Preview · only you can see this' : 'Camera off · saving battery', overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.72), height: 1.2))),
                             ],
@@ -428,7 +429,7 @@ class _Lobby extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (wallet.isVip) const Padding(padding: EdgeInsets.only(right: 8), child: Tag('VIP', color: V.gold, icon: Icons.workspace_premium_rounded)),
+                    if (wallet.isVip) const Padding(padding: EdgeInsets.only(right: 8), child: Tag('VIP', color: V.gold, icon: SolarIconsBold.crown)),
                     if (m.previewOn)
                       Padding(
                         padding: const EdgeInsets.only(right: 8),
@@ -437,7 +438,7 @@ class _Lobby extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: CircleIconButton(
-                        icon: Icons.emoji_events_rounded,
+                        icon: SolarIconsBold.cupStar,
                         iconSize: 20,
                         color: V.level,
                         tooltip: "This week's top",
@@ -477,23 +478,23 @@ class _Lobby extends StatelessWidget {
                     GlassPill(
                       height: 40,
                       fontSize: 13,
-                      icon: switch (f.gender) { GenderFilter.women => Icons.female_rounded, GenderFilter.men => Icons.male_rounded, _ => Icons.group_rounded },
+                      icon: switch (f.gender) { GenderFilter.women => SolarIconsBold.women, GenderFilter.men => SolarIconsBold.men, _ => SolarIconsBold.usersGroupRounded },
                       label: _genderLabel(f.gender),
-                      trailing: vibeHour ? const _FreeTag() : const Icon(Icons.expand_more_rounded, size: 16, color: V.text2),
+                      trailing: vibeHour ? const _FreeTag() : const Icon(SolarIconsOutline.altArrowDown, size: 16, color: V.text2),
                       onTap: () => showFiltersSheet(context),
                     ),
                     GlassPill(
                       height: 40,
                       fontSize: 13,
-                      icon: Icons.public_rounded,
+                      icon: SolarIconsBold.global,
                       label: _countryLabel(f.countryCode),
-                      trailing: vibeHour ? const _FreeTag() : const Icon(Icons.expand_more_rounded, size: 16, color: V.text2),
+                      trailing: vibeHour ? const _FreeTag() : const Icon(SolarIconsOutline.altArrowDown, size: 16, color: V.text2),
                       onTap: () => showFiltersSheet(context),
                     ),
                     GlassPill(
                       height: 40,
                       fontSize: 13,
-                      icon: f.safeMode ? Icons.verified_rounded : Icons.verified_outlined,
+                      icon: f.safeMode ? SolarIconsBold.verifiedCheck : SolarIconsOutline.verifiedCheck,
                       label: 'Verified only',
                       tint: f.safeMode ? V.trust : null,
                       textColor: f.safeMode ? V.trust : Colors.white,
@@ -513,7 +514,7 @@ class _Lobby extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _SideAction(
-                      icon: Icons.bolt_rounded,
+                      icon: SolarIconsBold.bolt,
                       iconColor: V.gold,
                       tint: wallet.isBoosted ? V.gold : null,
                       label: wallet.isBoosted
@@ -526,7 +527,7 @@ class _Lobby extends StatelessWidget {
                     ),
                     _Shutter(onTap: onStart, cost: cost),
                     _SideAction(
-                      icon: Icons.shield_rounded,
+                      icon: SolarIconsBold.shield,
                       iconColor: V.trust,
                       label: Text('Safety', style: VT.label(11.5, color: Colors.white.withValues(alpha: 0.85))),
                       semantics: 'Safety settings',
@@ -541,7 +542,7 @@ class _Lobby extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Glass(
                     radius: 16,
-                    child: Row(children: [const Icon(Icons.error_outline_rounded, size: 16, color: V.bad), const SizedBox(width: 8), Expanded(child: Text(m.lastError!, style: VT.body(12, color: Colors.white)))]),
+                    child: Row(children: [const Icon(SolarIconsOutline.dangerCircle, size: 16, color: V.bad), const SizedBox(width: 8), Expanded(child: Text(m.lastError!, style: VT.body(12, color: Colors.white)))]),
                   ),
                 ),
               ],
@@ -593,7 +594,7 @@ class _Shutter extends StatelessWidget {
               decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 1.5)),
               child: Container(
                 decoration: BoxDecoration(shape: BoxShape.circle, gradient: V.brand, boxShadow: [BoxShadow(color: V.pink.withValues(alpha: 0.45), blurRadius: 36, offset: const Offset(0, 14))]),
-                child: const Icon(Icons.videocam_rounded, size: 40, color: Colors.white),
+                child: const Icon(SolarIconsBold.videocamera, size: 40, color: Colors.white),
               ),
             ),
             const SizedBox(height: 10),
@@ -700,10 +701,10 @@ class _EndedState extends State<_Ended> {
     };
     final last = m.history.isEmpty ? null : m.history.first;
     final (likeIcon, likeColor, likeLabel) = last?.likedMe == true
-        ? (Icons.favorite_rounded, V.pink, 'Liked you')
+        ? (SolarIconsBold.heart, V.pink, 'Liked you')
         : last?.liked == true
-            ? (Icons.favorite_rounded, V.pinkSoft, 'You liked')
-            : (Icons.favorite_border_rounded, V.muted, 'No likes');
+            ? (SolarIconsBold.heart, V.pinkSoft, 'You liked')
+            : (SolarIconsOutline.heart, V.muted, 'No likes');
     final gifts = last?.giftsReceived ?? 0;
     return Stack(
       fit: StackFit.expand,
@@ -749,7 +750,7 @@ class _EndedState extends State<_Ended> {
                                 Positioned(
                                   right: -2,
                                   bottom: 2,
-                                  child: Container(width: 26, height: 26, decoration: const BoxDecoration(shape: BoxShape.circle, color: V.surface), child: const Icon(Icons.verified_rounded, size: 20, color: V.trust)),
+                                  child: Container(width: 26, height: 26, decoration: const BoxDecoration(shape: BoxShape.circle, color: V.surface), child: const Icon(SolarIconsBold.verifiedCheck, size: 20, color: V.trust)),
                                 ),
                             ],
                           ),
@@ -769,7 +770,7 @@ class _EndedState extends State<_Ended> {
                                   _stat(Icon(likeIcon, size: 22, color: likeColor), likeLabel),
                                   const VerticalDivider(width: 1, color: V.line),
                                   _stat(
-                                    Row(mainAxisSize: MainAxisSize.min, children: [Text('$gifts', style: VT.number(18, weight: FontWeight.w600)), const SizedBox(width: 4), Icon(Icons.redeem_rounded, size: 18, color: gifts > 0 ? V.gold : V.muted)]),
+                                    Row(mainAxisSize: MainAxisSize.min, children: [Text('$gifts', style: VT.number(18, weight: FontWeight.w600)), const SizedBox(width: 4), Icon(SolarIconsBold.gift, size: 18, color: gifts > 0 ? V.gold : V.muted)]),
                                     gifts == 1 ? 'Gift received' : 'Gifts received',
                                   ),
                                 ],
@@ -782,17 +783,17 @@ class _EndedState extends State<_Ended> {
                             const SizedBox(height: 4),
                             TextButton.icon(
                               onPressed: () => showShareCardSheet(context, ShareCardData.match(friend: p.name, me: context.read<SessionProvider>().me?.name ?? '')),
-                              icon: const Icon(Icons.ios_share_rounded, size: 16, color: V.pinkSoft),
+                              icon: const Icon(SolarIconsBold.export, size: 16, color: V.pinkSoft),
                               label: Text('Share · We vibed', style: VT.label(13, color: V.pinkSoft)),
                             ),
                           ],
                           const SizedBox(height: 20),
-                          GradientButton(label: 'Find someone else', onTap: onFindAnother, icon: Icons.videocam_rounded),
+                          GradientButton(label: 'Find someone else', onTap: onFindAnother, icon: SolarIconsBold.videocamera),
                           if (!reported) ...[
                             const SizedBox(height: 10),
                             GhostButton(
                               label: m.reconnectFree ? 'Reconnect' : 'Reconnect with ${p.name}',
-                              icon: Icons.replay_rounded,
+                              icon: SolarIconsOutline.restart,
                               expand: true,
                               onTap: onReconnect,
                               trailing: m.reconnectFree
@@ -815,7 +816,7 @@ class _EndedState extends State<_Ended> {
                             const SizedBox(height: 6),
                             TextButton.icon(
                               onPressed: onReport,
-                              icon: const Icon(Icons.outlined_flag_rounded, size: 16, color: V.text2),
+                              icon: const Icon(SolarIconsOutline.flag, size: 16, color: V.text2),
                               label: Text('Something wrong? Report ${p.name}', style: VT.label(13, color: V.text2, weight: FontWeight.w500)),
                             ),
                           ] else ...[
@@ -823,7 +824,7 @@ class _EndedState extends State<_Ended> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.check_circle_rounded, size: 16, color: V.trust),
+                                const Icon(SolarIconsBold.checkCircle, size: 16, color: V.trust),
                                 const SizedBox(width: 6),
                                 Flexible(child: Text('Thanks — our team reviews every report.', style: VT.label(13, color: V.text2, weight: FontWeight.w500))),
                               ],
@@ -919,7 +920,7 @@ class _Searching extends StatelessWidget {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
-                        child: const Icon(Icons.shield_rounded, size: 20, color: V.trust),
+                        child: const Icon(SolarIconsBold.shield, size: 20, color: V.trust),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -945,7 +946,7 @@ class _Searching extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.bolt_rounded, size: 15, color: V.gold),
+                      const Icon(SolarIconsBold.bolt, size: 15, color: V.gold),
                       const SizedBox(width: 6),
                       Text('Boosted · ${Fmt.until(wallet.wallet.boostUntil!)}', style: VT.label(12.5, weight: FontWeight.w500)),
                     ],
@@ -959,7 +960,7 @@ class _Searching extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.bolt_rounded, size: 15, color: V.gold),
+                          const Icon(SolarIconsBold.bolt, size: 15, color: V.gold),
                           const SizedBox(width: 6),
                           if (wallet.freeBoosts > 0)
                             Text('Use your free boost', style: VT.label(12.5, color: V.gold))
@@ -1063,8 +1064,8 @@ class _Connected extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Flexible(child: Text('${p.name}, ${p.age}', overflow: TextOverflow.ellipsis, style: VT.title(15, weight: FontWeight.w600))),
-                                  if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified_rounded, size: 16, color: V.trust, semanticLabel: 'Verified')),
-                                  if (p.vip) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.workspace_premium_rounded, size: 15, color: V.gold, semanticLabel: 'VIP')),
+                                  if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.verifiedCheck, size: 16, color: V.trust, semanticLabel: 'Verified')),
+                                  if (p.vip) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.crown, size: 15, color: V.gold, semanticLabel: 'VIP')),
                                 ],
                               ),
                               Text('${p.country.flag} ${p.country.name}', overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.72), height: 1.2)),
@@ -1094,7 +1095,7 @@ class _Connected extends StatelessWidget {
                 const SizedBox(width: 8),
                 _FollowPill(userId: p.id),
                 const SizedBox(width: 8),
-                GlassPill(label: 'Report', icon: Icons.flag_rounded, tint: V.bad, height: 36, onTap: onReport),
+                GlassPill(label: 'Report', icon: SolarIconsBold.flag, tint: V.bad, height: 36, onTap: onReport),
               ],
             ),
           ),
@@ -1107,10 +1108,10 @@ class _Connected extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (opener != null) GlassPill(label: opener, icon: Icons.interests_rounded, iconColor: V.lavender, height: 30, fontSize: 12),
+              if (opener != null) GlassPill(label: opener, icon: SolarIconsBold.widget_4, iconColor: V.lavender, height: 30, fontSize: 12),
               if (likeText != null) ...[
                 const SizedBox(height: 8),
-                GlassPill(label: likeText, icon: Icons.favorite_rounded, iconColor: V.pinkSoft, tint: V.pink, height: 30, fontSize: 12),
+                GlassPill(label: likeText, icon: SolarIconsBold.heart, iconColor: V.pinkSoft, tint: V.pink, height: 30, fontSize: 12),
               ],
             ],
           ),
@@ -1173,22 +1174,22 @@ class _Connected extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     RoundControl(
-                      icon: m.likedPartner ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      icon: m.likedPartner ? SolarIconsBold.heart : SolarIconsOutline.heart,
                       color: m.likedPartner ? V.pink : Colors.white,
                       tint: m.likedPartner ? V.pink : null,
                       onTap: m.like,
                       label: m.likedPartner ? 'Liked' : 'Like',
                     ),
-                    RoundControl(icon: Icons.redeem_rounded, onTap: onGift, label: 'Gift', color: V.gold),
+                    RoundControl(icon: SolarIconsBold.gift, onTap: onGift, label: 'Gift', color: V.gold),
                     _NextButton(m: m, onTap: onNext),
                     RoundControl(
-                      icon: switch (friendState) { FriendState.friends => Icons.how_to_reg_rounded, FriendState.requested => Icons.hourglass_top_rounded, _ => Icons.person_add_rounded },
+                      icon: switch (friendState) { FriendState.friends => SolarIconsBold.userCheckRounded, FriendState.requested => SolarIconsBold.hourglass, _ => SolarIconsBold.userPlusRounded },
                       onTap: friendState == FriendState.none || friendState == FriendState.incoming ? onAddFriend : null,
                       label: switch (friendState) { FriendState.friends => 'Friends', FriendState.requested => 'Sent', FriendState.incoming => 'Accept', _ => 'Add' },
                       color: friendState == FriendState.friends ? V.ok : Colors.white,
                       tint: friendState == FriendState.incoming ? V.violet : null,
                     ),
-                    RoundControl(icon: Icons.casino_rounded, onTap: onPlay, label: 'Play', color: V.lavender, tint: m.game != null ? V.violet : null),
+                    RoundControl(icon: SolarIconsBold.gamepadMinimalistic, onTap: onPlay, label: 'Play', color: V.lavender, tint: m.game != null ? V.violet : null),
                   ],
                 ),
               ),
@@ -1202,7 +1203,7 @@ class _Connected extends StatelessWidget {
                     excludeSemantics: true,
                     child: GestureDetector(
                       onTap: () => _more(context),
-                      child: Glass(radius: 26, height: 52, padding: EdgeInsets.zero, border: Colors.white.withValues(alpha: 0.14), child: const SizedBox(width: 52, child: Icon(Icons.more_horiz_rounded, color: Colors.white))),
+                      child: Glass(radius: 26, height: 52, padding: EdgeInsets.zero, border: Colors.white.withValues(alpha: 0.14), child: const SizedBox(width: 52, child: Icon(SolarIconsBold.menuDots, color: Colors.white))),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1240,7 +1241,7 @@ class _Connected extends StatelessWidget {
                       child: Material(
                         color: V.violet,
                         shape: const CircleBorder(),
-                        child: InkWell(customBorder: const CircleBorder(), onTap: send, child: const SizedBox(width: 40, height: 40, child: Icon(Icons.send_rounded, size: 19, color: Colors.white))),
+                        child: InkWell(customBorder: const CircleBorder(), onTap: send, child: const SizedBox(width: 40, height: 40, child: Icon(SolarIconsBold.plain, size: 19, color: Colors.white))),
                       ),
                     ),
                   ],
@@ -1273,11 +1274,11 @@ class _Connected extends StatelessWidget {
                   m.toggleMic();
                   Navigator.of(context).pop();
                 }),
-                GroupRow(icon: m.camOn ? Icons.videocam_rounded : Icons.videocam_off_rounded, title: m.camOn ? 'Turn camera off' : 'Turn camera on', onTap: () {
+                GroupRow(icon: m.camOn ? SolarIconsBold.videocamera : Icons.videocam_off_rounded, title: m.camOn ? 'Turn camera off' : 'Turn camera on', onTap: () {
                   m.toggleCam();
                   Navigator.of(context).pop();
                 }),
-                GroupRow(icon: Icons.cameraswitch_rounded, title: 'Switch camera', onTap: () {
+                GroupRow(icon: SolarIconsBold.cameraRotate, title: 'Switch camera', onTap: () {
                   m.switchCamera();
                   Navigator.of(context).pop();
                 }),
@@ -1286,11 +1287,11 @@ class _Connected extends StatelessWidget {
             const SizedBox(height: 10),
             GroupCard(
               children: [
-                GroupRow(icon: Icons.block_rounded, iconColor: V.bad, iconBg: V.bad.withValues(alpha: 0.12), title: 'Block and end', titleColor: V.bad, onTap: () {
+                GroupRow(icon: SolarIconsBold.forbiddenCircle, iconColor: V.bad, iconBg: V.bad.withValues(alpha: 0.12), title: 'Block and end', titleColor: V.bad, onTap: () {
                   m.blockPartner();
                   Navigator.of(context).pop();
                 }),
-                GroupRow(icon: Icons.call_end_rounded, title: 'End and go back', onTap: () {
+                GroupRow(icon: SolarIconsBold.endCallRounded, title: 'End and go back', onTap: () {
                   m.stop();
                   Navigator.of(context).pop();
                 }),
@@ -1328,7 +1329,7 @@ class _NextButton extends StatelessWidget {
                 gradient: cd > 0 ? const LinearGradient(colors: [V.surface3, V.surface2]) : V.brand,
                 boxShadow: [BoxShadow(color: (cd > 0 ? Colors.black : V.pink).withValues(alpha: 0.42), blurRadius: 30, offset: const Offset(0, 12))],
               ),
-              child: cd > 0 ? Center(child: Text('${cd}s', style: VT.number(20, color: Colors.white))) : const Icon(Icons.skip_next_rounded, size: 38, color: Colors.white),
+              child: cd > 0 ? Center(child: Text('${cd}s', style: VT.number(20, color: Colors.white))) : const Icon(SolarIconsBold.skipNext, size: 38, color: Colors.white),
             ),
             const SizedBox(height: 6),
             cd > 0
@@ -1447,7 +1448,7 @@ class _PartnerStage extends StatelessWidget {
                   child: Container(
                     color: Colors.black.withValues(alpha: 0.1),
                     alignment: Alignment.center,
-                    child: GlassPill(label: 'Starts blurred · clearing in a moment', icon: Icons.blur_on_rounded, iconColor: V.trust, height: 34),
+                    child: GlassPill(label: 'Starts blurred · clearing in a moment', icon: SolarIconsBold.radialBlur, iconColor: V.trust, height: 34),
                   ),
                 )
               : const SizedBox.shrink(key: ValueKey('clear')),
@@ -1482,7 +1483,7 @@ class VipNudge extends StatelessWidget {
   const VipNudge({super.key});
   @override
   Widget build(BuildContext context) {
-    return GhostButton(label: 'Get VIP', icon: Icons.workspace_premium_rounded, color: V.gold, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen())));
+    return GhostButton(label: 'Get VIP', icon: SolarIconsBold.crown, color: V.gold, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen())));
   }
 }
 
@@ -1538,7 +1539,7 @@ class _FollowPillState extends State<_FollowPill> {
             border: none ? V.violet.withValues(alpha: 0.5) : null,
             child: Center(
               widthFactor: 1,
-              child: Icon(switch (s) { FollowState.none => Icons.add_rounded, FollowState.requested => Icons.hourglass_top_rounded, FollowState.following => Icons.check_rounded }, size: 20, color: s == FollowState.following ? V.ok : Colors.white),
+              child: Icon(switch (s) { FollowState.none => Icons.add_rounded, FollowState.requested => SolarIconsBold.hourglass, FollowState.following => Icons.check_rounded }, size: 20, color: s == FollowState.following ? V.ok : Colors.white),
             ),
           ),
         ),

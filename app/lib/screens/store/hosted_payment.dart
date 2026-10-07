@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:solar_icons/solar_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -115,7 +116,7 @@ class _HostedFormPageState extends State<HostedFormPage> {
           Padding(
             padding: const EdgeInsets.all(10),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.lock_rounded, size: 14, color: V.trust),
+              const Icon(SolarIconsBold.lockKeyhole, size: 14, color: V.trust),
               const SizedBox(width: 6),
               Text('Your details go to the payment provider, not to Vibe.', style: VT.body(11.5, color: V.text2)),
             ]),

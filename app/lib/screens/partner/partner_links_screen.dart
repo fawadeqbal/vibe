@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -99,9 +100,9 @@ class PartnerLinkActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: GhostButton(label: 'Copy link', icon: Icons.copy_rounded, height: height, expand: true, onTap: () => _copy(context))),
+        Expanded(child: GhostButton(label: 'Copy link', icon: SolarIconsBold.copy, height: height, expand: true, onTap: () => _copy(context))),
         const SizedBox(width: 10),
-        Expanded(child: GhostButton(label: 'Share', icon: Icons.ios_share_rounded, height: height, expand: true, onTap: () => _share(context))),
+        Expanded(child: GhostButton(label: 'Share', icon: SolarIconsBold.export, height: height, expand: true, onTap: () => _share(context))),
       ],
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -50,7 +51,7 @@ class ProfileScreen extends StatelessWidget {
               'Me',
               actions: [
                 CircleIconButton(
-                  icon: Icons.edit_rounded,
+                  icon: SolarIconsBold.pen,
                   iconSize: 20,
                   background: V.surface2,
                   tooltip: 'Edit profile',
@@ -71,20 +72,20 @@ class ProfileScreen extends StatelessWidget {
                   GroupCard(
                     children: [
                       _MenuRow(
-                        icon: Icons.emoji_events_rounded,
+                        icon: SolarIconsBold.cupStar,
                         color: V.level,
                         title: 'Progress & badges',
                         subtitle: 'Level ${engagement.level.level} · ${Fmt.thousands(engagement.level.xp)} XP',
                         open: (_) => const ProgressSectionScreen(),
                       ),
                       _MenuRow(
-                        icon: Icons.people_alt_rounded,
+                        icon: SolarIconsBold.usersGroupTwoRounded,
                         title: 'Followers & privacy',
                         subtitle: '${Fmt.thousands(follows.followers)} ${follows.followers == 1 ? 'follower' : 'followers'} · ${Fmt.thousands(follows.following)} following',
                         open: (_) => const FollowersSectionScreen(),
                       ),
                       _MenuRow(
-                        icon: Icons.history_rounded,
+                        icon: SolarIconsBold.history,
                         title: 'Recent matches',
                         subtitle: match.history.isEmpty ? 'Your last calls show up here' : '${match.history.length} recent ${match.history.length == 1 ? 'call' : 'calls'}',
                         open: (_) => const RecentMatchesScreen(),
@@ -96,7 +97,7 @@ class ProfileScreen extends StatelessWidget {
                     border: V.trust.withValues(alpha: 0.22),
                     children: [
                       _MenuRow(
-                        icon: me.verified ? Icons.verified_rounded : Icons.verified_outlined,
+                        icon: me.verified ? SolarIconsBold.verifiedCheck : SolarIconsOutline.verifiedCheck,
                         color: V.trust,
                         title: 'Safety & trust',
                         subtitle: me.verified ? 'Verified · blur, blocking and help' : 'Not verified yet · blur, blocking and help',
@@ -108,14 +109,14 @@ class ProfileScreen extends StatelessWidget {
                   GroupCard(
                     children: [
                       _MenuRow(
-                        icon: Icons.account_balance_wallet_rounded,
+                        icon: SolarIconsBold.wallet,
                         color: V.gold,
                         title: 'Wallet',
                         subtitle: '${Fmt.thousands(wallet.coins)} coins · ${Fmt.thousands(wallet.gems)} gems',
                         open: (_) => const WalletScreen(),
                       ),
                       _MenuRow(
-                        icon: Icons.workspace_premium_rounded,
+                        icon: SolarIconsBold.crown,
                         color: V.gold,
                         title: wallet.isVip ? 'You are VIP' : 'Get VIP',
                         subtitle: wallet.isVip ? Fmt.until(wallet.wallet.vipUntil!) : 'Free filters, no ads, see who liked you',
@@ -127,19 +128,19 @@ class ProfileScreen extends StatelessWidget {
                   GroupCard(
                     children: [
                       _MenuRow(
-                        icon: Icons.card_giftcard_rounded,
+                        icon: SolarIconsBold.gift,
                         color: V.gold,
                         title: 'Invite friends',
                         subtitle: 'Give ${Economy.inviteeRewardCoins}, get ${Economy.inviteRewardCoins} coins',
                         open: (_) => const InviteScreen(),
                       ),
                       GroupRow(
-                        icon: Icons.campaign_rounded,
+                        icon: SolarIconsBold.handMoney,
                         iconColor: V.pinkSoft,
                         iconBg: V.pink.withValues(alpha: 0.12),
                         title: 'Creator partner program',
                         subtitle: _partnerSubtitle(partner?.status),
-                        trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+                        trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
                         onTap: () => openPartnerScreen(context),
                       ),
                     ],
@@ -149,13 +150,13 @@ class ProfileScreen extends StatelessWidget {
                   GroupCard(
                     children: [
                       _MenuRow(
-                        icon: Icons.notifications_none_rounded,
+                        icon: SolarIconsOutline.bell,
                         title: 'Notifications & wellbeing',
                         subtitle: 'Quiet hours and break reminders',
                         open: (_) => const WellbeingSectionScreen(),
                       ),
                       _MenuRow(
-                        icon: Icons.manage_accounts_outlined,
+                        icon: SolarIconsOutline.userId,
                         title: 'Account',
                         subtitle: 'Sign-in methods, e-mail, terms, sign out',
                         open: (_) => const AccountSectionScreen(),
@@ -198,7 +199,7 @@ class _MenuRow extends StatelessWidget {
         iconBg: color == V.text2 ? null : color.withValues(alpha: 0.12),
         title: title,
         subtitle: subtitle,
-        trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+        trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
         onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: open)),
       );
 }
@@ -239,8 +240,8 @@ class _ProfileCard extends StatelessWidget {
             height: 220,
             child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [V.bg.withValues(alpha: 0.92), V.bg.withValues(alpha: 0)]))),
           ),
-          const Positioned(left: 12, top: 12, child: GlassPill(label: 'How others see you', icon: Icons.visibility_rounded, height: 28, fontSize: 11.5)),
-          if (vip) const Positioned(right: 12, top: 12, child: GlassPill(label: 'VIP', icon: Icons.workspace_premium_rounded, tint: V.gold, textColor: V.gold, height: 28, fontSize: 11.5)),
+          const Positioned(left: 12, top: 12, child: GlassPill(label: 'How others see you', icon: SolarIconsBold.eye, height: 28, fontSize: 11.5)),
+          if (vip) const Positioned(right: 12, top: 12, child: GlassPill(label: 'VIP', icon: SolarIconsBold.crown, tint: V.gold, textColor: V.gold, height: 28, fontSize: 11.5)),
           Positioned(
             left: 18,
             right: 18,
@@ -251,7 +252,7 @@ class _ProfileCard extends StatelessWidget {
                 Row(
                   children: [
                     Flexible(child: Text('${me.name}, ${me.age}', overflow: TextOverflow.ellipsis, style: VT.display(28, height: 1.1))),
-                    if (me.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.verified_rounded, color: V.trust, size: 22, semanticLabel: 'Verified')),
+                    if (me.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(SolarIconsBold.verifiedCheck, color: V.trust, size: 22, semanticLabel: 'Verified')),
                     Builder(builder: (context) {
                       final e = context.watch<EngagementProvider>();
                       final lvl = e.loaded ? e.level.level : me.level;
@@ -270,7 +271,7 @@ class _ProfileCard extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    if (!me.isComplete) const GlassPill(label: 'Profile incomplete', icon: Icons.info_outline_rounded, tint: V.warn, textColor: V.warn, height: 26, fontSize: 12),
+                    if (!me.isComplete) const GlassPill(label: 'Profile incomplete', icon: SolarIconsOutline.infoCircle, tint: V.warn, textColor: V.warn, height: 26, fontSize: 12),
                     for (final i in me.interests.take(3))
                       Glass(
                         radius: 13,

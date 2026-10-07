@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -75,7 +76,7 @@ class InviteBannerRow extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: V.gold.withValues(alpha: 0.14)),
-                child: const Icon(Icons.card_giftcard_rounded, size: 18, color: V.gold),
+                child: const Icon(SolarIconsBold.gift, size: 18, color: V.gold),
               ),
             const SizedBox(width: 10),
             Expanded(

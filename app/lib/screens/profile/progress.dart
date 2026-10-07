@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -206,7 +207,7 @@ class _ProgressCardState extends State<ProgressCard> {
                                     child: Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                        const Icon(Icons.ios_share_rounded, size: 15, color: V.pinkSoft),
+                                        const Icon(SolarIconsBold.export, size: 15, color: V.pinkSoft),
                                         const SizedBox(width: 4),
                                         Text('Share', style: VT.label(12.5, color: V.pinkSoft)),
                                       ]),
@@ -249,12 +250,12 @@ class _ProgressCardState extends State<ProgressCard> {
             ),
             const Divider(height: 1, color: V.lineSoft),
             GroupRow(
-              icon: Icons.emoji_events_rounded,
+              icon: SolarIconsBold.cupStar,
               iconColor: V.level,
               iconBg: V.level.withValues(alpha: 0.12),
               title: "This week's top",
               subtitle: p == null ? 'Weekly leaderboards' : 'You earned ${Fmt.thousands(p.weekXp)} XP this week',
-              trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+              trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LeaderboardScreen())),
             ),
           ],
@@ -293,7 +294,7 @@ Future<void> showBadgesSheet(BuildContext context, ProgressView p) {
                       children: [
                         Row(children: [
                           Expanded(child: Text(b.name, style: VT.title(15, weight: FontWeight.w600, color: b.earned ? V.text : V.text2))),
-                          if (b.earned) const Icon(Icons.check_circle_rounded, size: 18, color: V.level) else Text('${Fmt.thousands(b.progress)}/${Fmt.thousands(b.target)}', style: VT.mono(12)),
+                          if (b.earned) const Icon(SolarIconsBold.checkCircle, size: 18, color: V.level) else Text('${Fmt.thousands(b.progress)}/${Fmt.thousands(b.target)}', style: VT.mono(12)),
                         ]),
                         Text(Badges.how(b), style: VT.body(12, color: V.muted)),
                         if (!b.earned) ...[

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -44,7 +45,7 @@ class WellbeingSection extends StatelessWidget {
       border: V.trust.withValues(alpha: 0.22),
       children: [
         GroupRow(
-          icon: Icons.bedtime_rounded,
+          icon: SolarIconsBold.moonSleep,
           iconColor: V.trust,
           iconBg: V.trust.withValues(alpha: 0.12),
           title: 'Quiet hours',
@@ -69,7 +70,7 @@ class WellbeingSection extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.self_improvement_rounded, size: 22, color: V.trust),
+                    child: const Icon(SolarIconsBold.meditationRound, size: 22, color: V.trust),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -124,7 +125,7 @@ class _TimeRow extends StatelessWidget {
             Expanded(child: Text(label, style: VT.body(14, color: V.text2))),
             Text(value, style: VT.mono(14, color: V.text)),
             const SizedBox(width: 6),
-            const Icon(Icons.chevron_right_rounded, size: 18, color: V.muted),
+            const Icon(SolarIconsOutline.altArrowRight, size: 18, color: V.muted),
           ],
         ),
       ),

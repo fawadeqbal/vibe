@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -65,7 +66,7 @@ class _VibeHourBannerState extends State<VibeHourBanner> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.local_fire_department_rounded, size: 17, color: V.pinkSoft),
+              const Icon(SolarIconsBold.fire, size: 17, color: V.pinkSoft),
               const SizedBox(width: 6),
               Flexible(child: Text('Vibe Hour · free filters · ', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(12.5, color: Colors.white))),
               Text(countdown(left), style: VT.mono(12.5, color: Colors.white, weight: FontWeight.w600)),
@@ -77,7 +78,7 @@ class _VibeHourBannerState extends State<VibeHourBanner> {
     }
     if (v.startsSoon(now)) {
       final at = v.startsAt!;
-      return GlassPill(icon: Icons.schedule_rounded, iconColor: V.pinkSoft, height: 34, label: 'Vibe Hour starts at ${clockLabel(at.hour * 60 + at.minute)} · free filters');
+      return GlassPill(icon: SolarIconsBold.clockCircle, iconColor: V.pinkSoft, height: 34, label: 'Vibe Hour starts at ${clockLabel(at.hour * 60 + at.minute)} · free filters');
     }
     return const SizedBox.shrink();
   }

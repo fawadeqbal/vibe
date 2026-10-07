@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -34,7 +35,7 @@ class _SafetySheet extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(14)),
-                child: const Icon(Icons.shield_rounded, color: V.trust),
+                child: const Icon(SolarIconsBold.shield, color: V.trust),
               ),
               const SizedBox(width: 14),
               const Expanded(child: Headline('Safety, ', accent: 'built in', size: 24)),
@@ -47,7 +48,7 @@ class _SafetySheet extends StatelessWidget {
             border: V.trust.withValues(alpha: 0.22),
             children: [
               GroupRow(
-                icon: Icons.verified_rounded,
+                icon: SolarIconsBold.verifiedCheck,
                 iconColor: V.trust,
                 iconBg: V.trust.withValues(alpha: 0.12),
                 title: 'Verified only',
@@ -55,7 +56,7 @@ class _SafetySheet extends StatelessWidget {
                 trailing: Switch(value: m.filters.safeMode, onChanged: (v) => m.setFilters(m.filters.copyWith(safeMode: v))),
               ),
               GroupRow(
-                icon: Icons.blur_on_rounded,
+                icon: SolarIconsBold.radialBlur,
                 title: 'Blur the first 3 seconds',
                 subtitle: vip ? 'Off for VIP by default; you can keep it on.' : 'Both videos start blurred.',
                 trailing: Switch(value: m.autoBlur, onChanged: m.setAutoBlur),
@@ -66,22 +67,22 @@ class _SafetySheet extends StatelessWidget {
           GroupCard(
             children: [
               GroupRow(
-                icon: me?.verified == true ? Icons.verified_rounded : Icons.verified_outlined,
+                icon: me?.verified == true ? SolarIconsBold.verifiedCheck : SolarIconsOutline.verifiedCheck,
                 iconColor: V.trust,
                 iconBg: V.trust.withValues(alpha: 0.12),
                 title: me?.verified == true ? 'You are verified' : 'Verify your profile',
                 subtitle: me?.verified == true ? 'People in safe mode can match with you.' : 'Quick selfie check. More matches.',
                 trailing: me?.verified == true
-                    ? const Icon(Icons.check_circle_rounded, color: V.trust)
+                    ? const Icon(SolarIconsBold.checkCircle, color: V.trust)
                     : VerifyPill(
                         busy: session.busy,
                         onTap: () => startSelfieVerification(context),
                       ),
               ),
               GroupRow(
-                icon: Icons.support_agent_rounded,
+                icon: SolarIconsBold.headphonesRound,
                 title: 'Help and safety',
-                trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+                trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
                 onTap: () => toast(context, 'Opens the help centre in the real app'),
               ),
             ],

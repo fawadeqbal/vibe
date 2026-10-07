@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -53,7 +54,7 @@ class _PartnerCommissionsScreenState extends State<PartnerCommissionsScreen> {
               const Padding(
                 padding: EdgeInsets.only(top: 40),
                 child: EmptyState(
-                  icon: Icons.receipt_long_rounded,
+                  icon: SolarIconsBold.billList,
                   title: 'Nothing ',
                   accent: 'yet',
                   body: 'You earn when people who joined with your link become active and when they buy.',

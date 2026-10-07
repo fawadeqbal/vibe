@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 
@@ -54,13 +55,13 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
               const SizedBox(height: 10),
               Text('That is the whole app. Nothing is recorded; the stream goes to the person you are talking to and nowhere else.', style: VT.body(15, color: V.text2, height: 1.5)),
               const SizedBox(height: 28),
-              _row(Icons.videocam_rounded, 'Camera', 'So they can see you. You can turn it off any time.', session.cameraGranted),
+              _row(SolarIconsBold.videocamera, 'Camera', 'So they can see you. You can turn it off any time.', session.cameraGranted),
               const SizedBox(height: 12),
               _row(Icons.mic_rounded, 'Microphone', 'So they can hear you. Mute is one tap away.', session.micGranted),
               const SizedBox(height: 18),
               Row(
                 children: [
-                  const Icon(Icons.shield_rounded, size: 16, color: V.trust),
+                  const Icon(SolarIconsBold.shield, size: 16, color: V.trust),
                   const SizedBox(width: 8),
                   Expanded(child: Text('Nothing is recorded. Both videos start blurred.', style: VT.label(12.5, color: V.text2, weight: FontWeight.w500))),
                 ],
@@ -72,14 +73,14 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                   border: V.bad.withValues(alpha: 0.4),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline_rounded, color: V.bad, size: 20),
+                      const Icon(SolarIconsOutline.dangerCircle, color: V.bad, size: 20),
                       const SizedBox(width: 10),
                       Expanded(child: Text('Without both, matches cannot start. You can grant them in the phone settings.', style: VT.body(13))),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
-                GhostButton(label: 'Open settings', icon: Icons.settings_rounded, expand: true, onTap: openAppSettings),
+                GhostButton(label: 'Open settings', icon: SolarIconsBold.settings, expand: true, onTap: openAppSettings),
                 const SizedBox(height: 12),
               ],
               GradientButton(label: session.permissionsGranted ? 'Continue' : 'Allow access', onTap: session.permissionsGranted ? _finish : _ask, busy: _busy),
@@ -107,7 +108,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
               children: [Text(title, style: VT.title(15)), const SizedBox(height: 2), Text(body, style: VT.body(13, color: V.text2))],
             ),
           ),
-          Icon(granted ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, color: granted ? V.trust : V.muted),
+          Icon(granted ? SolarIconsBold.checkCircle : Icons.radio_button_unchecked_rounded, color: granted ? V.trust : V.muted),
         ],
       ),
     );

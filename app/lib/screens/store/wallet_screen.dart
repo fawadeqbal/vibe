@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -83,7 +84,7 @@ class _WalletScreenState extends State<WalletScreen> {
           const WeeklyRecapCard(),
           const SectionTitle('History', top: 26),
           if (tx.isEmpty)
-            const EmptyState(icon: Icons.receipt_long_rounded, title: 'Nothing yet', body: 'Purchases, gifts, rewards and spends all show up here.')
+            const EmptyState(icon: SolarIconsBold.billList, title: 'Nothing yet', body: 'Purchases, gifts, rewards and spends all show up here.')
           else
             for (final t in tx) _TxRow(t: t),
         ],
@@ -99,12 +100,12 @@ class _TxRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color) = switch (t.kind) {
-      TxKind.purchase => (Icons.shopping_bag_rounded, V.gold),
-      TxKind.spend => (Icons.remove_circle_outline_rounded, V.text2),
-      TxKind.earn => (Icons.add_circle_outline_rounded, V.ok),
-      TxKind.gift => (Icons.card_giftcard_rounded, V.pink),
-      TxKind.cashout => (Icons.account_balance_rounded, V.gem),
-      TxKind.vip => (Icons.workspace_premium_rounded, V.gold),
+      TxKind.purchase => (SolarIconsBold.bagSmile, V.gold),
+      TxKind.spend => (SolarIconsOutline.minusCircle, V.text2),
+      TxKind.earn => (SolarIconsOutline.addCircle, V.ok),
+      TxKind.gift => (SolarIconsBold.gift, V.pink),
+      TxKind.cashout => (SolarIconsBold.banknote, V.gem),
+      TxKind.vip => (SolarIconsBold.crown, V.gold),
     };
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),

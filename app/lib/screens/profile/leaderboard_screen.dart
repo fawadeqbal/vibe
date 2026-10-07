@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -81,9 +82,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           ),
           Expanded(
             child: lb == null
-                ? (err != null ? EmptyState(icon: Icons.cloud_off_rounded, title: 'Not available', body: err) : const Center(child: CircularProgressIndicator()))
+                ? (err != null ? EmptyState(icon: SolarIconsBold.cloudCross, title: 'Not available', body: err) : const Center(child: CircularProgressIndicator()))
                 : lb.top.isEmpty
-                    ? const EmptyState(icon: Icons.emoji_events_outlined, title: 'Nobody ', accent: 'yet', body: 'The week just started. Have a good call to get on the board.')
+                    ? const EmptyState(icon: SolarIconsOutline.cupStar, title: 'Nobody ', accent: 'yet', body: 'The week just started. Have a good call to get on the board.')
                     : ListView(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                         children: [
@@ -148,7 +149,7 @@ class _Podium extends StatelessWidget {
             padding: EdgeInsets.only(top: lift),
             child: Column(
               children: [
-                if (first) const Icon(Icons.emoji_events_rounded, color: V.warn, size: 26) else const SizedBox(height: 26),
+                if (first) const Icon(SolarIconsBold.cupStar, color: V.warn, size: 26) else const SizedBox(height: 26),
                 const SizedBox(height: 4),
                 Stack(
                   clipBehavior: Clip.none,

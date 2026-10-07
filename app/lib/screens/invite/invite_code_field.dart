@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -87,7 +88,7 @@ class _InviteCodeFieldState extends State<InviteCodeField> {
       body = Row(
         key: const ValueKey('invite-claimed'),
         children: [
-          const Icon(Icons.check_circle_rounded, color: V.ok, size: 22),
+          const Icon(SolarIconsBold.checkCircle, color: V.ok, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -108,7 +109,7 @@ class _InviteCodeFieldState extends State<InviteCodeField> {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
-              const Icon(Icons.card_giftcard_rounded, size: 20, color: V.gold),
+              const Icon(SolarIconsBold.gift, size: 20, color: V.gold),
               const SizedBox(width: 10),
               Expanded(child: Text('Have an invite code?', style: VT.title(14.5, weight: FontWeight.w600))),
               Text('Add it', style: VT.label(13, color: V.pinkSoft)),
@@ -148,7 +149,7 @@ class _InviteCodeFieldState extends State<InviteCodeField> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(padding: EdgeInsets.only(top: 1), child: Icon(Icons.error_outline_rounded, size: 16, color: V.bad)),
+                const Padding(padding: EdgeInsets.only(top: 1), child: Icon(SolarIconsOutline.dangerCircle, size: 16, color: V.bad)),
                 const SizedBox(width: 6),
                 Expanded(child: Text(_error!, key: const ValueKey('invite-error'), style: VT.body(12.5, color: V.bad, height: 1.4))),
               ],

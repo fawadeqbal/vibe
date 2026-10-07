@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_dock.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -147,14 +148,14 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
               width: 56,
               height: 56,
               decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(18)),
-              child: const Icon(Icons.self_improvement_rounded, size: 30, color: V.trust),
+              child: const Icon(SolarIconsBold.meditationRound, size: 30, color: V.trust),
             ),
             const SizedBox(height: 14),
             Headline("You've been vibing for $minutes minutes. ", accent: 'Time for a break?', size: 24, textAlign: TextAlign.center),
             const SizedBox(height: 8),
             Text('Stretch, drink some water. Your friends and coins will be here.', textAlign: TextAlign.center, style: VT.body(14, color: V.text2)),
             const SizedBox(height: 20),
-            GhostButton(label: 'Take a break', icon: Icons.self_improvement_rounded, color: V.trust, expand: true, onTap: () => Navigator.of(context).pop(true)),
+            GhostButton(label: 'Take a break', icon: SolarIconsBold.meditationRound, color: V.trust, expand: true, onTap: () => Navigator.of(context).pop(true)),
             const SizedBox(height: 10),
             GhostButton(label: 'Keep going', expand: true, color: V.text2, onTap: () => Navigator.of(context).pop(false)),
           ],
@@ -338,10 +339,10 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
               overVideo: onVideo,
               onTap: _onDockTap,
               items: [
-                const VibeDockItem(icon: Icons.videocam_outlined, activeIcon: Icons.videocam_rounded, label: 'Match'),
-                VibeDockItem(icon: Icons.chat_bubble_outline_rounded, activeIcon: Icons.chat_bubble_rounded, label: 'Chats', badge: unread + teamUnread),
-                const VibeDockItem(icon: Icons.storefront_outlined, activeIcon: Icons.storefront_rounded, label: 'Store'),
-                const VibeDockItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Me'),
+                const VibeDockItem(icon: SolarIconsOutline.videocamera, activeIcon: SolarIconsBold.videocamera, label: 'Match'),
+                VibeDockItem(icon: SolarIconsOutline.chatRoundDots, activeIcon: SolarIconsBold.chatRoundDots, label: 'Chats', badge: unread + teamUnread),
+                const VibeDockItem(icon: SolarIconsOutline.bagSmile, activeIcon: SolarIconsBold.bagSmile, label: 'Store'),
+                const VibeDockItem(icon: SolarIconsOutline.userRounded, activeIcon: SolarIconsBold.userRounded, label: 'Me'),
               ],
             ),
     );

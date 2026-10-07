@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -45,7 +46,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       'right now.',
       'One tap connects you on video with a real person somewhere in the world.',
       _Face('https://i.pravatar.cc/400?img=15', '🇮🇳 Priya, 25'),
-      _Face('https://i.pravatar.cc/400?img=20', '🇺🇸 Sofia, 24', chip: 'Verified', chipIcon: Icons.verified_rounded, chipColor: V.gem),
+      _Face('https://i.pravatar.cc/400?img=20', '🇺🇸 Sofia, 24', chip: 'Verified', chipIcon: SolarIconsBold.verifiedCheck, chipColor: V.gem),
       null,
     ),
     _Slide(
@@ -53,8 +54,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       'Next.',
       'One tap and you are talking to someone else. There is always someone online.',
       _Face('https://i.pravatar.cc/400?img=33', '🇹🇷 Mert, 26'),
-      _Face('https://i.pravatar.cc/400?img=23', '🇧🇷 Julia, 22', chip: 'You both like Music', chipIcon: Icons.interests_rounded, chipColor: V.lavender),
-      Icons.skip_next_rounded,
+      _Face('https://i.pravatar.cc/400?img=23', '🇧🇷 Julia, 22', chip: 'You both like Music', chipIcon: SolarIconsBold.widget_4, chipColor: V.lavender),
+      SolarIconsBold.skipNext,
     ),
     _Slide(
       'Get paid to be ',
@@ -62,7 +63,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       'People send gifts to the ones they enjoy talking to. Gifts become gems, gems become cash.',
       _Face('https://i.pravatar.cc/400?img=44', '🇵🇰 Ayesha, 23'),
       _Face('https://i.pravatar.cc/400?img=12', '🇬🇧 Liam, 25', chip: '+25 gems', chipIcon: Icons.diamond_rounded, chipColor: V.gem),
-      Icons.redeem_rounded,
+      SolarIconsBold.gift,
     ),
   ];
 
@@ -164,9 +165,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         spacing: 16,
                         runSpacing: 10,
                         children: [
-                          _Promise(Icons.verified_user_rounded, 'Selfie-verified'),
-                          _Promise(Icons.blur_on_rounded, 'Starts blurred'),
-                          _Promise(Icons.flag_rounded, 'Report in 2 taps'),
+                          _Promise(SolarIconsBold.shieldCheck, 'Selfie-verified'),
+                          _Promise(SolarIconsBold.radialBlur, 'Starts blurred'),
+                          _Promise(SolarIconsBold.flag, 'Report in 2 taps'),
                         ],
                       ),
                     ],
@@ -174,7 +175,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 28, 24, 12),
-                  child: GradientButton(label: 'Get started', onTap: widget.onContinue, icon: Icons.arrow_forward_rounded, iconAfter: true),
+                  child: GradientButton(label: 'Get started', onTap: widget.onContinue, icon: SolarIconsOutline.arrowRight, iconAfter: true),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(36, 0, 36, 12),

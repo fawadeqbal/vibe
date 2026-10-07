@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../util/format.dart';
 import 'vibe_theme.dart';
@@ -498,7 +499,7 @@ class CoinAmount extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (locked) Icon(Icons.lock_rounded, size: size + 1, color: V.muted) else CoinIcon(size: size, plain: true),
+        if (locked) Icon(SolarIconsBold.lockKeyhole, size: size + 1, color: V.muted) else CoinIcon(size: size, plain: true),
         const SizedBox(width: 4),
         Text(Fmt.thousands(amount), style: VT.number(size, color: locked ? V.muted : color)),
       ],
@@ -644,7 +645,7 @@ class PageHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
       child: Row(
         children: [
-          if (onBack != null) ...[CircleIconButton(icon: Icons.arrow_back_rounded, onTap: onBack!, tooltip: 'Back'), const SizedBox(width: 12)],
+          if (onBack != null) ...[CircleIconButton(icon: SolarIconsOutline.arrowLeft, onTap: onBack!, tooltip: 'Back'), const SizedBox(width: 12)],
           Expanded(child: Semantics(header: true, child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.display(30, height: 1.1)))),
           for (var i = 0; i < actions.length; i++) ...[if (i > 0) const SizedBox(width: 8), actions[i]],
         ],
@@ -660,7 +661,7 @@ PreferredSizeWidget vibeAppBar(BuildContext context, String title, {List<Widget>
     toolbarHeight: 64,
     leadingWidth: 64,
     automaticallyImplyLeading: false,
-    leading: canGoBack ? Center(child: CircleIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())) : null,
+    leading: canGoBack ? Center(child: CircleIconButton(icon: SolarIconsOutline.arrowLeft, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())) : null,
     titleSpacing: canGoBack ? 0 : 20,
     title: Text(title, style: VT.title(18)),
     actions: actions == null ? null : [...actions, const SizedBox(width: 12)],
@@ -828,7 +829,7 @@ void toast(BuildContext context, String message, {bool error = false}) {
   m.showSnackBar(SnackBar(
     content: Row(
       children: [
-        Icon(error ? Icons.error_outline_rounded : Icons.check_circle_rounded, size: 18, color: error ? V.bad : V.ok),
+        Icon(error ? SolarIconsOutline.dangerCircle : SolarIconsBold.checkCircle, size: 18, color: error ? V.bad : V.ok),
         const SizedBox(width: 10),
         Expanded(child: Text(message)),
       ],

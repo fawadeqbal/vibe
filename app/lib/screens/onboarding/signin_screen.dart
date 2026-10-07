@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_config.dart';
 import '../../core/api/api_exception.dart';
@@ -127,7 +128,7 @@ class _SignInScreenState extends State<SignInScreen> {
       'google' => Icons.g_mobiledata_rounded,
       'apple' => Icons.apple,
       'facebook' => Icons.facebook_rounded,
-      _ => Icons.login_rounded,
+      _ => SolarIconsBold.login_2,
     };
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -182,7 +183,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   textInputAction: TextInputAction.send,
                   autofocus: true,
                   style: VT.title(18, weight: FontWeight.w600),
-                  decoration: const InputDecoration(hintText: 'you@gmail.com', prefixIcon: Icon(Icons.mail_outline_rounded, color: V.text2)),
+                  decoration: const InputDecoration(hintText: 'you@gmail.com', prefixIcon: Icon(SolarIconsOutline.letter, color: V.text2)),
                   onSubmitted: (_) => _sendCode(),
                 )
               else
@@ -239,7 +240,7 @@ class _SignInScreenState extends State<SignInScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.lock_rounded, size: 14, color: V.trust),
+                  const Icon(SolarIconsBold.lockKeyhole, size: 14, color: V.trust),
                   const SizedBox(width: 6),
                   Text('Your email is never shown to anyone', style: VT.label(12, color: V.text2, weight: FontWeight.w500)),
                 ],

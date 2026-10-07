@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -73,7 +74,7 @@ class _PartnerPayoutsScreenState extends State<PartnerPayoutsScreen> {
                     if (block == null)
                       GradientButton(
                         label: 'Cash out ${formatUsd(b.availableUsdCents)}',
-                        icon: Icons.account_balance_wallet_rounded,
+                        icon: SolarIconsBold.wallet,
                         gradient: V.goldGrad,
                         foreground: V.onGold,
                         glow: V.gold,
@@ -88,7 +89,7 @@ class _PartnerPayoutsScreenState extends State<PartnerPayoutsScreen> {
             if (!partner.payoutsLoaded)
               _tried ? PartnerRetry(text: "Couldn't load your payouts.", onRetry: partner.loadPayouts) : const PartnerSpinner()
             else if (partner.payouts.isEmpty)
-              const EmptyState(icon: Icons.payments_outlined, title: 'No payouts ', accent: 'yet', body: 'When commissions become available you can cash them out here.')
+              const EmptyState(icon: SolarIconsOutline.banknote2, title: 'No payouts ', accent: 'yet', body: 'When commissions become available you can cash them out here.')
             else
               for (final p in partner.payouts) Padding(padding: const EdgeInsets.only(bottom: 6), child: PartnerPayoutRow(p: p)),
             const SizedBox(height: 10),
@@ -282,9 +283,9 @@ class _PartnerPayoutSheetState extends State<PartnerPayoutSheet> {
 
   Widget _account(PayoutAccount a, bool on) {
     final (icon, color) = switch (a.method) {
-      PaymentMethod.jazzCash => (Icons.account_balance_wallet_rounded, const Color(0xFFE0245E)),
-      PaymentMethod.easypaisa => (Icons.account_balance_wallet_rounded, const Color(0xFF3DB54A)),
-      _ => (Icons.account_balance_rounded, V.text2),
+      PaymentMethod.jazzCash => (SolarIconsBold.wallet, const Color(0xFFE0245E)),
+      PaymentMethod.easypaisa => (SolarIconsBold.wallet, const Color(0xFF3DB54A)),
+      _ => (SolarIconsBold.banknote, V.text2),
     };
     return Semantics(
       selected: on,
@@ -312,7 +313,7 @@ class _PartnerPayoutSheetState extends State<PartnerPayoutSheet> {
                   ],
                 ),
               ),
-              if (on) const Icon(Icons.check_circle_rounded, color: V.gold, size: 20),
+              if (on) const Icon(SolarIconsBold.checkCircle, color: V.gold, size: 20),
             ],
           ),
         ),

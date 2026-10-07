@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type CSSProperties, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { GradientButton } from "@/components/ui/button";
 import { VibeLogo, VibeMark } from "@/components/ui/brand";
@@ -172,7 +172,7 @@ function HeroCards({ slide }: { slide: Slide }) {
         <div className="absolute inset-x-0 bottom-1.5 flex justify-center">
           <span className="flex size-14 items-center justify-center rounded-full border border-white/12 bg-bg2 shadow-[0_10px_35.6px_rgb(0_0_0/.5)]">
             {slide.badge ? (
-              <Icon name={slide.badge} size={28} className="bg-brand bg-clip-text text-transparent" style={{ WebkitBackgroundClip: "text" } as CSSProperties} />
+              <Icon name={slide.badge} size={28} gradient />
             ) : (
               <VibeMark size={30} />
             )}

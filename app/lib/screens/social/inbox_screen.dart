@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/vibe_theme.dart';
@@ -49,7 +50,7 @@ class _InboxScreenState extends State<InboxScreen> {
     return Scaffold(
       appBar: vibeAppBar(context, 'Messages from Vibe'),
       body: items.isEmpty
-          ? const EmptyState(icon: Icons.mark_email_read_outlined, title: 'Nothing ', accent: 'yet', body: 'News and notes from the Vibe team will show up here.')
+          ? const EmptyState(icon: SolarIconsOutline.letterOpened, title: 'Nothing ', accent: 'yet', body: 'News and notes from the Vibe team will show up here.')
           : RefreshIndicator(
               color: V.pink,
               onRefresh: inbox.load,
@@ -116,7 +117,7 @@ class _MessageCard extends StatelessWidget {
             RichBody(m.body),
             if (m.buttonLabel != null && url != null) ...[
               const SizedBox(height: 14),
-              GradientButton(label: m.buttonLabel!, height: 44, icon: Icons.open_in_new_rounded, iconAfter: true, onTap: () => openLink(context, url)),
+              GradientButton(label: m.buttonLabel!, height: 44, icon: SolarIconsBold.squareArrowRightUp, iconAfter: true, onTap: () => openLink(context, url)),
             ],
           ],
         ),

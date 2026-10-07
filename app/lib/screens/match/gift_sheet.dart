@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -227,7 +228,7 @@ class _GiftBurstState extends State<GiftBurst> with SingleTickerProviderStateMix
                   const SizedBox(height: 4),
                   GlassPill(
                     height: 34,
-                    icon: widget.received ? Icons.diamond_rounded : Icons.redeem_rounded,
+                    icon: widget.received ? Icons.diamond_rounded : SolarIconsBold.gift,
                     iconColor: widget.received ? V.gem : V.gold,
                     label: widget.received ? '${widget.gift.name} · +${widget.gift.gems} gems' : 'Sent a ${widget.gift.name}',
                     fontSize: 13.5,

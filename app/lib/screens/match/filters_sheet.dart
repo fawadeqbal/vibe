@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -52,11 +53,11 @@ class _FiltersSheetState extends State<_FiltersSheet> {
           const SectionTitle('Gender', top: 22),
           Row(
             children: [
-              _seg('Anyone', Icons.group_rounded, GenderFilter.anyone, null, vip),
+              _seg('Anyone', SolarIconsBold.usersGroupRounded, GenderFilter.anyone, null, vip),
               const SizedBox(width: 8),
-              _seg('Women', Icons.female_rounded, GenderFilter.women, Economy.genderFilterCost, vip),
+              _seg('Women', SolarIconsBold.women, GenderFilter.women, Economy.genderFilterCost, vip),
               const SizedBox(width: 8),
-              _seg('Men', Icons.male_rounded, GenderFilter.men, Economy.genderFilterCost, vip),
+              _seg('Men', SolarIconsBold.men, GenderFilter.men, Economy.genderFilterCost, vip),
             ],
           ),
           SectionTitle('Country', top: 22, note: isVip ? 'Free with VIP' : (vibeHour ? 'Free during Vibe Hour' : '${Economy.regionFilterCost} coins per match')),
@@ -67,7 +68,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                 value: _f.countryCode ?? '',
                 isExpanded: true,
                 dropdownColor: V.surface2,
-                icon: const Icon(Icons.expand_more_rounded, color: V.text2),
+                icon: const Icon(SolarIconsOutline.altArrowDown, color: V.text2),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                 borderRadius: BorderRadius.circular(18),
                 items: [
@@ -83,7 +84,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
             border: V.trust.withValues(alpha: 0.22),
             children: [
               GroupRow(
-                icon: Icons.verified_rounded,
+                icon: SolarIconsBold.verifiedCheck,
                 iconColor: V.trust,
                 iconBg: V.trust.withValues(alpha: 0.12),
                 title: 'Verified only',
@@ -91,7 +92,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                 trailing: Switch(value: _f.safeMode, onChanged: (v) => setState(() => _f = _f.copyWith(safeMode: v))),
               ),
               GroupRow(
-                icon: Icons.blur_on_rounded,
+                icon: SolarIconsBold.radialBlur,
                 title: 'Blur the first 3 seconds',
                 subtitle: isVip ? 'Off for VIP by default; you can keep it on.' : 'Both videos start blurred, so nobody gets flashed.',
                 trailing: Switch(value: _autoBlur, onChanged: (v) => setState(() => _autoBlur = v)),
@@ -101,7 +102,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
           const SizedBox(height: 20),
           Row(
             children: [
-              if (cost == 0) ...[const Icon(Icons.check_circle_rounded, size: 18, color: V.ok), const SizedBox(width: 6), Text('Free to match', style: VT.title(15, color: V.ok, weight: FontWeight.w600))] else ...[CoinAmount(cost, size: 15), const SizedBox(width: 6), Text('per match', style: VT.body(14, color: V.text2))],
+              if (cost == 0) ...[const Icon(SolarIconsBold.checkCircle, size: 18, color: V.ok), const SizedBox(width: 6), Text('Free to match', style: VT.title(15, color: V.ok, weight: FontWeight.w600))] else ...[CoinAmount(cost, size: 15), const SizedBox(width: 6), Text('per match', style: VT.body(14, color: V.text2))],
               const Spacer(),
               if (!isVip && cost > 0)
                 GestureDetector(
@@ -112,7 +113,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
                   },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(children: [const Icon(Icons.workspace_premium_rounded, size: 16, color: V.gold), const SizedBox(width: 4), Text('VIP · filters free', style: VT.label(13, color: V.gold))]),
+                    child: Row(children: [const Icon(SolarIconsBold.crown, size: 16, color: V.gold), const SizedBox(width: 4), Text('VIP · filters free', style: VT.label(13, color: V.gold))]),
                   ),
                 ),
             ],

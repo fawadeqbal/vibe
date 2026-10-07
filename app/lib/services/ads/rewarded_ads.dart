@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/mock/mock_backend.dart';
@@ -171,7 +172,7 @@ class _MockAdDialogState extends State<MockAdDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.local_pizza_rounded, size: 72, color: V.gold),
+                  const Icon(SolarIconsBold.donutBitten, size: 72, color: V.gold),
                   const SizedBox(height: 12),
                   Text('Mock advertiser', style: VT.title(20, color: Colors.white)),
                   const SizedBox(height: 4),

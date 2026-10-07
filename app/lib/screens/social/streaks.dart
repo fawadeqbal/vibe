@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -68,7 +69,7 @@ class _StreakChipState extends State<StreakChip> with SingleTickerProviderStateM
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.local_fire_department_rounded, size: 15, color: color),
+          Icon(SolarIconsBold.fire, size: 15, color: color),
           const SizedBox(width: 2),
           Text(label, style: VT.number(11.5, color: color, weight: FontWeight.w700)),
         ],
@@ -110,7 +111,7 @@ class RestoreStreakButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('Restore ', style: VT.label(11.5, color: V.flame)),
-              const Icon(Icons.local_fire_department_rounded, size: 14, color: V.flame),
+              const Icon(SolarIconsBold.fire, size: 14, color: V.flame),
               Text('${s.lostCount}', style: VT.number(11.5, color: V.flame)),
             ],
           ),
@@ -168,7 +169,7 @@ Future<void> showStreakSheet(BuildContext context, Friend f) {
   final vip = context.read<WalletProvider>().isVip;
   Widget side(String who, bool done) => Row(
         children: [
-          Icon(done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 18, color: done ? V.flame : V.muted),
+          Icon(done ? SolarIconsBold.checkCircle : Icons.radio_button_unchecked_rounded, size: 18, color: done ? V.flame : V.muted),
           const SizedBox(width: 8),
           Text(who, style: VT.body(14, color: done ? V.text : V.text2)),
           const Spacer(),
@@ -189,7 +190,7 @@ Future<void> showStreakSheet(BuildContext context, Friend f) {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(color: V.flame.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(16)),
-                child: Icon(Icons.local_fire_department_rounded, size: 28, color: s.atRisk ? V.warn : V.flame),
+                child: Icon(SolarIconsBold.fire, size: 28, color: s.atRisk ? V.warn : V.flame),
               ),
               const SizedBox(width: 14),
               Expanded(child: Headline(s.count > 0 ? '${s.count}-day ' : 'Start a ', accent: 'streak', size: 26)),
@@ -203,7 +204,7 @@ Future<void> showStreakSheet(BuildContext context, Friend f) {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: V.warn.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14), border: Border.all(color: V.warn.withValues(alpha: 0.3))),
               child: Row(children: [
-                const Icon(Icons.hourglass_bottom_rounded, size: 18, color: V.warn),
+                const Icon(SolarIconsBold.hourglass, size: 18, color: V.warn),
                 const SizedBox(width: 8),
                 Expanded(child: Text('Ends at midnight unless you both send something today.', style: VT.body(13, color: V.text))),
               ]),
@@ -221,7 +222,7 @@ Future<void> showStreakSheet(BuildContext context, Friend f) {
             const SizedBox(height: 12),
             GhostButton(
               label: 'Share our ${s.count}-day streak',
-              icon: Icons.ios_share_rounded,
+              icon: SolarIconsBold.export,
               color: V.flame,
               expand: true,
               onTap: () {

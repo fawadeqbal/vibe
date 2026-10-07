@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/mock/mock_data.dart';
@@ -121,7 +122,7 @@ class _VipBanner extends StatelessWidget {
                           width: 52,
                           height: 52,
                           decoration: BoxDecoration(gradient: V.goldGrad, borderRadius: BorderRadius.circular(16)),
-                          child: const Icon(Icons.workspace_premium_rounded, size: 28, color: V.onGoldIcon),
+                          child: const Icon(SolarIconsBold.crown, size: 28, color: V.onGoldIcon),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -338,7 +339,7 @@ class _EarnSectionState extends State<_EarnSection> {
           children: [
             if (context.read<AppServices>().ads.available)
               GroupRow(
-              icon: Icons.play_circle_rounded,
+              icon: SolarIconsBold.playCircle,
               iconColor: V.gold,
               iconBg: V.gold.withValues(alpha: 0.12),
               title: 'Watch an ad',
@@ -347,7 +348,7 @@ class _EarnSectionState extends State<_EarnSection> {
               onTap: _adBusy ? null : _watchAd,
             ),
             GroupRow(
-              icon: Icons.person_add_rounded,
+              icon: SolarIconsBold.userPlusRounded,
               iconColor: V.gold,
               iconBg: V.gold.withValues(alpha: 0.12),
               title: 'Invite a friend',
@@ -356,12 +357,12 @@ class _EarnSectionState extends State<_EarnSection> {
               onTap: _invite,
             ),
             GroupRow(
-              icon: Icons.badge_rounded,
+              icon: SolarIconsBold.userId,
               iconColor: V.gold,
               iconBg: V.gold.withValues(alpha: 0.12),
               title: 'Complete your profile',
               subtitle: wallet.wallet.profileBonusClaimed ? 'Claimed' : (me?.isComplete == true ? 'Ready to claim · once' : 'Photo, bio, 3 interests · once'),
-              trailing: wallet.wallet.profileBonusClaimed ? const Icon(Icons.check_circle_rounded, color: V.ok, size: 22) : _reward('+${Economy.profileCompleteCoins}', true),
+              trailing: wallet.wallet.profileBonusClaimed ? const Icon(SolarIconsBold.checkCircle, color: V.ok, size: 22) : _reward('+${Economy.profileCompleteCoins}', true),
               onTap: wallet.wallet.profileBonusClaimed ? null : _profileBonus,
             ),
           ],

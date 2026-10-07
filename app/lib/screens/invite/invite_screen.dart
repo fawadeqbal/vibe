@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -79,7 +80,7 @@ class _InviteScreenState extends State<InviteScreen> {
                       context.read<WalletProvider>().claimInvite(u.person.firstName);
                     }
                   },
-                  icon: const Icon(Icons.fast_forward_rounded, size: 18, color: V.muted),
+                  icon: const Icon(SolarIconsBold.rewindForward, size: 18, color: V.muted),
                   label: Text('Offline demo: move a friend along', style: VT.label(12.5, color: V.muted, weight: FontWeight.w500)),
                 ),
               ),
@@ -148,7 +149,7 @@ class _Hero extends StatelessWidget {
                       Text('YOUR CODE', style: VT.overline()),
                       const SizedBox(width: 12),
                       Expanded(child: Text(code!, style: VT.mono(18, color: V.text, weight: FontWeight.w600))),
-                      const Icon(Icons.copy_rounded, size: 18, color: V.text2, semanticLabel: 'Copy code'),
+                      const Icon(SolarIconsBold.copy, size: 18, color: V.text2, semanticLabel: 'Copy code'),
                     ],
                   ),
                 ),
@@ -157,13 +158,13 @@ class _Hero extends StatelessWidget {
           ],
           const SizedBox(height: 16),
           // The one primary action on this screen.
-          GradientButton(label: 'Share on WhatsApp', icon: Icons.chat_rounded, onTap: () => shareInviteOnWhatsApp(context, coins: rewards.inviteeCoins)),
+          GradientButton(label: 'Share on WhatsApp', icon: SolarIconsBold.chatRoundDots, onTap: () => shareInviteOnWhatsApp(context, coins: rewards.inviteeCoins)),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: GhostButton(label: 'More apps', icon: Icons.ios_share_rounded, expand: true, onTap: () => shareInviteText(context, coins: rewards.inviteeCoins))),
+              Expanded(child: GhostButton(label: 'More apps', icon: SolarIconsBold.export, expand: true, onTap: () => shareInviteText(context, coins: rewards.inviteeCoins))),
               const SizedBox(width: 10),
-              Expanded(child: GhostButton(label: 'Copy link', icon: Icons.link_rounded, expand: true, onTap: () => copyInvite(context))),
+              Expanded(child: GhostButton(label: 'Copy link', icon: SolarIconsOutline.linkRound, expand: true, onTap: () => copyInvite(context))),
             ],
           ),
         ],
@@ -187,7 +188,7 @@ class _PartnerLinkCard extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(color: V.gold.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.campaign_rounded, color: V.gold, size: 22),
+            child: const Icon(SolarIconsBold.handMoney, color: V.gold, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -207,7 +208,7 @@ class _PartnerLinkCard extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Copy partner link',
-            icon: const Icon(Icons.copy_rounded, size: 20, color: V.text2),
+            icon: const Icon(SolarIconsBold.copy, size: 20, color: V.text2),
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: link.link));
               if (context.mounted) toast(context, 'Partner link copied');
@@ -227,9 +228,9 @@ class _HowItWorks extends StatelessWidget {
   Widget build(BuildContext context) {
     final calls = '${rewards.activationCalls} ${rewards.activationCalls == 1 ? 'call' : 'calls'}';
     final steps = [
-      (Icons.ios_share_rounded, V.pinkSoft, 'Share your link', 'WhatsApp, Instagram, anywhere. They sign up with it.'),
-      (Icons.verified_rounded, V.trust, rewards.requireVerified ? 'They verify and have $calls' : 'They have $calls', rewards.requireVerified ? 'A selfie check, then $calls of a minute or more.' : '$calls of a minute or more.'),
-      (Icons.toll_rounded, V.gold, 'You both get coins', 'You get ${rewards.inviterCoins}, they get ${rewards.inviteeCoins}.'),
+      (SolarIconsBold.export, V.pinkSoft, 'Share your link', 'WhatsApp, Instagram, anywhere. They sign up with it.'),
+      (SolarIconsBold.verifiedCheck, V.trust, rewards.requireVerified ? 'They verify and have $calls' : 'They have $calls', rewards.requireVerified ? 'A selfie check, then $calls of a minute or more.' : '$calls of a minute or more.'),
+      (SolarIconsBold.walletMoney, V.gold, 'You both get coins', 'You get ${rewards.inviterCoins}, they get ${rewards.inviteeCoins}.'),
     ];
     return GroupCard(
       dividerInset: 70,
@@ -349,7 +350,7 @@ class _MilestoneTrack extends StatelessWidget {
         border: Border.all(color: reached ? V.gold : V.lineStrong, width: 1.5),
       ),
       child: Icon(
-        reached ? Icons.check_rounded : (m.kind == MilestoneReward.vip ? Icons.workspace_premium_rounded : Icons.toll_rounded),
+        reached ? Icons.check_rounded : (m.kind == MilestoneReward.vip ? SolarIconsBold.crown : SolarIconsBold.walletMoney),
         size: 16,
         color: reached ? V.onGold : V.muted,
       ),
@@ -396,7 +397,7 @@ class _PersonRow extends StatelessWidget {
     final s = p.steps;
     final (String sub, Widget chip) = switch (p.status) {
       ReferralStatus.pending => ('Joined ${Fmt.ago(p.createdAt)}', _progressChip(s)),
-      ReferralStatus.qualified => ('Active · coins on the way', const _Chip('Pending', color: V.gold, icon: Icons.hourglass_top_rounded)),
+      ReferralStatus.qualified => ('Active · coins on the way', const _Chip('Pending', color: V.gold, icon: SolarIconsBold.hourglass)),
       ReferralStatus.rewarded => ('Rewarded ${p.rewardedAt == null ? '' : Fmt.ago(p.rewardedAt!)}'.trim(), _Chip('Rewarded +${p.coins}', color: V.gold, icon: Icons.check_rounded)),
       ReferralStatus.rejected => (p.rejectText, const _Chip('Not eligible', color: V.muted)),
     };
@@ -471,7 +472,7 @@ class _NoInvitesYet extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
       child: Column(
         children: [
-          const Icon(Icons.group_add_rounded, size: 30, color: V.text2),
+          const Icon(SolarIconsBold.userPlusRounded, size: 30, color: V.text2),
           const SizedBox(height: 10),
           Text('No one yet', style: VT.title(16)),
           const SizedBox(height: 4),
@@ -493,7 +494,7 @@ class _LoadError extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          const Icon(Icons.wifi_off_rounded, color: V.text2),
+          const Icon(SolarIconsBold.cloudCross, color: V.text2),
           const SizedBox(width: 12),
           Expanded(child: Text("Couldn't load your invites.", style: VT.body(13.5, color: V.text2))),
           TextButton(onPressed: onRetry, child: const Text('Retry')),
@@ -518,7 +519,7 @@ Future<void> showMilestoneSheet(BuildContext context, MilestoneReached m) {
             width: 72,
             height: 72,
             decoration: BoxDecoration(shape: BoxShape.circle, color: V.gold.withValues(alpha: 0.14), border: Border.all(color: V.gold.withValues(alpha: 0.4))),
-            child: Icon(vip ? Icons.workspace_premium_rounded : Icons.military_tech_rounded, size: 38, color: V.gold),
+            child: Icon(vip ? SolarIconsBold.crown : SolarIconsBold.medalRibbonStar, size: 38, color: V.gold),
           ),
           const SizedBox(height: 16),
           Headline('${m.count} friends joined. ', accent: 'Thank you.', size: 26, textAlign: TextAlign.center),
@@ -529,7 +530,7 @@ Future<void> showMilestoneSheet(BuildContext context, MilestoneReached m) {
             style: VT.body(15, color: V.text2, height: 1.5),
           ),
           const SizedBox(height: 22),
-          GhostButton(label: 'Keep inviting', icon: Icons.ios_share_rounded, expand: true, onTap: () => Navigator.of(context).pop()),
+          GhostButton(label: 'Keep inviting', icon: SolarIconsBold.export, expand: true, onTap: () => Navigator.of(context).pop()),
         ],
       ),
     ),

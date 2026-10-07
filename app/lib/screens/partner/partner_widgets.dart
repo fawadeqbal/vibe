@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -136,7 +137,7 @@ class PartnerRetry extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       child: Row(
         children: [
-          const Icon(Icons.cloud_off_rounded, color: V.text2, size: 20),
+          const Icon(SolarIconsBold.cloudCross, color: V.text2, size: 20),
           const SizedBox(width: 12),
           Expanded(child: Text(text, style: VT.body(13.5, color: V.text2))),
           TextButton(onPressed: onRetry, child: const Text('Retry')),

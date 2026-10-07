@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -189,7 +190,7 @@ class ShareCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            const Icon(Icons.local_fire_department_rounded, size: 92, color: V.flame),
+            const Icon(SolarIconsBold.fire, size: 92, color: V.flame),
             Text('${data.days}', style: VT.number(84, color: V.text)),
           ],
         );
@@ -206,7 +207,7 @@ class ShareCard extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: V.bg, border: Border.all(color: V.line)),
-                child: const Icon(Icons.favorite_rounded, color: V.pink, size: 24),
+                child: const Icon(SolarIconsBold.heart, color: V.pink, size: 24),
               ),
             ],
           ),
@@ -331,7 +332,7 @@ class _ShareCardSheetState extends State<_ShareCardSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          GradientButton(label: 'Share', icon: Icons.ios_share_rounded, busy: _busy, onTap: _share),
+          GradientButton(label: 'Share', icon: SolarIconsBold.export, busy: _busy, onTap: _share),
           const SizedBox(height: 4),
           Text('Friends who join with your link get ${widget.coins} free coins.', textAlign: TextAlign.center, style: VT.body(12, color: V.muted)),
         ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -31,7 +32,7 @@ class FollowListsScreen extends StatelessWidget {
       initialIndex: tabs.contains(initial) ? tabs.indexOf(initial) : 0,
       child: Scaffold(
         appBar: AppBar(
-          leading: Center(child: CircleIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())),
+          leading: Center(child: CircleIconButton(icon: SolarIconsOutline.arrowLeft, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())),
           leadingWidth: 64,
           title: Text('Followers', style: VT.title(17, weight: FontWeight.w600)),
           bottom: TabBar(
@@ -131,7 +132,7 @@ class _FollowListTabState extends State<_FollowListTab> with AutomaticKeepAliveC
           children: [
             if (!e.followsBack && !_followedBack.contains(id)) GhostButton(label: 'Follow back', height: 34, onTap: () => _act((f) async => f.follow(id), after: () => _followedBack.add(id))),
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_horiz_rounded, color: V.muted),
+              icon: const Icon(SolarIconsBold.menuDots, color: V.muted),
               tooltip: 'More',
               onSelected: (_) => _act((f) => f.removeFollower(id), after: () => _items.remove(e)),
               itemBuilder: (_) => const [PopupMenuItem(value: 'remove', child: Text('Remove follower', style: TextStyle(color: V.bad)))],
@@ -147,9 +148,9 @@ class _FollowListTabState extends State<_FollowListTab> with AutomaticKeepAliveC
     if (!_loaded) return const Center(child: CircularProgressIndicator(color: V.pink));
     if (_items.isEmpty) {
       return switch (widget.which) {
-        FollowList.followers => const EmptyState(icon: Icons.group_outlined, title: 'No followers yet', body: 'People you meet can follow you from your profile.'),
-        FollowList.following => const EmptyState(icon: Icons.person_search_rounded, title: "You don't follow anyone", body: "Tap Follow on someone's profile after a match."),
-        FollowList.requests => const EmptyState(icon: Icons.inbox_outlined, title: 'No requests', body: 'While your account is private, new followers wait here.'),
+        FollowList.followers => const EmptyState(icon: SolarIconsOutline.usersGroupRounded, title: 'No followers yet', body: 'People you meet can follow you from your profile.'),
+        FollowList.following => const EmptyState(icon: SolarIconsBold.magnifier, title: "You don't follow anyone", body: "Tap Follow on someone's profile after a match."),
+        FollowList.requests => const EmptyState(icon: SolarIconsOutline.inbox, title: 'No requests', body: 'While your account is private, new followers wait here.'),
       };
     }
     return NotificationListener<ScrollNotification>(

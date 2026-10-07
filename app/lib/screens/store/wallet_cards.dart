@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -36,7 +37,7 @@ class GemGoalCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Container(width: 40, height: 40, decoration: BoxDecoration(color: V.gem.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.flag_rounded, color: V.gem, size: 22)),
+            Container(width: 40, height: 40, decoration: BoxDecoration(color: V.gem.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)), child: const Icon(SolarIconsBold.flag, color: V.gem, size: 22)),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -47,7 +48,7 @@ class GemGoalCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: V.muted),
+            const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
           ],
         ),
       );
@@ -63,12 +64,12 @@ class GemGoalCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(done ? Icons.emoji_events_rounded : Icons.flag_rounded, size: 18, color: V.gem),
+              Icon(done ? SolarIconsBold.cupStar : SolarIconsBold.flag, size: 18, color: V.gem),
               const SizedBox(width: 8),
               Expanded(child: Text(done ? 'Goal reached 🎯' : 'Gem goal', style: VT.title(15, weight: FontWeight.w600))),
               Text('≈ ${Fmt.gemsAsUsd(goal)}', style: VT.body(12, color: V.text2)),
               const SizedBox(width: 4),
-              const Icon(Icons.edit_rounded, size: 15, color: V.muted),
+              const Icon(SolarIconsBold.pen, size: 15, color: V.muted),
             ],
           ),
           const SizedBox(height: 12),

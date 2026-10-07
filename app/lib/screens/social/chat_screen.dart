@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -82,7 +83,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final social = context.watch<SocialProvider>();
     final f = social.friend(widget.friendId);
     if (f == null) {
-      return Scaffold(appBar: AppBar(), body: const EmptyState(icon: Icons.person_off_rounded, title: 'Not friends any more', body: 'This conversation is gone.'));
+      return Scaffold(appBar: AppBar(), body: const EmptyState(icon: SolarIconsBold.userCrossRounded, title: 'Not friends any more', body: 'This conversation is gone.'));
     }
     final msgs = social.messages(widget.friendId);
     // After the frame: markRead notifies listeners, which must not happen
@@ -95,7 +96,7 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         toolbarHeight: 64,
         titleSpacing: 0,
-        leading: Center(child: CircleIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())),
+        leading: Center(child: CircleIconButton(icon: SolarIconsOutline.arrowLeft, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())),
         leadingWidth: 64,
         shape: const Border(bottom: BorderSide(color: V.lineSoft)),
         title: GestureDetector(
@@ -118,7 +119,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   Row(
                     children: [
                       Flexible(child: Text(f.profile.name, overflow: TextOverflow.ellipsis, style: VT.title(16, weight: FontWeight.w600))),
-                      if (f.profile.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified_rounded, size: 15, color: V.trust)),
+                      if (f.profile.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.verifiedCheck, size: 15, color: V.trust)),
                       if (f.streak.count > 0) Padding(padding: const EdgeInsets.only(left: 6), child: StreakChip(streak: f.streak, showEndsTonight: false, onTap: () => showStreakSheet(context, f))),
                       if (f.streak.restorable) Padding(padding: const EdgeInsets.only(left: 6), child: RestoreStreakButton(friend: f)),
                     ],
@@ -132,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_horiz_rounded),
+            icon: const Icon(SolarIconsBold.menuDots),
             onSelected: (v) async {
               if (v == 'remove') {
                 await social.remove(widget.friendId);
@@ -152,7 +153,7 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: msgs.isEmpty
-                ? EmptyState(icon: Icons.waving_hand_rounded, title: 'Say hi to ', accent: f.profile.name, body: 'You met in a match. ${f.profile.bio}')
+                ? EmptyState(icon: SolarIconsBold.handShake, title: 'Say hi to ', accent: f.profile.name, body: 'You met in a match. ${f.profile.bio}')
                 : ListView.builder(
                     controller: _scroll,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -192,7 +193,7 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
               child: Row(
                 children: [
-                  CircleIconButton(icon: Icons.redeem_rounded, size: 52, iconSize: 24, color: V.gold, background: V.gold.withValues(alpha: 0.12), tooltip: 'Send a gift', onTap: () => _gift(f.profile.name)),
+                  CircleIconButton(icon: SolarIconsBold.gift, size: 52, iconSize: 24, color: V.gold, background: V.gold.withValues(alpha: 0.12), tooltip: 'Send a gift', onTap: () => _gift(f.profile.name)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Container(
@@ -219,7 +220,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ),
                           ),
-                          CircleIconButton(icon: Icons.send_rounded, size: 40, iconSize: 19, color: Colors.white, background: V.violet, tooltip: 'Send', onTap: _send),
+                          CircleIconButton(icon: SolarIconsBold.plain, size: 40, iconSize: 19, color: Colors.white, background: V.violet, tooltip: 'Send', onTap: _send),
                         ],
                       ),
                     ),

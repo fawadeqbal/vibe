@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -76,7 +77,7 @@ class RecentMatchesScreen extends StatelessWidget {
         if (list.isEmpty)
           const Padding(
             padding: EdgeInsets.only(top: 60),
-            child: EmptyState(icon: Icons.history_rounded, title: 'No calls ', accent: 'yet', body: 'Your last matches will show up here.'),
+            child: EmptyState(icon: SolarIconsBold.history, title: 'No calls ', accent: 'yet', body: 'Your last matches will show up here.'),
           )
         else
           for (final (i, r) in list.indexed) _matchRow(context, r, last: i == list.length - 1),
@@ -110,7 +111,7 @@ class RecentMatchesScreen extends StatelessWidget {
               ],
             ),
           ),
-          if (r.liked) const Icon(Icons.favorite_rounded, size: 18, color: V.pink),
+          if (r.liked) const Icon(SolarIconsBold.heart, size: 18, color: V.pink),
         ],
       ),
     );
@@ -135,22 +136,22 @@ class SafetySectionScreen extends StatelessWidget {
           border: V.trust.withValues(alpha: 0.22),
           children: [
             GroupRow(
-              icon: me.verified ? Icons.verified_rounded : Icons.verified_outlined,
+              icon: me.verified ? SolarIconsBold.verifiedCheck : SolarIconsOutline.verifiedCheck,
               iconColor: V.trust,
               iconBg: V.trust.withValues(alpha: 0.12),
               title: me.verified ? 'Verified profile' : 'Verify your profile',
               subtitle: verificationSubtitle(session.verification, verified: me.verified),
-              trailing: me.verified ? const Icon(Icons.check_circle_rounded, color: V.trust) : VerifyPill(busy: session.busy, onTap: () => startSelfieVerification(context)),
+              trailing: me.verified ? const Icon(SolarIconsBold.checkCircle, color: V.trust) : VerifyPill(busy: session.busy, onTap: () => startSelfieVerification(context)),
             ),
             GroupRow(
-              icon: Icons.blur_on_rounded,
+              icon: SolarIconsBold.radialBlur,
               title: 'Blur the first 3 seconds',
               subtitle: 'Both videos start blurred.',
               trailing: Switch(value: match.autoBlur, onChanged: match.setAutoBlur),
             ),
             if (social.blocked.isNotEmpty)
               GroupRow(
-                icon: Icons.block_rounded,
+                icon: SolarIconsBold.forbiddenCircle,
                 title: '${social.blocked.length} blocked',
                 subtitle: 'They can never match with you.',
                 trailing: TextButton(
@@ -164,9 +165,9 @@ class SafetySectionScreen extends StatelessWidget {
                 ),
               ),
             GroupRow(
-              icon: Icons.support_agent_rounded,
+              icon: SolarIconsBold.headphonesRound,
               title: 'Help and safety',
-              trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+              trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               onTap: () => toast(context, 'Opens the help centre in the real app'),
             ),
           ],
@@ -203,7 +204,7 @@ class AccountSectionScreen extends StatelessWidget {
           children: [
             GroupRow(
               bare: true,
-              icon: Icons.mail_outline_rounded,
+              icon: SolarIconsOutline.letter,
               title: 'E-mail updates',
               subtitle: 'News and offers from Vibe. Sign-in codes always arrive.',
               trailing: Switch(
@@ -216,14 +217,14 @@ class AccountSectionScreen extends StatelessWidget {
             ),
             GroupRow(
               bare: true,
-              icon: Icons.description_outlined,
+              icon: SolarIconsOutline.documentText,
               title: 'Terms and privacy',
-              trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+              trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               onTap: () => toast(context, 'Opens the policy pages in the real app'),
             ),
             GroupRow(
               bare: true,
-              icon: Icons.logout_rounded,
+              icon: SolarIconsBold.logout_2,
               iconColor: V.bad,
               title: remote ? 'Sign out' : 'Sign out and reset the demo',
               titleColor: V.bad,
@@ -279,15 +280,15 @@ class FollowSettingsCard extends StatelessWidget {
       children: [
         GroupRow(
           bare: true,
-          icon: Icons.people_alt_rounded,
+          icon: SolarIconsBold.usersGroupTwoRounded,
           title: '${Fmt.thousands(s.followers)} ${s.followers == 1 ? 'follower' : 'followers'} · ${Fmt.thousands(s.following)} following',
           subtitle: 'Only you can see these lists.',
-          trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+          trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FollowListsScreen())),
         ),
         GroupRow(
           bare: true,
-          icon: Icons.lock_outline_rounded,
+          icon: SolarIconsOutline.lockKeyhole,
           title: 'Private account',
           subtitle: 'New followers need your OK first.',
           trailing: Switch(
@@ -297,7 +298,7 @@ class FollowSettingsCard extends StatelessWidget {
         ),
         GroupRow(
           bare: true,
-          icon: Icons.visibility_off_outlined,
+          icon: SolarIconsOutline.eyeClosed,
           title: 'Hide my stats',
           subtitle: 'Matches, likes and gifts stay private.',
           trailing: Switch(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/mock/mock_data.dart';
@@ -99,8 +100,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ListTile(leading: const Icon(Icons.photo_camera_rounded, color: V.text), title: Text('Take a photo', style: VT.body(15)), onTap: () => Navigator.of(context).pop(true)),
-          ListTile(leading: const Icon(Icons.photo_library_rounded, color: V.text), title: Text('Choose from gallery', style: VT.body(15)), onTap: () => Navigator.of(context).pop(false)),
+          ListTile(leading: const Icon(SolarIconsBold.camera, color: V.text), title: Text('Take a photo', style: VT.body(15)), onTap: () => Navigator.of(context).pop(true)),
+          ListTile(leading: const Icon(SolarIconsBold.galleryWide, color: V.text), title: Text('Choose from gallery', style: VT.body(15)), onTap: () => Navigator.of(context).pop(false)),
           const SizedBox(height: 8),
         ],
       ),
@@ -157,7 +158,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(shape: BoxShape.circle, color: V.surface3, border: Border.all(color: V.bg, width: 3)),
-                        child: const Icon(Icons.photo_camera_rounded, size: 16, color: Colors.white),
+                        child: const Icon(SolarIconsBold.camera, size: 16, color: Colors.white),
                       ),
                     ),
                   ],

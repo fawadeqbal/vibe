@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_config.dart';
 import '../../core/api/api_exception.dart';
@@ -86,7 +87,7 @@ class _SignInMethodsCardState extends State<SignInMethodsCard> {
     final v = _view;
     if (v == null) {
       return GroupCard(children: [
-        GroupRow(bare: true, icon: Icons.key_rounded, title: 'Sign-in methods', subtitle: _error ?? 'Loading…', trailing: _error != null ? TextButton(onPressed: _load, child: const Text('Retry')) : null),
+        GroupRow(bare: true, icon: SolarIconsBold.key, title: 'Sign-in methods', subtitle: _error ?? 'Loading…', trailing: _error != null ? TextButton(onPressed: _load, child: const Text('Retry')) : null),
       ]);
     }
     final social = context.read<AppServices>().social;
@@ -95,9 +96,9 @@ class _SignInMethodsCardState extends State<SignInMethodsCard> {
     return GroupCard(
       dividerInset: 52,
       children: [
-        if (v.email != null) GroupRow(bare: true, icon: Icons.mail_outline_rounded, title: 'E-mail code', subtitle: v.email),
+        if (v.email != null) GroupRow(bare: true, icon: SolarIconsOutline.letter, title: 'E-mail code', subtitle: v.email),
         for (final p in providers) _row(v, p, canLink(p)),
-        if (v.email == null && providers.isEmpty) GroupRow(bare: true, icon: Icons.key_rounded, title: 'No other sign-in methods available'),
+        if (v.email == null && providers.isEmpty) GroupRow(bare: true, icon: SolarIconsBold.key, title: 'No other sign-in methods available'),
       ],
     );
   }

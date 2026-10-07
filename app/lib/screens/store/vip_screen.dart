@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_exception.dart';
@@ -70,12 +71,12 @@ class _VipScreenState extends State<VipScreen> {
   VipPlan get _plan => MockData.plans.firstWhere((p) => p.id == _planId, orElse: () => MockData.plans.firstWhere((p) => p.highlighted, orElse: () => MockData.plans.first));
 
   static List<(IconData, String, String)> get _perks => [
-    (Icons.tune_rounded, 'Unlimited filters', 'Gender and country cost nothing.'),
-    (Icons.block_rounded, 'No ads', 'Never watch one again.'),
-    (Icons.favorite_rounded, 'See who liked you', 'Reconnect with people who wanted more.'),
-    (Icons.bolt_rounded, 'Priority matching', 'First in the queue, every time.'),
-    (Icons.monetization_on_rounded, '${Economy.vipMonthlyBonusCoins} coins a month', 'Landed the day you subscribe.'),
-    (Icons.verified_rounded, 'VIP badge', 'Shown on the match screen.'),
+    (SolarIconsBold.tuning_2, 'Unlimited filters', 'Gender and country cost nothing.'),
+    (SolarIconsBold.forbiddenCircle, 'No ads', 'Never watch one again.'),
+    (SolarIconsBold.heart, 'See who liked you', 'Reconnect with people who wanted more.'),
+    (SolarIconsBold.bolt, 'Priority matching', 'First in the queue, every time.'),
+    (SolarIconsBold.dollar, '${Economy.vipMonthlyBonusCoins} coins a month', 'Landed the day you subscribe.'),
+    (SolarIconsBold.verifiedCheck, 'VIP badge', 'Shown on the match screen.'),
   ];
 
   String _period(VipPlan p) => p.periodWord;
@@ -103,14 +104,14 @@ class _VipScreenState extends State<VipScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 220),
               children: [
-                Align(alignment: Alignment.centerLeft, child: CircleIconButton(icon: Icons.arrow_back_rounded, onTap: () => Navigator.of(context).maybePop(), tooltip: 'Back')),
+                Align(alignment: Alignment.centerLeft, child: CircleIconButton(icon: SolarIconsOutline.arrowLeft, onTap: () => Navigator.of(context).maybePop(), tooltip: 'Back')),
                 const SizedBox(height: 6),
                 Center(
                   child: Container(
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(gradient: V.goldGrad, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: const Color(0xFFF0A020).withValues(alpha: 0.3), blurRadius: 36, offset: const Offset(0, 14))]),
-                    child: const Icon(Icons.workspace_premium_rounded, size: 36, color: V.onGoldIcon),
+                    child: const Icon(SolarIconsBold.crown, size: 36, color: V.onGoldIcon),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -153,7 +154,7 @@ class _VipScreenState extends State<VipScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.check_circle_rounded, size: 16, color: V.trust),
+                        const Icon(SolarIconsBold.checkCircle, size: 16, color: V.trust),
                         const SizedBox(width: 6),
                         Flexible(child: Text(_plan.trialDays > 0 ? 'Nothing charged today · cancel any time' : 'Cancel any time', textAlign: TextAlign.center, style: VT.label(12.5, color: V.text, weight: FontWeight.w500))),
                       ],
@@ -162,7 +163,7 @@ class _VipScreenState extends State<VipScreen> {
                   if (vip)
                     GhostButton(
                       label: _status?.managedByStore == true ? 'Manage in $_storeName' : 'Cancel VIP',
-                      icon: _status?.managedByStore == true ? Icons.open_in_new_rounded : null,
+                      icon: _status?.managedByStore == true ? SolarIconsBold.squareArrowRightUp : null,
                       expand: true,
                       color: _status?.managedByStore == true ? V.text : V.bad,
                       onTap: () => _cancel(wallet),
@@ -226,7 +227,7 @@ class _VipScreenState extends State<VipScreen> {
               ],
             ),
           ),
-          Icon(vip ? Icons.lock_open_rounded : Icons.lock_rounded, size: 20, color: V.gold),
+          Icon(vip ? SolarIconsBold.lockKeyholeUnlocked : SolarIconsBold.lockKeyhole, size: 20, color: V.gold),
         ],
       ),
     );

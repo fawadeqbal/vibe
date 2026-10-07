@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_config.dart';
 import '../../core/api/api_exception.dart';
@@ -187,7 +188,7 @@ class _PartnerApplyFormState extends State<PartnerApplyForm> {
                     Text('Checking…', style: VT.body(12, color: V.muted)),
                   ]),
                 _Check.ok => Row(children: [
-                    const Icon(Icons.check_circle_rounded, size: 14, color: V.trust),
+                    const Icon(SolarIconsBold.checkCircle, size: 14, color: V.trust),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text.rich(
@@ -326,7 +327,7 @@ class _VerifyFirst extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.verified_outlined, color: V.trust),
+            child: const Icon(SolarIconsOutline.verifiedCheck, color: V.trust),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -342,7 +343,7 @@ class _VerifyFirst extends StatelessWidget {
           const SizedBox(width: 8),
           GhostButton(
             label: busy ? 'Verifying…' : 'Verify',
-            icon: Icons.verified_rounded,
+            icon: SolarIconsBold.verifiedCheck,
             height: 40,
             color: V.trust,
             fill: V.trust.withValues(alpha: 0.12),

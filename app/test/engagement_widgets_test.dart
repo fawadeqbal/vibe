@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:solar_icons/solar_icons.dart';
 import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/theme/vibe_theme.dart';
 import 'package:vibe_app/models/models.dart';
@@ -123,7 +124,7 @@ void main() {
         ]),
       ),
     );
-    Color flameOf(String key) => t.widget<Icon>(find.descendant(of: find.byKey(ValueKey(key)), matching: find.byIcon(Icons.local_fire_department_rounded))).color!;
+    Color flameOf(String key) => t.widget<Icon>(find.descendant(of: find.byKey(ValueKey(key)), matching: find.byIcon(SolarIconsBold.fire))).color!;
     expect(flameOf('grey'), V.muted);
     expect(flameOf('orange'), V.flame);
     expect(flameOf('amber'), V.warn);

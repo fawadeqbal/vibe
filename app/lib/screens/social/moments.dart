@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -139,8 +140,8 @@ Future<void> postMomentFlow(BuildContext context) async {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ListTile(leading: const Icon(Icons.photo_camera_rounded, color: V.text), title: Text('Take a photo', style: VT.body(15)), onTap: () => Navigator.of(context).pop(true)),
-          ListTile(leading: const Icon(Icons.photo_library_rounded, color: V.text), title: Text('Choose from gallery', style: VT.body(15)), onTap: () => Navigator.of(context).pop(false)),
+          ListTile(leading: const Icon(SolarIconsBold.camera, color: V.text), title: Text('Take a photo', style: VT.body(15)), onTap: () => Navigator.of(context).pop(true)),
+          ListTile(leading: const Icon(SolarIconsBold.galleryWide, color: V.text), title: Text('Choose from gallery', style: VT.body(15)), onTap: () => Navigator.of(context).pop(false)),
           const SizedBox(height: 8),
         ],
       ),
@@ -209,7 +210,7 @@ class _CaptionSheetState extends State<_CaptionSheet> {
           const SizedBox(height: 14),
           TextField(controller: _caption, maxLength: 120, maxLines: 2, minLines: 1, decoration: const InputDecoration(hintText: 'Add a caption (optional)')),
           const SizedBox(height: 8),
-          GradientButton(label: 'Post', icon: Icons.send_rounded, onTap: () => Navigator.of(context).pop(_caption.text)),
+          GradientButton(label: 'Post', icon: SolarIconsBold.plain, onTap: () => Navigator.of(context).pop(_caption.text)),
         ],
       ),
     );
@@ -433,13 +434,13 @@ class _MomentViewerScreenState extends State<MomentViewerScreen> with SingleTick
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (_held) const Padding(padding: EdgeInsets.only(right: 4), child: Icon(Icons.pause_rounded, size: 20, color: Colors.white)),
+                        if (_held) const Padding(padding: EdgeInsets.only(right: 4), child: Icon(SolarIconsBold.pause, size: 20, color: Colors.white)),
                         if (g.mine)
-                          IconButton(tooltip: 'Delete', onPressed: _delete, icon: const Icon(Icons.delete_outline_rounded, color: Colors.white))
+                          IconButton(tooltip: 'Delete', onPressed: _delete, icon: const Icon(SolarIconsOutline.trashBinMinimalistic, color: Colors.white))
                         else
                           PopupMenuButton<String>(
                             tooltip: 'More',
-                            icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
+                            icon: const Icon(SolarIconsBold.menuDots, color: Colors.white),
                             onOpened: () => _timer.stop(),
                             onCanceled: () => _held ? null : _timer.forward(),
                             onSelected: (v) {
@@ -464,7 +465,7 @@ class _MomentViewerScreenState extends State<MomentViewerScreen> with SingleTick
                     if (g.mine) ...[
                       const SizedBox(height: 12),
                       GlassPill(
-                        icon: Icons.visibility_rounded,
+                        icon: SolarIconsBold.eye,
                         label: '${live.viewsCount ?? 0} ${live.viewsCount == 1 ? 'view' : 'views'}',
                         height: 36,
                         fontSize: 13,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -38,12 +39,12 @@ class _ReportSheetState extends State<_ReportSheet> {
   }
 
   IconData _icon(ReportReason r) => switch (r) {
-        ReportReason.nudity => Icons.no_adult_content_rounded,
-        ReportReason.harassment => Icons.record_voice_over_rounded,
-        ReportReason.underage => Icons.child_care_rounded,
-        ReportReason.spam => Icons.campaign_rounded,
+        ReportReason.nudity => SolarIconsBold.forbidden,
+        ReportReason.harassment => SolarIconsBold.userSpeakRounded,
+        ReportReason.underage => SolarIconsBold.smileCircle,
+        ReportReason.spam => SolarIconsBold.handMoney,
         ReportReason.scam => Icons.money_off_rounded,
-        ReportReason.other => Icons.more_horiz_rounded,
+        ReportReason.other => SolarIconsBold.menuDots,
       };
 
   @override
@@ -60,7 +61,7 @@ class _ReportSheetState extends State<_ReportSheet> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(color: V.bad.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(14)),
-                child: const Icon(Icons.flag_rounded, color: V.bad),
+                child: const Icon(SolarIconsBold.flag, color: V.bad),
               ),
               const SizedBox(width: 14),
               Expanded(child: Text('Report ${widget.name}', style: VT.title(22))),
@@ -113,7 +114,7 @@ class _ReportSheetState extends State<_ReportSheet> {
           GroupCard(
             children: [
               GroupRow(
-                icon: Icons.block_rounded,
+                icon: SolarIconsBold.forbiddenCircle,
                 title: 'Also block ${widget.name}',
                 subtitle: 'You will never be matched again.',
                 trailing: Switch(value: _block, onChanged: (v) => setState(() => _block = v)),

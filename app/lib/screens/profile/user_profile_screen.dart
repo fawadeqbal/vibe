@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -23,7 +24,7 @@ class UserProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: Center(child: CircleIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())),
+        leading: Center(child: CircleIconButton(icon: SolarIconsOutline.arrowLeft, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())),
         leadingWidth: 64,
       ),
       body: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 4, 20, 32), child: UserProfileBody(userId: userId)),
@@ -157,7 +158,7 @@ class _UserProfileBodyState extends State<UserProfileBody> {
     if (v == null) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: EmptyState(icon: Icons.person_off_rounded, title: 'Profile not available', body: 'You can see the profiles of people you have met in a match.'),
+        child: EmptyState(icon: SolarIconsBold.userCrossRounded, title: 'Profile not available', body: 'You can see the profiles of people you have met in a match.'),
       );
     }
     final p = v.profile;
@@ -184,8 +185,8 @@ class _UserProfileBodyState extends State<UserProfileBody> {
                   Row(
                     children: [
                       Flexible(child: Text('${p.name}, ${p.age}', overflow: TextOverflow.ellipsis, style: VT.display(26, height: 1.1))),
-                      if (p.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.verified_rounded, color: V.trust, size: 20, semanticLabel: 'Verified')),
-                      if (p.vip) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.workspace_premium_rounded, color: V.gold, size: 19, semanticLabel: 'VIP')),
+                      if (p.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(SolarIconsBold.verifiedCheck, color: V.trust, size: 20, semanticLabel: 'Verified')),
+                      if (p.vip) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.crown, color: V.gold, size: 19, semanticLabel: 'VIP')),
                       if (v.level > 0) Padding(padding: const EdgeInsets.only(left: 8), child: LevelChip(level: v.level)),
                     ],
                   ),
@@ -195,7 +196,7 @@ class _UserProfileBodyState extends State<UserProfileBody> {
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Row(children: [
-                        Icon(Icons.local_fire_department_rounded, size: 16, color: streak.atRisk ? V.warn : V.flame),
+                        Icon(SolarIconsBold.fire, size: 16, color: streak.atRisk ? V.warn : V.flame),
                         const SizedBox(width: 4),
                         Text('${streak.count}-day streak${streak.atRisk ? ' · ends tonight' : ''}', style: VT.label(13, color: streak.atRisk ? V.warn : V.flame)),
                       ]),
@@ -206,7 +207,7 @@ class _UserProfileBodyState extends State<UserProfileBody> {
             ),
             if (!self)
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_horiz_rounded, color: V.text2),
+                icon: const Icon(SolarIconsBold.menuDots, color: V.text2),
                 tooltip: 'More',
                 onSelected: (a) => _menu(a, v),
                 itemBuilder: (_) => [
@@ -234,7 +235,7 @@ class _UserProfileBodyState extends State<UserProfileBody> {
           if (friend == FriendState.none) ...[
             const SizedBox(height: 10),
             Row(children: [
-              const Icon(Icons.videocam_rounded, size: 16, color: V.muted),
+              const Icon(SolarIconsBold.videocamera, size: 16, color: V.muted),
               const SizedBox(width: 8),
               Expanded(child: Text(widget.inCall ? 'Tap + on the call to add ${p.name} as a friend' : 'Friends are made on video calls. Match again to add ${p.name}.', style: VT.body(12.5, color: V.text2))),
             ]),
@@ -269,15 +270,15 @@ class _UserProfileBodyState extends State<UserProfileBody> {
   }
 
   Widget _followButton(Profile p, FollowState s) => switch (s) {
-        FollowState.none => GradientButton(label: 'Follow', icon: Icons.person_add_alt_1_rounded, height: 46, busy: _busy, onTap: _follow),
-        FollowState.requested => GhostButton(label: 'Requested', icon: Icons.hourglass_top_rounded, height: 46, expand: true, onTap: _busy ? null : () => _unfollow(p.name, s)),
+        FollowState.none => GradientButton(label: 'Follow', icon: SolarIconsBold.userPlusRounded, height: 46, busy: _busy, onTap: _follow),
+        FollowState.requested => GhostButton(label: 'Requested', icon: SolarIconsBold.hourglass, height: 46, expand: true, onTap: _busy ? null : () => _unfollow(p.name, s)),
         FollowState.following => GhostButton(label: 'Following', icon: Icons.check_rounded, height: 46, expand: true, onTap: _busy ? null : () => _unfollow(p.name, s)),
       };
 
   Widget _friendButton(Profile p, FriendState s) => switch (s) {
-        FriendState.friends => GhostButton(label: 'Message', icon: Icons.chat_bubble_outline_rounded, height: 46, expand: true, onTap: widget.inCall ? null : () => _friendAction(p, s)),
-        FriendState.incoming => GhostButton(label: 'Accept friend', icon: Icons.how_to_reg_rounded, height: 46, expand: true, onTap: () => _friendAction(p, s)),
-        FriendState.requested => const GhostButton(label: 'Request sent', icon: Icons.hourglass_top_rounded, height: 46, expand: true),
+        FriendState.friends => GhostButton(label: 'Message', icon: SolarIconsOutline.chatRoundDots, height: 46, expand: true, onTap: widget.inCall ? null : () => _friendAction(p, s)),
+        FriendState.incoming => GhostButton(label: 'Accept friend', icon: SolarIconsBold.userCheckRounded, height: 46, expand: true, onTap: () => _friendAction(p, s)),
+        FriendState.requested => const GhostButton(label: 'Request sent', icon: SolarIconsBold.hourglass, height: 46, expand: true),
         FriendState.blocked => const SizedBox.shrink(),
         FriendState.none => const SizedBox.shrink(),
       };
@@ -297,7 +298,7 @@ class _StatsBlock extends StatelessWidget {
           );
       return Panel(padding: const EdgeInsets.symmetric(vertical: 16), child: Row(children: [cell(s.matches, 'Matches'), cell(s.likes, 'Likes'), cell(s.gifts, 'Gifts')]));
     }
-    final (icon, text) = view.statsHidden ? (Icons.visibility_off_rounded, 'Stats hidden') : (Icons.lock_outline_rounded, 'Follow to see their stats');
+    final (icon, text) = view.statsHidden ? (SolarIconsBold.eyeClosed, 'Stats hidden') : (SolarIconsOutline.lockKeyhole, 'Follow to see their stats');
     return Panel(
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
       child: Row(children: [Icon(icon, size: 18, color: V.muted), const SizedBox(width: 10), Expanded(child: Text(text, style: VT.body(13, color: V.text2)))]),

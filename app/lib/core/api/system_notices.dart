@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../theme/vibe_theme.dart';
 import 'api_client.dart';
@@ -24,14 +25,14 @@ class SystemNotices {
     _subs
       ..add(_rt.on(Ev.announcement).listen(_showAnnouncement))
       ..add(_rt.on(Ev.inboxMessage).listen((d) => _show(
-            icon: Icons.mark_email_unread_rounded,
+            icon: SolarIconsBold.letterUnread,
             color: V.pinkSoft,
             title: '${d['title'] ?? ''}',
             body: 'New message from the Vibe team — open Chats to read it.',
             seconds: 8,
           )))
       ..add(_rt.on(Ev.accountWarning).listen((d) => _show(
-            icon: Icons.warning_amber_rounded,
+            icon: SolarIconsBold.dangerTriangle,
             color: V.gold,
             title: 'A message from the Vibe team',
             body: '${d['message'] ?? ''}',
@@ -59,7 +60,7 @@ class SystemNotices {
   void _showAnnouncement(Map<String, dynamic> a) {
     final id = '${a['id']}';
     if (!_seen.add(id)) return;
-    _show(icon: Icons.campaign_rounded, color: V.lavender, title: '${a['title'] ?? ''}', body: '${a['body'] ?? ''}', seconds: 8);
+    _show(icon: SolarIconsBold.handMoney, color: V.lavender, title: '${a['title'] ?? ''}', body: '${a['body'] ?? ''}', seconds: 8);
   }
 
   void _show({required IconData icon, required Color color, required String title, required String body, required int seconds}) {

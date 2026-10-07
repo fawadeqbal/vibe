@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -51,7 +52,7 @@ class _PartnerScreenState extends State<PartnerScreen> {
       body: ov == null
           ? (partner.error != null && !partner.loading
               ? EmptyState(
-                  icon: Icons.cloud_off_rounded,
+                  icon: SolarIconsBold.cloudCross,
                   title: "Couldn't load the program",
                   body: partner.error!.message,
                   action: GhostButton(label: 'Try again', onTap: partner.refreshAll),
@@ -84,10 +85,10 @@ class _Pitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final points = [
-      (Icons.percent_rounded, '${Economy.affiliateRevSharePercent}% of what the people you bring spend, for ${Economy.affiliateCommissionMonths} months'),
-      (Icons.how_to_reg_rounded, '${formatUsd(Economy.affiliateCpaUsdCents)} for every person who becomes active'),
-      (Icons.insights_rounded, 'Your own code, links per channel and live stats'),
-      (Icons.account_balance_wallet_rounded, 'Paid to JazzCash, Easypaisa or your bank from ${formatUsd(Economy.affiliateMinPayoutUsdCents)}'),
+      (SolarIconsBold.sale, '${Economy.affiliateRevSharePercent}% of what the people you bring spend, for ${Economy.affiliateCommissionMonths} months'),
+      (SolarIconsBold.userCheckRounded, '${formatUsd(Economy.affiliateCpaUsdCents)} for every person who becomes active'),
+      (SolarIconsBold.graphUp, 'Your own code, links per channel and live stats'),
+      (SolarIconsBold.wallet, 'Paid to JazzCash, Easypaisa or your bank from ${formatUsd(Economy.affiliateMinPayoutUsdCents)}'),
     ];
     return Panel(
       radius: 26,
@@ -98,7 +99,7 @@ class _Pitch extends StatelessWidget {
           const FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Tag('For TikTok, YouTube and Instagram creators', color: V.lavender, icon: Icons.campaign_rounded),
+            child: Tag('For TikTok, YouTube and Instagram creators', color: V.lavender, icon: SolarIconsBold.handMoney),
           ),
           const SizedBox(height: 12),
           const Headline('Get paid for the people ', accent: 'you bring', size: 28, accentColor: V.pinkSoft),
@@ -135,7 +136,7 @@ class _Header extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(color: V.violet.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(14)),
-            child: const Icon(Icons.campaign_rounded, color: V.lavender),
+            child: const Icon(SolarIconsBold.handMoney, color: V.lavender),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -163,9 +164,9 @@ class _StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (IconData icon, Color color, String title, String body) = switch (overview.status) {
-      PartnerStatus.rejected => (Icons.do_not_disturb_on_rounded, V.bad, 'Not this time', "Your application wasn't approved. You can still invite friends and earn coins."),
-      PartnerStatus.suspended => (Icons.pause_circle_rounded, V.warn, 'Your partner account is paused', 'New commissions are on hold and payouts are paused. Contact support if you think this is a mistake.'),
-      _ => (Icons.hourglass_top_rounded, V.gold, "We're reviewing your application", "We look at every channel by hand. You'll get a notification when it's decided — usually within a few days."),
+      PartnerStatus.rejected => (SolarIconsBold.minusCircle, V.bad, 'Not this time', "Your application wasn't approved. You can still invite friends and earn coins."),
+      PartnerStatus.suspended => (SolarIconsBold.pauseCircle, V.warn, 'Your partner account is paused', 'New commissions are on hold and payouts are paused. Contact support if you think this is a mistake.'),
+      _ => (SolarIconsBold.hourglass, V.gold, "We're reviewing your application", "We look at every channel by hand. You'll get a notification when it's decided — usually within a few days."),
     };
     final t = overview.terms;
     final facts = [
@@ -220,7 +221,7 @@ class _StatusCard extends StatelessWidget {
             const SizedBox(height: 18),
             GhostButton(
               label: 'Invite friends instead',
-              icon: Icons.group_add_rounded,
+              icon: SolarIconsBold.userPlusRounded,
               expand: true,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InviteScreen())),
             ),
@@ -276,14 +277,14 @@ class PartnerDashboard extends StatelessWidget {
           // The one primary action here: money, so gold.
           GradientButton(
             label: 'Cash out ${formatUsd(b.availableUsdCents)}',
-            icon: Icons.account_balance_wallet_rounded,
+            icon: SolarIconsBold.wallet,
             gradient: V.goldGrad,
             foreground: V.onGold,
             glow: V.gold,
             onTap: () => requestPartnerPayout(context),
           )
         else ...[
-          const GhostButton(label: 'Cash out', icon: Icons.account_balance_wallet_rounded, expand: true),
+          const GhostButton(label: 'Cash out', icon: SolarIconsBold.wallet, expand: true),
           const SizedBox(height: 8),
           Text(block, textAlign: TextAlign.center, style: VT.body(12, color: V.muted, height: 1.4)),
         ],
@@ -291,37 +292,37 @@ class PartnerDashboard extends StatelessWidget {
         GroupCard(
           children: [
             GroupRow(
-              icon: Icons.insights_rounded,
+              icon: SolarIconsBold.graphUp,
               iconColor: V.lavender,
               iconBg: V.violet.withValues(alpha: 0.14),
               title: 'Stats',
               subtitle: stats == null
                   ? 'Clicks, sign-ups, active users and earnings'
                   : 'Last ${stats.days} days · ${Fmt.thousands(stats.totals.clicks)} clicks · ${Fmt.thousands(stats.totals.signups)} sign-ups',
-              trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+              trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               onTap: () => push(const PartnerStatsScreen()),
             ),
             if (active)
               GroupRow(
-                icon: Icons.link_rounded,
+                icon: SolarIconsOutline.linkRound,
                 title: 'Links per channel',
                 subtitle: 'A link for TikTok, YouTube, Instagram… so stats show where people came from',
-                trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+                trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
                 onTap: () => push(const PartnerLinksScreen()),
               ),
             GroupRow(
-              icon: Icons.receipt_long_rounded,
+              icon: SolarIconsBold.billList,
               title: 'Commissions',
               subtitle: !partner.commissionsLoaded
                   ? 'Who joined with your link and what you earned'
                   : partner.commissions.isEmpty
                       ? 'Nothing yet'
                       : 'Latest: ${partner.commissions.first.userName} · ${formatUsd(partner.commissions.first.usdCents)}',
-              trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+              trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               onTap: () => push(const PartnerCommissionsScreen()),
             ),
             GroupRow(
-              icon: Icons.payments_rounded,
+              icon: SolarIconsBold.banknote2,
               iconColor: V.gold,
               iconBg: V.gold.withValues(alpha: 0.12),
               title: 'Payouts',
@@ -330,14 +331,14 @@ class PartnerDashboard extends StatelessWidget {
                   : partner.payoutsLoaded && partner.payouts.isNotEmpty
                       ? '${partner.payouts.length} ${partner.payouts.length == 1 ? 'payout' : 'payouts'} · ${formatUsd(b.paidUsdCents)} paid'
                       : 'To JazzCash, Easypaisa or your bank',
-              trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+              trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               onTap: () => push(const PartnerPayoutsScreen()),
             ),
             GroupRow(
-              icon: Icons.description_outlined,
+              icon: SolarIconsOutline.documentText,
               title: 'Your terms',
               subtitle: '${t.revSharePercent}% for ${t.commissionMonths} months · ${formatUsd(t.cpaUsdCents)} per active user',
-              trailing: const Icon(Icons.chevron_right_rounded, color: V.muted),
+              trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               onTap: () => showPartnerTerms(context, t),
             ),
           ],
@@ -366,7 +367,7 @@ class _LinkCard extends StatelessWidget {
               IconButton(
                 tooltip: 'Copy code',
                 visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.copy_rounded, size: 18, color: V.text2),
+                icon: const Icon(SolarIconsBold.copy, size: 18, color: V.text2),
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: terms.code));
                   if (context.mounted) toast(context, 'Code copied');
@@ -423,9 +424,9 @@ Future<void> showPartnerTerms(BuildContext context, PartnerTerms t) {
           GroupCard(
             dividerInset: 48,
             children: [
-              term(Icons.percent_rounded, '${t.revSharePercent}% of what your users spend', 'For ${t.commissionMonths} months after they join. Store fees come off first for Google Play purchases.'),
-              term(Icons.how_to_reg_rounded, '${formatUsd(t.cpaUsdCents)} per active user', 'When someone you brought verifies and has their first calls.'),
-              term(Icons.schedule_rounded, '${t.holdDays}-day hold · ${formatUsd(t.minPayoutUsdCents)} minimum', 'Commissions wait out refunds, then become available.'),
+              term(SolarIconsBold.sale, '${t.revSharePercent}% of what your users spend', 'For ${t.commissionMonths} months after they join. Store fees come off first for Google Play purchases.'),
+              term(SolarIconsBold.userCheckRounded, '${formatUsd(t.cpaUsdCents)} per active user', 'When someone you brought verifies and has their first calls.'),
+              term(SolarIconsBold.clockCircle, '${t.holdDays}-day hold · ${formatUsd(t.minPayoutUsdCents)} minimum', 'Commissions wait out refunds, then become available.'),
             ],
           ),
         ],
@@ -448,7 +449,7 @@ class _DemoButton extends StatelessWidget {
             final notice = await provider.advanceDemo();
             if (notice != null && context.mounted) toast(context, notice);
           },
-          icon: const Icon(Icons.fast_forward_rounded, size: 18, color: V.muted),
+          icon: const Icon(SolarIconsBold.rewindForward, size: 18, color: V.muted),
           label: Text(provider.demoAction ?? '', style: VT.label(12.5, color: V.muted, weight: FontWeight.w500)),
         ),
       ),

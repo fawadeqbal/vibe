@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -28,7 +29,7 @@ Future<IcebreakerGame?> showGamePicker(BuildContext context) {
             children: [
               for (final g in IcebreakerGame.values)
                 GroupRow(
-                  icon: switch (g) { IcebreakerGame.wyr => Icons.call_split_rounded, IcebreakerGame.thisOrThat => Icons.bolt_rounded, IcebreakerGame.questions => Icons.forum_rounded },
+                  icon: switch (g) { IcebreakerGame.wyr => SolarIconsBold.routing, IcebreakerGame.thisOrThat => SolarIconsBold.bolt, IcebreakerGame.questions => SolarIconsBold.dialog2 },
                   iconColor: V.lavender,
                   iconBg: V.violet.withValues(alpha: 0.14),
                   title: g.label,
@@ -224,7 +225,7 @@ class _MutualCelebrationState extends State<MutualCelebration> with SingleTicker
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.favorite_rounded, color: V.pink, size: 34),
+                  const Icon(SolarIconsBold.heart, color: V.pink, size: 34),
                   const SizedBox(height: 6),
                   const Headline("It's a ", accent: 'vibe!', size: 32, textAlign: TextAlign.center, accentColor: V.pinkSoft),
                   const SizedBox(height: 4),
@@ -233,7 +234,7 @@ class _MutualCelebrationState extends State<MutualCelebration> with SingleTicker
                     const SizedBox(height: 14),
                     GradientButton(
                       label: 'Add friend',
-                      icon: Icons.person_add_rounded,
+                      icon: SolarIconsBold.userPlusRounded,
                       height: 46,
                       expand: false,
                       onTap: () {

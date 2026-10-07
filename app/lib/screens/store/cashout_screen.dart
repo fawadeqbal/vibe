@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -210,7 +211,7 @@ class _CashoutScreenState extends State<CashoutScreen> {
           if (_loading && !wallet.payoutsLoaded)
             const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator(color: V.gem)))
           else if (_loadError != null && !wallet.payoutsLoaded)
-            EmptyState(icon: Icons.cloud_off_rounded, title: "Couldn't load your accounts", body: _loadError!, action: GhostButton(label: 'Try again', onTap: _load))
+            EmptyState(icon: SolarIconsBold.cloudCross, title: "Couldn't load your accounts", body: _loadError!, action: GhostButton(label: 'Try again', onTap: _load))
           else ...[
             for (final a in wallet.payoutAccounts) ...[_accountRow(a), const SizedBox(height: 8)],
             Panel(
@@ -257,9 +258,9 @@ class _CashoutScreenState extends State<CashoutScreen> {
   Widget _accountRow(PayoutAccount a) {
     final on = a.id == _selected;
     final (icon, color) = switch (a.method) {
-      PaymentMethod.jazzCash => (Icons.account_balance_wallet_rounded, const Color(0xFFE0245E)),
-      PaymentMethod.easypaisa => (Icons.account_balance_wallet_rounded, const Color(0xFF3DB54A)),
-      _ => (Icons.account_balance_rounded, V.text2),
+      PaymentMethod.jazzCash => (SolarIconsBold.wallet, const Color(0xFFE0245E)),
+      PaymentMethod.easypaisa => (SolarIconsBold.wallet, const Color(0xFF3DB54A)),
+      _ => (SolarIconsBold.banknote, V.text2),
     };
     return Semantics(
       selected: on,
@@ -288,7 +289,7 @@ class _CashoutScreenState extends State<CashoutScreen> {
               ),
               PopupMenuButton<String>(
                 tooltip: 'Account options',
-                icon: const Icon(Icons.more_vert_rounded, color: V.muted),
+                icon: const Icon(SolarIconsBold.menuDots, color: V.muted),
                 onSelected: (v) => _accountMenu(a, v),
                 itemBuilder: (_) => [
                   if (!a.isDefault) const PopupMenuItem(value: 'default', child: Text('Use by default')),

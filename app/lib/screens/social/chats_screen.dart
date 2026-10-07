@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -41,7 +42,7 @@ class ChatsScreen extends StatelessWidget {
               'Chats',
               actions: [
                 CircleIconButton(
-                  icon: Icons.person_add_alt_1_rounded,
+                  icon: SolarIconsBold.userPlusRounded,
                   iconSize: 20,
                   background: V.surface2,
                   tooltip: 'Invite friends',
@@ -55,11 +56,11 @@ class ChatsScreen extends StatelessWidget {
                   ? Padding(
                       padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
                       child: EmptyState(
-                        icon: Icons.chat_bubble_outline_rounded,
+                        icon: SolarIconsOutline.chatRoundDots,
                         title: 'No friends ',
                         accent: 'yet',
                         body: 'Tap Add during a match. When they accept, you can keep talking here — text and gifts, any time.',
-                        action: GradientButton(label: 'Find people', icon: Icons.videocam_rounded, expand: false, onTap: onFindPeople),
+                        action: GradientButton(label: 'Find people', icon: SolarIconsBold.videocamera, expand: false, onTap: onFindPeople),
                       ),
                     )
                   : ListView(
@@ -93,7 +94,7 @@ class ChatsScreen extends StatelessWidget {
                                       ]),
                                     ),
                                   ),
-                                  const Icon(Icons.hourglass_top_rounded, size: 16, color: V.muted),
+                                  const Icon(SolarIconsBold.hourglass, size: 16, color: V.muted),
                                 ],
                               ),
                             ),
@@ -137,7 +138,7 @@ class _RequestCard extends StatelessWidget {
                       Row(
                         children: [
                           Flexible(child: Text('${p.name}, ${p.age}', overflow: TextOverflow.ellipsis, style: VT.title(16, weight: FontWeight.w600))),
-                          if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified_rounded, size: 16, color: V.trust, semanticLabel: 'Verified')),
+                          if (p.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.verifiedCheck, size: 16, color: V.trust, semanticLabel: 'Verified')),
                         ],
                       ),
                       const SizedBox(height: 1),
@@ -194,7 +195,7 @@ class _LikedTeaser extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: V.gold),
+              const Icon(SolarIconsOutline.altArrowRight, color: V.gold),
             ],
           ),
         ),
@@ -246,7 +247,7 @@ class _FriendRow extends StatelessWidget {
                         child: Row(
                           children: [
                             Flexible(child: Text(f.profile.name, style: VT.title(16, weight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                            if (f.profile.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.verified_rounded, size: 15, color: V.trust)),
+                            if (f.profile.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.verifiedCheck, size: 15, color: V.trust)),
                             if (f.streak.count > 0) Padding(padding: const EdgeInsets.only(left: 6), child: StreakChip(streak: f.streak)),
                           ],
                         ),

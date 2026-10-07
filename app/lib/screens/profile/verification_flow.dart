@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -114,18 +115,18 @@ class _SelfieIntro extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.verified_user_rounded, size: 40, color: V.trust),
+          const Icon(SolarIconsBold.shieldCheck, size: 40, color: V.trust),
           const SizedBox(height: 10),
           Text('Take a quick selfie', textAlign: TextAlign.center, style: VT.title(20)),
           const SizedBox(height: 6),
           Text('A few seconds on camera, compared with your profile photo. It is never shown to anyone.', textAlign: TextAlign.center, style: VT.body(14, color: V.text2)),
           const SizedBox(height: 18),
-          tip(Icons.wb_sunny_rounded, 'Face the light, no sunglasses or mask.'),
-          tip(Icons.face_rounded, 'Just you, inside the oval.'),
-          tip(Icons.swap_horiz_rounded, 'Look straight, then do the 2 moves shown.'),
-          tip(Icons.photo_rounded, 'Your profile photo should show your face too.'),
+          tip(SolarIconsBold.sun, 'Face the light, no sunglasses or mask.'),
+          tip(SolarIconsBold.smileCircle, 'Just you, inside the oval.'),
+          tip(SolarIconsOutline.transferHorizontal, 'Look straight, then do the 2 moves shown.'),
+          tip(SolarIconsBold.gallery, 'Your profile photo should show your face too.'),
           const SizedBox(height: 10),
-          GradientButton(label: 'Open camera', icon: Icons.photo_camera_front_rounded, gradient: V.gemGrad, foreground: V.onGem, glow: V.gem, onTap: () => Navigator.of(context).pop(true)),
+          GradientButton(label: 'Open camera', icon: SolarIconsBold.cameraMinimalistic, gradient: V.gemGrad, foreground: V.onGem, glow: V.gem, onTap: () => Navigator.of(context).pop(true)),
         ],
       ),
     );
@@ -134,11 +135,11 @@ class _SelfieIntro extends StatelessWidget {
 
 /// What each capture asks for. The preview is mirrored, so arrows point the way the face moves on screen.
 ({String title, IconData icon}) _stepText(LivenessStep? step) => switch (step) {
-      null => (title: 'Look straight at the camera', icon: Icons.face_rounded),
-      LivenessStep.turnLeft => (title: 'Turn your head to the left', icon: Icons.arrow_back_rounded),
-      LivenessStep.turnRight => (title: 'Turn your head to the right', icon: Icons.arrow_forward_rounded),
-      LivenessStep.tiltLeft => (title: 'Tilt your head to your left shoulder', icon: Icons.rotate_left_rounded),
-      LivenessStep.tiltRight => (title: 'Tilt your head to your right shoulder', icon: Icons.rotate_right_rounded),
+      null => (title: 'Look straight at the camera', icon: SolarIconsBold.smileCircle),
+      LivenessStep.turnLeft => (title: 'Turn your head to the left', icon: SolarIconsOutline.arrowLeft),
+      LivenessStep.turnRight => (title: 'Turn your head to the right', icon: SolarIconsOutline.arrowRight),
+      LivenessStep.tiltLeft => (title: 'Tilt your head to your left shoulder', icon: SolarIconsOutline.undoLeftRound),
+      LivenessStep.tiltRight => (title: 'Tilt your head to your right shoulder', icon: SolarIconsOutline.undoRightRound),
     };
 
 enum _Phase { ready, capturing, checking, failed }
@@ -236,9 +237,9 @@ class _LivenessSheetState extends State<LivenessSheet> {
     final moves = widget.steps.map((s) => _stepText(s).title.toLowerCase()).join(', then ');
     final (title, subtitle, icon) = switch (_phase) {
       _Phase.capturing => (step!.title, 'Hold it — the photo is taken automatically.', step.icon),
-      _Phase.checking => ('Checking…', 'Comparing with your profile photo.', Icons.verified_user_rounded),
-      _Phase.failed => ("That didn't work", _failure ?? 'Try again.', Icons.photo_camera_front_rounded),
-      _Phase.ready => ('${_all.length} quick poses', 'Look straight at the camera, then $moves.', Icons.photo_camera_front_rounded),
+      _Phase.checking => ('Checking…', 'Comparing with your profile photo.', SolarIconsBold.shieldCheck),
+      _Phase.failed => ("That didn't work", _failure ?? 'Try again.', SolarIconsBold.cameraMinimalistic),
+      _Phase.ready => ('${_all.length} quick poses', 'Look straight at the camera, then $moves.', SolarIconsBold.cameraMinimalistic),
     };
 
     return Padding(
@@ -299,7 +300,7 @@ class _LivenessSheetState extends State<LivenessSheet> {
           if (_phase == _Phase.ready || _phase == _Phase.failed) ...[
             GradientButton(
               label: _phase == _Phase.failed ? 'Try again' : 'Start',
-              icon: Icons.photo_camera_front_rounded,
+              icon: SolarIconsBold.cameraMinimalistic,
               gradient: V.gemGrad,
               foreground: V.onGem,
               glow: V.gem,
