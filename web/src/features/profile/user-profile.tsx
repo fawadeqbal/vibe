@@ -21,7 +21,7 @@ import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { streakDays } from "@/lib/engagement";
 import { thousands } from "@/lib/format";
-import type { FollowState, FriendState, ProfileView } from "@/lib/models";
+import { type FollowState, type FriendState, intentInfo, type ProfileView } from "@/lib/models";
 import { followStateOf, useFollows } from "@/stores/follows";
 import { friendStateOf, useSocial } from "@/stores/social";
 import { openSheet, toast } from "@/stores/ui";
@@ -204,10 +204,16 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
         </>
       ) : null}
 
-      {p.bio.trim() ? (
+      {p.bio.trim() || p.intent ? (
         <>
           <SectionTitle text="About" top={22} bottom={8} />
-          <p className="type-body text-[14.5px] text-text">{p.bio}</p>
+          {p.bio.trim() ? <p className="type-body text-[14.5px] text-text">{p.bio}</p> : null}
+          {p.intent ? (
+            <p className={cn("flex items-center", p.bio.trim() && "mt-2")}>
+              <Icon name={intentInfo[p.intent].icon} size={16} className="text-pink-soft" />
+              <span className="type-label ml-1.5 text-[13px] text-text2">Here for: {intentInfo[p.intent].label}</span>
+            </p>
+          ) : null}
         </>
       ) : null}
       {p.interests.length ? (

@@ -1,7 +1,7 @@
 import type { Gender, ReferralStatus, User, Wallet } from '@prisma/client';
 
 import { levelOf } from './levels';
-import { isProfileComplete, isProfileReady } from './profile.rules';
+import { asIntent, type Intent, isProfileComplete, isProfileReady } from './profile.rules';
 
 export type GenderView = 'male' | 'female' | 'other';
 export const genderView = (g: Gender): GenderView => g.toLowerCase() as GenderView;
@@ -16,6 +16,8 @@ export interface PublicProfile {
   avatarUrl: string;
   bio: string;
   interests: string[];
+  /** What they're here for (chat, friends, dating, open); null = not said. */
+  intent: Intent | null;
   verified: boolean;
   vip: boolean;
   /** From XP (users/levels.ts); shown as a "Lv 7" chip. */
@@ -77,6 +79,7 @@ export function toPublicProfile(u: WithWallet, now: Date = new Date()): PublicPr
     avatarUrl: u.avatarUrl,
     bio: u.bio,
     interests: u.interests,
+    intent: asIntent(u.intent),
     verified: u.verified,
     vip: vipNow(u, now),
     level: levelOf(u.xp),

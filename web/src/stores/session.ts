@@ -185,6 +185,7 @@ export const useSession = create<SessionState>()((set, get) => {
         countryCode: p.country.code,
         bio: p.bio,
         interests: p.interests,
+        intent: p.intent,
         ...(p.avatarUrl ? { avatarUrl: p.avatarUrl } : {}),
       });
       applyMe(asMap(res));

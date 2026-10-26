@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { chooseAction } from "@/components/shared/action-sheet";
-import { capturePhoto } from "@/components/shared/camera-capture";
 import { Avatar } from "@/components/ui/avatar";
 import { GradientButton } from "@/components/ui/button";
 import { ChoiceTile, InterestChip } from "@/components/ui/choice";
@@ -14,18 +12,18 @@ import { Headline } from "@/components/ui/typography";
 import { errorMessage } from "@/lib/api/errors";
 import { COUNTRIES, country, INTERESTS } from "@/lib/catalog";
 import { cn } from "@/lib/cn";
-import { prepareImage, pickImageFile } from "@/lib/media";
-import { type Gender, genderLabel, GENDERS } from "@/lib/models";
+import { type Gender, genderLabel, GENDERS, type Intent, intentInfo, INTENTS } from "@/lib/models";
 import { useSession } from "@/stores/session";
-import { toast } from "@/stores/ui";
 
+import { changeProfilePhoto } from "@/features/profile/change-photo";
 import { InviteBanner } from "@/features/referrals/invite-banner";
 import { InviteCodeField } from "@/features/referrals/invite-code-field";
 
 /**
- * Name, age, gender, country, a few interests. Age gates 18+. The photo is
- * taken with the camera or picked from files and uploaded (`POST /me/avatar`).
- * First-run setup and "Edit profile" share it.
+ * Name, age, gender, country, a line about you, what you're here for, a few
+ * interests. Age gates 18+. The photo is taken with the camera or picked from
+ * files and uploaded (`POST /me/avatar`). First-run setup and "Edit profile"
+ * share it; `/me/edit#bio` (or #intent, #interests, #photo) scrolls to that part.
  */
 export function ProfileForm({ editing = false, onSaved }: { editing?: boolean; onSaved?: () => void }) {
   const me = useSession((s) => s.me);
@@ -35,10 +33,21 @@ export function ProfileForm({ editing = false, onSaved }: { editing?: boolean; o
   const [gender, setGender] = useState<Gender>(me?.gender ?? "other");
   const [countryCode, setCountryCode] = useState(me?.country.code ?? "PK");
   const [interests, setInterests] = useState<string[]>(me?.interests ?? []);
+  const [intent, setIntent] = useState<Intent | null>(me?.intent ?? null);
   const [avatar, setAvatar] = useState(me?.avatarUrl ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Deep links from the Me screen land on the part to fill in.
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    const el = document.getElementById(`profile-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    el.querySelector<HTMLElement>("textarea, input")?.focus({ preventScroll: true });
+  }, []);
 
   const toggle = (i: string) => setInterests((list) => (list.includes(i) ? list.filter((x) => x !== i) : [...list, i]));
 
@@ -50,7 +59,7 @@ export function ProfileForm({ editing = false, onSaved }: { editing?: boolean; o
     setError(null);
     setSaving(true);
     try {
-      await useSession.getState().saveProfile({ ...me, name: n, age, gender, country: country(countryCode), bio: bio.trim(), interests, avatarUrl: avatar });
+      await useSession.getState().saveProfile({ ...me, name: n, age, gender, country: country(countryCode), bio: bio.trim(), interests, intent, avatarUrl: avatar });
       onSaved?.();
     } catch (e) {
       setError(errorMessage(e));
@@ -59,24 +68,8 @@ export function ProfileForm({ editing = false, onSaved }: { editing?: boolean; o
     }
   };
 
-  /** Camera or files → resized here → uploaded right away (the server returns the URL). */
   const newPhoto = async () => {
-    const source = await chooseAction([
-      { value: "camera" as const, label: "Take a photo", icon: "photo_camera" },
-      { value: "files" as const, label: "Choose from gallery", icon: "photo_library" },
-    ]);
-    if (!source) return;
-    try {
-      const raw = source === "camera" ? await capturePhoto("Take photo") : await pickImageFile();
-      if (!raw) return;
-      setUploading(true);
-      await useSession.getState().uploadAvatar(await prepareImage(raw));
-      setAvatar(useSession.getState().me?.avatarUrl ?? avatar);
-    } catch (e) {
-      toast(errorMessage(e, "Couldn't open the camera or your files."), { error: true });
-    } finally {
-      setUploading(false);
-    }
+    if (await changeProfilePhoto(setUploading)) setAvatar(useSession.getState().me?.avatarUrl ?? avatar);
   };
 
   return (
@@ -90,7 +83,7 @@ export function ProfileForm({ editing = false, onSaved }: { editing?: boolean; o
         </>
       ) : null}
 
-      <div className="flex justify-center">
+      <div id="profile-photo" className="flex justify-center">
         <button type="button" onClick={uploading ? undefined : () => void newPhoto()} aria-label="Change photo" className="relative">
           <Avatar url={avatar} name={name} size={112} ring />
           {uploading ? (
@@ -130,11 +123,45 @@ export function ProfileForm({ editing = false, onSaved }: { editing?: boolean; o
       <Label text="Country" className="mt-[18px]" />
       <Select label="Country" value={countryCode} onChange={setCountryCode} options={COUNTRIES.map((c) => ({ value: c.code, label: `${c.flag}  ${c.name}` }))} />
 
-      <Label text="About you" className="mt-[18px]" />
-      <TextArea rows={2} maxLength={120} showCount value={bio} onChange={(e) => setBio(e.target.value)} placeholder="One line. What are you here for?" aria-label="About you" />
+      <div id="profile-bio">
+        <Label text="About you" className="mt-[18px]" />
+        <TextArea
+          rows={2}
+          maxLength={120}
+          showCount
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          placeholder="One line people see before the call. e.g. Cricket fan, bad at cooking, good at listening."
+          aria-label="About you"
+        />
+      </div>
 
-      <Label text="Interests (pick 3 or more)" className="mt-2" />
-      <div className="flex flex-wrap gap-2">
+      <div id="profile-intent">
+        <Label text="Here for (optional)" className="mt-2" />
+        <div className="grid grid-cols-2 gap-2" role="group" aria-label="Here for">
+          {INTENTS.map((i) => {
+            const on = intent === i;
+            return (
+              <ChoiceTile
+                key={i}
+                selected={on}
+                onClick={() => setIntent(on ? null : i)}
+                className="h-auto min-h-[64px] items-start rounded-[16px] px-3.5 py-2.5 text-left"
+              >
+                <span className="flex items-center">
+                  <Icon name={intentInfo[i].icon} size={18} className={on ? "text-pink-soft" : "text-text2"} />
+                  <span className={cn("type-title ml-2 text-[14px] font-semibold", on ? "text-text" : "text-text2")}>{intentInfo[i].label}</span>
+                </span>
+                <span className="type-body mt-0.5 text-[11.5px] leading-[1.3] text-muted">{intentInfo[i].blurb}</span>
+              </ChoiceTile>
+            );
+          })}
+        </div>
+        <p className="type-body mt-1.5 ml-0.5 text-[11.5px] text-muted">Shown on your profile. It doesn&apos;t change who you&apos;re matched with.</p>
+      </div>
+
+      <Label text="Interests (pick 3 or more)" className="mt-[18px]" />
+      <div id="profile-interests" className="flex flex-wrap gap-2">
         {INTERESTS.map((i) => (
           <InterestChip key={i} label={i} selected={interests.includes(i)} onClick={() => toggle(i)} />
         ))}
@@ -153,7 +180,12 @@ const Label = ({ text, className }: { text: string; className?: string }) => <p 
 
 function Stepper({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
   return (
-    <button type="button" aria-label={label} onClick={onClick} className="flex size-12 items-center justify-center rounded-full bg-surface2 text-text transition-[filter] hover:brightness-125">
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="flex size-12 items-center justify-center rounded-full bg-surface2 text-text transition-[filter] hover:brightness-125"
+    >
       <Icon name={icon} size={24} />
     </button>
   );

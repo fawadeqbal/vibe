@@ -4,6 +4,15 @@ import type { User } from '@prisma/client';
 export const isProfileComplete = (u: Pick<User, 'avatarUrl' | 'bio' | 'interests'>): boolean =>
   u.avatarUrl.trim().length > 0 && u.bio.trim().length > 0 && u.interests.length >= 3;
 
+/**
+ * What someone is on Vibe for, shown on their profile. Optional and never
+ * used for matching; it sets expectations before a call.
+ */
+export const INTENTS = ['chat', 'friends', 'dating', 'open'] as const;
+export type Intent = (typeof INTENTS)[number];
+export const asIntent = (v: string | null | undefined): Intent | null =>
+  (INTENTS as readonly string[]).includes(v ?? '') ? (v as Intent) : null;
+
 /** Enough to be matched: a name and an adult age. */
 export const isProfileReady = (u: Pick<User, 'name' | 'age'>): boolean => u.name.trim().length >= 2 && (u.age ?? 0) >= 18;
 

@@ -3,6 +3,7 @@ import { Transform } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUrl, Length, Max, Min } from 'class-validator';
 
 import { COUNTRY_CODES, INTERESTS } from '../../catalog/economy';
+import { INTENTS, type Intent } from '../profile.rules';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -44,6 +45,11 @@ export class UpdateProfileDto {
   @ArrayMaxSize(10)
   @IsIn(INTERESTS, { each: true })
   interests?: string[];
+
+  @ApiPropertyOptional({ nullable: true, enum: INTENTS, description: "What you're here for (open = not sure yet); null clears it" })
+  @IsOptional()
+  @IsIn(INTENTS)
+  intent?: Intent | null;
 
   @ApiPropertyOptional({ description: 'Get newsletters and announcements by e-mail' })
   @IsOptional()
