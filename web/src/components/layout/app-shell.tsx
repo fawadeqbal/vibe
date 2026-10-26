@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import { useInbox } from "@/stores/inbox";
 import { useMatch } from "@/stores/match";
 import { incomingOf, unreadTotal, useSocial } from "@/stores/social";
+import { useWaitlist } from "@/stores/waitlist";
 
 interface Tab {
   href: string;
@@ -84,6 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        {!onVideo ? <SomeoneLookingBar /> : null}
         <main className={cn("flex min-h-0 flex-1 flex-col", showBar && !onVideo && "pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0")}>{children}</main>
 
         {/* Bottom bar (phones). */}
@@ -103,6 +105,30 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/**
+ * You asked to be told when someone's looking, and you're on another page:
+ * one bar across the top that takes you to Match. (On Match the lobby shows it.)
+ */
+function SomeoneLookingBar() {
+  const at = useWaitlist((s) => s.someoneLookingAt);
+  if (!at) return null;
+  return (
+    <div role="alert" className="flex items-center gap-3 border-b border-pink/30 bg-pink/14 px-4 py-2.5 pt-[calc(10px+env(safe-area-inset-top))] lg:pt-2.5">
+      <span className="relative flex size-2.5 shrink-0">
+        <span className="absolute inset-0 animate-ping rounded-full bg-pink-soft opacity-70" />
+        <span className="relative size-2.5 rounded-full bg-pink" />
+      </span>
+      <span className="type-label flex-1 text-[13px] text-text">Someone&apos;s looking for a match right now</span>
+      <Link href="/match" className="type-label rounded-full bg-pink px-3.5 py-1.5 text-[13px] font-semibold text-white hover:brightness-110">
+        Go
+      </Link>
+      <button type="button" aria-label="Dismiss" onClick={() => useWaitlist.getState().dismiss()} className="type-label text-[12.5px] text-text2 hover:text-text">
+        Not now
+      </button>
     </div>
   );
 }

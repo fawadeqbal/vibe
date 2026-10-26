@@ -30,6 +30,8 @@ export const ServerEvent = {
   /** `{ matchId, round, mine, theirs, revealed, partnerAnswered }` — theirs only once both answered. */
   MatchGameAnswer: 'match:game-answer',
   MatchGameClosed: 'match:game-closed',
+  /** You asked to hear when someone's looking (POST /match/notify-me), and someone is now. One-shot. */
+  MatchSomeoneLooking: 'match:someone-looking',
 
   RtcSignal: 'rtc:signal',
 

@@ -55,6 +55,13 @@ export class PushBridge implements OnModuleInit {
       const by = (p.by ?? {}) as { id?: string; name?: string };
       return { title: 'Request accepted', body: `${by.name || 'Someone'} accepted your follow request`, data: { route: 'profile', userId: String(by.id ?? '') }, category: 'social' };
     },
+    [ServerEvent.MatchSomeoneLooking]: () => ({
+      title: "Someone's looking for a match 👋",
+      body: 'You asked us to tell you. Open Vibe now to meet them.',
+      data: { route: 'match' },
+      category: 'social',
+      collapseKey: 'match:someone-looking',
+    }),
     [ServerEvent.GoalReached]: (p) => ({ title: 'Goal reached 🎯', body: `You reached your goal of ${Number(p.goal).toLocaleString('en-US')} gems.`, data: { route: 'wallet' }, category: 'payments' }),
     [ServerEvent.InboxMessage]: (p) => ({ title: String(p.title ?? 'Message from Vibe'), body: String(p.body ?? '').slice(0, 160), data: { route: 'inbox' }, category: 'inbox' }),
     [ServerEvent.PaymentUpdated]: (p) => {
