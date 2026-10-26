@@ -73,6 +73,7 @@ export const useSocial = create<SocialState>()((set, get) => {
               avatarUrl: String(url),
               bio: "",
               interests: [],
+              intent: null,
               verified: false,
               vip: false,
               matches: 0,

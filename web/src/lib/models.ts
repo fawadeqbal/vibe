@@ -13,6 +13,20 @@ export const genderLabel: Record<Gender, string> = {
 
 export const GENDERS: Gender[] = ["male", "female", "other"];
 
+/** What someone is on Vibe for. Optional; shown on the profile, never used for matching. */
+export type Intent = "chat" | "friends" | "dating" | "open";
+
+export const INTENTS: Intent[] = ["chat", "friends", "dating", "open"];
+
+export const intentInfo: Record<Intent, { label: string; icon: string; blurb: string }> = {
+  chat: { label: "Just chatting", icon: "forum", blurb: "Good conversation, no expectations" },
+  friends: { label: "New friends", icon: "group_add", blurb: "People to talk to again" },
+  dating: { label: "Dating", icon: "favorite", blurb: "Open to something more" },
+  open: { label: "Not sure yet", icon: "explore", blurb: "Seeing where it goes" },
+};
+
+export const asIntent = (v: unknown): Intent | null => (typeof v === "string" && (INTENTS as string[]).includes(v) ? (v as Intent) : null);
+
 /** Who the matcher should look for. `anyone` is free; the others cost coins unless VIP. */
 export type GenderFilter = "anyone" | "women" | "men";
 
@@ -31,6 +45,8 @@ export interface Profile {
   avatarUrl: string;
   bio: string;
   interests: string[];
+  /** What they're here for; null = not said. */
+  intent: Intent | null;
   verified: boolean;
   vip: boolean;
   matches: number;

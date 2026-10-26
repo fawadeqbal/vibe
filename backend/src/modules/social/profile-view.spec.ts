@@ -1,7 +1,7 @@
 import type { PublicProfile } from '../users/user.mapper';
 import { buildProfileView, NO_RELATIONSHIP, ProfileFacts } from './profile-view';
 
-const profile: PublicProfile = { id: 'u2', name: 'Sana', age: 23, gender: 'female', countryCode: 'PK', avatarUrl: '', bio: 'coffee first', interests: ['Music'], verified: false, vip: false, level: 3 };
+const profile: PublicProfile = { id: 'u2', name: 'Sana', age: 23, gender: 'female', countryCode: 'PK', avatarUrl: '', bio: 'coffee first', interests: ['Music'], intent: null, verified: false, vip: false, level: 3 };
 const facts = (over: Partial<ProfileFacts> = {}): ProfileFacts => ({
   self: false,
   met: true,

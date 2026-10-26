@@ -1,4 +1,5 @@
 import { country } from "../catalog";
+import { asIntent } from "../models";
 import type {
   Badge,
   Board,
@@ -63,6 +64,7 @@ export function profile(m: Json): Profile {
     avatarUrl: str(m.avatarUrl),
     bio: str(m.bio),
     interests: asList(m.interests).filter((x): x is string => typeof x === "string"),
+    intent: asIntent(m.intent),
     verified: bool(m.verified),
     vip: bool(m.vip),
     matches: int(m.matches),

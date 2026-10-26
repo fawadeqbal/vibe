@@ -49,6 +49,8 @@ model User {
   avatarUrl            String     @default("")
   bio                  String     @default("") @db.VarChar(160)
   interests            String[]   @default([])
+  /// What they're here for (users/profile.rules.ts INTENTS); null = not said.
+  intent               String?    @db.VarChar(16)
   verified             Boolean    @default(false)
   verifiedAt           DateTime?
   /// Development-only scripted partners (see DevBotsService). Never true in production.

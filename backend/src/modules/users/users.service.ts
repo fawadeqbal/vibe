@@ -120,6 +120,7 @@ export class UsersService {
       countryCode: dto.countryCode,
       bio: dto.bio,
       interests: dto.interests ? [...new Set(dto.interests)] : undefined,
+      intent: dto.intent,
       marketingEmails: dto.marketingEmails,
       privateAccount: dto.privateAccount,
       hideStats: dto.hideStats,
@@ -249,7 +250,7 @@ export class UsersService {
       this.prisma.payoutAccount.updateMany({ where: { userId: id, deletedAt: null }, data: { deletedAt: this.clock.now(), isDefault: false } }),
       this.prisma.user.update({
         where: { id },
-        data: { status: UserStatus.DELETED, deletedAt: this.clock.now(), email: null, name: 'Deleted user', bio: '', avatarUrl: '', interests: [] },
+        data: { status: UserStatus.DELETED, deletedAt: this.clock.now(), email: null, name: 'Deleted user', bio: '', avatarUrl: '', interests: [], intent: null },
       }),
     ]);
     this.realtime.disconnectUser(id);
