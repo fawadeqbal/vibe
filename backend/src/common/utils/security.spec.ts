@@ -53,8 +53,12 @@ describe('SecretBox', () => {
     expect(sealed).not.toContain('JBSWY3DPEHPK3PXP');
     expect(box.open(sealed)).toBe('JBSWY3DPEHPK3PXP');
     expect(() => new SecretBox('x'.repeat(32)).open(sealed)).toThrow();
+    // Flip one bit of the ciphertext. (Overwriting a base64 character with a fixed
+    // letter was a no-op whenever it already was that letter: ~1 run in 64.)
     const parts = sealed.split('.');
-    parts[3] = parts[3].slice(0, -2) + (parts[3].endsWith('A') ? 'B' : 'A') + parts[3].slice(-1);
+    const data = Buffer.from(parts[3], 'base64url');
+    data[0] ^= 1;
+    parts[3] = data.toString('base64url');
     expect(() => box.open(parts.join('.'))).toThrow();
   });
 });
