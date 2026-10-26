@@ -25,7 +25,7 @@ Want something to look at? `STAFF_PASSWORD=… npm run demo-data` adds a dozen u
 
 | Area | Screens |
 |---|---|
-| Overview | Dashboard (KPIs, revenue and growth charts, work queues), Live (online, searching, live calls, end a call) |
+| Overview | Dashboard (KPIs, revenue and growth charts, work queues), Live (online, searching, live calls, end a call), Funnel (of new sign-ups: set up → first call → came back next day → paid, biggest drop flagged, time to first call, per-day cohorts) |
 | People | Users (search by name / e-mail / id / invite code, filters), user profile (ban, verify, edit, adjust balance, VIP, sign out, delete, notes, history), Reports (queue by person, all reports, bulk dismiss/ban, report detail with chat transcript and a decision panel), Verifications (selfie next to the profile photo, approve / reject with a reason) |
 | Money | Revenue mix, Purchases (confirm bank transfers, refund, provider trail), Cash-outs (approve, mark paid, reject, provider trail), Payout batches (collect waiting bank cash-outs, download the bank CSV, mark paid with the bank's reference, cancel), VIP subscriptions, Ledger |
 | Growth | Referrals (who invited whom, progress to active, fraud rejections with the reason, approve anyway / reject), Affiliates (creator partner applications and partners: approve with own code and terms, reject, suspend / reactivate, edit terms, release held commissions, 7/30/90-day stats by channel, fraud signals, referred people, commissions, payouts, staff note), Affiliate payouts (show the full account, mark paid with the transfer reference, reject back to the balance); a Referrals tab on every user |

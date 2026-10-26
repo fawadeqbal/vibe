@@ -132,6 +132,8 @@ model User {
   referralGot    Referral?             @relation("ReferralGot")
   affiliate      Affiliate?
 
+  activeDays UserActiveDay[]
+
   @@index([createdAt])
   @@index([bannedUntil])
   @@index([lastSeenAt])
@@ -145,6 +147,18 @@ enum AuthProvider {
 
 /// A social login linked to a user. One user can have several (Google +
 /// Apple + Facebook); each provider account belongs to one user.
+/// One row per user per business day they had the app open (socket connect).
+/// "Came back the next day" in the admin funnel reads it; written by LastSeenListener.
+model UserActiveDay {
+  userId String
+  day    DateTime @db.Date
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@index([day])
+}
+
 model AuthIdentity {
   id           String       @id @default(cuid())
   userId       String
