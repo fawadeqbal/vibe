@@ -56,7 +56,7 @@ export function MatchScreen() {
       {status === "connected" ? (
         <Connected actions={{ next: () => void actions.next(), gift: () => void actions.gift(), addFriend: () => void actions.addFriend(), report: () => void actions.report() }} />
       ) : status === "searching" ? (
-        <Searching />
+        <Searching onRestart={() => void actions.start()} />
       ) : status === "ended" && hasLast ? (
         <Ended onReconnect={() => void actions.reconnect()} onFindAnother={() => void actions.start()} onReport={() => void actions.reportLast()} />
       ) : (
