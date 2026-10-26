@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Banknote, BookOpen, CreditCard, FileClock, Flag, Gift, HandCoins, Handshake, Layers, LayoutDashboard, type LucideIcon, Mail, Megaphone, Plug, ScanFace, Send, Receipt, Settings, ShieldCheck, Sparkles, UserCog, Users, Wallet, Webhook } from "lucide-react";
+import { Activity, BarChart3, Filter, Banknote, BookOpen, CreditCard, FileClock, Flag, Gift, HandCoins, Handshake, Layers, LayoutDashboard, type LucideIcon, Mail, Megaphone, Plug, ScanFace, Send, Receipt, Settings, ShieldCheck, Sparkles, UserCog, Users, Wallet, Webhook } from "lucide-react";
 
 import { P, type Permission } from "./permissions";
 
@@ -29,6 +29,7 @@ export const NAV: NavGroup[] = [
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard, permission: P.DashboardView },
       { href: "/live", label: "Live", icon: Activity, permission: P.OpsLive },
+      { href: "/funnel", label: "Funnel", icon: Filter, permission: P.DashboardView },
     ],
   },
   {

@@ -7,6 +7,7 @@ import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { RedisService } from '../../../infra/redis/redis.service';
 import { EconomyService } from '../../catalog/economy.service';
 import { MatchingService } from '../../matching/matching.service';
+import { buildFunnel, CohortCounts, FunnelReport } from './funnel';
 
 export type SeriesPoint = { day: string; signups: number; revenueUsd: number; purchases: number; matches: number; matchers: number; gifts: number; payoutsUsd: number; reports: number };
 
@@ -36,6 +37,79 @@ export class DashboardService {
 
   async series(days: number): Promise<SeriesPoint[]> {
     return this.redis.remember(`admin:dash:series:${days}`, 300, () => this.computeSeries(days));
+  }
+
+  /** New-user funnel for people who signed up in the last `days` business days (cached 5 min). */
+  async funnel(days: number): Promise<FunnelReport> {
+    return this.redis.remember(`admin:dash:funnel:${days}`, 300, () => this.computeFunnel(days));
+  }
+
+  private async computeFunnel(days: number): Promise<FunnelReport> {
+    const offset = this.config.get('BUSINESS_TZ_OFFSET_MINUTES');
+    const todayIdx = this.clock.dayOf().getTime();
+    const start = new Date(todayIdx - (days - 1) * MS.day - offset * MS.minute);
+    // Sign-ups in the window, and each one's first call (either side of the match).
+    const cte = `
+      WITH c AS (
+        SELECT u.id, u."createdAt", u."onboardedAt", u.verified, u."avatarUrl", u.bio, u.interests,
+               (u."createdAt" + make_interval(mins => ${Math.trunc(offset)}))::date AS d
+          FROM "User" u
+         WHERE u."isBot" = false AND u."createdAt" >= $1
+      ), first AS (
+        SELECT DISTINCT ON (x.id) x.id, x.s, x.e FROM (
+          SELECT c.id, m."startedAt" AS s, m."endedAt" AS e FROM c JOIN "Match" m ON m."userAId" = c.id
+          UNION ALL
+          SELECT c.id, m."startedAt", m."endedAt" FROM c JOIN "Match" m ON m."userBId" = c.id
+        ) x ORDER BY x.id, x.s
+      )`;
+    type Row = { day: string; signups: bigint; set_up: bigint; first_call: bigint; came_back: bigint; paid: bigint; complete: bigint; verified: bigint; within_hour: bigint; quick: bigint };
+    const [rows, median] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Row[]>(
+        `${cte}
+        SELECT to_char(c.d, 'YYYY-MM-DD') AS day,
+               COUNT(*) AS signups,
+               COUNT(*) FILTER (WHERE c."onboardedAt" IS NOT NULL) AS set_up,
+               COUNT(first.id) AS first_call,
+               COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "UserActiveDay" a WHERE a."userId" = c.id AND a.day = c.d + 1)) AS came_back,
+               COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Purchase" p WHERE p."userId" = c.id AND p.status = 'SUCCEEDED')) AS paid,
+               COUNT(*) FILTER (WHERE c."avatarUrl" <> '' AND btrim(c.bio) <> '' AND cardinality(c.interests) >= 3) AS complete,
+               COUNT(*) FILTER (WHERE c.verified) AS verified,
+               COUNT(first.id) FILTER (WHERE first.s - c."createdAt" <= interval '1 hour') AS within_hour,
+               COUNT(first.id) FILTER (WHERE first.e IS NOT NULL AND first.e - first.s < interval '10 seconds') AS quick
+          FROM c LEFT JOIN first ON first.id = c.id
+         GROUP BY c.d`,
+        start,
+      ),
+      this.prisma.$queryRawUnsafe<{ minutes: number | null }[]>(
+        `${cte}
+        SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM first.s - c."createdAt") / 60)::float AS minutes
+          FROM c JOIN first ON first.id = c.id`,
+        start,
+      ),
+    ]);
+
+    const byDay = new Map(rows.map((r) => [r.day, r]));
+    const cohorts: CohortCounts[] = [];
+    for (let i = 0; i < days; i++) {
+      const dayMs = todayIdx - (days - 1 - i) * MS.day;
+      const day = new Date(dayMs).toISOString().slice(0, 10);
+      const r = byDay.get(day);
+      cohorts.push({
+        day,
+        signups: num(r?.signups),
+        setUp: num(r?.set_up),
+        firstCall: num(r?.first_call),
+        cameBack: num(r?.came_back),
+        // "Next day" is over once today is at least two days after sign-up.
+        d1Ready: todayIdx - dayMs >= 2 * MS.day,
+        paid: num(r?.paid),
+        complete: num(r?.complete),
+        verified: num(r?.verified),
+        withinHour: num(r?.within_hour),
+        quickSkip: num(r?.quick),
+      });
+    }
+    return buildFunnel(cohorts, median[0]?.minutes ?? null, days, this.clock.now());
   }
 
   private async computeSummary() {

@@ -28,6 +28,12 @@ export class DashboardController {
     return this.dashboard.summary();
   }
 
+  @Get('funnel')
+  @ApiOperation({ summary: 'New-user funnel: signed up → set up → first call → came back next day → paid (cached 5 min)' })
+  funnel(@Query() q: SeriesQuery) {
+    return this.dashboard.funnel(q.days);
+  }
+
   @Get('series')
   @ApiOperation({ summary: 'Daily series for charts (business days, cached 5 min)' })
   series(@Query() q: SeriesQuery) {

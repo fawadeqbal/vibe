@@ -423,6 +423,19 @@ export interface SeriesPoint {
   reports: number;
 }
 
+export type FunnelStepKey = "signedUp" | "setUp" | "firstCall" | "cameBack" | "paid";
+
+/** GET admin/dashboard/funnel: of the people who signed up in the window, how far they got. */
+export interface FunnelReport {
+  generatedAt: string;
+  days: number;
+  steps: { key: FunnelStepKey; label: string; hint: string; count: number; eligible: number; rate: number }[];
+  biggestDrop: FunnelStepKey | null;
+  extras: { profileComplete: number; verified: number; medianMinutesToFirstCall: number | null; firstCallWithinHour: number; firstCallQuickSkip: number };
+  /** One row per sign-up day, oldest first. `cameBack` is null until the day after has ended. */
+  cohorts: { day: string; signups: number; setUp: number; firstCall: number; cameBack: number | null; paid: number }[];
+}
+
 export interface LiveState {
   at: string;
   online: number;
