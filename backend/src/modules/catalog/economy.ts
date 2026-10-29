@@ -56,6 +56,10 @@ export interface EconomyRules {
   discoverPassResetDays: number;
   /** 1 = only selfie-verified people appear. */
   discoverVerifiedOnly: number;
+  /** 1: gender, country, online-now and verified filters need VIP, Vibe Hour or a filter pass. 0: all free. */
+  discoverPremiumFilters: number;
+  discoverFilterPassCost: number;
+  discoverFilterPassHours: number;
 
   /** Video calls between friends, from a chat. 1 = on. */
   friendCallsEnabled: number;
@@ -216,7 +220,7 @@ export const RULE_GROUPS: RuleGroup[] = [
   {
     key: 'discover',
     label: 'Discover',
-    description: 'The swipe deck of real people. Likes are free up to a daily limit; VIP members like without limit, get free Super Likes and free Undo. Free likes reset at midnight, Pakistan time.',
+    description: 'The swipe deck of real people. Likes are free up to a daily limit; VIP members like without limit, get free Super Likes, free Undo and every filter. Free likes reset at midnight, Pakistan time.',
     fields: [
       { key: 'discoverEnabled', label: 'Discover is on', help: 'Off hides the Discover tab for everyone. Matches and chats stay.', kind: 'flag', min: 0, max: 1 },
       count('discoverFreeLikesPerDay', 'Free likes per day', 0, 1000, 'VIP: unlimited. Passing is always free.'),
@@ -229,6 +233,9 @@ export const RULE_GROUPS: RuleGroup[] = [
       days('discoverActiveDays', 'Hide people inactive for', 1, 365, 'Keeps decks full of people who might reply.'),
       days('discoverPassResetDays', 'Passed people come back after', 1, 365),
       { key: 'discoverVerifiedOnly', label: 'Verified people only', help: 'Show only selfie-verified people in decks.', kind: 'flag', min: 0, max: 1 },
+      { key: 'discoverPremiumFilters', label: 'Extra filters need VIP or a pass', help: 'Gender, country, online now and verified only. Age is always free. VIP and Vibe Hour get them free. Off = all filters free.', kind: 'flag', min: 0, max: 1 },
+      coins('discoverFilterPassCost', 'Filter pass', 'Unlocks the extra filters for non-VIP people.'),
+      { key: 'discoverFilterPassHours', label: 'Filter pass lasts', kind: 'hours', min: 1, max: 720 },
     ],
   },
   {
@@ -248,7 +255,7 @@ export const RULE_GROUPS: RuleGroup[] = [
   {
     key: 'vip',
     label: 'VIP perks',
-    description: 'Coins VIP members get each month they are subscribed. VIP also gets unlimited Discover likes, free Undo and free Super Likes (set under Discover), free match filters and priority in the queue. Plans and prices are under VIP plans.',
+    description: 'Coins VIP members get each month they are subscribed. VIP also gets unlimited Discover likes, free Undo, free Super Likes and all Discover filters (set under Discover), free match filters and priority in the queue. Plans and prices are under VIP plans.',
     fields: [coins('vipMonthlyBonusCoins', 'Monthly VIP coins', undefined, 100_000)],
   },
   {
@@ -391,6 +398,9 @@ export const DEFAULT_RULES: EconomyRules = {
   discoverActiveDays: 14,
   discoverPassResetDays: 30,
   discoverVerifiedOnly: 0,
+  discoverPremiumFilters: 1,
+  discoverFilterPassCost: 25,
+  discoverFilterPassHours: 24,
 
   friendCallsEnabled: 1,
   callNeedsMessagesFirst: 1,

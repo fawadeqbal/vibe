@@ -100,6 +100,9 @@ export const useCatalog = create<CatalogState>()((set, get) => ({
       discoverSuperLikeCost: n("discoverSuperLikeCost", prev.discoverSuperLikeCost),
       discoverVipFreeSuperLikes: n("discoverVipFreeSuperLikes", prev.discoverVipFreeSuperLikes),
       discoverUndoCost: n("discoverUndoCost", prev.discoverUndoCost),
+      discoverPremiumFilters: n("discoverPremiumFilters", prev.discoverPremiumFilters),
+      discoverFilterPassCost: n("discoverFilterPassCost", prev.discoverFilterPassCost),
+      discoverFilterPassHours: n("discoverFilterPassHours", prev.discoverFilterPassHours),
       friendCallsEnabled: n("friendCallsEnabled", prev.friendCallsEnabled),
       callRingSeconds: n("callRingSeconds", prev.callRingSeconds),
     };

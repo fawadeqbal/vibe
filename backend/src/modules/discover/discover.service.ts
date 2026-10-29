@@ -16,6 +16,7 @@ import { isProfileReady } from '../users/profile.rules';
 import { PROFILE_INCLUDE, PublicProfile, toPublicProfile } from '../users/user.mapper';
 import { isBoosted, isVip } from '../wallet/wallet.mapper';
 import { WalletService } from '../wallet/wallet.service';
+import { EngagementService } from '../engagement/engagement.service';
 import { rankCards, type RankInput } from './discover.rank';
 
 export type SwipeKindView = 'like' | 'super' | 'pass';
@@ -25,7 +26,21 @@ export interface DeckQuery {
   gender?: WantedGender;
   minAge?: number;
   maxAge?: number;
+  countryCode?: string;
+  onlineOnly?: boolean;
+  verifiedOnly?: boolean;
   limit?: number;
+}
+
+/** Who may use the extra filters (gender, country, online now, verified) and why. */
+export interface DiscoverFiltersView {
+  /** Extra filters usable right now. */
+  unlocked: boolean;
+  /** Why: everyone (rule off), VIP, Vibe Hour, or a pass bought until `passUntil`. */
+  reason: 'free' | 'vip' | 'vibe_hour' | 'pass' | null;
+  passUntil: string | null;
+  passCost: number;
+  passHours: number;
 }
 
 export interface DiscoverCard {
@@ -57,6 +72,7 @@ export interface DiscoverStatus {
   showInDiscover: boolean;
   hasPhoto: boolean;
   likedYou: { count: number; unseen: number };
+  filters: DiscoverFiltersView;
 }
 
 export interface SwipeResult {
@@ -73,6 +89,11 @@ const UNDO_WINDOW = MS.hour;
 /** Candidates read per deck request (ranked in memory, then cut to the page). */
 const CANDIDATES = 300;
 const extraKey = (userId: string, day: number) => `discover:extra:${userId}:${day}`;
+const passKey = (userId: string) => `discover:fpass:${userId}`;
+
+/** The filters that need VIP, Vibe Hour or a pass (age is always free). */
+export const usesExtraFilters = (q: DeckQuery): boolean =>
+  (!!q.gender && q.gender !== 'anyone') || !!q.countryCode || !!q.onlineOnly || !!q.verifiedOnly;
 
 /**
  * Discover: a deck of real people, one at a time. Like or pass; two likes
@@ -96,6 +117,7 @@ export class DiscoverService {
     private readonly blocks: BlocksService,
     private readonly friends: FriendsService,
     private readonly messages: MessagesService,
+    private readonly engagement: EngagementService,
   ) {}
 
   private get rules() {
@@ -133,6 +155,14 @@ export class DiscoverService {
       where: { id: me },
       select: { countryCode: true, interests: true },
     });
+    if (usesExtraFilters(q)) {
+      const f = await this.filtersFor(me, now);
+      if (!f.unlocked)
+        throw new AppError(ErrorCode.FILTERS_LOCKED, 'These filters need VIP or a filter pass', HttpStatus.PAYMENT_REQUIRED, {
+          passCost: f.passCost,
+          passHours: f.passHours,
+        });
+    }
     const exclude = [me, ...(await this.blocks.excluded(me)), ...(await this.friends.connectedIds(me))];
     const passCutoff = new Date(now.getTime() - this.rules.discoverPassResetDays * MS.day);
     const minAge = Math.max(18, q.minAge ?? 18);
@@ -144,6 +174,8 @@ export class DiscoverService {
           { id: { notIn: exclude } },
           { age: { gte: minAge, lte: maxAge } },
           q.gender === 'women' ? { gender: 'FEMALE' } : q.gender === 'men' ? { gender: 'MALE' } : {},
+          q.countryCode ? { countryCode: q.countryCode } : {},
+          q.verifiedOnly ? { verified: true } : {},
           // Not swiped yet — a pass comes back after a while.
           {
             swipesGot: {
@@ -157,16 +189,19 @@ export class DiscoverService {
       include: { wallet: { select: { vipUntil: true, boostUntil: true } } },
     });
     if (!candidates.length) return { items: [] };
-    const ids = candidates.map((c) => c.id);
-    const [theirLikes, online] = await Promise.all([
+    const allIds = candidates.map((c) => c.id);
+    const online = await this.realtime.onlineMap(allIds);
+    const pool = q.onlineOnly ? candidates.filter((c) => online[c.id]) : candidates;
+    if (!pool.length) return { items: [] };
+    const ids = pool.map((c) => c.id);
+    const [theirLikes] = await Promise.all([
       this.prisma.discoverSwipe.findMany({
         where: { fromId: { in: ids }, toId: me, kind: { in: LIKES } },
         select: { fromId: true, kind: true },
       }),
-      this.realtime.onlineMap(ids),
     ]);
     const likedMe = new Map(theirLikes.map((l) => [l.fromId, l.kind]));
-    const inputs: RankInput[] = candidates.map((u) => ({
+    const inputs: RankInput[] = pool.map((u) => ({
       id: u.id,
       superLikedMe: likedMe.get(u.id) === SwipeKind.SUPER,
       likedMe: likedMe.get(u.id) === SwipeKind.LIKE,
@@ -176,7 +211,7 @@ export class DiscoverService {
       lastSeenAt: u.lastSeenAt?.getTime() ?? 0,
     }));
     const order = rankCards(inputs, Math.min(Math.max(q.limit ?? 20, 1), 50));
-    const byId = new Map(candidates.map((u) => [u.id, u]));
+    const byId = new Map(pool.map((u) => [u.id, u]));
     return {
       items: order.map((id) => {
         const u = byId.get(id)!;
@@ -229,7 +264,40 @@ export class DiscoverService {
       showInDiscover: u.showInDiscover,
       hasPhoto,
       likedYou: liked,
+      filters: await this.filtersFor(me, now, vip),
     };
+  }
+
+  /** Whether the extra filters are open for this person right now. */
+  private async filtersFor(me: string, now: Date, vip?: boolean): Promise<DiscoverFiltersView> {
+    const r = this.rules;
+    const base = { passCost: r.discoverFilterPassCost, passHours: r.discoverFilterPassHours };
+    const until = Number((await this.redis.client.get(passKey(me))) ?? 0);
+    const passUntil = until > now.getTime() ? new Date(until).toISOString() : null;
+    if (!r.discoverPremiumFilters) return { ...base, unlocked: true, reason: 'free', passUntil };
+    if (vip === undefined) {
+      const w = await this.prisma.wallet.findUnique({ where: { userId: me }, select: { vipUntil: true } });
+      vip = isVip(w, now);
+    }
+    if (vip) return { ...base, unlocked: true, reason: 'vip', passUntil };
+    if (passUntil) return { ...base, unlocked: true, reason: 'pass', passUntil };
+    if (this.engagement.isVibeHour(now)) return { ...base, unlocked: true, reason: 'vibe_hour', passUntil };
+    return { ...base, unlocked: false, reason: null, passUntil: null };
+  }
+
+  /** A filter pass: the extra filters for `discoverFilterPassHours`. Nothing is charged when they're already open. */
+  async buyFilterPass(me: string): Promise<DiscoverStatus> {
+    this.assertOn();
+    const now = this.clock.now();
+    const f = await this.filtersFor(me, now);
+    if (f.unlocked && f.reason !== 'vibe_hour') return this.status(me);
+    const until = now.getTime() + this.rules.discoverFilterPassHours * MS.hour;
+    await this.wallet.spend(me, this.rules.discoverFilterPassCost, 'Discover filter pass', {
+      idempotencyKey: `fpass:${me}:${Math.floor(now.getTime() / MS.minute)}`,
+    });
+    this.wallet.changed([me]);
+    await this.redis.client.set(passKey(me), String(until), 'PX', until - now.getTime());
+    return this.status(me);
   }
 
   // ── swiping ───────────────────────────────────────────────────────────

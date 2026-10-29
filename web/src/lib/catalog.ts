@@ -72,6 +72,10 @@ export interface Economy {
   discoverSuperLikeCost: number;
   discoverVipFreeSuperLikes: number;
   discoverUndoCost: number;
+  /** 1: gender/country/online/verified filters in Discover need VIP, Vibe Hour or a pass. */
+  discoverPremiumFilters: number;
+  discoverFilterPassCost: number;
+  discoverFilterPassHours: number;
   /** Video calls in chat: 0 = off. */
   friendCallsEnabled: number;
   callRingSeconds: number;
@@ -134,6 +138,9 @@ export const DEFAULT_ECONOMY: Economy = {
   discoverSuperLikeCost: 10,
   discoverVipFreeSuperLikes: 1,
   discoverUndoCost: 5,
+  discoverPremiumFilters: 1,
+  discoverFilterPassCost: 25,
+  discoverFilterPassHours: 24,
   friendCallsEnabled: 1,
   callRingSeconds: 30,
   pkrPerUsd: 280,

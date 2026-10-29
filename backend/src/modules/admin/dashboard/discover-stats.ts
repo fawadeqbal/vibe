@@ -17,6 +17,8 @@ export interface DiscoverCallsReport {
     matches: number;
     /** Likes still waiting for an answer (all time). */
     pendingLikes: number;
+    /** Coins spent in Discover, by what on. */
+    coins: { superLikes: number; likePacks: number; undo: number; filterPasses: number; filterPassesSold: number };
   };
   calls: {
     asked: number;
@@ -50,7 +52,7 @@ export async function discoverCallsReport(
 ): Promise<DiscoverCallsReport> {
   const since = new Date(now.getTime() - days * 86_400_000);
   const activeSince = new Date(now.getTime() - rules.discoverActiveDays * 86_400_000);
-  const [swipes, swipers, events, visibleNow, pendingLikes, callsOn, calls, recent] = await Promise.all([
+  const [swipes, swipers, events, visibleNow, pendingLikes, callsOn, calls, recent, spend] = await Promise.all([
     prisma.discoverSwipe.groupBy({ by: ['kind'], where: { createdAt: { gte: since } }, _count: { _all: true } }),
     prisma.discoverSwipe.findMany({
       where: { createdAt: { gte: since } },
@@ -87,7 +89,13 @@ export async function discoverCallsReport(
       take: 20,
       select: { id: true, startedAt: true, endedAt: true, endReason: true, userAId: true, userBId: true },
     }),
+    prisma.$queryRaw<{ k: string; coins: bigint; n: bigint }[]>`
+      SELECT split_part("idempotencyKey", ':', 1) AS k, COALESCE(SUM(ABS(coins)), 0) AS coins, count(*) AS n
+        FROM "LedgerEntry"
+       WHERE "createdAt" >= ${since} AND split_part("idempotencyKey", ':', 1) IN ('super', 'likes', 'undo', 'fpass')
+       GROUP BY 1`,
   ]);
+  const spent = (k: string) => Number(spend.find((x) => x.k === k)?.coins ?? 0);
   const swipe = (k: SwipeKind) => swipes.find((s) => s.kind === k)?._count._all ?? 0;
   const ev = (e: string) => Number(events.find((x) => x.e === e)?.n ?? 0);
   const ended = calls.filter((c) => c.endedAt);
@@ -110,6 +118,13 @@ export async function discoverCallsReport(
       swipers: swipers.length,
       matches: ev('matched'),
       pendingLikes: Number(pendingLikes[0]?.n ?? 0),
+      coins: {
+        superLikes: spent('super'),
+        likePacks: spent('likes'),
+        undo: spent('undo'),
+        filterPasses: spent('fpass'),
+        filterPassesSold: Number(spend.find((x) => x.k === 'fpass')?.n ?? 0),
+      },
     },
     calls: {
       asked: ev('calls_asked'),

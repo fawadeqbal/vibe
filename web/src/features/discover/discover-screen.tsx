@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/misc";
 import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
-import { type DiscoverCard, type SwipeKind, useDiscover } from "@/stores/discover";
+import { DEFAULT_DISCOVER_FILTERS, type DiscoverCard, type SwipeKind, useDiscover, usesExtraFilters } from "@/stores/discover";
 import { toast } from "@/stores/ui";
 
 import { DiscoverCardView } from "./discover-card";
@@ -34,6 +34,18 @@ type Fly = { id: string; kind: SwipeKind } | null;
 export function DiscoverScreen() {
   const router = useRouter();
   const needCoins = useNeedCoins();
+  const filtersOn = useDiscover((x) => usesExtraFilters(x.filters) || x.filters.minAge !== DEFAULT_DISCOVER_FILTERS.minAge || x.filters.maxAge !== DEFAULT_DISCOVER_FILTERS.maxAge);
+  const filtersExpired = useDiscover((x) => x.filtersExpired);
+  useEffect(() => {
+    if (!filtersExpired) return;
+    toast("Your filter pass ended, so only age is on now");
+    useDiscover.getState().clearFiltersExpired();
+  }, [filtersExpired]);
+  const editFilters = async () => {
+    const r = await openDiscoverFilters();
+    if (r === "vip") router.push("/vip");
+    if (r === "coins") await needCoins(`A filter pass costs ${useDiscover.getState().status?.filters.passCost ?? 25} coins. VIP gets every filter free.`);
+  };
   const deck = useDiscover((s) => s.deck);
   const loading = useDiscover((s) => s.loading);
   const status = useDiscover((s) => s.status);
@@ -190,11 +202,12 @@ export function DiscoverScreen() {
           ) : null}
           <button
             type="button"
-            onClick={() => void openDiscoverFilters()}
-            aria-label="Filters"
-            className="flex size-10 items-center justify-center rounded-full bg-white/8 text-text hover:bg-white/12"
+            onClick={() => void editFilters()}
+            aria-label={filtersOn ? "Filters (on)" : "Filters"}
+            className="relative flex size-10 items-center justify-center rounded-full bg-white/8 text-text hover:bg-white/12"
           >
             <Icon name="tune" size={20} />
+            {filtersOn ? <span aria-hidden className="absolute top-1.5 right-1.5 size-2 rounded-full bg-pink ring-2 ring-bg" /> : null}
           </button>
         </header>
 
@@ -265,7 +278,7 @@ export function DiscoverScreen() {
               </p>
               <div className="mt-5 flex w-full max-w-[300px] flex-col gap-2">
                 <GradientButton label="Meet someone live" icon="videocam" onClick={() => router.push("/match")} />
-                <GhostButton label="Change filters" icon="tune" expand onClick={() => void openDiscoverFilters()} />
+                <GhostButton label="Change filters" icon="tune" expand onClick={() => void editFilters()} />
               </div>
             </div>
           )}

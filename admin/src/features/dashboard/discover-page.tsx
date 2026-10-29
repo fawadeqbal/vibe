@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Eye, Heart, HeartHandshake, PhoneMissed, Settings2, Star, Timer, Video, VideoOff } from "lucide-react";
+import { Coins, Eye, Filter, Heart, HeartHandshake, PhoneMissed, Settings2, Star, Timer, Undo2, Video, VideoOff } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
@@ -78,6 +78,13 @@ export function DiscoverPage() {
             <StatCard label="Likes" icon={Heart} tone="primary" loading={q.isLoading} value={format.number(likes)} hint={d && `${format.number(d.superLikes)} Super Likes · ${format.number(d.swipers)} people swiping`} />
             <StatCard label="Matches" icon={HeartHandshake} tone="ok" loading={q.isLoading} value={format.number(d?.matches)} hint={d && `${share(d.matches * 2, likes)} of likes became a match`} />
             <StatCard label="Likes waiting" icon={Star} tone="neutral" loading={q.isLoading} value={format.number(d?.pendingLikes)} hint="not answered yet (all time)" />
+          </div>
+          <p className="mt-5 mb-2 text-xs font-medium uppercase tracking-wide text-muted">Coins spent in Discover</p>
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <StatCard label="Filter passes" icon={Filter} tone="primary" loading={q.isLoading} value={format.number(d?.coins?.filterPasses)} hint={d?.coins && `${format.number(d.coins.filterPassesSold)} passes bought`} />
+            <StatCard label="Super Likes" icon={Star} tone="trust" loading={q.isLoading} value={format.number(d?.coins?.superLikes)} hint="coins, after VIP free ones" />
+            <StatCard label="More likes" icon={Coins} tone="ok" loading={q.isLoading} value={format.number(d?.coins?.likePacks)} hint="like packs" />
+            <StatCard label="Undo" icon={Undo2} tone="neutral" loading={q.isLoading} value={format.number(d?.coins?.undo)} hint="coins" />
           </div>
         </CardBody>
       </Card>

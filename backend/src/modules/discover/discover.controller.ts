@@ -22,7 +22,7 @@ export class DiscoverController {
   @Get('deck')
   @ApiOperation({
     summary:
-      'The next people to swipe: real, active people with a photo you are not connected with. Super Likes come first.',
+      'The next people to swipe: real, active people with a photo you are not connected with. Super Likes come first. Gender/country/online/verified filters need VIP, Vibe Hour or a filter pass (FILTERS_LOCKED, 402).',
   })
   deck(@CurrentUser('id') me: string, @Query() q: DeckQueryDto) {
     return this.discover.deck(me, q);
@@ -50,6 +50,13 @@ export class DiscoverController {
   @ApiOperation({ summary: 'More likes for today, for coins' })
   buyLikes(@CurrentUser('id') me: string) {
     return this.discover.buyLikes(me);
+  }
+
+  @Post('filter-pass')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Unlock gender, country, online and verified filters for a while, for coins (free for VIP and in Vibe Hour)' })
+  buyFilterPass(@CurrentUser('id') me: string) {
+    return this.discover.buyFilterPass(me);
   }
 
   @Get('liked-you')
