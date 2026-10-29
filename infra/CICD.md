@@ -170,6 +170,8 @@ Every release has:
 
 The notes list the commits that changed `app/` since the last release, plus the signing certificate.
 
+**Pull requests** that change `app/` get the same tests and build as a check ("Android build check"), signed with a throwaway debug key and never released. The APK is attached to the run (**Artifacts → vibe-test-apk-prN**, kept 7 days) so you can try a change on your phone before merging. Uninstall the test build before installing a real release: the keys differ.
+
 ### Versions
 
 | You want | Do |
