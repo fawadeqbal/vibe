@@ -248,7 +248,7 @@ export const RULE_GROUPS: RuleGroup[] = [
   {
     key: 'vip',
     label: 'VIP perks',
-    description: 'Coins VIP members get each month they are subscribed.',
+    description: 'Coins VIP members get each month they are subscribed. VIP also gets unlimited Discover likes, free Undo and free Super Likes (set under Discover), free match filters and priority in the queue. Plans and prices are under VIP plans.',
     fields: [coins('vipMonthlyBonusCoins', 'Monthly VIP coins', undefined, 100_000)],
   },
   {
