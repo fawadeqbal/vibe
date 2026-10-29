@@ -845,3 +845,38 @@ export interface DiscoverCallsReport {
   calls: { asked: number; allowed: number; notNow: number; turnedOff: number; chatsWithCallsOn: number; calls: number; missed: number; declined: number; avgSeconds: number; reported: number };
   recentCalls: { id: string; startedAt: string; seconds: number | null; a: { id: string; name: string }; b: { id: string; name: string }; endReason: string | null }[];
 }
+
+// ── Marketing site (admin/dashboard/marketing) ──────────────────────────────
+export interface MarketingTotals {
+  visitors: number;
+  visits: number;
+  pageViews: number;
+  clickedVisits: number;
+  clicks: number;
+  signups: number;
+  firstCalls: number;
+  medianSeconds: number;
+}
+export interface MarketingNamed {
+  name: string;
+  visitors: number;
+}
+export interface MarketingReport {
+  days: number;
+  generatedAt: string;
+  siteUrl: string;
+  totals: MarketingTotals;
+  previous: MarketingTotals;
+  daily: { day: string; visitors: number; clicked: number; signups: number }[];
+  sources: { source: string; medium: string; visitors: number; clicked: number; signups: number }[];
+  countries: { country: string; visitors: number; regions: MarketingNamed[] }[];
+  cities: { city: string; country: string | null; visitors: number }[];
+  buttons: { button: string; target: string | null; clicks: number; signups: number }[];
+  pages: { path: string; visits: number; clicked: number }[];
+  campaigns: { campaign: string; source: string; medium: string; visitors: number; signups: number }[];
+  devices: { device: MarketingNamed[]; os: MarketingNamed[]; browser: MarketingNamed[]; lang: MarketingNamed[] };
+  live: {
+    now: number;
+    recent: { at: string; country: string | null; region: string | null; city: string | null; source: string; path: string; did: "reading" | "clicked" | "signed_up" | "left"; button: string | null }[];
+  };
+}

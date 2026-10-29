@@ -15,8 +15,8 @@ export function SiteFooter() {
     { href: "/#safety", label: "Safety" },
     { href: "/#vip", label: "VIP" },
     { href: "/#faq", label: "FAQ" },
-    { href: site.links.webApp, label: "Open web app" },
-    { href: site.links.android, label: "Android app" },
+    { href: site.links.webApp, label: "Open web app", track: "footer_web" },
+    { href: site.links.android, label: "Android app", track: "footer_android" },
   ];
   const legal = [
     { href: site.links.terms, label: "Terms" },
@@ -46,7 +46,7 @@ export function SiteFooter() {
               <ul className="mt-4 flex flex-col gap-2.5">
                 {c.links.map((l) => (
                   <li key={l.href + l.label}>
-                    <a href={l.href} className="text-[13.5px] text-text2 underline-offset-4 transition-colors hover:text-pink-soft hover:underline">
+                    <a href={l.href} data-cta={"track" in l ? l.track : undefined} className="text-[13.5px] text-text2 underline-offset-4 transition-colors hover:text-pink-soft hover:underline">
                       {l.label}
                     </a>
                   </li>

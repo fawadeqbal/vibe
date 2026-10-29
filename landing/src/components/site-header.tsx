@@ -50,7 +50,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2 md:ml-0">
-          <Cta href={site.links.android} size="sm" className="shadow-[0_8px_24px_rgb(255_61_143/0.28)]">
+          <Cta href={site.links.android} track="header_app" size="sm" className="shadow-[0_8px_24px_rgb(255_61_143/0.28)]">
             Get the app
           </Cta>
           <button

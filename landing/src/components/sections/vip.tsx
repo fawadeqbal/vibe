@@ -34,7 +34,7 @@ export function Vip() {
           ))}
         </ul>
         <div className="mt-[30px] flex flex-wrap items-center justify-center gap-3.5">
-          <Cta href={site.links.webApp} variant="gold" className="h-[52px] text-[15px]">
+          <Cta href={`${site.links.webApp}/vip`} track="vip_trial" variant="gold" className="h-[52px] text-[15px]">
             Start 3-day free trial
           </Cta>
           <span className="text-[13px] text-muted">from $2.99 · nothing charged today · cancel any time</span>

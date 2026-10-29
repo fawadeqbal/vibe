@@ -15,7 +15,7 @@ export function Invite() {
             <h2 className="text-base font-semibold">Give 50, get 100 coins</h2>
             <p className="mt-[3px] text-[13.5px] leading-normal text-text2">Share your invite link from the app. Your friend gets 50 coins and you get 100 once they&apos;re verified and have had 3 calls.</p>
           </div>
-          <Cta href={`${site.links.webApp}/invite`} variant="outline" size="md">
+          <Cta href={`${site.links.webApp}/invite`} track="invite_open" variant="outline" size="md">
             <Icon name="share" size={17} />
             Invite a friend
           </Cta>
@@ -70,7 +70,7 @@ export function FinalCta() {
           Someone&apos;s waiting to meet <span className="serif text-pink-soft">you</span>
         </h2>
         <p className="mt-4 text-base text-text2">Free to download. Free to match. 18+ only.</p>
-        <Cta href={site.links.android} size="xl" className="mt-[30px] shadow-[0_12px_34px_rgb(255_61_143/0.35)]">
+        <Cta href={site.links.android} track="final_cta" size="xl" className="mt-[30px] shadow-[0_12px_34px_rgb(255_61_143/0.35)]">
           <Icon name="download" size={20} />
           Get {site.name} for Android
         </Cta>

@@ -1255,3 +1255,64 @@ model UserMessage {
   @@index([userId, createdAt])
   @@index([userId, readAt])
 }
+
+/// One visit to the marketing site (landing/). The id is made in the visitor's browser; a visit
+/// ends after 30 minutes without activity. No IP address is stored; country/region/city come from
+/// the CDN's location headers.
+model SiteVisit {
+  id           String      @id
+  /// Random id kept in the visitor's browser (counts returning visitors once).
+  visitorId    String
+  startedAt    DateTime    @default(now())
+  lastAt       DateTime    @default(now())
+  /// First page, without the query string.
+  landingPath  String
+  referrerHost String?
+  /// google, bing, tiktok, instagram, facebook, whatsapp, youtube, x, invite, direct, or the referring host.
+  source       String
+  /// search, social, paid, invite, referral, ai, email, direct (or the link's utm_medium).
+  medium       String
+  campaign     String?
+  country      String?
+  region       String?
+  city         String?
+  /// phone | tablet | computer
+  device       String
+  os           String
+  browser      String
+  lang         String?
+  pages        Int         @default(1)
+  clicks       Int         @default(0)
+  /// The last "go to the app" button pressed (credited with the sign-up).
+  lastButton   String?
+  seconds      Int         @default(0)
+  /// The account that signed up from this visit.
+  userId       String?     @unique
+  signedUpAt   DateTime?
+  events       SiteEvent[]
+
+  @@index([startedAt])
+  @@index([lastAt])
+  @@index([visitorId])
+}
+
+enum SiteEventKind {
+  VIEW
+  CLICK
+}
+
+/// A page view or a button click on the marketing site (kept 90 days).
+model SiteEvent {
+  id      String        @id @default(cuid())
+  visitId String
+  visit   SiteVisit     @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  kind    SiteEventKind
+  path    String
+  button  String?
+  /// Where the button went (app path or "play").
+  target  String?
+  at      DateTime      @default(now())
+
+  @@index([at])
+  @@index([visitId])
+}

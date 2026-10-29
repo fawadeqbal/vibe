@@ -20,6 +20,8 @@ export async function configureApp(app: NestExpressApplication): Promise<void> {
   app.use(compression());
   const origins = config.list('CORS_ORIGINS');
   app.enableCors({ origin: origins.includes('*') ? (origin, cb) => cb(null, true) : origins, credentials: true });
+  // Landing-page beacons arrive as text/plain (no CORS preflight); the site controller parses them.
+  app.useBodyParser('text', { limit: '16kb' });
   app.setGlobalPrefix('v1', { exclude: ['health/live', 'health/ready'] });
   // Public media at /media: streamed from the bucket (s3 driver; a CDN set in S3_PUBLIC_URL can
   // sit in front with this as its origin), then from disk — the local driver's files, or under s3
