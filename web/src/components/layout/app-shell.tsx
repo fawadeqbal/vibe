@@ -11,6 +11,9 @@ import { useInbox } from "@/stores/inbox";
 import { useMatch } from "@/stores/match";
 import { incomingOf, unreadTotal, useSocial } from "@/stores/social";
 import { useWaitlist } from "@/stores/waitlist";
+import { useWaves } from "@/stores/waves";
+
+import { dismissLooking } from "@/features/match/waitlist-strip";
 
 interface Tab {
   href: string;
@@ -115,6 +118,7 @@ export function AppShell({ children }: { children: ReactNode }) {
  */
 function SomeoneLookingBar() {
   const at = useWaitlist((s) => s.someoneLookingAt);
+  const who = useWaves((s) => s.lookingFrom);
   if (!at) return null;
   return (
     <div role="alert" className="flex items-center gap-3 border-b border-pink/30 bg-pink/14 px-4 py-2.5 pt-[calc(10px+env(safe-area-inset-top))] lg:pt-2.5">
@@ -122,11 +126,11 @@ function SomeoneLookingBar() {
         <span className="absolute inset-0 animate-ping rounded-full bg-pink-soft opacity-70" />
         <span className="relative size-2.5 rounded-full bg-pink" />
       </span>
-      <span className="type-label flex-1 text-[13px] text-text">Someone&apos;s looking for a match right now</span>
+      <span className="type-label flex-1 text-[13px] text-text">{who ? `${who.name.split(" ")[0]} is looking for a match right now` : "Someone's looking for a match right now"}</span>
       <Link href="/match" className="type-label rounded-full bg-pink px-3.5 py-1.5 text-[13px] font-semibold text-white hover:brightness-110">
         Go
       </Link>
-      <button type="button" aria-label="Dismiss" onClick={() => useWaitlist.getState().dismiss()} className="type-label text-[12.5px] text-text2 hover:text-text">
+      <button type="button" aria-label="Dismiss" onClick={dismissLooking} className="type-label text-[12.5px] text-text2 hover:text-text">
         Not now
       </button>
     </div>

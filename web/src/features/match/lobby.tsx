@@ -23,6 +23,7 @@ import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { useWaitlist } from "@/stores/waitlist";
+import { useWaves } from "@/stores/waves";
 import { filterCost, isBoosted, isVip, useWallet } from "@/stores/wallet";
 
 import { openFiltersSheet, TRUST_ROW } from "./filters-sheet";
@@ -33,6 +34,7 @@ import { FriendsOnline, VibeHourBanner } from "./lobby-extras";
 import { openSafetySheet } from "./safety-sheet";
 import { SelfVideo } from "./self-video";
 import { type Availability, useAvailability } from "./use-availability";
+import { RecentlyHere } from "./recently-here";
 import { WaitlistStrip } from "./waitlist-strip";
 import { confirmBoost } from "./use-match-actions";
 
@@ -275,7 +277,7 @@ function WideLobby({ onStart, availability }: { onStart: () => void; availabilit
       </section>
 
       {/* The panel: what Start does, who you'll meet, then Start. */}
-      <aside aria-label="Start matching" className="flex w-[400px] shrink-0 flex-col overflow-y-auto py-5 pr-5 xl:w-[440px] xl:py-6 xl:pr-6">
+      <aside aria-label="Start matching" className="flex w-[400px] shrink-0 flex-col overflow-y-auto py-5 pr-5 xl:w-[440px] xl:py-6 xl:pr-6 [&>*]:shrink-0">
         <LobbyHeader showPreviewToggle={false} />
 
         <div className="mt-4 flex flex-col items-start gap-2 empty:hidden">
@@ -290,6 +292,7 @@ function WideLobby({ onStart, availability }: { onStart: () => void; availabilit
         <AvailabilityLine availability={availability} className="mt-4" />
         <WaitlistStrip availability={availability} onStart={onStart} className="mt-3 justify-start" />
         <VibeHourInvite className="mt-3" />
+        <RecentlyHere tone="panel" className="mt-4" />
 
         <SectionTitle text="Who you'll meet" top={26} bottom={10} note={s.filtersFree ? (s.vip ? "Free with VIP" : "Free during Vibe Hour") : undefined} />
         <FilterRows free={s.filtersFree} />
@@ -494,6 +497,7 @@ function CameraState({ wide = false }: { wide?: boolean }) {
   const previewOn = useMatch((s) => s.previewOn);
   const cameraActive = useMatch((s) => s.cameraActive);
   const autoBlur = useMatch((s) => s.autoBlur);
+  const hasPeople = useWaves((s) => s.recent.length > 0);
   if (camLive) return null;
   if (previewOn && cameraActive)
     return <span role="status" aria-label="Starting camera" className="size-7 animate-spin rounded-full border-[2.5px] border-white/25 border-t-white/80" />;
@@ -511,7 +515,9 @@ function CameraState({ wide = false }: { wide?: boolean }) {
         <span className="type-label mt-3 text-[14px] font-semibold text-white">{wide ? "Check your camera" : "Tap to preview your camera"}</span>
         <span className="type-body mt-1 text-[12px] text-white/62">Only you see this. It stays off until you need it.</span>
       </button>
-      <HowItWorks autoBlur={autoBlur} className={cn("mt-6 w-full", !wide && "[@media(max-height:760px)]:hidden")} />
+      {/* Phones: real people to wave at beat the explainer when there are any. Wide screens list them in the panel. */}
+      {wide ? null : <RecentlyHere className="mt-6" />}
+      {wide || !hasPeople ? <HowItWorks autoBlur={autoBlur} className={cn("mt-6 w-full", !wide && "[@media(max-height:760px)]:hidden")} /> : null}
     </div>
   );
 }

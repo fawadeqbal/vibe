@@ -26,6 +26,8 @@ export interface Ticket {
   /** For partner scoring (optional: tickets queued before these existed). */
   interests?: string[];
   vibeScore?: number;
+  /** People they waved with recently: paired first. */
+  waved?: string[];
 }
 
 export interface ActiveMatch {

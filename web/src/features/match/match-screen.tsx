@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Gift } from "@/lib/models";
 import { useMatch } from "@/stores/match";
-import { useWaitlist } from "@/stores/waitlist";
 
 import { Connected } from "./connected";
 import { Ended } from "./ended";
@@ -12,6 +11,7 @@ import { GiftBurst } from "./gift-burst";
 import { Lobby } from "./lobby";
 import { Searching } from "./searching";
 import { useMatchActions } from "./use-match-actions";
+import { dismissLooking } from "./waitlist-strip";
 
 /**
  * The app. Four looks on one screen: lobby (idle), searching, connected,
@@ -44,7 +44,7 @@ export function MatchScreen() {
 
   // Once you're searching or in a call, "someone's looking" has done its job.
   useEffect(() => {
-    if (status === "searching" || status === "connected") useWaitlist.getState().dismiss();
+    if (status === "searching" || status === "connected") dismissLooking();
   }, [status]);
 
   // A new incoming gift → burst.

@@ -77,6 +77,27 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     },
   },
   {
+    key: 'wave_received',
+    name: 'Someone waved',
+    description: 'Sent when someone waves at a person who has no phone app and is not online. At most one a day per person.',
+    usage: 'system',
+    variables: [
+      { name: 'from', description: 'First name of the person who waved', sample: 'Sara' },
+      { name: 'back', description: '" back" when it was a wave back, otherwise empty', sample: '' },
+      { name: 'appUrl', description: 'Link to the match screen', sample: 'https://app.vibe.fawadiqbal.dev/match' },
+    ],
+    defaults: {
+      subject: '{{from}} waved{{back}} at you on Vibe 👋',
+      preheader: "Wave back and you're matched first when you're both on.",
+      heading: '{{from}} waved{{back}} at you 👋',
+      body: "Hi {{name}}, {{from}} saw you on Vibe and said hi.\n\nOpen Vibe and wave back. When you're both looking for a match, you two are matched **first**. Tonight's Vibe Hour, when most people are on, is a good time.",
+      highlight: '',
+      buttonLabel: 'Open Vibe',
+      buttonUrl: '{{appUrl}}',
+      footer: 'You get this because someone waved at you and you have e-mail updates on. Turn them off with the link below.',
+    },
+  },
+  {
     key: 'general_message',
     name: 'General message',
     description: 'A friendly note from the team. Starting point for messages.',

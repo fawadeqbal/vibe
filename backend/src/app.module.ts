@@ -38,6 +38,7 @@ import { MessagingModule } from './modules/messaging/messaging.module';
 import { MaintenanceGuard } from './modules/settings/maintenance.guard';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SocialModule } from './modules/social/social.module';
+import { WavesModule } from './modules/waves/waves.module';
 import { UsersModule } from './modules/users/users.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 
@@ -101,6 +102,7 @@ function canPrettyPrint(): boolean {
     PaymentsModule,
     PushModule,
     SocialModule,
+    WavesModule,
     ModerationModule,
     MatchingModule,
     MomentsModule,

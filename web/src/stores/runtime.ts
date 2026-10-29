@@ -11,6 +11,7 @@ import { useSession } from "./session";
 import { useSocial } from "./social";
 import { useWallet } from "./wallet";
 import { useWaitlist } from "./waitlist";
+import { useWaves } from "./waves";
 import { startBreakReminder, stopBreakReminder } from "./wellbeing";
 
 /**
@@ -56,6 +57,7 @@ function onSessionChanged(signedIn: boolean) {
     useReferrals.getState().reset();
     useAffiliate.getState().reset();
     useWaitlist.getState().reset();
+    useWaves.getState().reset();
     stopBreakReminder();
   }
 }
