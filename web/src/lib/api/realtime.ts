@@ -24,6 +24,8 @@ export const Ev = {
   matchGame: "match:game",
   matchGameAnswer: "match:game-answer",
   matchGameClosed: "match:game-closed",
+  /** You asked to be told when someone's looking (POST /match/notify-me), and someone is. One-shot. */
+  matchSomeoneLooking: "match:someone-looking",
   rtcSignal: "rtc:signal",
   friendRequest: "social:friend-request",
   friendAccepted: "social:friend-accepted",

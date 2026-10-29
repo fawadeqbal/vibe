@@ -14,6 +14,8 @@ import { thousands, until } from "@/lib/format";
 import type { MatchFilters } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
 import { useMatch } from "@/stores/match";
+import { toast } from "@/stores/ui";
+import { useWaitlist } from "@/stores/waitlist";
 import { isBoosted, isVip, useWallet } from "@/stores/wallet";
 
 import { countryLabel, genderFilterLabel, isNarrowed, searchClock } from "./labels";
@@ -215,11 +217,21 @@ function SlowSearchCard({ filters, nobodyAround, onRestart }: { filters: MatchFi
           <span className="ml-3.5 flex-1">
             <span className="type-title block text-[14px] font-semibold">{nobodyAround ? "It's quiet right now" : "Taking a little longer"}</span>
             <span className="type-body mt-[3px] block text-[12.5px] leading-[1.45] text-text2">
-              Stay on this screen and we&apos;ll connect you the moment someone joins. Or invite a friend so there&apos;s always someone to meet.
+              Stay here and we&apos;ll connect you the moment someone joins. Or leave, and we&apos;ll tell you when someone starts looking.
             </span>
           </span>
         </div>
-        <div className="mt-1.5 flex justify-end">
+        <div className="mt-1.5 flex flex-wrap justify-end gap-1">
+          <TextButton
+            icon="notifications_active"
+            onClick={async () => {
+              const ok = await useWaitlist.getState().notifyMe();
+              useMatch.getState().stop();
+              toast(ok ? "We'll tell you when someone starts looking" : "Couldn't set that up. Try again.", { error: !ok });
+            }}
+          >
+            Notify me instead
+          </TextButton>
           <TextButton
             icon="person_add"
             onClick={() => {

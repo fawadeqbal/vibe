@@ -19,9 +19,10 @@ const int = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.
  * Live counts from `GET /match/online`, polled while the screen is open
  * (faster while you're in the queue). `null` until the first answer or if the
  * API can't say — callers hide the line rather than invent a number.
- * `inQueue` removes you from the searching count.
+ * `inQueue` removes you from the searching count; a new `refreshKey` asks
+ * again right away (e.g. when "someone's looking" arrives).
  */
-export function useAvailability({ inQueue = false, everyMs = 20_000 }: { inQueue?: boolean; everyMs?: number } = {}): Availability | null {
+export function useAvailability({ inQueue = false, everyMs = 20_000, refreshKey }: { inQueue?: boolean; everyMs?: number; refreshKey?: unknown } = {}): Availability | null {
   const [counts, setCounts] = useState<{ online: number; searching: number } | null>(null);
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export function useAvailability({ inQueue = false, everyMs = 20_000 }: { inQueue
       alive = false;
       clearInterval(t);
     };
-  }, [everyMs]);
+  }, [everyMs, refreshKey]);
 
   if (!counts) return null;
   // The online count includes you (you're connected); the queue does once you've joined it.
