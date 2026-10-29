@@ -45,6 +45,15 @@ class CatalogProvider extends ChangeNotifier {
     if (e['usdCentsPerGem'] is num) Economy.usdPerGem = (e['usdCentsPerGem'] as num).toDouble() / 100;
     Economy.cashoutMinGems = i('cashoutMinGems', Economy.cashoutMinGems);
     Economy.vipMonthlyBonusCoins = i('vipMonthlyBonusCoins', Economy.vipMonthlyBonusCoins);
+    Economy.discoverEnabled = i('discoverEnabled', Economy.discoverEnabled ? 1 : 0) != 0;
+    Economy.discoverFreeLikesPerDay = i('discoverFreeLikesPerDay', Economy.discoverFreeLikesPerDay);
+    Economy.discoverLikePackSize = i('discoverLikePackSize', Economy.discoverLikePackSize);
+    Economy.discoverLikePackCost = i('discoverLikePackCost', Economy.discoverLikePackCost);
+    Economy.discoverSuperLikeCost = i('discoverSuperLikeCost', Economy.discoverSuperLikeCost);
+    Economy.discoverVipFreeSuperLikes = i('discoverVipFreeSuperLikes', Economy.discoverVipFreeSuperLikes);
+    Economy.discoverUndoCost = i('discoverUndoCost', Economy.discoverUndoCost);
+    Economy.friendCallsEnabled = i('friendCallsEnabled', Economy.friendCallsEnabled ? 1 : 0) != 0;
+    Economy.callRingSeconds = i('callRingSeconds', Economy.callRingSeconds);
     if (e['checkInRewards'] is List) Economy.checkInRewards = List.unmodifiable((e['checkInRewards'] as List).map((n) => (n as num).toInt()));
     Economy.rewardedAdCoins = i('rewardedAdCoins', Economy.rewardedAdCoins);
     Economy.rewardedAdsPerDay = i('rewardedAdsPerDay', Economy.rewardedAdsPerDay);

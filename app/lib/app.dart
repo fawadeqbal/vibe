@@ -8,7 +8,9 @@ import 'core/api/realtime_client.dart';
 import 'core/api/system_notices.dart';
 import 'core/theme/vibe_theme.dart';
 import 'models/payments.dart';
+import 'providers/calls_provider.dart';
 import 'providers/catalog_provider.dart';
+import 'providers/discover_provider.dart';
 import 'providers/engagement_provider.dart';
 import 'providers/follows_provider.dart';
 import 'providers/inbox_provider.dart';
@@ -131,6 +133,10 @@ class _VibeAppState extends State<VibeApp> {
     await context.read<EngagementProvider>().load();
     if (!mounted) return;
     await context.read<MomentsProvider>().load();
+    if (!mounted) return;
+    await context.read<DiscoverProvider>().loadStatus();
+    if (!mounted) return;
+    await context.read<CallsProvider>().checkIncoming();
     if (!mounted) return;
     // The Me row shows where you are in the creator partner program.
     await context.read<PartnerProvider?>()?.load();

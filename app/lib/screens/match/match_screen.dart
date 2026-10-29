@@ -271,7 +271,7 @@ class _MatchScreenState extends State<MatchScreen> {
               MatchState.ended when m.lastPartner != null => _Ended(m: m, onReconnect: _reconnect, onFindAnother: _start, onReport: _reportLast),
               _ => _Lobby(m: m, onStart: _start, onOpenStore: widget.onOpenStore),
             },
-            if (_celebrating && m.isConnected && m.partner != null)
+            if (_celebrating && m.isConnected && m.partner != null && !m.friendCall)
               Positioned.fill(
                 child: Center(
                   child: MutualCelebration(
@@ -1167,6 +1167,20 @@ class _Connected extends StatelessWidget {
               ],
               _ChatOverlay(m: m, controller: chatScroll, maxHeight: m.game != null ? 84 : 168),
               const SizedBox(height: 14),
+              if (m.friendCall)
+                // A call with a friend from a chat: no Next, no like, no add — End.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    RoundControl(icon: SolarIconsBold.gift, onTap: onGift, label: 'Gift', color: V.gold),
+                    const SizedBox(width: 20),
+                    RoundControl(icon: SolarIconsBold.gamepadMinimalistic, onTap: onPlay, label: 'Play', color: V.lavender, tint: m.game != null ? V.violet : null),
+                    const SizedBox(width: 20),
+                    RoundControl(icon: Icons.call_end_rounded, size: 64, onTap: m.stop, label: 'End', background: const Color(0xFFE11D48)),
+                  ],
+                )
+              else
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Row(

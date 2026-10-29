@@ -175,6 +175,7 @@ class LocalMatchProvider extends MatchProvider {
     _timers.clear();
     _ticker?.cancel();
     _ticker = null;
+    if (finishFriendCall()) return;
     final mutual = _likedPartner && _partnerLikedMe;
     if (_current != null) {
       final rec = _current!.copyWith(endedAt: DateTime.now());
@@ -263,6 +264,15 @@ class LocalMatchProvider extends MatchProvider {
     if (p == null) return;
     await _social.block(p);
     _end(EndReason.reported);
+  }
+
+  @override
+  Future<void> beginFriendCall(Profile p) async {
+    if (_state == MatchState.connected) _end(EndReason.stopped);
+    setFriendCall(true);
+    unawaited(ensureCamera());
+    _connect(p);
+    _blurUntil = null;
   }
 
   /// Call the last person again (paid). False when unaffordable or nobody.

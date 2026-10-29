@@ -106,6 +106,34 @@ abstract class SocialProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Video calls in one chat changed (consent answer, `call:consent`).
+  void setCalls(String friendId, CallsView calls) {
+    final i = _friends.indexWhere((x) => x.profile.id == friendId);
+    if (i < 0 || (_friends[i].calls.mine == calls.mine && _friends[i].calls.theirs == calls.theirs)) return;
+    _friends[i] = _friends[i].copyWith(calls: calls);
+    notifyListeners();
+  }
+
+  /// A new friend from a Discover match: refreshes the list (server) or
+  /// adds them with a "You matched" line (offline demo).
+  Future<void> addMatched(Friend f);
+
+  /// Adds a line to a chat that isn't sent anywhere (offline demo: call
+  /// events, "You matched"; the server sends its own).
+  @protected
+  void appendLocal(String friendId, ChatMessage m) {
+    final list = _chats.putIfAbsent(friendId, () => []);
+    if (list.any((x) => x.id == m.id)) return;
+    list.add(m);
+    final i = _friends.indexWhere((x) => x.profile.id == friendId);
+    if (i >= 0) _friends[i] = _friends[i].copyWith(lastMessage: m.text);
+    notifyListeners();
+  }
+
+  /// Offline demo: a system line from Vibe in a chat.
+  void addSystemLine(String friendId, String text, String event, {bool fromMe = false, Map<String, dynamic> extra = const {}}) =>
+      appendLocal(friendId, ChatMessage(id: 'sys${DateTime.now().microsecondsSinceEpoch}', fromMe: fromMe, text: text, at: DateTime.now(), kind: MessageKind.system, meta: {'event': event, ...extra}));
+
   /// Test seam.
   @visibleForTesting
   void debugSetStreak(String friendId, StreakView streak) => setStreak(friendId, streak);

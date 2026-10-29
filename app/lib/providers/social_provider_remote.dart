@@ -70,7 +70,7 @@ class RemoteSocialProvider extends SocialProvider {
     list.add(msg);
     final f = friend(friendId);
     if (f != null) {
-      final unread = !msg.fromMe && _openChat != friendId ? f.unread + 1 : f.unread;
+      final unread = !msg.fromMe && !msg.isSystem && _openChat != friendId ? f.unread + 1 : f.unread;
       _replace(f.copyWith(lastMessage: msg.gift != null ? '${msg.gift!.emoji} ${msg.gift!.name}' : msg.text, unread: unread));
     }
     if (_openChat == friendId && !msg.fromMe) markRead(friendId);
@@ -86,6 +86,12 @@ class RemoteSocialProvider extends SocialProvider {
     _replace(f.copyWith(online: online));
     notifyListeners();
   }
+
+  @override
+  Future<void> addMatched(Friend f) => _reloadFriends();
+
+  /// Re-reads the friends list (presence, calls) — e.g. after a match.
+  Future<void> refreshFriends() => _reloadFriends();
 
   @override
   Future<bool> restoreStreak(String friendId) async {

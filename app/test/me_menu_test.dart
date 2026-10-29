@@ -13,6 +13,7 @@ import 'package:vibe_app/core/theme/vibe_widgets.dart';
 import 'package:vibe_app/models/models.dart';
 import 'package:vibe_app/models/partner.dart';
 import 'package:vibe_app/providers/catalog_provider.dart';
+import 'package:vibe_app/providers/discover_provider.dart';
 import 'package:vibe_app/providers/engagement_provider.dart';
 import 'package:vibe_app/providers/follows_provider.dart';
 import 'package:vibe_app/providers/inbox_provider.dart';
@@ -45,6 +46,7 @@ class MeHarness {
   late MomentsProvider moments;
   late ReferralsProvider referrals;
   late PartnerProvider partner;
+  late DiscoverProvider discover;
   late InviteCapture invites;
   final inbox = InboxProvider();
   final catalog = CatalogProvider();
@@ -63,6 +65,7 @@ class MeHarness {
     moments = MomentsProvider(backend, session);
     referrals = ReferralsProvider(backend);
     partner = PartnerProvider(verified: () => session.me?.verified == true, status: partnerStatus);
+    discover = DiscoverProvider(social, wallet);
     await session.signIn(method: 'email');
     await session.saveProfile(session.me!.copyWith(name: 'Sana Malik', age: 23, avatarUrl: '', bio: 'Coffee first, then calls.', interests: const ['Music', 'Travel', 'Books']));
     if (history) {
@@ -105,6 +108,7 @@ class MeHarness {
           ChangeNotifierProvider<MomentsProvider>.value(value: moments),
           ChangeNotifierProvider<ReferralsProvider>.value(value: referrals),
           ChangeNotifierProvider<PartnerProvider>.value(value: partner),
+          ChangeNotifierProvider<DiscoverProvider>.value(value: discover),
           ChangeNotifierProvider.value(value: invites),
         ],
         child: MaterialApp(theme: V.theme(), home: home),

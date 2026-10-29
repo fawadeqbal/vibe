@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 /// Where a tapped notification should take you, from its `data`
-/// (`route`: chat + friendId | friends | inbox | wallet | store | match | profile + userId | follow-requests | invite | partner).
+/// (`route`: chat + friendId | friends | inbox | wallet | store | match | profile + userId | follow-requests | invite | partner | discover | call).
 @immutable
 class PushRoute {
   const PushRoute(this.target, {this.friendId, this.userId, this.purchaseId, this.cashoutId});
@@ -36,6 +36,10 @@ class PushRoute {
       'invite' => const PushRoute(PushTarget.invite),
       // Creator partner news: the partner screen.
       'partner' => const PushRoute(PushTarget.partner),
+      // A match or a like in Discover.
+      'discover' => const PushRoute(PushTarget.discover),
+      // A friend is calling: the app shows the ring when it opens.
+      'call' => PushRoute(PushTarget.call, friendId: s('friendId')),
       _ => null,
     };
   }
@@ -48,7 +52,7 @@ class PushRoute {
   String toString() => 'PushRoute($target${friendId != null ? ', $friendId' : ''})';
 }
 
-enum PushTarget { chat, friends, inbox, wallet, store, match, profile, followRequests, invite, partner }
+enum PushTarget { chat, friends, inbox, wallet, store, match, profile, followRequests, invite, partner, discover, call }
 
 /// Android notification channels (ids = the server's `category`).
 const pushChannels = <String, String>{

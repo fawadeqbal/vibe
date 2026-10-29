@@ -137,6 +137,40 @@ abstract class MatchProvider extends ChangeNotifier {
   bool get isSearching => _state == MatchState.searching;
   bool get isConnected => _state == MatchState.connected;
 
+  // ── calls with friends (from a chat) ──────────────────────────────────
+  bool _friendCall = false;
+  final _friendCallEnded = StreamController<String>.broadcast();
+
+  /// This call is with a friend, started from a chat: no Next, no recap.
+  bool get friendCall => _friendCall;
+
+  /// A friend call ended: the friend's id (go back to that chat).
+  Stream<String> get friendCallEnded => _friendCallEnded.stream;
+
+  /// Offline demo: a friend picked up — start the call with them. (On the
+  /// server the call starts with `match:found`, friendCall: true.)
+  Future<void> beginFriendCall(Profile p) async {}
+
+  /// Marks the call that is starting as a friend call (or not).
+  @protected
+  void setFriendCall(bool v) => _friendCall = v;
+
+  /// A friend call ended: back to idle (no recap) and tell the app which
+  /// chat to show. True when it was a friend call.
+  @protected
+  bool finishFriendCall() {
+    if (!_friendCall) return false;
+    _friendCall = false;
+    final id = _partner?.id;
+    _state = MatchState.idle;
+    _partner = null;
+    _current = null;
+    _game = null;
+    notifyListeners();
+    if (id != null) _friendCallEnded.add(id);
+    return true;
+  }
+
   /// Seconds left of the skip cooldown, 0 when none.
   int get cooldownSeconds {
     final u = _cooldownUntil;
@@ -518,6 +552,7 @@ abstract class MatchProvider extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _friendCallEnded.close();
     _ticker?.cancel();
     _idleTimer?.cancel();
     _backgroundTimer?.cancel();

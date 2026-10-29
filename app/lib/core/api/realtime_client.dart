@@ -47,6 +47,24 @@ class Ev {
   static const referralUpdated = 'referral:updated';
   static const referralMilestone = 'referral:milestone';
   static const affiliateUpdated = 'affiliate:updated';
+
+  /// You and someone liked each other in Discover: `{ friend }`.
+  static const discoverMatch = 'discover:match';
+
+  /// Someone liked you in Discover: `{ superLike, from, unseen }`.
+  static const discoverLiked = 'discover:liked';
+
+  /// Video calls in a chat changed: `{ friendId, mine, theirs, asked?, from? }`.
+  static const callConsent = 'call:consent';
+
+  /// A friend is calling you: `{ callId, from, expiresAt }`.
+  static const callIncoming = 'call:incoming';
+
+  /// Your call is ringing on their side: `{ callId, to, expiresAt }`.
+  static const callRinging = 'call:ringing';
+
+  /// A ringing call stopped: `{ callId, reason, reply?, from? }`.
+  static const callEnded = 'call:ended';
 }
 
 class RealtimeEvent {
