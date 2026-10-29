@@ -36,9 +36,30 @@ describe('compatibility', () => {
     expect(compatible(t('a', {}, { safeMode: true }), t('b', { verified: true }))).toBe(true);
   });
 
-  it('blocks and the last partner are excluded both ways', () => {
+  it('blocks are excluded both ways', () => {
     expect(compatible(t('a', { exclude: ['b'] }), t('b'))).toBe(false);
     expect(compatible(t('a'), t('b', { exclude: ['a'] }))).toBe(false);
+  });
+
+  it('the last partner comes back only after both waited (nobody else came)', () => {
+    const a = t('a', { lastPartner: 'b', rematchAfterMs: 15_000, enqueuedAt: 0 });
+    const b = t('b', { lastPartner: 'a', rematchAfterMs: 15_000, enqueuedAt: 5_000 });
+    expect(compatible(a, b, 10_000)).toBe(false);
+    expect(compatible(a, b, 19_000)).toBe(false); // b has waited only 14 s
+    expect(compatible(a, b, 20_000)).toBe(true);
+    // 0 (or an old ticket without the setting) = never from the queue.
+    expect(compatible({ ...a, rematchAfterMs: 0 }, b, 999_000)).toBe(false);
+    // Someone else is fine straight away.
+    expect(compatible(a, t('c', { enqueuedAt: 9_000 }), 9_000)).toBe(true);
+  });
+
+  it('a fresh face is picked before the last partner', () => {
+    const me = t('me', { lastPartner: 'old', rematchAfterMs: 15_000, enqueuedAt: 0 });
+    const old = t('old', { lastPartner: 'me', rematchAfterMs: 15_000, enqueuedAt: 0 });
+    expect(pickPartner(me, [old], 5_000)).toBeUndefined();
+    expect(pickPartner(me, [old], 16_000)?.userId).toBe('old');
+    expect(pickPartner(me, [old, t('new', { enqueuedAt: 4_000 })], 5_000)?.userId).toBe('new');
+    expect(pickPartner(me, [old, t('new', { enqueuedAt: 4_000 })], 16_000)?.userId).toBe('new');
   });
 
   it('VIP and boost get a head start, not the front', () => {

@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import type { Socket } from 'socket.io-client';
 
+import { EconomyService } from '../src/modules/catalog/economy.service';
 import { connect, createTestApp, emit, next, resetState, signUp, sleep, TestApp, TestUser } from './helpers';
 
 describe('matching over sockets', () => {
@@ -86,6 +87,31 @@ describe('matching over sockets', () => {
     await sleep(300);
     const status = await t.redis.client.zcard('mq:queue');
     expect(status).toBe(2);
+  });
+
+  it('with nobody else around, the last two are paired again after the wait', async () => {
+    const rules = await t.prisma.appSetting.findUnique({ where: { key: 'economy.rules' } });
+    await t.prisma.appSetting.upsert({
+      where: { key: 'economy.rules' },
+      create: { key: 'economy.rules', value: { rematchAfterSeconds: 1 } },
+      update: { value: { ...((rules?.value as object) ?? {}), rematchAfterSeconds: 1 } },
+    });
+    await t.app.get(EconomyService).reload();
+    try {
+      const { a, b, sa, sb } = await pair();
+      await emit(sa, 'match:next', {});
+      const foundA = next(sa, 'match:found', 6000);
+      const foundB = next(sb, 'match:found', 6000);
+      await emit(sb, 'match:join', {});
+      await sleep(300);
+      expect(await t.redis.client.zcard('mq:queue')).toBe(2); // not straight away
+      expect((await foundA).partner.id).toBe(b.id);
+      expect((await foundB).partner.id).toBe(a.id);
+    } finally {
+      await t.prisma.appSetting.deleteMany({ where: { key: 'economy.rules' } });
+      if (rules) await t.prisma.appSetting.create({ data: { key: rules.key, value: rules.value as object } });
+      await t.app.get(EconomyService).reload();
+    }
   });
 
   it('paid filters are charged when the match happens, and only for compatible people', async () => {
