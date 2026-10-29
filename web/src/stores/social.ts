@@ -217,7 +217,7 @@ function onMessage(m: Json) {
   if (list.some((x) => x.id === msg.id)) return;
   const all = s.all.map((f) => {
     if (f.profile.id !== friendId) return f;
-    const unread = !msg.fromMe && openChat !== friendId ? f.unread + 1 : f.unread;
+    const unread = !msg.fromMe && msg.kind !== "system" && openChat !== friendId ? f.unread + 1 : f.unread;
     return { ...f, lastMessage: msg.gift ? `${msg.gift.emoji} ${msg.gift.name}` : msg.text, unread };
   });
   useSocial.setState({ chats: { ...s.chats, [friendId]: [...list, msg] }, all });

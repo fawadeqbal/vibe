@@ -26,7 +26,7 @@ export class PushBridge implements OnModuleInit {
 
   private readonly builders: Partial<Record<ServerEventName, Builder>> = {
     [ServerEvent.Message]: async (p) => {
-      if (p.fromMe) return null;
+      if (p.fromMe || p.kind === 'system') return null;
       const friend = await this.prisma.user.findUnique({ where: { id: String(p.friendId) }, select: { name: true } });
       return { title: friend?.name || 'New message', body: p.giftId ? 'Sent you a gift 🎁' : String(p.text ?? '').slice(0, 140), data: { route: 'chat', friendId: String(p.friendId) }, category: 'messages', collapseKey: `chat:${p.friendId}` };
     },
@@ -74,6 +74,21 @@ export class PushBridge implements OnModuleInit {
       const from = (p.from ?? {}) as { id?: string; name?: string };
       const name = String(from.name ?? '').trim().split(/\s+/)[0] || 'Someone you waved at';
       return { title: `${name} is looking for a match now`, body: 'Open Vibe and press Start: you two are matched first.', data: { route: 'match' }, category: 'social', collapseKey: `wave-looking:${from.id}` };
+    },
+    [ServerEvent.DiscoverMatch]: (p) => {
+      const f = ((p.friend ?? {}) as { profile?: { id?: string; name?: string } }).profile ?? {};
+      const name = String(f.name ?? '').trim().split(/\s+/)[0] || 'Someone';
+      return { title: "It's a match! 💞", body: `You and ${name} liked each other. Say hi!`, data: { route: 'chat', friendId: String(f.id ?? '') }, category: 'social', collapseKey: `discover-match:${f.id}` };
+    },
+    [ServerEvent.DiscoverLiked]: async (p, userId) => {
+      const from = (p.from ?? null) as { id?: string; name?: string } | null;
+      if (p.superLike && from) {
+        const name = String(from.name ?? '').trim().split(/\s+/)[0] || 'Someone';
+        return { title: `${name} Super Liked you ⭐`, body: 'Open Discover to see them first.', data: { route: 'discover' }, category: 'social', collapseKey: `discover-super:${from.id}` };
+      }
+      // Plain likes: one push a day at most.
+      if (!(await this.firstToday(`push:discover-liked:${userId}`))) return null;
+      return { title: 'Someone liked you 💜', body: 'Keep swiping in Discover — like them back and it’s a match.', data: { route: 'discover' }, category: 'social', collapseKey: 'discover-liked' };
     },
     [ServerEvent.GoalReached]: (p) => ({ title: 'Goal reached 🎯', body: `You reached your goal of ${Number(p.goal).toLocaleString('en-US')} gems.`, data: { route: 'wallet' }, category: 'payments' }),
     [ServerEvent.InboxMessage]: (p) => ({ title: String(p.title ?? 'Message from Vibe'), body: String(p.body ?? '').slice(0, 160), data: { route: 'inbox' }, category: 'inbox' }),

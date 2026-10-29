@@ -93,6 +93,13 @@ export const useCatalog = create<CatalogState>()((set, get) => ({
       affiliateCpaUsdCents: n("affiliateCpaUsdCents", prev.affiliateCpaUsdCents),
       affiliateHoldDays: n("affiliateHoldDays", prev.affiliateHoldDays),
       affiliateMinPayoutUsdCents: n("affiliateMinPayoutUsdCents", prev.affiliateMinPayoutUsdCents),
+      discoverEnabled: n("discoverEnabled", prev.discoverEnabled),
+      discoverFreeLikesPerDay: n("discoverFreeLikesPerDay", prev.discoverFreeLikesPerDay),
+      discoverLikePackSize: n("discoverLikePackSize", prev.discoverLikePackSize),
+      discoverLikePackCost: n("discoverLikePackCost", prev.discoverLikePackCost),
+      discoverSuperLikeCost: n("discoverSuperLikeCost", prev.discoverSuperLikeCost),
+      discoverVipFreeSuperLikes: n("discoverVipFreeSuperLikes", prev.discoverVipFreeSuperLikes),
+      discoverUndoCost: n("discoverUndoCost", prev.discoverUndoCost),
     };
     const list = (k: string) => asList(c[k]).map(asMap);
     const packs: CoinPack[] = list("packs").map((p) => ({

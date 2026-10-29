@@ -89,4 +89,12 @@ export enum ErrorCode {
   SKIP_COOLDOWN = 'SKIP_COOLDOWN',
   PARTNER_UNAVAILABLE = 'PARTNER_UNAVAILABLE',
   MATCHING_PAUSED = 'MATCHING_PAUSED',
+
+  // discover
+  /** Discover is switched off (503). */
+  DISCOVER_OFF = 'DISCOVER_OFF',
+  /** Today's free likes are used (429): details `{ resetsAt, packSize, packCost }`. */
+  OUT_OF_LIKES = 'OUT_OF_LIKES',
+  /** Nothing to undo (only the last pass can come back) (409). */
+  NOTHING_TO_UNDO = 'NOTHING_TO_UNDO',
 }

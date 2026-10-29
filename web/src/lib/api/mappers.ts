@@ -156,7 +156,9 @@ export function teamMessage(m: Json): TeamMessage {
 }
 
 export function message(m: Json, giftById: (id: unknown) => Gift | null): ChatMessage {
-  return { id: str(m.id), fromMe: bool(m.fromMe), text: str(m.text), at: date(m.at) ?? new Date(), gift: giftById(m.giftId) };
+  const kind = m.kind === "system" ? "system" : m.kind === "gift" || m.giftId ? "gift" : "text";
+  const meta = m.meta && typeof m.meta === "object" ? (m.meta as Record<string, unknown>) : null;
+  return { id: str(m.id), fromMe: bool(m.fromMe), kind, meta, text: str(m.text), at: date(m.at) ?? new Date(), gift: kind === "system" ? null : giftById(m.giftId) };
 }
 
 export function matchRecord(m: Json): MatchRecord | null {

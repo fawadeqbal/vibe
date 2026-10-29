@@ -192,6 +192,10 @@ export const NO_STREAK: StreakView = { count: 0, best: 0, today: false, atRisk: 
 export interface ChatMessage {
   id: string;
   fromMe: boolean;
+  /** `system`: a line from Vibe ("You matched in Discover", call events), shown centred. */
+  kind?: "text" | "gift" | "system";
+  /** System lines: `{ event, ... }`. */
+  meta?: Record<string, unknown> | null;
   text: string;
   at: Date;
   gift?: Gift | null;

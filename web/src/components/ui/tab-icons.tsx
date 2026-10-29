@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
-export type TabIconName = "match" | "chats" | "store" | "me";
+export type TabIconName = "match" | "discover" | "chats" | "store" | "me";
 
 const GLYPHS: Record<TabIconName, { outline: ReactNode; bold: ReactNode }> = {
   // solar:videocamera-outline / solar:videocamera-bold
@@ -22,6 +22,27 @@ const GLYPHS: Record<TabIconName, { outline: ReactNode; bold: ReactNode }> = {
     bold: (
       <>
         <path fill="currentColor" d="M2 11.5V12.5C2 15.7875 2 17.4312 2.90796 18.5376C3.07418 18.7401 3.25989 18.9258 3.46243 19.092C4.56878 20 6.21252 20 9.5 20C12.7875 20 14.4312 20 15.5376 19.092C15.7401 18.9258 15.9258 18.7401 16.092 18.5376C16.7936 17.6827 16.9531 16.507 16.9893 14.5L17.6584 14.8292C19.6042 15.8021 20.5772 16.2886 21.2886 15.8489C22 15.4093 22 14.3215 22 12.1459V11.8541C22 9.67853 22 8.59075 21.2886 8.15107C20.5772 7.7114 19.6042 8.19788 17.6584 9.17082L16.9893 9.50002C16.9531 7.49303 16.7936 6.3173 16.092 5.46243C15.9258 5.25989 15.7401 5.07418 15.5376 4.90796C14.4312 4 12.7875 4 9.5 4C6.21252 4 4.56878 4 3.46243 4.90796C3.25989 5.07418 3.07418 5.25989 2.90796 5.46243C2 6.56878 2 8.21252 2 11.5Z" />
+      </>
+    ),
+  },
+  // Discover: a card with one behind it (drawn to match the Solar line weight).
+  discover: {
+    outline: (
+      <>
+        <rect x="7.25" y="3.75" width="12" height="16.5" rx="3.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M4.75 6.5v11" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M13.25 15.2s-2.9-1.75-2.9-3.6c0-.95.75-1.65 1.6-1.65.6 0 1 .3 1.3.75.3-.45.7-.75 1.3-.75.85 0 1.6.7 1.6 1.65 0 1.85-2.9 3.6-2.9 3.6z" fill="currentColor" />
+      </>
+    ),
+    bold: (
+      <>
+        <path
+          fill="currentColor"
+          fillRule="evenodd"
+          d="M10.5 3h5.5a4 4 0 014 4v10a4 4 0 01-4 4h-5.5a4 4 0 01-4-4V7a4 4 0 014-4zm2.75 12.4s3.2-1.9 3.2-3.95c0-1.1-.85-1.95-1.85-1.95-.6 0-1.05.27-1.35.66-.3-.39-.75-.66-1.35-.66-1 0-1.85.85-1.85 1.95 0 2.05 3.2 3.95 3.2 3.95z"
+          clipRule="evenodd"
+        />
+        <path d="M4.75 6.5v11" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
       </>
     ),
   },

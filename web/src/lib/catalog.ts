@@ -64,6 +64,14 @@ export interface Economy {
   affiliateCpaUsdCents: number;
   affiliateHoldDays: number;
   affiliateMinPayoutUsdCents: number;
+  /** Discover (the swipe deck): 0 = off. */
+  discoverEnabled: number;
+  discoverFreeLikesPerDay: number;
+  discoverLikePackSize: number;
+  discoverLikePackCost: number;
+  discoverSuperLikeCost: number;
+  discoverVipFreeSuperLikes: number;
+  discoverUndoCost: number;
   /** Local currency shown next to USD prices. */
   pkrPerUsd: number;
 }
@@ -116,6 +124,13 @@ export const DEFAULT_ECONOMY: Economy = {
   affiliateCpaUsdCents: 10,
   affiliateHoldDays: 14,
   affiliateMinPayoutUsdCents: 1000,
+  discoverEnabled: 1,
+  discoverFreeLikesPerDay: 30,
+  discoverLikePackSize: 30,
+  discoverLikePackCost: 20,
+  discoverSuperLikeCost: 10,
+  discoverVipFreeSuperLikes: 1,
+  discoverUndoCost: 5,
   pkrPerUsd: 280,
 };
 

@@ -37,6 +37,11 @@ export const ServerEvent = {
   /** Someone you waved with started looking for a match: `{ from: PublicProfile }`. */
   WaveLooking: 'wave:looking',
 
+  /** You and someone liked each other in Discover: `{ friend: FriendView }` (chat is open). */
+  DiscoverMatch: 'discover:match',
+  /** Someone liked you in Discover: `{ superLike, from: PublicProfile | null, unseen }` (`from` only for a Super Like). */
+  DiscoverLiked: 'discover:liked',
+
   RtcSignal: 'rtc:signal',
 
   FriendRequest: 'social:friend-request',
