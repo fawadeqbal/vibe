@@ -15,6 +15,23 @@ type Stage = "booting" | "signedOut" | "setup" | "permissions" | "ready";
 const SIGNED_OUT = ["/welcome", "/sign-in"];
 const ONBOARDING = [...SIGNED_OUT, "/setup", "/permissions"];
 
+/** Where a signed-out visitor was headed (a link to /discover, a chat…), so sign-in can take them there. */
+const NEXT_KEY = "vibe.next";
+const remember = (path: string) => {
+  try {
+    if (path !== "/" && !ONBOARDING.includes(path)) window.sessionStorage.setItem(NEXT_KEY, path);
+  } catch {}
+};
+const takeRemembered = (): string | null => {
+  try {
+    const p = window.sessionStorage.getItem(NEXT_KEY);
+    window.sessionStorage.removeItem(NEXT_KEY);
+    return p && p.startsWith("/") && !p.startsWith("//") ? p : null;
+  } catch {
+    return null;
+  }
+};
+
 /** Where this stage of first-run may be, or null when the path is fine. */
 function redirectFor(stage: Stage, path: string): string | null {
   switch (stage) {
@@ -61,8 +78,12 @@ export function AppRuntime({ children }: { children: ReactNode }) {
   const target = bare ? null : redirectFor(stage, path);
 
   useEffect(() => {
-    if (target) router.replace(target);
-  }, [target, router]);
+    if (!target) return;
+    if (stage === "signedOut") remember(path + window.location.search);
+    // Done with first-run: go where they were headed, if anywhere.
+    const dest = stage === "ready" ? (takeRemembered() ?? target) : target;
+    router.replace(dest);
+  }, [target, router, stage, path]);
 
   // A navigation closes any sheet or dialog left open by the previous page.
   useEffect(() => closeAllOverlays(), [path]);

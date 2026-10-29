@@ -23,7 +23,7 @@ export function Hero() {
             Meet someone new, <span className="serif text-pink-soft">right now.</span>
           </h1>
           <p className="mt-5 max-w-[460px] text-[17px] leading-[1.6] text-text2">
-            {site.name} is free random video chat with real, selfie-verified people: one tap puts you face to face with someone new, anywhere in the world. Swipe to the next when the spark isn&apos;t there, stay when it is. No profile to build first, no waiting.
+            {site.name} is free random video chat with real, selfie-verified people: one tap puts you face to face with someone new, anywhere in the world. Swipe to the next when the spark isn&apos;t there, stay when it is. No profile to build first, no waiting. Rather look first? Swipe in Discover and video call once you both say yes.
           </p>
           <div className="mt-[30px] flex flex-wrap items-center gap-3">
             <Cta href={site.links.webApp}>
