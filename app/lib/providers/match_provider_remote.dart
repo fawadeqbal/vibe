@@ -35,6 +35,18 @@ class RemoteMatchProvider extends MatchProvider {
       }),
       _rt.on(Ev.matchError).listen((e) => _fail(ApiException(e['code'] as String? ?? 'INTERNAL', e['message'] as String? ?? 'Could not start the match'))),
       _rt.on(Ev.rtcSignal).listen(_onSignal),
+      _rt.on(Ev.callVideo).listen((e) {
+        if (e['matchId'] != _matchId || !voiceCall) return;
+        switch (e['state']) {
+          case 'asked':
+            setVideoAsk(VideoAsk.theirs);
+          case 'on':
+            unawaited(turnOnVideo());
+          case 'declined':
+            _lastError = "They'd rather stay on voice for now.";
+            setVideoAsk(VideoAsk.none);
+        }
+      }),
       _rt.on(Ev.accountBanned).listen((_) => _fail(ApiException('ACCOUNT_BANNED', 'Your account is paused after reports. Try again later.'))),
     ];
   }
@@ -266,7 +278,7 @@ class RemoteMatchProvider extends MatchProvider {
     _blurUntil = e['blur'] == true ? DateTime.now().add(const Duration(seconds: 3)) : null;
     _state = MatchState.connected;
     _lastError = null;
-    setFriendCall(e['friendCall'] == true);
+    setFriendCall(e['friendCall'] == true, voice: e['audioOnly'] == true);
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       _elapsed += const Duration(seconds: 1);
@@ -441,6 +453,8 @@ class RemoteMatchProvider extends MatchProvider {
     final matchId = _matchId;
     await _closePeer();
     if (!_cameraEnabled) return;
+    // A voice call: the lobby preview had the camera on — reopen with the mic only.
+    if (voiceCall && (_localStream?.getVideoTracks().isNotEmpty ?? false)) await releaseCamera();
     await ensureCamera();
     final local = _localStream;
     if (local == null) return;
@@ -464,13 +478,32 @@ class RemoteMatchProvider extends MatchProvider {
     for (final t in local.getTracks()) {
       await pc.addTrack(t, local);
     }
+    // Voice calls keep a video line ready, so turning video on later is
+    // just a replaceTrack (no renegotiation).
+    if (voiceCall && caller) {
+      await pc.addTransceiver(
+        kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+        init: RTCRtpTransceiverInit(direction: TransceiverDirection.SendRecv, streams: [local]),
+      );
+    }
     pc.onIceCandidate = (c) {
       if (c.candidate == null) return;
       _rt.request('rtc:signal', {'type': 'ice', 'data': c.toMap()}).catchError((_) => null);
     };
-    pc.onTrack = (event) {
-      if (_pc != pc || event.streams.isEmpty) return;
-      _remoteStream = event.streams.first;
+    pc.onTrack = (event) async {
+      if (_pc != pc) return;
+      final current = _remoteStream;
+      if (event.streams.isNotEmpty && (current == null || current.id == event.streams.first.id)) {
+        _remoteStream = event.streams.first;
+      } else {
+        // A track without a stream (the voice call's video line): add it to
+        // the one we have so audio keeps playing.
+        final s = current ?? await createLocalMediaStream('remote');
+        if (_pc != pc) return;
+        if (!s.getTracks().any((t) => t.id == event.track.id)) await s.addTrack(event.track);
+        _remoteStream = s;
+        remoteRenderer.srcObject = null;
+      }
       remoteRenderer.srcObject = _remoteStream;
       _hasRemoteVideo = true;
       notifyListeners();
@@ -511,6 +544,14 @@ class RemoteMatchProvider extends MatchProvider {
           if (pc == null) return;
           await pc.setRemoteDescription(RTCSessionDescription(data['sdp'] as String?, data['type'] as String?));
           await _flushIce();
+          // Answer the reserved video line as send-and-receive too (voice calls).
+          for (final t in await pc.getTransceivers()) {
+            if (t.receiver.track?.kind == 'video' && t.sender.track == null) {
+              await t.setDirection(TransceiverDirection.SendRecv);
+              final local = _localStream;
+              if (local != null) await t.sender.setStreams([local]).catchError((_) {});
+            }
+          }
           final answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           await _rt.request('rtc:signal', {'type': 'answer', 'data': answer.toMap()});
@@ -529,6 +570,65 @@ class RemoteMatchProvider extends MatchProvider {
       }
     } catch (err) {
       debugPrint('rtc signal ${e['type']} failed: $err');
+    }
+  }
+
+  @override
+  Future<void> askVideo() async {
+    final id = _matchId;
+    if (id == null || !voiceCall) return;
+    setVideoAsk(VideoAsk.mine);
+    try {
+      await _api.post('/calls/live/$id/video', {'action': 'ask'});
+    } on ApiException catch (e) {
+      _lastError = e.message;
+      setVideoAsk(VideoAsk.none);
+    }
+  }
+
+  @override
+  Future<void> answerVideo(bool yes) async {
+    final id = _matchId;
+    setVideoAsk(VideoAsk.none);
+    if (id == null) return;
+    await _api.post('/calls/live/$id/video', {'action': yes ? 'yes' : 'no'}).catchError((_) => null);
+  }
+
+  /// Both said yes: open the camera and send it on the reserved video line.
+  @override
+  Future<void> turnOnVideo() async {
+    if (!voiceCall) return;
+    await super.turnOnVideo();
+    try {
+      final cam = await navigator.mediaDevices.getUserMedia({
+        'audio': false,
+        'video': {'facingMode': _frontCamera ? 'user' : 'environment', 'width': 720, 'height': 1280, 'frameRate': 24},
+      });
+      final track = cam.getVideoTracks().firstOrNull;
+      if (track == null) return;
+      final local = _localStream;
+      if (local != null) {
+        await local.addTrack(track);
+        localRenderer.srcObject = null;
+        localRenderer.srcObject = local;
+      } else {
+        _localStream = cam;
+        localRenderer.srcObject = cam;
+      }
+      final pc = _pc;
+      if (pc != null) {
+        for (final t in await pc.getTransceivers()) {
+          if (t.receiver.track?.kind == 'video') {
+            await t.sender.replaceTrack(track);
+            break;
+          }
+        }
+      }
+      _applyTracks();
+      notifyListeners();
+    } catch (e) {
+      _lastError = 'Camera unavailable: $e';
+      notifyListeners();
     }
   }
 

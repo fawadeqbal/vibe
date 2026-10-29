@@ -28,6 +28,9 @@ abstract class SocialProvider extends ChangeNotifier {
   List<Profile> _likedYou = [];
   int? _likedYouCount;
   bool _loaded = false;
+  final Map<String, DateTime> _typing = {};
+  final Map<String, DateTime> _seenAt = {};
+  final Map<String, Timer> _typingTimers = {};
 
   List<Friend> get friends =>
       _friends.where((f) => f.state == FriendState.friends).toList()..sort((a, b) => (b.lastMessage == null ? b.since : _lastAt(b)).compareTo(a.lastMessage == null ? a.since : _lastAt(a)));
@@ -88,9 +91,80 @@ abstract class SocialProvider extends ChangeNotifier {
   Future<void> remove(String id);
   Future<void> block(Profile p);
   Future<void> unblock(String id);
-  Future<void> sendMessage(String friendId, String text);
+  Future<void> sendMessage(String friendId, String text, {String? replyToId});
   Future<bool> sendGift(String friendId, Gift gift);
   void markRead(String friendId);
+
+  /// A photo (`MessageKind.photo`) or voice note (`MessageKind.voice`).
+  /// Throws [ApiException] `FEATURE_DISABLED` when it's switched off.
+  Future<void> sendMedia(String friendId, MessageKind kind, Uint8List bytes, {required String contentType, int? seconds, int? w, int? h, String? replyToId});
+
+  /// Your one reaction on a message; the same again (or null) removes it.
+  Future<void> react(String friendId, String messageId, String? emoji);
+
+  /// Takes back your own message (within `Economy.chatUnsendMinutes`).
+  Future<void> unsend(String friendId, String messageId);
+
+  /// Tell them you're typing (throttled: at most every 3 s).
+  void typingTo(String friendId) {}
+
+  /// They're typing to you right now.
+  bool isTyping(String friendId) => _typing[friendId]?.isAfter(DateTime.now()) ?? false;
+
+  /// When they last read the chat (live `message:read`).
+  DateTime? seenAt(String friendId) => _seenAt[friendId];
+
+  /// Whether your [m] can still be unsent.
+  static bool canUnsend(ChatMessage m) =>
+      m.fromMe && !m.unsent && !m.isSystem && m.kind != MessageKind.gift && DateTime.now().difference(m.at).inMinutes < Economy.chatUnsendMinutes;
+
+  /// They're typing (for about 4 s unless it's renewed).
+  @protected
+  void noteTyping(String friendId, {bool on = true}) {
+    _typingTimers.remove(friendId)?.cancel();
+    if (!on) {
+      if (_typing.remove(friendId) != null) notifyListeners();
+      return;
+    }
+    _typing[friendId] = DateTime.now().add(const Duration(seconds: 4));
+    _typingTimers[friendId] = Timer(const Duration(seconds: 4), () {
+      _typing.remove(friendId);
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  @protected
+  void noteSeen(String friendId, DateTime at) {
+    _seenAt[friendId] = at;
+    notifyListeners();
+  }
+
+  /// Replaces one message (reaction, unsend, upload done).
+  @protected
+  void replaceMessage(String friendId, ChatMessage m, {String? oldId}) {
+    final list = _chats[friendId];
+    if (list == null) return;
+    final i = list.indexWhere((x) => x.id == (oldId ?? m.id));
+    if (i < 0) return;
+    list[i] = m;
+    if (i == list.length - 1) {
+      final fi = _friends.indexWhere((x) => x.profile.id == friendId);
+      if (fi >= 0) _friends[fi] = _friends[fi].copyWith(lastMessage: lastLine(m));
+    }
+    notifyListeners();
+  }
+
+  /// The chats-list preview of a message.
+  static String lastLine(ChatMessage m) => m.unsent ? 'Message unsent' : m.gift != null ? '${m.gift!.emoji} ${m.gift!.name}' : m.text;
+
+  @override
+  void dispose() {
+    for (final t in _typingTimers.values) {
+      t.cancel();
+    }
+    super.dispose();
+  }
 
   /// Brings back a streak that broke yesterday for `restoreCost` coins (free
   /// for VIP). False when it could not be paid for; throws [ApiException]
@@ -109,7 +183,8 @@ abstract class SocialProvider extends ChangeNotifier {
   /// Video calls in one chat changed (consent answer, `call:consent`).
   void setCalls(String friendId, CallsView calls) {
     final i = _friends.indexWhere((x) => x.profile.id == friendId);
-    if (i < 0 || (_friends[i].calls.mine == calls.mine && _friends[i].calls.theirs == calls.theirs)) return;
+    final c = i < 0 ? null : _friends[i].calls;
+    if (c == null || (c.mine == calls.mine && c.theirs == calls.theirs && c.mineVideo == calls.mineVideo && c.theirsVideo == calls.theirsVideo)) return;
     _friends[i] = _friends[i].copyWith(calls: calls);
     notifyListeners();
   }
@@ -133,6 +208,10 @@ abstract class SocialProvider extends ChangeNotifier {
   /// Offline demo: a system line from Vibe in a chat.
   void addSystemLine(String friendId, String text, String event, {bool fromMe = false, Map<String, dynamic> extra = const {}}) =>
       appendLocal(friendId, ChatMessage(id: 'sys${DateTime.now().microsecondsSinceEpoch}', fromMe: fromMe, text: text, at: DateTime.now(), kind: MessageKind.system, meta: {'event': event, ...extra}));
+
+  /// Test seam: a message as if it arrived.
+  @visibleForTesting
+  void debugAppend(String friendId, ChatMessage m) => appendLocal(friendId, m);
 
   /// Test seam.
   @visibleForTesting

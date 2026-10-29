@@ -42,6 +42,8 @@ dependencies:
   package_info_plus: ^10.2.2 # app version sent with the push token
   share_plus: ^13.3.1
   solar_icons: ^0.2.0 # modern outline/bold icon pairs (tab dock)
+  record: ^7.1.2
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:

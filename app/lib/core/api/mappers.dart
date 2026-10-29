@@ -125,7 +125,18 @@ class ApiMap {
     calls: callsView(m['calls']),
   );
 
-  static CallsView callsView(Object? m) => m is Map ? CallsView(mine: m['mine'] == true, theirs: m['theirs'] == true) : CallsView.off;
+  /// Each side's call permission (older servers send only mine/theirs, which meant video).
+  static CallsView callsView(Object? m) {
+    if (m is! Map) return CallsView.off;
+    final mine = m['mine'] == true;
+    final theirs = m['theirs'] == true;
+    return CallsView(
+      mine: mine,
+      theirs: theirs,
+      mineVideo: mine && (m['mineVideo'] == null || m['mineVideo'] == true),
+      theirsVideo: theirs && (m['theirsVideo'] == null || m['theirsVideo'] == true),
+    );
+  }
 
   static FollowState followState(Object? s) => switch (s) {
         'following' => FollowState.following,
@@ -202,16 +213,27 @@ class ApiMap {
     final kind = switch (m['kind']) {
       'system' => MessageKind.system,
       'gift' => MessageKind.gift,
+      'photo' => MessageKind.photo,
+      'voice' => MessageKind.voice,
       _ => m['giftId'] != null ? MessageKind.gift : MessageKind.text,
     };
+    final r = m['replyTo'];
+    final re = m['reactions'] is Map ? Map<String, dynamic>.from(m['reactions'] as Map) : const <String, dynamic>{};
     return ChatMessage(
       id: m['id'] as String,
       fromMe: m['fromMe'] as bool? ?? false,
       text: m['text'] as String? ?? '',
       at: date(m['at']) ?? DateTime.now(),
-      gift: kind == MessageKind.system ? null : gift(m['giftId']),
+      gift: kind == MessageKind.gift ? gift(m['giftId']) : null,
       kind: kind,
       meta: m['meta'] is Map ? Map<String, dynamic>.from(m['meta'] as Map) : null,
+      replyTo: r is Map
+          ? ReplyRef(id: '${r['id']}', fromMe: r['fromMe'] == true, kind: '${r['kind'] ?? 'text'}', text: '${r['text'] ?? ''}', unsent: r['unsent'] == true)
+          : null,
+      reactionMine: re['mine'] as String?,
+      reactionTheirs: re['theirs'] as String?,
+      unsent: m['unsent'] == true,
+      readAt: date(m['readAt']),
     );
   }
 
@@ -255,13 +277,18 @@ class ApiMap {
 
   // ── calls in chat ─────────────────────────────────────────────────────
 
-  static CallState callState(Map<String, dynamic> m) => CallState(
-        mine: m['mine'] == true,
-        theirs: m['theirs'] == true,
+  static CallState callState(Map<String, dynamic> m) {
+    final v = callsView(m);
+    return CallState(
+        mine: v.mine,
+        theirs: v.theirs,
+        mineVideo: v.mineVideo,
+        theirsVideo: v.theirsVideo,
         canAsk: m['canAsk'] == true,
         askAfter: date(m['askAfter']),
         askBlockedBy: m['askBlockedBy'] as String?,
       );
+  }
 
   static MatchRecord? matchRecord(Map<String, dynamic> m) {
     final p = m['partner'];

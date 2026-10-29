@@ -122,6 +122,12 @@ class Json {
         'text': c.text,
         'at': c.at.toIso8601String(),
         'gift': c.gift?.id,
+        if (c.kind != MessageKind.text && c.kind != MessageKind.gift) 'kind': c.kind.name,
+        if (c.meta != null) 'meta': c.meta,
+        if (c.unsent) 'unsent': true,
+        if (c.reactionMine != null) 'reactionMine': c.reactionMine,
+        if (c.reactionTheirs != null) 'reactionTheirs': c.reactionTheirs,
+        if (c.replyTo != null) 'replyTo': {'id': c.replyTo!.id, 'fromMe': c.replyTo!.fromMe, 'kind': c.replyTo!.kind, 'text': c.replyTo!.text, 'unsent': c.replyTo!.unsent},
       };
 
   static ChatMessage toMessage(Map<String, dynamic> m) => ChatMessage(
@@ -130,6 +136,14 @@ class Json {
         text: m['text'] as String,
         at: DateTime.parse(m['at'] as String),
         gift: m['gift'] == null ? null : MockData.gifts.firstWhere((g) => g.id == m['gift'], orElse: () => MockData.gifts.first),
+        kind: m['gift'] != null ? MessageKind.gift : MessageKind.values.firstWhere((k) => k.name == m['kind'], orElse: () => MessageKind.text),
+        meta: m['meta'] is Map ? Map<String, dynamic>.from(m['meta'] as Map) : null,
+        unsent: m['unsent'] == true,
+        reactionMine: m['reactionMine'] as String?,
+        reactionTheirs: m['reactionTheirs'] as String?,
+        replyTo: m['replyTo'] is Map
+            ? ReplyRef(id: m['replyTo']['id'] as String, fromMe: m['replyTo']['fromMe'] == true, kind: '${m['replyTo']['kind']}', text: '${m['replyTo']['text']}', unsent: m['replyTo']['unsent'] == true)
+            : null,
       );
 
   static Map<String, dynamic> matchRecord(MatchRecord r) => {

@@ -31,6 +31,7 @@ import 'icebreakers.dart';
 import 'lobby_extras.dart';
 import 'report_sheet.dart';
 import 'safety_sheet.dart';
+import 'voice_call.dart';
 
 /// The app. Four looks on one screen: lobby (idle), searching, connected,
 /// ended. In the lobby your camera stays off until you ask for a preview
@@ -266,6 +267,7 @@ class _MatchScreenState extends State<MatchScreen> {
           fit: StackFit.expand,
           children: [
             switch (m.state) {
+              MatchState.connected when m.voiceCall && m.partner != null => VoiceCallView(m: m, onReport: _report),
               MatchState.connected => _Connected(m: m, onNext: _next, onGift: _gift, onAddFriend: _addFriend, onReport: _report, onPlay: _play, message: _message, chatScroll: _chatScroll),
               MatchState.searching => _Searching(m: m),
               MatchState.ended when m.lastPartner != null => _Ended(m: m, onReconnect: _reconnect, onFindAnother: _start, onReport: _reportLast),

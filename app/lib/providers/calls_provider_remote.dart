@@ -7,7 +7,7 @@ class RemoteCallsProvider extends CallsProvider {
       _rt.on(Ev.callConsent).listen((e) {
         final id = e['friendId'];
         if (id is! String) return;
-        _social.setCalls(id, CallsView(mine: e['mine'] == true, theirs: e['theirs'] == true));
+        _social.setCalls(id, ApiMap.callsView(e));
         unawaited(loadState(id));
       }),
       _rt.on(Ev.callIncoming).listen((e) {
@@ -16,6 +16,7 @@ class RemoteCallsProvider extends CallsProvider {
           callId: '${e['callId']}',
           from: ApiMap.profile(Map<String, dynamic>.from(e['from'] as Map)),
           expiresAt: ApiMap.date(e['expiresAt']) ?? DateTime.now().add(Duration(seconds: Economy.callRingSeconds)),
+          media: e['media'] == 'voice' ? CallMedia.voice : CallMedia.video,
         );
         notifyListeners();
       }),
@@ -61,21 +62,21 @@ class RemoteCallsProvider extends CallsProvider {
   }
 
   @override
-  Future<CallState> allow(String friendId) async => apply(friendId, ApiMap.callState(_map(await _api.put('/friends/$friendId/calls', {'allow': true}))));
+  Future<CallState> allow(String friendId, {bool video = true}) async => apply(friendId, ApiMap.callState(_map(await _api.put('/friends/$friendId/calls', {'allow': true, 'video': video}))));
 
   @override
   Future<CallState> turnOff(String friendId) async => apply(friendId, ApiMap.callState(_map(await _api.put('/friends/$friendId/calls', {'allow': false}))));
 
   @override
-  Future<void> ring(Profile friend) async {
-    _outgoing = OutgoingCall(to: friend);
+  Future<void> ring(Profile friend, [CallMedia media = CallMedia.video]) async {
+    _outgoing = OutgoingCall(to: friend, media: media);
     notifyListeners();
     try {
-      final r = _map(await _api.post('/friends/${friend.id}/call'));
+      final r = _map(await _api.post('/friends/${friend.id}/call', {'media': media.name}));
       if (_outgoing?.to.id == friend.id) _outgoing = _outgoing!.copyWith(callId: '${r['callId']}');
     } on ApiException catch (e) {
       final status = switch (e.code) { 'CALL_BUSY' => OutgoingStatus.busy, 'CALL_PAUSED' => OutgoingStatus.paused, _ => OutgoingStatus.error };
-      _outgoing = OutgoingCall(to: friend, status: status, message: e.message);
+      _outgoing = OutgoingCall(to: friend, status: status, message: e.message, media: media);
       if (e.code == 'CALLS_NOT_ALLOWED') unawaited(loadState(friend.id));
     }
     notifyListeners();
@@ -123,7 +124,7 @@ class RemoteCallsProvider extends CallsProvider {
       final c = _map(await _api.get('/calls/incoming'))['call'];
       if (c is Map) {
         final m = Map<String, dynamic>.from(c);
-        _incoming = IncomingCall(callId: '${m['callId']}', from: ApiMap.profile(_map(m['from'])), expiresAt: ApiMap.date(m['expiresAt']) ?? DateTime.now());
+        _incoming = IncomingCall(callId: '${m['callId']}', from: ApiMap.profile(_map(m['from'])), expiresAt: ApiMap.date(m['expiresAt']) ?? DateTime.now(), media: m['media'] == 'voice' ? CallMedia.voice : CallMedia.video);
         notifyListeners();
       }
     } on ApiException catch (_) {}

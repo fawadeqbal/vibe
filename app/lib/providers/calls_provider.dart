@@ -44,21 +44,22 @@ abstract class CallsProvider extends ChangeNotifier {
   @protected
   CallState apply(String friendId, CallState st) {
     _states[friendId] = st;
-    _social.setCalls(friendId, CallsView(mine: st.mine, theirs: st.theirs));
+    _social.setCalls(friendId, st.view);
     notifyListeners();
     return st;
   }
 
   Future<CallState?> loadState(String friendId);
 
-  /// Ask them, or say yes to their ask. Throws [ApiException]
-  /// (CALL_NEEDS_MESSAGES, CALL_ASK_TOO_SOON).
-  Future<CallState> allow(String friendId);
+  /// Ask them, say yes to their ask, or change your level: [video] false =
+  /// voice calls only. Throws [ApiException] (CALL_NEEDS_MESSAGES,
+  /// CALL_ASK_TOO_SOON).
+  Future<CallState> allow(String friendId, {bool video = true});
 
   /// Turn calls off for both (or "not now" to their ask, or take back yours).
   Future<CallState> turnOff(String friendId);
 
-  Future<void> ring(Profile friend);
+  Future<void> ring(Profile friend, [CallMedia media = CallMedia.video]);
   Future<void> accept();
   Future<void> decline([String? reply]);
   Future<void> cancel();

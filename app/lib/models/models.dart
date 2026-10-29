@@ -3,6 +3,8 @@
 /// same objects to the same screens.
 library;
 
+import 'dart:typed_data';
+
 import 'engagement.dart';
 import 'referrals.dart';
 
@@ -291,10 +293,19 @@ enum FriendState { none, requested, incoming, friends, blocked }
 
 /// Video calls in one chat: each side's "allow". Both true = calls on.
 class CallsView {
-  const CallsView({this.mine = false, this.theirs = false});
+  const CallsView({this.mine = false, this.theirs = false, this.mineVideo = false, this.theirsVideo = false});
   final bool mine;
   final bool theirs;
+
+  /// Each side allows video too (false = voice only).
+  final bool mineVideo;
+  final bool theirsVideo;
+
+  /// Both allowed: voice calls work.
   bool get on => mine && theirs;
+
+  /// Both allowed video too: video calls work.
+  bool get video => on && mineVideo && theirsVideo;
   static const off = CallsView();
 }
 
@@ -324,10 +335,25 @@ class Friend {
 }
 
 /// `system`: a line from Vibe in a chat ("You matched in Discover", call events), shown centred.
-enum MessageKind { text, gift, system }
+enum MessageKind { text, gift, system, photo, voice }
 
 class ChatMessage {
-  const ChatMessage({required this.id, required this.fromMe, required this.text, required this.at, this.gift, this.kind = MessageKind.text, this.meta});
+  const ChatMessage({
+    required this.id,
+    required this.fromMe,
+    required this.text,
+    required this.at,
+    this.gift,
+    this.kind = MessageKind.text,
+    this.meta,
+    this.replyTo,
+    this.reactionMine,
+    this.reactionTheirs,
+    this.unsent = false,
+    this.readAt,
+    this.pending = false,
+    this.localBytes,
+  });
   final String id;
   final bool fromMe;
   final String text;
@@ -335,11 +361,61 @@ class ChatMessage {
   final Gift? gift;
   final MessageKind kind;
 
-  /// System lines: `{ event, ... }` (matched, calls_asked, calls_on, calls_off, calls_declined, call_missed, call_declined, call_ended).
+  /// System lines: `{ event, ... }`. Photos: `{ url, w, h }`. Voice notes: `{ url, seconds }`.
   final Map<String, dynamic>? meta;
+
+  /// The message this one replies to.
+  final ReplyRef? replyTo;
+
+  /// One reaction each.
+  final String? reactionMine;
+  final String? reactionTheirs;
+
+  /// Unsent by the sender: shown as "Message unsent".
+  final bool unsent;
+
+  /// When they read it (your messages).
+  final DateTime? readAt;
+
+  /// Still uploading (photo / voice note).
+  final bool pending;
+
+  /// A photo or voice note from this device (before it's uploaded, and in the offline demo).
+  final Uint8List? localBytes;
 
   bool get isSystem => kind == MessageKind.system;
   String? get event => meta?['event'] as String?;
+  String? get mediaUrl => meta?['url'] as String?;
+
+  ChatMessage copyWith({DateTime? readAt, String? reactionMine, String? reactionTheirs, bool clearMine = false, bool clearTheirs = false, bool? unsent, String? text, ReplyRef? replyTo}) => ChatMessage(
+        id: id,
+        fromMe: fromMe,
+        text: text ?? this.text,
+        at: at,
+        gift: gift,
+        kind: kind,
+        meta: (unsent ?? this.unsent) ? null : meta,
+        replyTo: replyTo ?? this.replyTo,
+        reactionMine: clearMine ? null : (reactionMine ?? this.reactionMine),
+        reactionTheirs: clearTheirs ? null : (reactionTheirs ?? this.reactionTheirs),
+        unsent: unsent ?? this.unsent,
+        readAt: readAt ?? this.readAt,
+        pending: pending,
+        localBytes: localBytes,
+      );
+}
+
+/// A quoted message in a reply.
+class ReplyRef {
+  const ReplyRef({required this.id, required this.fromMe, required this.kind, required this.text, this.unsent = false});
+  final String id;
+  final bool fromMe;
+  final String kind;
+  final String text;
+  final bool unsent;
+
+  /// What the quote shows.
+  String get preview => unsent ? 'Message unsent' : kind == 'photo' ? '📷 Photo' : kind == 'voice' ? '🎤 Voice message' : text;
 }
 
 enum ReportReason { nudity, harassment, underage, spam, scam, other }
@@ -425,6 +501,10 @@ class Economy {
   // Video calls in chat (admin group "calls")
   static bool friendCallsEnabled = true;
   static int callRingSeconds = 30;
+  static bool chatPhotosEnabled = true;
+  static bool chatVoiceNotesEnabled = true;
+  static int chatVoiceNoteMaxSeconds = 60;
+  static int chatUnsendMinutes = 10;
 
   // Free coins
   static List<int> checkInRewards = const [5, 10, 15, 20, 25, 30, 50];

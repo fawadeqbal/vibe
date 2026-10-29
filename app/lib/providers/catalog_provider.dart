@@ -54,6 +54,10 @@ class CatalogProvider extends ChangeNotifier {
     Economy.discoverUndoCost = i('discoverUndoCost', Economy.discoverUndoCost);
     Economy.friendCallsEnabled = i('friendCallsEnabled', Economy.friendCallsEnabled ? 1 : 0) != 0;
     Economy.callRingSeconds = i('callRingSeconds', Economy.callRingSeconds);
+    Economy.chatPhotosEnabled = i('chatPhotosEnabled', Economy.chatPhotosEnabled ? 1 : 0) != 0;
+    Economy.chatVoiceNotesEnabled = i('chatVoiceNotesEnabled', Economy.chatVoiceNotesEnabled ? 1 : 0) != 0;
+    Economy.chatVoiceNoteMaxSeconds = i('chatVoiceNoteMaxSeconds', Economy.chatVoiceNoteMaxSeconds);
+    Economy.chatUnsendMinutes = i('chatUnsendMinutes', Economy.chatUnsendMinutes);
     if (e['checkInRewards'] is List) Economy.checkInRewards = List.unmodifiable((e['checkInRewards'] as List).map((n) => (n as num).toInt()));
     Economy.rewardedAdCoins = i('rewardedAdCoins', Economy.rewardedAdCoins);
     Economy.rewardedAdsPerDay = i('rewardedAdsPerDay', Economy.rewardedAdsPerDay);

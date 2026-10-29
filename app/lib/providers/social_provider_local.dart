@@ -104,13 +104,72 @@ class LocalSocialProvider extends SocialProvider {
   // ── chat ──────────────────────────────────────────────────────────────
 
   @override
-  Future<void> sendMessage(String friendId, String text) async {
+  Future<void> sendMessage(String friendId, String text, {String? replyToId}) async {
     final t = text.trim();
     if (t.isEmpty) return;
-    _append(friendId, ChatMessage(id: 'm${DateTime.now().microsecondsSinceEpoch}', fromMe: true, text: t, at: DateTime.now()));
+    _append(friendId, ChatMessage(id: 'm${DateTime.now().microsecondsSinceEpoch}', fromMe: true, text: t, at: DateTime.now(), replyTo: _ref(friendId, replyToId)));
     _noteStreak(friendId, mine: true);
     await _persist();
     _scheduleReply(friendId);
+  }
+
+  ReplyRef? _ref(String friendId, String? id) {
+    if (id == null) return null;
+    for (final m in _chats[friendId] ?? const <ChatMessage>[]) {
+      if (m.id == id) return ReplyRef(id: m.id, fromMe: m.fromMe, kind: m.kind.name, text: m.unsent ? '' : m.text, unsent: m.unsent);
+    }
+    return null;
+  }
+
+  @override
+  Future<void> sendMedia(String friendId, MessageKind kind, Uint8List bytes, {required String contentType, int? seconds, int? w, int? h, String? replyToId}) async {
+    final photo = kind == MessageKind.photo;
+    if (photo ? !Economy.chatPhotosEnabled : !Economy.chatVoiceNotesEnabled) {
+      throw ApiException('FEATURE_DISABLED', photo ? 'Photos are off right now' : 'Voice messages are off right now', status: 403);
+    }
+    _append(
+      friendId,
+      ChatMessage(
+        id: 'p${DateTime.now().microsecondsSinceEpoch}',
+        fromMe: true,
+        text: photo ? '📷 Photo' : '🎤 Voice message',
+        at: DateTime.now(),
+        kind: kind,
+        meta: {'seconds': ?seconds, 'w': ?w, 'h': ?h},
+        localBytes: bytes,
+        replyTo: _ref(friendId, replyToId),
+      ),
+    );
+    _noteStreak(friendId, mine: true);
+    notifyListeners();
+    _scheduleReply(friendId);
+  }
+
+  @override
+  Future<void> react(String friendId, String messageId, String? emoji) async {
+    final m = _find(friendId, messageId);
+    if (m == null) return;
+    final clean = emoji?.trim() ?? '';
+    final off = clean.isEmpty || m.reactionMine == clean;
+    replaceMessage(friendId, off ? m.copyWith(clearMine: true) : m.copyWith(reactionMine: clean));
+    await _persist();
+  }
+
+  @override
+  Future<void> unsend(String friendId, String messageId) async {
+    final m = _find(friendId, messageId);
+    if (m == null) return;
+    if (!m.fromMe) throw ApiException('FORBIDDEN', "You can only unsend your own messages", status: 403);
+    if (!SocialProvider.canUnsend(m)) throw ApiException('CONFLICT', 'Too late to unsend this one', status: 409);
+    replaceMessage(friendId, m.copyWith(unsent: true, text: '', clearMine: true, clearTheirs: true));
+    await _persist();
+  }
+
+  ChatMessage? _find(String friendId, String id) {
+    for (final m in _chats[friendId] ?? const <ChatMessage>[]) {
+      if (m.id == id) return m;
+    }
+    return null;
   }
 
   @override
@@ -134,9 +193,17 @@ class LocalSocialProvider extends SocialProvider {
   }
 
   void _scheduleReply(String friendId, {bool thanks = false}) {
+    final wait = 2 + friendId.hashCode.abs() % 5;
+    // They read it, then type for a moment, then answer.
+    _timers.add(Timer(const Duration(milliseconds: 900), () {
+      if (friend(friendId) == null) return;
+      noteSeen(friendId, DateTime.now());
+      noteTyping(friendId);
+    }));
     _timers.add(
-      Timer(Duration(seconds: 2 + friendId.hashCode.abs() % 5), () {
+      Timer(Duration(seconds: wait), () {
         if (friend(friendId) == null) return;
+        noteTyping(friendId, on: false);
         final text = thanks ? 'aww thank you!! 🥹' : _backend.friendReply();
         _append(friendId, ChatMessage(id: 'r${DateTime.now().microsecondsSinceEpoch}', fromMe: false, text: text, at: DateTime.now()), unread: true);
         _noteStreak(friendId, mine: false);
@@ -175,7 +242,7 @@ class LocalSocialProvider extends SocialProvider {
     list.add(m);
     if (list.length > 300) list.removeRange(0, list.length - 300);
     final f = friend(friendId);
-    if (f != null) _upsert(f.copyWith(lastMessage: m.gift != null ? '${m.gift!.emoji} ${m.gift!.name}' : m.text, unread: unread ? f.unread + 1 : f.unread));
+    if (f != null) _upsert(f.copyWith(lastMessage: SocialProvider.lastLine(m), unread: unread ? f.unread + 1 : f.unread));
   }
 
   void _upsert(Friend f) {

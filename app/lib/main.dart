@@ -30,6 +30,7 @@ import 'services/auth/social_sign_in.dart';
 import 'services/invite/invite_capture.dart';
 import 'services/media/media_picker.dart';
 import 'services/media/selfie_camera.dart';
+import 'services/media/voice_recorder.dart';
 import 'services/payments/payment_links.dart';
 import 'services/payments/store_billing.dart';
 import 'services/push/push_service.dart';
@@ -187,6 +188,7 @@ AppServices _buildServices(IntegrationsConfig config, {required ApiClient? api, 
     push: push,
     media: mobile ? DeviceMediaPicker() : const NoMediaPicker(),
     selfieCamera: mobile ? const WebRtcSelfieCamera() : const NoSelfieCamera(),
+    voice: mobile ? DeviceVoiceRecorder() : const NoVoiceRecorder(),
     share: const PlatformShare(),
   );
 }

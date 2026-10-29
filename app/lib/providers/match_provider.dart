@@ -24,6 +24,9 @@ enum MatchState { idle, searching, connected, ended }
 /// Why the last match ended — drives the copy on the ended card.
 enum EndReason { skipped, partnerLeft, stopped, reported }
 
+/// Turning a voice call into video: nobody asked, you asked, they asked.
+enum VideoAsk { none, mine, theirs }
+
 /// The match loop: idle → searching → connected → (next) → searching …
 ///
 /// Owns the local camera (WebRTC local stream, no peer yet — the mock
@@ -149,11 +152,46 @@ abstract class MatchProvider extends ChangeNotifier {
 
   /// Offline demo: a friend picked up — start the call with them. (On the
   /// server the call starts with `match:found`, friendCall: true.)
-  Future<void> beginFriendCall(Profile p) async {}
+  Future<void> beginFriendCall(Profile p, {bool voice = false}) async {}
 
   /// Marks the call that is starting as a friend call (or not).
   @protected
-  void setFriendCall(bool v) => _friendCall = v;
+  void setFriendCall(bool v, {bool voice = false}) {
+    _friendCall = v;
+    _voiceCall = v && voice;
+    _videoAsk = VideoAsk.none;
+  }
+
+  bool _voiceCall = false;
+  VideoAsk _videoAsk = VideoAsk.none;
+
+  /// A voice call with a friend (no cameras until you both turn video on).
+  bool get voiceCall => _voiceCall;
+
+  /// Who asked to turn on video in this voice call.
+  VideoAsk get videoAsk => _videoAsk;
+
+  /// Ask them to turn on video (voice calls with video allowed).
+  Future<void> askVideo() async {}
+
+  /// Answer their ask: yes turns both cameras on.
+  Future<void> answerVideo(bool yes) async {}
+
+  /// Both said yes: the camera goes on in this call.
+  @protected
+  Future<void> turnOnVideo() async {
+    if (!_voiceCall) return;
+    _voiceCall = false;
+    _videoAsk = VideoAsk.none;
+    _camOn = true;
+    notifyListeners();
+  }
+
+  @protected
+  void setVideoAsk(VideoAsk v) {
+    _videoAsk = v;
+    notifyListeners();
+  }
 
   /// A friend call ended: back to idle (no recap) and tell the app which
   /// chat to show. True when it was a friend call.
@@ -161,6 +199,10 @@ abstract class MatchProvider extends ChangeNotifier {
   bool finishFriendCall() {
     if (!_friendCall) return false;
     _friendCall = false;
+    // The voice call's stream had no camera: open a full one next time.
+    if (_voiceCall || (_localStream?.getVideoTracks().isEmpty ?? false)) unawaited(releaseCamera());
+    _voiceCall = false;
+    _videoAsk = VideoAsk.none;
     final id = _partner?.id;
     _state = MatchState.idle;
     _partner = null;
@@ -386,7 +428,7 @@ abstract class MatchProvider extends ChangeNotifier {
       }
       final stream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
-        'video': {
+        'video': _voiceCall ? false : {
           'facingMode': _frontCamera ? 'user' : 'environment',
           'width': 720,
           'height': 1280,
