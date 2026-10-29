@@ -139,6 +139,7 @@ export function ChatView({ friendId }: { friendId: string }) {
 }
 
 function Bubble({ m }: { m: ChatMessage }) {
+  if (m.kind === "system") return <SystemLine m={m} />;
   const mine = m.fromMe;
   const gift = !!m.gift;
   return (
@@ -154,6 +155,25 @@ function Bubble({ m }: { m: ChatMessage }) {
         <p className={cn("type-body text-[15px] break-words", mine && !gift ? "text-white" : "text-text")}>{m.text}</p>
         <p className={cn("type-label mt-0.5 text-[10px] font-medium", mine && !gift ? "text-white/70" : "text-muted")}>{time(m.at)}</p>
       </div>
+    </div>
+  );
+}
+
+/** A line from Vibe in the chat ("You matched in Discover", call events). */
+function SystemLine({ m }: { m: ChatMessage }) {
+  const event = typeof m.meta?.event === "string" ? m.meta.event : "";
+  const matched = event === "matched";
+  return (
+    <div className="my-2.5 flex justify-center">
+      <span
+        className={cn(
+          "type-label inline-flex max-w-[86%] items-center gap-1.5 rounded-full px-3 py-1.5 text-center text-[12px] font-semibold",
+          matched ? "bg-pink/12 text-pink-soft" : "bg-surface text-text2",
+        )}
+      >
+        {matched ? <Icon name="favorite" variant="filled" size={13} /> : null}
+        {m.text} · {time(m.at)}
+      </span>
     </div>
   );
 }

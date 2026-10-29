@@ -1,5 +1,6 @@
 import { useAffiliate } from "./affiliate";
 import { useCatalog } from "./catalog";
+import { useDiscover } from "./discover";
 import { useEngagement } from "./engagement";
 import { useFollows } from "./follows";
 import { useInbox } from "./inbox";
@@ -34,6 +35,7 @@ async function loadAll() {
     useMoments.getState().load(),
     useSession.getState().syncTimezone(),
     useWaitlist.getState().load(),
+    useDiscover.getState().loadStatus(),
   ]);
 }
 
@@ -58,6 +60,7 @@ function onSessionChanged(signedIn: boolean) {
     useAffiliate.getState().reset();
     useWaitlist.getState().reset();
     useWaves.getState().reset();
+    useDiscover.getState().reset();
     stopBreakReminder();
   }
 }

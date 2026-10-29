@@ -7,12 +7,14 @@ import type { ReactNode } from "react";
 import { VibeLogo } from "@/components/ui/brand";
 import { TabIcon, type TabIconName } from "@/components/ui/tab-icons";
 import { cn } from "@/lib/cn";
+import { discoverBadge, useDiscover } from "@/stores/discover";
 import { useInbox } from "@/stores/inbox";
 import { useMatch } from "@/stores/match";
 import { incomingOf, unreadTotal, useSocial } from "@/stores/social";
 import { useWaitlist } from "@/stores/waitlist";
 import { useWaves } from "@/stores/waves";
 
+import { DiscoverMatchHost } from "@/features/discover/match-dialog";
 import { dismissLooking } from "@/features/match/waitlist-strip";
 
 interface Tab {
@@ -26,8 +28,11 @@ interface Tab {
 function useTabs(): Tab[] {
   const chatsBadge = useSocial((s) => unreadTotal(s) + incomingOf(s).length);
   const teamUnread = useInbox((s) => s.unread);
+  const likes = useDiscover(discoverBadge);
+  const discoverOn = useDiscover((s) => s.status?.enabled !== false);
   return [
     { href: "/match", label: "Match", icon: "match" },
+    ...(discoverOn ? [{ href: "/discover", label: "Discover", icon: "discover" as const, badge: likes }] : []),
     { href: "/chats", label: "Chats", icon: "chats", badge: chatsBadge + teamUnread },
     { href: "/store", label: "Store", icon: "store" },
     { href: "/me", label: "Me", icon: "me" },
@@ -58,7 +63,7 @@ function TabItem({ tab, on, className }: { tab: Tab; on: boolean; className?: st
 }
 
 /**
- * Four tabs. Match is the app; the other three exist to keep people coming
+ * Five tabs. Match is the app; Discover fills the gaps when nobody's live; the other three exist to keep people coming
  * back to it (friends), to pay (store) and to trust it (profile). Phones get
  * the bottom bar (frosted over the camera on Match, hidden during a live
  * match); wide screens get a navigation rail.
@@ -108,6 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
         ) : null}
       </div>
+      <DiscoverMatchHost />
     </div>
   );
 }

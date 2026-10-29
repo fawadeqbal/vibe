@@ -104,6 +104,8 @@ model User {
   tzOffsetMinutes      Int        @default(300)
   /// Break reminder after this many minutes in a search/call (30/60/90/120); null = off. Client-side timer.
   breakReminderMinutes Int?
+  /// Appear in other people's Discover deck (Privacy setting).
+  showInDiscover       Boolean    @default(true)
   lastSeenAt           DateTime?
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
@@ -138,6 +140,9 @@ model User {
 
   wavesSent     Wave[] @relation("WaveFrom")
   wavesReceived Wave[] @relation("WaveTo")
+
+  swipesMade DiscoverSwipe[] @relation("SwipeFrom")
+  swipesGot  DiscoverSwipe[] @relation("SwipeTo")
 
   @@index([createdAt])
   @@index([bannedUntil])
@@ -180,6 +185,30 @@ model Wave {
 
   @@unique([fromId, toId])
   @@index([toId, createdAt])
+}
+
+enum SwipeKind {
+  LIKE
+  SUPER
+  PASS
+}
+
+/// Discover: one swipe per pair and direction (a pass can be redone after a while).
+model DiscoverSwipe {
+  id        String    @id @default(cuid())
+  fromId    String
+  toId      String
+  kind      SwipeKind
+  createdAt DateTime  @default(now())
+  /// When `to` saw this like in "Liked you" (badge).
+  seenAt    DateTime?
+
+  from User @relation("SwipeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("SwipeTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId])
+  @@index([toId, kind, createdAt])
+  @@index([fromId, createdAt])
 }
 
 model AuthIdentity {
@@ -662,13 +691,22 @@ model Friendship {
   @@index([status, streakDay])
 }
 
+enum MessageKind {
+  TEXT
+  GIFT
+  /// A line from Vibe in the chat ("You matched in Discover", call events); `meta.event` says which.
+  SYSTEM
+}
+
 model Message {
-  id           String    @id @default(cuid())
+  id           String      @id @default(cuid())
   friendshipId String
   senderId     String
-  text         String    @db.VarChar(1000)
+  kind         MessageKind @default(TEXT)
+  text         String      @db.VarChar(1000)
   giftId       String?
-  createdAt    DateTime  @default(now())
+  meta         Json?
+  createdAt    DateTime    @default(now())
   readAt       DateTime?
 
   friendship Friendship @relation(fields: [friendshipId], references: [id], onDelete: Cascade)

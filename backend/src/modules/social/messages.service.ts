@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import type { Message } from '@prisma/client';
+import { type Message, MessageKind, Prisma } from '@prisma/client';
 
 import { cursorArgs, CursorQueryDto, toPage } from '../../common/dto/pagination.dto';
 import { AppError } from '../../common/errors/app-error';
@@ -22,10 +22,16 @@ export interface FriendMessageEvent {
   giftId: string | null;
 }
 
+export type MessageKindView = 'text' | 'gift' | 'system';
+
 export interface MessageView {
   id: string;
   friendId: string;
   fromMe: boolean;
+  /** `system` lines come from Vibe (matched in Discover, call events): show them centred, not as a bubble. */
+  kind: MessageKindView;
+  /** System lines: `{ event, ... }` (e.g. `{ event: 'matched', via: 'discover' }`). */
+  meta: Record<string, unknown> | null;
   text: string;
   giftId: string | null;
   at: string;
@@ -47,7 +53,17 @@ export class MessagesService {
   ) {}
 
   private toView(m: Message, me: string, friendId: string): MessageView {
-    return { id: m.id, friendId, fromMe: m.senderId === me, text: m.text, giftId: m.giftId, at: m.createdAt.toISOString(), readAt: m.readAt?.toISOString() ?? null };
+    return {
+      id: m.id,
+      friendId,
+      fromMe: m.senderId === me,
+      kind: m.kind.toLowerCase() as MessageKindView,
+      meta: (m.meta as Record<string, unknown> | null) ?? null,
+      text: m.text,
+      giftId: m.giftId,
+      at: m.createdAt.toISOString(),
+      readAt: m.readAt?.toISOString() ?? null,
+    };
   }
 
   async list(me: string, friendId: string, q: CursorQueryDto) {
@@ -80,13 +96,29 @@ export class MessagesService {
     ]);
     await this.wallet.sendGift(me, friendId, gift, { fromName: meUser.name, toName: friend.name, idempotencyKey });
     const m = await this.prisma.$transaction(async (tx) => {
-      const msg = await tx.message.create({ data: { friendshipId: f.id, senderId: me, text: `Sent a ${gift.name}`, giftId: gift.id } });
+      const msg = await tx.message.create({ data: { friendshipId: f.id, senderId: me, kind: MessageKind.GIFT, text: `Sent a ${gift.name}`, giftId: gift.id } });
       await tx.friendship.update({ where: { id: f.id }, data: { lastMessageAt: msg.createdAt } });
       return msg;
     });
     this.push(m, me, friendId);
     await this.streaks.noteMessage(me, friendId);
     return this.toView(m, me, friendId);
+  }
+
+  /**
+   * A line from Vibe in a chat ("You matched in Discover", call events),
+   * shown to both people. `by` is who it is about (the sender column).
+   * Not counted as unread and never pushed as a message.
+   */
+  async system(friendshipId: string, by: string, otherId: string, text: string, meta: Record<string, unknown>): Promise<MessageView> {
+    const m = await this.prisma.$transaction(async (tx) => {
+      const msg = await tx.message.create({ data: { friendshipId, senderId: by, kind: MessageKind.SYSTEM, text, meta: meta as Prisma.InputJsonObject, readAt: this.clock.now() } });
+      await tx.friendship.update({ where: { id: friendshipId }, data: { lastMessageAt: msg.createdAt } });
+      return msg;
+    });
+    this.realtime.toUser(otherId, ServerEvent.Message, this.toView(m, otherId, by));
+    this.realtime.toUser(by, ServerEvent.Message, this.toView(m, by, otherId));
+    return this.toView(m, by, otherId);
   }
 
   async markRead(me: string, friendId: string): Promise<number> {

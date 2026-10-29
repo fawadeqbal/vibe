@@ -39,6 +39,24 @@ export interface EconomyRules {
 
   vipMonthlyBonusCoins: number;
 
+  /** Discover (the swipe deck). 1 = on. */
+  discoverEnabled: number;
+  discoverFreeLikesPerDay: number;
+  /** Extra likes for coins once the free ones run out. */
+  discoverLikePackSize: number;
+  discoverLikePackCost: number;
+  discoverSuperLikeCost: number;
+  discoverVipFreeSuperLikes: number;
+  discoverUndoCost: number;
+  /** Anti-spam ceiling, paid or not (VIP too). */
+  discoverMaxLikesPerHour: number;
+  /** People seen longer ago than this are left out of decks. */
+  discoverActiveDays: number;
+  /** A passed person can come back after this many days. */
+  discoverPassResetDays: number;
+  /** 1 = only selfie-verified people appear. */
+  discoverVerifiedOnly: number;
+
   streakRestoreCost: number;
   streakWeeklyCoins: number;
   freeReconnectMinutes: number;
@@ -182,6 +200,24 @@ export const RULE_GROUPS: RuleGroup[] = [
     ],
   },
   {
+    key: 'discover',
+    label: 'Discover',
+    description: 'The swipe deck of real people. Likes are free up to a daily limit; VIP members like without limit, get free Super Likes and free Undo. Free likes reset at midnight, Pakistan time.',
+    fields: [
+      { key: 'discoverEnabled', label: 'Discover is on', help: 'Off hides the Discover tab for everyone. Matches and chats stay.', kind: 'flag', min: 0, max: 1 },
+      count('discoverFreeLikesPerDay', 'Free likes per day', 0, 1000, 'VIP: unlimited. Passing is always free.'),
+      count('discoverLikePackSize', 'More likes: how many', 1, 1000, 'Offered when the free likes run out.'),
+      coins('discoverLikePackCost', 'More likes: price'),
+      coins('discoverSuperLikeCost', 'Super Like', 'They are told, and you appear first in their deck.'),
+      count('discoverVipFreeSuperLikes', 'Free Super Likes per day for VIP', 0, 100),
+      coins('discoverUndoCost', 'Undo a pass', 'VIP members undo for free.'),
+      count('discoverMaxLikesPerHour', 'Likes per hour, at most', 1, 10_000, 'Stops bots and spam swiping, paid or not.'),
+      days('discoverActiveDays', 'Hide people inactive for', 1, 365, 'Keeps decks full of people who might reply.'),
+      days('discoverPassResetDays', 'Passed people come back after', 1, 365),
+      { key: 'discoverVerifiedOnly', label: 'Verified people only', help: 'Show only selfie-verified people in decks.', kind: 'flag', min: 0, max: 1 },
+    ],
+  },
+  {
     key: 'vip',
     label: 'VIP perks',
     description: 'Coins VIP members get each month they are subscribed.',
@@ -315,6 +351,18 @@ export const DEFAULT_RULES: EconomyRules = {
   kycThresholdUsdCentsPerMonth: 10_000,
 
   vipMonthlyBonusCoins: 200,
+
+  discoverEnabled: 1,
+  discoverFreeLikesPerDay: 30,
+  discoverLikePackSize: 30,
+  discoverLikePackCost: 20,
+  discoverSuperLikeCost: 10,
+  discoverVipFreeSuperLikes: 1,
+  discoverUndoCost: 5,
+  discoverMaxLikesPerHour: 120,
+  discoverActiveDays: 14,
+  discoverPassResetDays: 30,
+  discoverVerifiedOnly: 0,
 
   streakRestoreCost: 30,
   streakWeeklyCoins: 10,

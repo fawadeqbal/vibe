@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { FriendshipStatus, Prisma } from '@prisma/client';
+import { type Friendship, FriendshipStatus, Prisma } from '@prisma/client';
 
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -87,6 +87,31 @@ export class FriendsService {
     const meUser = await this.prisma.user.findUniqueOrThrow({ where: { id: me }, include: PROFILE_INCLUDE });
     this.realtime.toUser(targetId, ServerEvent.FriendRequest, { from: toPublicProfile(meUser, this.clock.now()) });
     return { state: 'requested', paidCoins };
+  }
+
+  /**
+   * Two people liked each other in Discover: they are friends now (chat
+   * opens). Accepts a pending request between them too. Returns the
+   * friendship and whether it is new (false = they already were friends).
+   */
+  async connectMatched(a: string, b: string): Promise<{ friendship: Friendship; created: boolean }> {
+    const existing = await this.prisma.friendship.findUnique({ where: this.pairWhere(a, b) });
+    if (existing?.status === FriendshipStatus.ACCEPTED) return { friendship: existing, created: false };
+    const now = this.clock.now();
+    if (existing) return { friendship: await this.prisma.friendship.update({ where: { id: existing.id }, data: { status: FriendshipStatus.ACCEPTED, acceptedAt: now } }), created: true };
+    const [low, high] = orderedPair(a, b);
+    const friendship = await this.prisma.friendship.upsert({
+      where: this.pairWhere(a, b),
+      create: { userLowId: low, userHighId: high, requesterId: a, status: FriendshipStatus.ACCEPTED, acceptedAt: now },
+      update: { status: FriendshipStatus.ACCEPTED, acceptedAt: now },
+    });
+    return { friendship, created: true };
+  }
+
+  /** Ids of everyone you are friends with or have a pending request with. */
+  async connectedIds(me: string): Promise<string[]> {
+    const rows = await this.prisma.friendship.findMany({ where: { OR: [{ userLowId: me }, { userHighId: me }] }, select: { userLowId: true, userHighId: true } });
+    return rows.map((f) => (f.userLowId === me ? f.userHighId : f.userLowId));
   }
 
   async accept(me: string, requesterId: string): Promise<void> {

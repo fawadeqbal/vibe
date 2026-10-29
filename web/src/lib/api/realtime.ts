@@ -30,6 +30,10 @@ export const Ev = {
   waveNew: "wave:new",
   /** Someone you waved with started looking for a match: `{ from }`. */
   waveLooking: "wave:looking",
+  /** You and someone liked each other in Discover: `{ friend }`. */
+  discoverMatch: "discover:match",
+  /** Someone liked you in Discover: `{ superLike, from, unseen }`. */
+  discoverLiked: "discover:liked",
   rtcSignal: "rtc:signal",
   friendRequest: "social:friend-request",
   friendAccepted: "social:friend-accepted",
