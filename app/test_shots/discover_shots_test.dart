@@ -207,6 +207,14 @@ void main() {
     await snap(t, 'd1_discover');
   });
 
+  for (final size in const [Size(360, 640), Size(390, 844)]) {
+    shot('m_lobby_${size.width.toInt()}', (t, h) async {
+      t.view.physicalSize = size * 2;
+      await t.pumpWidget(h.app(const HomeShell()));
+      await snap(t, 'm_lobby_${size.width.toInt()}');
+    });
+  }
+
   shot('d0_shell_discover', (t, h) async {
     await t.pumpWidget(h.app(const HomeShell()));
     await settle(t);
