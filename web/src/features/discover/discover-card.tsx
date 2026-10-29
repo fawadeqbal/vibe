@@ -21,7 +21,19 @@ export function activeLabel(c: Pick<Card, "online" | "lastSeenAt">): string {
  * are, what they're here for, their bio and interests (the ones you share
  * first). Stamps show while dragging (`drag` −1…1 sideways, `up` 0…1).
  */
-export function DiscoverCardView({ c, drag = 0, up = 0, className, style }: { c: Card; drag?: number; up?: number; className?: string; style?: CSSProperties }) {
+export function DiscoverCardView({
+  c,
+  drag = 0,
+  up = 0,
+  className,
+  style,
+}: {
+  c: Card;
+  drag?: number;
+  up?: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const p = c.profile;
   const [failed, setFailed] = useState(false);
   const shared = new Set(c.sharedInterests);
@@ -98,7 +110,13 @@ export function DiscoverCardView({ c, drag = 0, up = 0, className, style }: { c:
               </span>
             ) : null}
             {interests.map((i) => (
-              <span key={i} className={cn("type-label inline-flex h-7 items-center rounded-full px-2.5 text-[12px] font-semibold", shared.has(i) ? "bg-white text-bg" : "bg-white/14")}>
+              <span
+                key={i}
+                className={cn(
+                  "type-label inline-flex h-7 items-center rounded-full px-2.5 text-[12px] font-semibold",
+                  shared.has(i) ? "bg-white text-bg" : "bg-white/14",
+                )}
+              >
                 {i}
               </span>
             ))}

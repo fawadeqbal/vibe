@@ -55,6 +55,10 @@ interface MatchState {
   game: CallGame | null;
   /** The last `match:ended` extras (recap). */
   ended: EndedInfo | null;
+  /** This call is with a friend, started from a chat (no Next, no recap). */
+  friendCall: boolean;
+  /** A friend call just ended: go back to that chat. */
+  friendCallEnded: { friendId: string; at: number } | null;
   elapsed: number;
   cooldownUntil: number | null;
   blurred: boolean;
@@ -228,6 +232,8 @@ export const useMatch = create<MatchState>()((set, get) => {
     mutual: false,
     game: null,
     ended: null,
+    friendCall: false,
+    friendCallEnded: null,
     elapsed: 0,
     cooldownUntil: null,
     blurred: false,
@@ -628,6 +634,8 @@ realtime.on(Ev.matchFound, (e) => {
     blurred: blur,
     status: "connected",
     lastError: null,
+    friendCall: e.friendCall === true,
+    friendCallEnded: null,
   });
   clearTimeout(blurTimer);
   if (blur) blurTimer = setTimeout(() => set({ blurred: false }), 3000);
@@ -739,6 +747,11 @@ realtime.on(Ev.matchEnded, (e) => {
   matchId = null;
   const endReason: EndReason =
     reason === "skipped" ? "skipped" : reason === "stopped" || reason === "disconnected" ? "stopped" : reason === "reported" || reason === "blocked" || reason === "banned" ? "reported" : "partnerLeft";
+  if (s.friendCall) {
+    // A call with a friend: no recap, back to your chat with them.
+    set({ current: null, partner: null, game: null, mutual: false, status: "idle", blurred: false, friendCall: false, friendCallEnded: s.partner ? { friendId: s.partner.id, at: Date.now() } : null });
+    return;
+  }
   // Skipping puts you straight back in the queue; anything else ends here.
   const keepGoing = byMe && reason === "skipped";
   set({ history: [...s.history, rec], current: null, lastPartner: s.partner, endReason, ended, game: null, mutual: false, status: keepGoing ? "searching" : "ended", blurred: false });

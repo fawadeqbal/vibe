@@ -38,6 +38,7 @@ import { MessagingModule } from './modules/messaging/messaging.module';
 import { MaintenanceGuard } from './modules/settings/maintenance.guard';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SocialModule } from './modules/social/social.module';
+import { CallsModule } from './modules/calls/calls.module';
 import { DiscoverModule } from './modules/discover/discover.module';
 import { WavesModule } from './modules/waves/waves.module';
 import { UsersModule } from './modules/users/users.module';
@@ -107,6 +108,7 @@ function canPrettyPrint(): boolean {
     DiscoverModule,
     ModerationModule,
     MatchingModule,
+    CallsModule,
     MomentsModule,
     EngagementModule,
     ReferralsModule,

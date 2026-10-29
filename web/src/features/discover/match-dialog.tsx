@@ -71,7 +71,12 @@ function MatchDialog({ f }: { f: Friend }) {
         className="relative flex w-full max-w-[460px] flex-col items-center rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_50%_0%,#3d1a45_0%,var(--color-surface)_62%)] px-6 pt-8 pb-6 shadow-2xl"
         style={{ animation: "vibe-dialog-in 220ms ease-out" }}
       >
-        <button type="button" aria-label="Close" onClick={close} className="absolute top-3 right-3 flex size-10 items-center justify-center rounded-full bg-white/8 text-text hover:bg-white/12">
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={close}
+          className="absolute top-3 right-3 flex size-10 items-center justify-center rounded-full bg-white/8 text-text hover:bg-white/12"
+        >
           <Icon name="close" size={20} />
         </button>
         <div className="flex items-center">
@@ -126,7 +131,9 @@ function MatchDialog({ f }: { f: Friend }) {
         <button type="button" onClick={close} className="type-label mt-3 h-10 px-4 text-[14px] font-semibold text-text2 hover:text-text">
           Keep swiping
         </button>
-        <p className="type-body mt-1 text-center text-[12px] leading-[1.45] text-muted">Chat is open now. Video calls stay off until you both allow them in the chat.</p>
+        <p className="type-body mt-1 text-center text-[12px] leading-[1.45] text-muted">
+          Chat is open now. Video calls stay off until you both allow them in the chat.
+        </p>
       </section>
     </div>
   );

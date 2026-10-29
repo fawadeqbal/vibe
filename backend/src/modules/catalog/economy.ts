@@ -57,6 +57,20 @@ export interface EconomyRules {
   /** 1 = only selfie-verified people appear. */
   discoverVerifiedOnly: number;
 
+  /** Video calls between friends, from a chat. 1 = on. */
+  friendCallsEnabled: number;
+  /** 1 = both must have written in the chat before either can ask to allow calls. */
+  callNeedsMessagesFirst: number;
+  callRingSeconds: number;
+  /** "Allow video calls?" asks per person per day. */
+  callAsksPerDay: number;
+  /** After "Not now" or calls turned off, the other person waits this long to ask again. */
+  callAskCooldownHours: number;
+  /** 0 = no limit. */
+  callMaxMinutes: number;
+  /** Declines in a row before that caller can't ring the person for 24 h (0 = never). */
+  callDeclinePause: number;
+
   streakRestoreCost: number;
   streakWeeklyCoins: number;
   freeReconnectMinutes: number;
@@ -218,6 +232,20 @@ export const RULE_GROUPS: RuleGroup[] = [
     ],
   },
   {
+    key: 'calls',
+    label: 'Video calls in chat',
+    description: 'Friends can video call from a chat, but only after both allow it. Either can turn calls off at any time, for both. Calls are never recorded.',
+    fields: [
+      { key: 'friendCallsEnabled', label: 'Video calls in chat are on', help: 'Off hides calling in every chat. What people allowed is kept.', kind: 'flag', min: 0, max: 1 },
+      { key: 'callNeedsMessagesFirst', label: 'Both must have written first', help: 'Stops asks from people who never said hi.', kind: 'flag', min: 0, max: 1 },
+      { key: 'callRingSeconds', label: 'Ring for', kind: 'seconds', min: 10, max: 120 },
+      count('callAsksPerDay', '"Allow video calls?" asks per day', 1, 100, 'Across all chats.'),
+      { key: 'callAskCooldownHours', label: 'Wait before asking the same person again', help: 'After "Not now", or after calls were turned off.', kind: 'hours', min: 0, max: 720 },
+      { key: 'callMaxMinutes', label: 'Longest call', help: '0 = no limit.', kind: 'minutes', min: 0, max: 600 },
+      count('callDeclinePause', 'Declines in a row before calls pause for a day', 0, 20, '0 = never pause.'),
+    ],
+  },
+  {
     key: 'vip',
     label: 'VIP perks',
     description: 'Coins VIP members get each month they are subscribed.',
@@ -363,6 +391,14 @@ export const DEFAULT_RULES: EconomyRules = {
   discoverActiveDays: 14,
   discoverPassResetDays: 30,
   discoverVerifiedOnly: 0,
+
+  friendCallsEnabled: 1,
+  callNeedsMessagesFirst: 1,
+  callRingSeconds: 30,
+  callAsksPerDay: 10,
+  callAskCooldownHours: 24,
+  callMaxMinutes: 60,
+  callDeclinePause: 3,
 
   streakRestoreCost: 30,
   streakWeeklyCoins: 10,

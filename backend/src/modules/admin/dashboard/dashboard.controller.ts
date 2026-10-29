@@ -16,6 +16,15 @@ class SeriesQuery {
   days: number = 30;
 }
 
+class DaysQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(180)
+  days: number = 7;
+}
+
 @StaffApi('dashboard')
 @RequirePermissions(P.DashboardView)
 @Controller('admin/dashboard')
@@ -32,6 +41,12 @@ export class DashboardController {
   @ApiOperation({ summary: 'New-user funnel: signed up → set up → first call → came back next day → paid (cached 5 min)' })
   funnel(@Query() q: SeriesQuery) {
     return this.dashboard.funnel(q.days);
+  }
+
+  @Get('discover')
+  @ApiOperation({ summary: 'Discover (swipes, matches) and video calls in chat (asks, allowed, calls, missed) for the last N days' })
+  discover(@Query() q: DaysQuery) {
+    return this.dashboard.discover(q.days);
   }
 
   @Get('series')

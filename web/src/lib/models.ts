@@ -169,6 +169,8 @@ export interface Friend {
   unread: number;
   online: boolean;
   streak: StreakView;
+  /** Video calls in this chat: each side's "allow". Both true = calls on. */
+  calls: { mine: boolean; theirs: boolean };
 }
 
 /** A friend streak from your side (the server derives it for "today"). */

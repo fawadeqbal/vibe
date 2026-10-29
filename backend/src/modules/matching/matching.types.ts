@@ -35,6 +35,8 @@ export interface ActiveMatch {
   a: string;
   b: string;
   startedAt: number;
+  /** A video call between friends from a chat (not random Video Match). */
+  friend?: boolean;
 }
 
 /** Why a match ended, from the point of view of the person told about it. */

@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Interval } from '@nestjs/schedule';
-import { LedgerKind, MatchEndReason, ReportReason } from '@prisma/client';
+import { LedgerKind, MatchEndReason, MatchKind, ReportReason } from '@prisma/client';
 
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -42,6 +42,8 @@ export interface MatchFoundPayload {
   sharedInterests: string[];
   coinsSpent: number;
   reconnect: boolean;
+  /** A call between friends from a chat: no skipping, no searching after it ends. */
+  friendCall: boolean;
 }
 
 export const MATCH_STARTED = 'match.started';
@@ -52,6 +54,8 @@ export interface MatchEndedEvent extends MatchStartedEvent {
   reason: keyof typeof END_REASON_DB;
   byUserId: string;
   mutualLike: boolean;
+  /** A call between friends from a chat. */
+  friendCall?: boolean;
 }
 export const MATCH_ACTION = 'match.action';
 export interface MatchStartedEvent {
@@ -196,8 +200,9 @@ export class MatchingService {
   }
 
   /** Starts a call between two tickets already taken out of the queue. */
-  async connect(a: Ticket, b: Ticket, reconnect: boolean): Promise<void> {
-    const match = await this.prisma.match.create({ data: { userAId: a.userId, userBId: b.userId, reconnect } });
+  async connect(a: Ticket, b: Ticket, reconnect: boolean, opts: { friend?: boolean } = {}): Promise<string | null> {
+    const friend = !!opts.friend;
+    const match = await this.prisma.match.create({ data: { userAId: a.userId, userBId: b.userId, reconnect, kind: friend ? MatchKind.FRIEND : MatchKind.RANDOM } });
     // Charge paid filters now that there is someone to talk to.
     const charged: string[] = [];
     for (const t of [a, b]) {
@@ -208,12 +213,12 @@ export class MatchingService {
       } catch (e) {
         await this.abortPairing(match.id, t, t === a ? b : a, e);
         if (charged.length) this.wallet.changed(charged);
-        return;
+        return null;
       }
     }
     await this.prisma.match.update({ where: { id: match.id }, data: { coinsSpentA: a.cost, coinsSpentB: b.cost } });
     await this.prisma.user.updateMany({ where: { id: { in: [a.userId, b.userId] } }, data: { matchesCount: { increment: 1 } } });
-    await this.sessions.start({ id: match.id, a: a.userId, b: b.userId, startedAt: Date.now() });
+    await this.sessions.start({ id: match.id, a: a.userId, b: b.userId, startedAt: Date.now(), ...(friend ? { friend: true } : {}) });
     if (charged.length) this.wallet.changed(charged);
 
     const users = await this.prisma.user.findMany({ where: { id: { in: [a.userId, b.userId] } }, include: PROFILE_INCLUDE });
@@ -230,10 +235,38 @@ export class MatchingService {
       sharedInterests: shared,
       coinsSpent: me.cost,
       reconnect,
+      friendCall: friend,
     });
     this.realtime.toUser(a.userId, ServerEvent.MatchFound, payload(a, ub, 'caller'));
     this.realtime.toUser(b.userId, ServerEvent.MatchFound, payload(b, ua, 'callee'));
     this.events.emit(MATCH_STARTED, { matchId: match.id, a: a.userId, b: b.userId } satisfies MatchStartedEvent);
+    return match.id;
+  }
+
+  /**
+   * A friend picked up a call from the chat: both leave any search and any
+   * call they are in, then the usual call starts (same screen, WebRTC,
+   * reports and gifts) — marked as a friend call. Free; no filters.
+   */
+  async startFriendCall(callerId: string, calleeId: string): Promise<string | null> {
+    for (const id of [callerId, calleeId]) {
+      await this.queue.remove(id);
+      const current = await this.sessions.forUser(id);
+      if (current) await this.endMatch(current, id, 'stopped');
+    }
+    const users = await this.prisma.user.findMany({ where: { id: { in: [callerId, calleeId] } }, include: { wallet: true } });
+    const now = this.clock.now();
+    const prefs: MatchPrefs = { gender: 'ANYONE', countryCode: null, safeMode: false, autoBlur: false };
+    const ticketOf = (id: string): Ticket => {
+      const u = users.find((x) => x.id === id)!;
+      return { userId: id, gender: u.gender, countryCode: u.countryCode, verified: u.verified, prefs, cost: 0, vip: isVip(u.wallet, now), boosted: false, enqueuedAt: Date.now(), exclude: [], interests: u.interests, vibeScore: u.vibeScore };
+    };
+    return this.connect(ticketOf(callerId), ticketOf(calleeId), false, { friend: true });
+  }
+
+  /** Whether someone is busy: searching or in a call. */
+  async isBusy(userId: string): Promise<boolean> {
+    return (await this.queue.isQueued(userId)) || !!(await this.sessions.forUser(userId));
   }
 
   /** One side could not pay: refund nothing (nobody was charged twice), requeue the other. */
@@ -448,7 +481,7 @@ export class MatchingService {
     }
     await this.games.clear(m.id).catch(() => undefined);
     await this.afterCall({ matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike }, ended.startedAt, ended.likes);
-    this.events.emit(MATCH_ENDED, { matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike } satisfies MatchEndedEvent);
+    this.events.emit(MATCH_ENDED, { matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike, friendCall: !!m.friend } satisfies MatchEndedEvent);
   }
 
   /**

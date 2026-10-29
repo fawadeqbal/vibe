@@ -42,6 +42,15 @@ export const ServerEvent = {
   /** Someone liked you in Discover: `{ superLike, from: PublicProfile | null, unseen }` (`from` only for a Super Like). */
   DiscoverLiked: 'discover:liked',
 
+  /** Video calls in a chat changed: `{ friendId, mine, theirs }` (both true = calls on). */
+  CallConsent: 'call:consent',
+  /** A friend is calling you: `{ callId, from: PublicProfile, expiresAt }`. */
+  CallIncoming: 'call:incoming',
+  /** Your call is ringing on their side: `{ callId, to, expiresAt }` (also the POST reply). */
+  CallRinging: 'call:ringing',
+  /** A ringing call stopped: `{ callId, reason: 'declined' | 'no_answer' | 'cancelled' | 'accepted' | 'turned_off', reply? }`. Accepted calls continue as `match:found`. */
+  CallEnded: 'call:ended',
+
   RtcSignal: 'rtc:signal',
 
   FriendRequest: 'social:friend-request',

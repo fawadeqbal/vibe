@@ -113,7 +113,9 @@ function FiltersSheet({ onDone }: { onDone: () => void }) {
         <div className="mt-5 flex items-center gap-3 rounded-[18px] border border-line bg-surface2 px-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="type-title text-[14px] font-semibold">Show me in Discover</p>
-            <p className="type-body mt-0.5 text-[12.5px] text-muted">{!status.hasPhoto ? "Add a photo first — people without one aren't shown." : "Off: nobody new sees your card. Your matches stay."}</p>
+            <p className="type-body mt-0.5 text-[12.5px] text-muted">
+              {!status.hasPhoto ? "Add a photo first — people without one aren't shown." : "Off: nobody new sees your card. Your matches stay."}
+            </p>
           </div>
           <Switch checked={status.showInDiscover} label="Show me in Discover" onChange={(v) => void useDiscover.getState().setVisible(v)} />
         </div>

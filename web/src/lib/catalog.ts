@@ -72,6 +72,9 @@ export interface Economy {
   discoverSuperLikeCost: number;
   discoverVipFreeSuperLikes: number;
   discoverUndoCost: number;
+  /** Video calls in chat: 0 = off. */
+  friendCallsEnabled: number;
+  callRingSeconds: number;
   /** Local currency shown next to USD prices. */
   pkrPerUsd: number;
 }
@@ -131,6 +134,8 @@ export const DEFAULT_ECONOMY: Economy = {
   discoverSuperLikeCost: 10,
   discoverVipFreeSuperLikes: 1,
   discoverUndoCost: 5,
+  friendCallsEnabled: 1,
+  callRingSeconds: 30,
   pkrPerUsd: 280,
 };
 
