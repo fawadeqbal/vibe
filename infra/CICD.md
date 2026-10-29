@@ -148,3 +148,76 @@ Watch it under **Actions → Deploy**. The first run turns `/opt/vibe` into a gi
 - `deploy.ps1` still works as a manual fallback, but don't mix them: it re-uploads files over the git checkout. After a `deploy.ps1` run, the next push simply resets the files back to git.
 - Optional approval gate: **Settings → Environments → production → Required reviewers** → every deploy waits for your click.
 - If a key ever leaks: remove its line from `~/.ssh/authorized_keys` (key A) or delete it under Deploy keys (key B), then repeat its step.
+
+---
+
+## Android app releases
+
+`.github/workflows/app-release.yml` builds the app and publishes it as a **GitHub Release**.
+
+```
+push to main that changes app/ ─▶ App release: next version ─▶ analyze + tests ─▶ signed APK + AAB ─▶ GitHub Release app-vX.Y.Z
+```
+
+Every release has:
+
+| File | For |
+|---|---|
+| `vibe-X.Y.Z.apk` | installing on any Android phone |
+| `vibe.apk` | the same APK under a fixed name: **https://github.com/fawadeqbal/vibe/releases/latest/download/vibe.apk** always gives the newest app (good for a "Download for Android" button) |
+| `vibe-X.Y.Z.aab` | uploading to Google Play |
+| `SHA256SUMS.txt` | checksums |
+
+The notes list the commits that changed `app/` since the last release, plus the signing certificate.
+
+**Pull requests** that change `app/` get the same tests and build as a check ("Android build check"), signed with a throwaway debug key and never released. The APK is attached to the run (**Artifacts → vibe-test-apk-prN**, kept 7 days) so you can try a change on your phone before merging. Uninstall the test build before installing a real release: the keys differ.
+
+### Versions
+
+| You want | Do |
+|---|---|
+| Next patch (0.1.4 → 0.1.5) | nothing — every push to main that changes `app/` does it |
+| Next minor / major | Actions → **App release** → Run workflow → `minor` or `major` |
+| A test build that isn't "latest" | Run workflow → tick **prerelease** |
+| Jump to a version (say 1.0.0) | set `version: 1.0.0+1` in `app/pubspec.yaml` and push; the higher version wins |
+
+The Android `versionCode` is `X*1000000 + Y*1000 + Z` (1.2.3 → 1002003), so it always grows with the version and phones accept the update. Tags are `app-vX.Y.Z`; a failed run makes no tag, so re-running it gives the same version.
+
+### One-time setup: the signing key
+
+Android only installs an update when it is signed with **the same key** as the installed app, so the key must never change. Keep a copy of the `.jks` file and its passwords somewhere safe (password manager + a backup drive). If you lose them, people have to uninstall the app to get updates.
+
+1. **Make the key** (skip if you already have one — reuse it). In PowerShell, using the Java that comes with Android Studio:
+
+   ```powershell
+   & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v `
+     -keystore $HOME\vibe-upload.jks -storetype PKCS12 -keyalg RSA -keysize 2048 -validity 10000 `
+     -alias upload -dname "CN=Vibe, O=Vibe, C=PK"
+   ```
+
+   It asks for a password (twice). That one password is used for both the keystore and the key.
+
+2. **Turn it into text** for GitHub:
+
+   ```powershell
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\vibe-upload.jks")) | Set-Clipboard
+   ```
+
+3. **GitHub → repo → Settings → Secrets and variables → Actions → New repository secret**, add four:
+
+   | Secret | Value |
+   |---|---|
+   | `ANDROID_KEYSTORE_BASE64` | paste (the text from step 2) |
+   | `ANDROID_KEYSTORE_PASSWORD` | the keystore password |
+   | `ANDROID_KEY_ALIAS` | `upload` |
+   | `ANDROID_KEY_PASSWORD` | the same password again |
+
+4. Optional — **Variables** tab → `APP_ENV`: the app's whole `.env` (see `app/.env.example`: Google sign-in, Firebase, AdMob…). Without it, releases use `VIBE_API=https://api.vibe.fawadiqbal.dev` only. Nothing in it is secret (it all ships inside the app), which is why it's a variable.
+
+5. Actions → **App release** → **Run workflow** for the first release.
+
+The same key works for local builds too: create `app/android/key.properties` (git-ignored) with `storeFile=C:/Users/you/vibe-upload.jks`, `storePassword=…`, `keyAlias=upload`, `keyPassword=…`.
+
+**Google Play:** with Play App Signing, upload `vibe-X.Y.Z.aab` and this key is your *upload key*. Phones then get Play's key, so an app installed from Play and one installed from GitHub can't update each other. Pick one channel per phone.
+
+If the key secrets are missing, the run stops with "Signing key missing" and lists the ones to add. It also refuses to publish an APK signed with a debug key.
