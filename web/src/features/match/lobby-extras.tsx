@@ -4,25 +4,24 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { Avatar } from "@/components/ui/avatar";
-import { Glass, GlassPill } from "@/components/ui/glass";
+import { Glass } from "@/components/ui/glass";
 import { GradientFill } from "@/components/ui/gradient-fill";
 import { Icon } from "@/components/ui/icon";
 import { useNow } from "@/hooks/use-now";
-import { clock12, countdown, vibeHourPhase } from "@/lib/engagement";
+import { countdown, vibeHourPhase } from "@/lib/engagement";
 import { plural } from "@/lib/format";
 import { useEngagement } from "@/stores/engagement";
 import { useSocial } from "@/stores/social";
 
 /**
- * Vibe Hour in the lobby: live → "Vibe Hour · free filters · 42:10 left";
- * up to two hours before → "Vibe Hour starts at 9:00 PM"; otherwise nothing.
+ * Vibe Hour in the lobby while it's live: "Vibe Hour · free filters · 42:10
+ * left". Before it, `VibeHourInvite` says when and offers a reminder.
  */
 export function VibeHourBanner() {
   const v = useEngagement((s) => s.vibeHour);
   const now = useNow(1000, !!v?.startsAt);
   const p = vibeHourPhase(v, now);
-  if (p.phase === "off") return null;
-  if (p.phase === "soon") return <GlassPill icon="schedule" iconColor="pink-soft" label={`Vibe Hour starts at ${clock12(p.startsAt)}`} height={32} fontSize={12.5} />;
+  if (p.phase !== "live") return null;
   return (
     <span
       role="status"

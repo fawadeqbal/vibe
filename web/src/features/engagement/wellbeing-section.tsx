@@ -8,10 +8,13 @@ import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { Switch } from "@/components/ui/switch";
 import { SectionTitle } from "@/components/ui/typography";
 import { alpha } from "@/lib/colors";
-import { BREAK_CHOICES, DEFAULT_QUIET_HOURS, hhmmToMinutes, minutesToHHMM } from "@/lib/engagement";
+import { BREAK_CHOICES, clock12, DEFAULT_QUIET_HOURS, hhmmToMinutes, minutesToHHMM } from "@/lib/engagement";
 import type { MePrefs } from "@/lib/models";
+import { useEngagement } from "@/stores/engagement";
 import { useSession } from "@/stores/session";
 import { toast } from "@/stores/ui";
+
+import { toggleVibeHourReminder } from "./vibe-hour-invite";
 
 const TRUST = { iconColor: "trust" as const, iconBg: alpha("trust", 0.12) };
 
@@ -40,6 +43,9 @@ export function WellbeingSection({ title = true }: { title?: boolean }) {
   return (
     <>
       {title ? <SectionTitle text="Notifications & wellbeing" top={26} /> : null}
+      <GroupCard className="mb-2.5">
+        <VibeHourReminderRow />
+      </GroupCard>
       <GroupCard className="border-trust/22">
         <GroupRow
           icon="bedtime"
@@ -102,5 +108,21 @@ function TimeField({ label, value, onCommit }: { label: string; value: string; o
         className="type-number mt-0.5 bg-transparent text-[17px] text-text outline-none [color-scheme:dark]"
       />
     </label>
+  );
+}
+
+/** "Remind me before Vibe Hour", also offered in the lobby. */
+function VibeHourReminderRow() {
+  const remind = useEngagement((s) => s.vibeHourReminder);
+  const startsAt = useEngagement((s) => s.vibeHour?.startsAt ?? null);
+  return (
+    <GroupRow
+      icon="whatshot"
+      iconColor="pink-soft"
+      iconBg="rgb(255 61 143 / .14)"
+      title="Remind me before Vibe Hour"
+      subtitle={`15 minutes before${startsAt ? ` ${clock12(startsAt)}` : ""}: a notification on your phone, or an e-mail if you use Vibe on the web.`}
+      trailing={<Switch checked={remind} label="Remind me before Vibe Hour" onChange={(on) => void toggleVibeHourReminder(on, startsAt)} />}
+    />
   );
 }

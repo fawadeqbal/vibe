@@ -1,8 +1,9 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsOptional } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional } from 'class-validator';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 import { StreakService } from '../social/streak.service';
 import { EngagementService } from './engagement.service';
 import { Board, BOARDS, ProgressService } from './progress.service';
@@ -14,6 +15,11 @@ class LeaderboardQuery {
   board: Board = 'xp';
 }
 
+class ReminderDto {
+  @IsBoolean()
+  on!: boolean;
+}
+
 @ApiTags('engagement')
 @ApiBearerAuth()
 @Controller()
@@ -23,13 +29,25 @@ export class EngagementController {
     private readonly progress: ProgressService,
     private readonly streaks: StreakService,
     private readonly recaps: RecapService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('engagement')
   @ApiOperation({ summary: 'One call on app start/resume: Vibe Hour window, your level, and how many friend streaks end tonight' })
   async summary(@CurrentUser('id') me: string) {
-    const [progress, streaksAtRisk] = await Promise.all([this.progress.level(me), this.streaks.atRiskCount(me)]);
-    return { vibeHour: this.engagement.vibeHour(), progress, streaksAtRisk };
+    const [progress, streaksAtRisk, u] = await Promise.all([
+      this.progress.level(me),
+      this.streaks.atRiskCount(me),
+      this.prisma.user.findUnique({ where: { id: me }, select: { vibeHourReminder: true } }),
+    ]);
+    return { vibeHour: this.engagement.vibeHour(), progress, streaksAtRisk, vibeHourReminder: u?.vibeHourReminder ?? false };
+  }
+
+  @Put('engagement/vibe-hour/reminder')
+  @ApiOperation({ summary: '"Remind me" before Vibe Hour: a push 15 min before (or an e-mail without the app). Stops by itself after a week away.' })
+  async setReminder(@CurrentUser('id') me: string, @Body() body: ReminderDto) {
+    await this.prisma.user.update({ where: { id: me }, data: { vibeHourReminder: body.on } });
+    return { vibeHourReminder: body.on };
   }
 
   @Get('me/progress')

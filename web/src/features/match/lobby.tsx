@@ -27,6 +27,8 @@ import { filterCost, isBoosted, isVip, useWallet } from "@/stores/wallet";
 
 import { openFiltersSheet, TRUST_ROW } from "./filters-sheet";
 import { countryHint, countryLabel, filterSummary, genderFilterHint, genderFilterIcon, genderFilterLabel, verifiedHint } from "./labels";
+import { VibeHourInvite } from "@/features/engagement/vibe-hour-invite";
+
 import { FriendsOnline, VibeHourBanner } from "./lobby-extras";
 import { openSafetySheet } from "./safety-sheet";
 import { SelfVideo } from "./self-video";
@@ -100,6 +102,7 @@ function PhoneLobby({ onStart, availability }: { onStart: () => void; availabili
 
         <div className="mt-3 flex flex-col items-center gap-2 px-4 empty:hidden">
           <VibeHourBanner />
+          <VibeHourInvite compact />
           <FriendsOnline />
         </div>
 
@@ -286,6 +289,7 @@ function WideLobby({ onStart, availability }: { onStart: () => void; availabilit
         </p>
         <AvailabilityLine availability={availability} className="mt-4" />
         <WaitlistStrip availability={availability} onStart={onStart} className="mt-3 justify-start" />
+        <VibeHourInvite className="mt-3" />
 
         <SectionTitle text="Who you'll meet" top={26} bottom={10} note={s.filtersFree ? (s.vip ? "Free with VIP" : "Free during Vibe Hour") : undefined} />
         <FilterRows free={s.filtersFree} />

@@ -57,6 +57,8 @@ model User {
   isBot                Boolean    @default(false)
   /// Newsletters and announcements by e-mail (sign-in codes and service notices always go).
   marketingEmails      Boolean    @default(true)
+  /// Asked to be reminded before Vibe Hour (push, or e-mail without the app). Stops after a week away.
+  vibeHourReminder     Boolean    @default(false)
   onboardedAt          DateTime?
   bannedUntil          DateTime?
   inviteCode           String     @unique

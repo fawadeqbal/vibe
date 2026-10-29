@@ -13,10 +13,14 @@ import { cn } from "@/lib/cn";
 import { thousands, until } from "@/lib/format";
 import type { MatchFilters } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
+import { clock12, vibeHourLive } from "@/lib/engagement";
+import { useEngagement } from "@/stores/engagement";
 import { useMatch } from "@/stores/match";
 import { toast } from "@/stores/ui";
 import { useWaitlist } from "@/stores/waitlist";
 import { isBoosted, isVip, useWallet } from "@/stores/wallet";
+
+import { toggleVibeHourReminder } from "@/features/engagement/vibe-hour-invite";
 
 import { countryLabel, genderFilterLabel, isNarrowed, searchClock } from "./labels";
 import { SelfVideo } from "./self-video";
@@ -219,6 +223,7 @@ function SlowSearchCard({ filters, nobodyAround, onRestart }: { filters: MatchFi
             <span className="type-body mt-[3px] block text-[12.5px] leading-[1.45] text-text2">
               Stay here and we&apos;ll connect you the moment someone joins. Or leave, and we&apos;ll tell you when someone starts looking.
             </span>
+            <VibeHourNudge />
           </span>
         </div>
         <div className="mt-1.5 flex flex-wrap justify-end gap-1">
@@ -256,6 +261,25 @@ function MiniChip({ label, trust = false }: { label: string; trust?: boolean }) 
       )}
     >
       {label}
+    </span>
+  );
+}
+
+/** In a quiet search: when everyone's on, and one tap to be reminded. */
+function VibeHourNudge() {
+  const v = useEngagement((s) => s.vibeHour);
+  const remind = useEngagement((s) => s.vibeHourReminder);
+  if (!v?.startsAt || vibeHourLive(v)) return null;
+  const startsAt = v.startsAt;
+  return (
+    <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="type-body text-[12.5px] text-text2">
+        Most people come at <span className="text-text">{clock12(startsAt)}</span> for Vibe Hour.
+      </span>
+      <button type="button" aria-pressed={remind} onClick={() => void toggleVibeHourReminder(!remind, startsAt)} className="type-label inline-flex items-center gap-1 text-[12.5px] text-pink-soft hover:underline">
+        <Icon name={remind ? "notifications_active" : "notifications_none"} size={14} />
+        {remind ? "Reminder on" : "Remind me"}
+      </button>
     </span>
   );
 }
