@@ -128,6 +128,7 @@ export function friend(m: Json): Friend {
     unread: int(m.unread),
     online: bool(m.online),
     streak: streak(asMap(m.streak)),
+    calls: { mine: bool(asMap(m.calls).mine), theirs: bool(asMap(m.calls).theirs) },
   };
 }
 

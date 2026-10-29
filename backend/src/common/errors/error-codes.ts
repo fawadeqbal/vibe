@@ -97,4 +97,20 @@ export enum ErrorCode {
   OUT_OF_LIKES = 'OUT_OF_LIKES',
   /** Nothing to undo (only the last pass can come back) (409). */
   NOTHING_TO_UNDO = 'NOTHING_TO_UNDO',
+
+  // video calls in chat
+  /** Calls in chat are switched off (503). */
+  CALLS_OFF = 'CALLS_OFF',
+  /** You haven't both allowed video calls in this chat (403). */
+  CALLS_NOT_ALLOWED = 'CALLS_NOT_ALLOWED',
+  /** Both need to have written in the chat before asking (403). */
+  CALL_NEEDS_MESSAGES = 'CALL_NEEDS_MESSAGES',
+  /** Asked too recently, or too many asks today (429): details `{ after }`. */
+  CALL_ASK_TOO_SOON = 'CALL_ASK_TOO_SOON',
+  /** They're in another call or already ringing (409). */
+  CALL_BUSY = 'CALL_BUSY',
+  /** Several declines in a row: no ringing them for a while (429): details `{ after }`. */
+  CALL_PAUSED = 'CALL_PAUSED',
+  /** The call is over, or not yours (404). */
+  CALL_NOT_FOUND = 'CALL_NOT_FOUND',
 }

@@ -29,7 +29,18 @@ export interface FriendView {
   online: boolean;
   /** Friend streak from your side (zeros for pending requests). */
   streak: StreakView;
+  /** Video calls in this chat: each side allowed them; both true = calls on. */
+  calls: CallsView;
 }
+
+export interface CallsView {
+  mine: boolean;
+  theirs: boolean;
+}
+
+/** Each side's "allow video calls", from your point of view. */
+export const callsView = (f: Pick<Friendship, 'userLowId' | 'callsLowAllowed' | 'callsHighAllowed'>, me: string): CallsView =>
+  f.userLowId === me ? { mine: f.callsLowAllowed, theirs: f.callsHighAllowed } : { mine: f.callsHighAllowed, theirs: f.callsLowAllowed };
 
 /**
  * Friend requests and the friend list. One Friendship row per pair; a
@@ -175,6 +186,7 @@ export class FriendsService {
           unread: unreadBy.get(f.id) ?? 0,
           online: online[otherId] ?? false,
           streak: this.streaks.view(f, me, vip),
+          calls: callsView(f, me),
         } satisfies FriendView,
       ];
     });

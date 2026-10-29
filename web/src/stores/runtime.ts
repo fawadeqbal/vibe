@@ -1,4 +1,5 @@
 import { useAffiliate } from "./affiliate";
+import { useCalls } from "./calls";
 import { useCatalog } from "./catalog";
 import { useDiscover } from "./discover";
 import { useEngagement } from "./engagement";
@@ -61,6 +62,7 @@ function onSessionChanged(signedIn: boolean) {
     useWaitlist.getState().reset();
     useWaves.getState().reset();
     useDiscover.getState().reset();
+    useCalls.getState().reset();
     stopBreakReminder();
   }
 }

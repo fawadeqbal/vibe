@@ -14,6 +14,7 @@ import { incomingOf, unreadTotal, useSocial } from "@/stores/social";
 import { useWaitlist } from "@/stores/waitlist";
 import { useWaves } from "@/stores/waves";
 
+import { CallHost } from "@/features/chats/call-host";
 import { DiscoverMatchHost } from "@/features/discover/match-dialog";
 import { dismissLooking } from "@/features/match/waitlist-strip";
 
@@ -114,6 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : null}
       </div>
       <DiscoverMatchHost />
+      <CallHost />
     </div>
   );
 }

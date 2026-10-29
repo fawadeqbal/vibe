@@ -90,6 +90,24 @@ export class PushBridge implements OnModuleInit {
       if (!(await this.firstToday(`push:discover-liked:${userId}`))) return null;
       return { title: 'Someone liked you 💜', body: 'Keep swiping in Discover — like them back and it’s a match.', data: { route: 'discover' }, category: 'social', collapseKey: 'discover-liked' };
     },
+    [ServerEvent.CallIncoming]: (p) => {
+      const from = (p.from ?? {}) as { id?: string; name?: string };
+      const name = String(from.name ?? '').trim().split(/\s+/)[0] || 'A friend';
+      return { title: `${name} is calling 📹`, body: 'Video call on Vibe — open to answer.', data: { route: 'call', callId: String(p.callId ?? ''), friendId: String(from.id ?? '') }, category: 'messages', collapseKey: `call:${p.callId}` };
+    },
+    [ServerEvent.CallEnded]: (p) => {
+      if (p.reason !== 'no_answer' && p.reason !== 'cancelled') return null;
+      const from = (p.from ?? null) as { id?: string; name?: string } | null;
+      if (!from) return null;
+      const name = String(from.name ?? '').trim().split(/\s+/)[0] || 'a friend';
+      return { title: 'Missed video call', body: `From ${name}. Call back from the chat.`, data: { route: 'chat', friendId: String(from.id ?? '') }, category: 'messages', collapseKey: `call:${p.callId}` };
+    },
+    [ServerEvent.CallConsent]: (p) => {
+      if (!p.asked) return null;
+      const from = (p.from ?? {}) as { id?: string; name?: string };
+      const name = String(from.name ?? '').trim().split(/\s+/)[0] || 'A friend';
+      return { title: `${name} wants to allow video calls`, body: 'Say yes in the chat, or not now.', data: { route: 'chat', friendId: String(from.id ?? '') }, category: 'messages', collapseKey: `call-ask:${from.id}` };
+    },
     [ServerEvent.GoalReached]: (p) => ({ title: 'Goal reached 🎯', body: `You reached your goal of ${Number(p.goal).toLocaleString('en-US')} gems.`, data: { route: 'wallet' }, category: 'payments' }),
     [ServerEvent.InboxMessage]: (p) => ({ title: String(p.title ?? 'Message from Vibe'), body: String(p.body ?? '').slice(0, 160), data: { route: 'inbox' }, category: 'inbox' }),
     [ServerEvent.PaymentUpdated]: (p) => {

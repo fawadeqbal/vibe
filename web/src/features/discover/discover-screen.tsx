@@ -61,7 +61,10 @@ export function DiscoverScreen() {
         const pick = await openOutOfLikes();
         if (pick === "vip") router.push("/vip");
         if (pick === "buy") {
-          const r = await useDiscover.getState().buyLikes().catch((e) => (toast(errorMessage(e), { error: true }), null));
+          const r = await useDiscover
+            .getState()
+            .buyLikes()
+            .catch((e) => (toast(errorMessage(e), { error: true }), null));
           if (r === "coins") await needCoins(`${st.packSize} more likes cost ${st.packCost} coins.`);
           if (r === "ok") toast(`${st.packSize} more likes added`);
         }
@@ -141,10 +144,15 @@ export function DiscoverScreen() {
     else setDrag({ x: 0, y: 0, active: false });
   };
 
-  const flyTransform = (k: SwipeKind) => (k === "like" ? "translate(140%, 6%) rotate(22deg)" : k === "pass" ? "translate(-140%, 6%) rotate(-22deg)" : "translate(0, -130%) rotate(0deg)");
-  const topStyle = fly && top && fly.id === top.profile.id
-    ? { transform: flyTransform(fly.kind), transition: `transform ${FLY_MS}ms ease-in, opacity ${FLY_MS}ms ease-in`, opacity: 0.2 }
-    : { transform: `translate(${drag.x}px, ${Math.min(drag.y, 40)}px) rotate(${drag.x / 18}deg)`, transition: drag.active ? "none" : "transform 220ms var(--ease-spring, ease-out)" };
+  const flyTransform = (k: SwipeKind) =>
+    k === "like" ? "translate(140%, 6%) rotate(22deg)" : k === "pass" ? "translate(-140%, 6%) rotate(-22deg)" : "translate(0, -130%) rotate(0deg)";
+  const topStyle =
+    fly && top && fly.id === top.profile.id
+      ? { transform: flyTransform(fly.kind), transition: `transform ${FLY_MS}ms ease-in, opacity ${FLY_MS}ms ease-in`, opacity: 0.2 }
+      : {
+          transform: `translate(${drag.x}px, ${Math.min(drag.y, 40)}px) rotate(${drag.x / 18}deg)`,
+          transition: drag.active ? "none" : "transform 220ms var(--ease-spring, ease-out)",
+        };
   const dragX = fly?.kind === "like" ? 1 : fly?.kind === "pass" ? -1 : Math.max(-1, Math.min(1, drag.x / SWIPE_X));
   const dragUp = fly?.kind === "super" ? 1 : Math.max(0, Math.min(1, -drag.y / SWIPE_UP));
 
@@ -154,7 +162,13 @@ export function DiscoverScreen() {
   if (status && !status.enabled) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-        <EmptyState icon="style" title="Discover is " accent="resting" body="It's switched off for a little while. Your matches and chats are all still here." action={<GhostButton label="Go to Match" onClick={() => router.push("/match")} />} />
+        <EmptyState
+          icon="style"
+          title="Discover is "
+          accent="resting"
+          body="It's switched off for a little while. Your matches and chats are all still here."
+          action={<GhostButton label="Go to Match" onClick={() => router.push("/match")} />}
+        />
       </div>
     );
   }
@@ -165,17 +179,30 @@ export function DiscoverScreen() {
         <header className="flex items-center gap-2 px-4 pt-4 pb-2.5">
           <h1 className="type-display flex-1 text-[28px]">Discover</h1>
           {likesChip ? (
-            <span className={cn("type-label inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold", vip ? "bg-gold/14 text-gold" : "bg-pink/14 text-pink-soft")}>
+            <span
+              className={cn(
+                "type-label inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold",
+                vip ? "bg-gold/14 text-gold" : "bg-pink/14 text-pink-soft",
+              )}
+            >
               <Icon name={vip ? "all_inclusive" : "favorite"} variant="filled" size={15} /> {likesChip}
             </span>
           ) : null}
-          <button type="button" onClick={() => void openDiscoverFilters()} aria-label="Filters" className="flex size-10 items-center justify-center rounded-full bg-white/8 text-text hover:bg-white/12">
+          <button
+            type="button"
+            onClick={() => void openDiscoverFilters()}
+            aria-label="Filters"
+            className="flex size-10 items-center justify-center rounded-full bg-white/8 text-text hover:bg-white/12"
+          >
             <Icon name="tune" size={20} />
           </button>
         </header>
 
         {likedYou && likedYou.count > 0 ? (
-          <Link href="/discover/liked-you" className="mx-4 mb-2.5 flex items-center gap-3 rounded-[18px] border border-gold/30 bg-surface px-3.5 py-2.5 hover:bg-surface2 lg:hidden">
+          <Link
+            href="/discover/liked-you"
+            className="mx-4 mb-2.5 flex items-center gap-3 rounded-[18px] border border-gold/30 bg-surface px-3.5 py-2.5 hover:bg-surface2 lg:hidden"
+          >
             <LikedYouFaces />
             <span className="min-w-0 flex-1">
               <span className="type-title block text-[14px] font-semibold">
@@ -183,7 +210,9 @@ export function DiscoverScreen() {
               </span>
               <span className="type-body block truncate text-[12px] text-muted">{vip ? "See who, and like back" : "VIP shows who they are"}</span>
             </span>
-            {likedYou.unseen > 0 ? <span className="type-label rounded-full bg-pink px-2 py-0.5 text-[11px] font-bold text-white">{likedYou.unseen} new</span> : null}
+            {likedYou.unseen > 0 ? (
+              <span className="type-label rounded-full bg-pink px-2 py-0.5 text-[11px] font-bold text-white">{likedYou.unseen} new</span>
+            ) : null}
             <Icon name="chevron_right" size={20} className="text-muted" />
           </Link>
         ) : null}
@@ -193,7 +222,11 @@ export function DiscoverScreen() {
             <Icon name="visibility_off" size={16} />
             {!status.hasPhoto ? (
               <span>
-                Nobody can see you yet. <Link href="/me/edit" className="font-semibold underline">Add a photo</Link> to appear in Discover.
+                Nobody can see you yet.{" "}
+                <Link href="/me/edit" className="font-semibold underline">
+                  Add a photo
+                </Link>{" "}
+                to appear in Discover.
               </span>
             ) : (
               <span>You&apos;re hidden from Discover. Turn it on in filters.</span>
@@ -227,7 +260,9 @@ export function DiscoverScreen() {
                 <Icon name="travel_explore" size={30} />
               </span>
               <h2 className="type-title-lg mt-4 text-[20px]">You&apos;ve seen everyone for now</h2>
-              <p className="type-body mt-1.5 max-w-[300px] text-[14px] text-text2">New people join every day. Widen your filters, or meet someone live on Match right now.</p>
+              <p className="type-body mt-1.5 max-w-[300px] text-[14px] text-text2">
+                New people join every day. Widen your filters, or meet someone live on Match right now.
+              </p>
               <div className="mt-5 flex w-full max-w-[300px] flex-col gap-2">
                 <GradientButton label="Meet someone live" icon="videocam" onClick={() => router.push("/match")} />
                 <GhostButton label="Change filters" icon="tune" expand onClick={() => void openDiscoverFilters()} />
@@ -245,7 +280,15 @@ export function DiscoverScreen() {
             disabled={!lastPassed || !!fly}
             onClick={() => void undo()}
           />
-          <RoundAction label="Pass" icon="close" size={64} iconSize={30} className="border-white/16 bg-surface text-text" disabled={!top || !!fly} onClick={() => top && void doSwipe(top, "pass")} />
+          <RoundAction
+            label="Pass"
+            icon="close"
+            size={64}
+            iconSize={30}
+            className="border-white/16 bg-surface text-text"
+            disabled={!top || !!fly}
+            onClick={() => top && void doSwipe(top, "pass")}
+          />
           <RoundAction
             label={status && status.freeSuperLikesLeft > 0 ? "Super Like (free)" : `Super Like (${status?.superLikeCost ?? 10} coins)`}
             icon="star"
@@ -255,7 +298,16 @@ export function DiscoverScreen() {
             disabled={!top || !!fly}
             onClick={() => top && void doSwipe(top, "super")}
           />
-          <RoundAction label="Like" icon="favorite" filled size={64} iconSize={30} className="bg-brand border-transparent text-white shadow-[0_10px_30px_rgb(255_61_143/0.4)]" disabled={!top || !!fly} onClick={() => top && void doSwipe(top, "like")} />
+          <RoundAction
+            label="Like"
+            icon="favorite"
+            filled
+            size={64}
+            iconSize={30}
+            className="bg-brand border-transparent text-white shadow-[0_10px_30px_rgb(255_61_143/0.4)]"
+            disabled={!top || !!fly}
+            onClick={() => top && void doSwipe(top, "like")}
+          />
         </div>
         <p className="type-body hidden pb-5 text-center text-[12px] text-muted lg:block">← pass · → like · ↑ Super Like · Backspace undo</p>
       </div>
@@ -265,7 +317,25 @@ export function DiscoverScreen() {
   );
 }
 
-function RoundAction({ label, icon, size, iconSize = 22, filled, className, disabled, onClick }: { label: string; icon: string; size: number; iconSize?: number; filled?: boolean; className?: string; disabled?: boolean; onClick: () => void }) {
+function RoundAction({
+  label,
+  icon,
+  size,
+  iconSize = 22,
+  filled,
+  className,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  icon: string;
+  size: number;
+  iconSize?: number;
+  filled?: boolean;
+  className?: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -273,7 +343,10 @@ function RoundAction({ label, icon, size, iconSize = 22, filled, className, disa
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className={cn("flex shrink-0 items-center justify-center rounded-full border transition-[filter,transform,opacity] hover:brightness-115 active:scale-95 disabled:opacity-40", className)}
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-full border transition-[filter,transform,opacity] hover:brightness-115 active:scale-95 disabled:opacity-40",
+        className,
+      )}
       style={{ width: size, height: size }}
     >
       <Icon name={icon} variant={filled ? "filled" : undefined} size={iconSize} />
@@ -312,19 +385,30 @@ function LikedYouPanel() {
             {count} {count === 1 ? "person is" : "people are"} waiting for your answer.
           </p>
           <div className="mt-4 grid grid-cols-3 gap-2">
-            {(liked?.unlocked ? liked.people.map((p) => ({ url: p.profile.avatarUrl, name: p.profile.name, star: p.superLikedMe })) : (liked?.previews ?? []).map((u) => ({ url: u, name: "", star: false })))
+            {(liked?.unlocked
+              ? liked.people.map((p) => ({ url: p.profile.avatarUrl, name: p.profile.name, star: p.superLikedMe }))
+              : (liked?.previews ?? []).map((u) => ({ url: u, name: "", star: false }))
+            )
               .slice(0, 6)
               .map((p, i) => (
                 <span key={i} className="relative aspect-[3/4] overflow-hidden rounded-[14px] bg-surface2">
                   {p.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.url} alt={p.name} className="size-full object-cover" style={liked?.unlocked ? undefined : { filter: "blur(10px)", transform: "scale(1.15)" }} />
+                    <img
+                      src={p.url}
+                      alt={p.name}
+                      className="size-full object-cover"
+                      style={liked?.unlocked ? undefined : { filter: "blur(10px)", transform: "scale(1.15)" }}
+                    />
                   ) : null}
                   {p.star ? <Icon name="star" variant="filled" size={16} className="absolute top-1.5 left-1.5 text-lavender" /> : null}
                 </span>
               ))}
           </div>
-          <Link href="/discover/liked-you" className="type-label mt-4 inline-flex h-10 items-center gap-1 rounded-full bg-white/8 px-4 text-[13.5px] font-semibold text-text hover:bg-white/12">
+          <Link
+            href="/discover/liked-you"
+            className="type-label mt-4 inline-flex h-10 items-center gap-1 rounded-full bg-white/8 px-4 text-[13.5px] font-semibold text-text hover:bg-white/12"
+          >
             {liked?.unlocked ? "See everyone" : "See who with VIP"} <Icon name="chevron_right" size={18} />
           </Link>
         </>
