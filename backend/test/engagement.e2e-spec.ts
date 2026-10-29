@@ -322,7 +322,7 @@ describe('engagement', () => {
     it('is reported by GET /engagement and off when its length is 0', async () => {
       const u = await signUp(t);
       const body = (await t.http.get('/v1/engagement').set(u.auth).expect(200)).body;
-      expect(body).toEqual({ vibeHour: { active: false, startsAt: null, endsAt: null }, progress: { level: 1, xp: 0, levelXp: 0, nextLevelXp: 50 }, streaksAtRisk: 0 });
+      expect(body).toEqual({ vibeHour: { active: false, startsAt: null, endsAt: null }, progress: { level: 1, xp: 0, levelXp: 0, nextLevelXp: 50 }, streaksAtRisk: 0, vibeHourReminder: false });
       await setRules({ vibeHourMinutes: 60, vibeHourStart: (clock().minuteOfDay() + 120) % 1440 });
       const later = (await t.http.get('/v1/engagement').set(u.auth).expect(200)).body.vibeHour;
       expect(later.active).toBe(false);

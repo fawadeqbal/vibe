@@ -22,6 +22,8 @@ export const envSchema = z.object({
   CORS_ORIGINS: z.string().default('*'),
   /** Share links: `<INVITE_LINK_BASE>/<code>?s=<channel>` (the landing site's invite page). */
   INVITE_LINK_BASE: z.string().url().default('https://vibe.fawadiqbal.dev/i'),
+  /** The web app, for links in e-mails ("Open Vibe"). */
+  WEB_APP_URL: z.string().url().default('https://app.vibe.fawadiqbal.dev'),
 
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1).default('redis://127.0.0.1:6379'),

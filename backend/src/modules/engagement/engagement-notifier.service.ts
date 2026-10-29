@@ -9,6 +9,9 @@ import { ServerEvent } from '../../infra/realtime/realtime.events';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { EconomyService } from '../catalog/economy.service';
+import { MailProvider } from '../../infra/mail/mail.provider';
+import { MailTemplatesService } from '../messaging/mail-templates.service';
+import { unsubscribeUrl } from '../messaging/unsubscribe';
 import { PushService } from '../push/push.service';
 import { StreakService } from '../social/streak.service';
 import { EngagementService } from './engagement.service';
@@ -19,6 +22,10 @@ import { lastVibeHourEnded } from './vibe-hour';
 export const STREAK_RISK_AT = 20 * 60;
 export const WINBACK_AT = 12 * 60;
 export const RECAP_AT = 10 * 60;
+/** "Remind me" goes out this long before Vibe Hour starts. */
+export const VIBE_HOUR_REMIND_BEFORE = 15 * MS.minute;
+/** Reminders stop for people who haven't opened Vibe in this long (they can turn it back on). */
+export const VIBE_HOUR_REMIND_QUIET_DAYS = 7;
 const BATCH = 500;
 
 /**
@@ -42,6 +49,8 @@ export class EngagementNotifier {
     private readonly streaks: StreakService,
     private readonly recaps: RecapService,
     private readonly config: AppConfig,
+    private readonly mail: MailProvider,
+    private readonly templates: MailTemplatesService,
   ) {}
 
   /** Tests call the jobs directly (with a controlled clock) instead of racing the wall clock. */
@@ -77,6 +86,10 @@ export class EngagementNotifier {
   async vibeHourEdges(): Promise<void> {
     const now = this.clock.now();
     const w = this.engagement.window(now);
+    // 15 minutes before: the people who asked to be reminded.
+    if (!w.active && w.startsAt && w.startsAt.getTime() - now.getTime() <= VIBE_HOUR_REMIND_BEFORE) {
+      await this.once(`eng:vh:remind:${w.day}`, () => this.vibeHourReminders(w.startsAt!));
+    }
     if (w.active && (await this.redis.client.set(`eng:vh:start:${w.day}`, '1', 'EX', 2 * 86_400, 'NX')) === 'OK') {
       this.realtime.toAll(ServerEvent.VibeHour, this.engagement.vibeHour(now));
       await this.vibeHourPush();
@@ -99,6 +112,41 @@ export class EngagementNotifier {
       const online = await this.realtime.onlineMap(ids);
       for (const id of ids.filter((x) => !online[x])) {
         sent += await this.push.sendToUser(id, { title: 'Vibe Hour is live 🔥', body: `Free filters and double XP for the next ${minutes} min`, data: { route: 'match' }, category: 'engagement', collapseKey: 'vibe-hour' });
+      }
+    });
+    return sent;
+  }
+
+  /**
+   * "Remind me": a push to people with the app, an e-mail to people without
+   * it (the web has no push). Skips anyone already in the app, and anyone
+   * who hasn't opened Vibe for a week. Returns how many were reminded.
+   */
+  async vibeHourReminders(startsAt: Date): Promise<number> {
+    const now = this.clock.now();
+    const since = new Date(now.getTime() - VIBE_HOUR_REMIND_QUIET_DAYS * MS.day);
+    const minutes = this.economy.rules.vibeHourMinutes;
+    const time = clockLabel(startsAt, this.clock.offsetMinutes);
+    const appUrl = `${this.config.get('WEB_APP_URL').replace(/\/$/, '')}/match`;
+    let sent = 0;
+    await this.eachUser({ vibeHourReminder: true, lastSeenAt: { gte: since } }, async (ids) => {
+      const online = await this.realtime.onlineMap(ids);
+      const away = ids.filter((x) => !online[x]);
+      const withApp = new Set((await this.prisma.pushToken.findMany({ where: { userId: { in: away } }, select: { userId: true }, distinct: ['userId'] })).map((t) => t.userId));
+      const people = await this.prisma.user.findMany({ where: { id: { in: away.filter((x) => !withApp.has(x)) } }, select: { id: true, name: true, email: true, marketingEmails: true } });
+      for (const id of withApp) {
+        sent += Math.min(1, await this.push.sendToUser(id, { title: `Vibe Hour starts at ${time} 🔥`, body: `You asked us to remind you. Free filters and double XP for ${minutes} min.`, data: { route: 'match' }, category: 'engagement', collapseKey: 'vibe-hour' }));
+      }
+      for (const u of people) {
+        if (!u.email || !u.marketingEmails) continue;
+        try {
+          const unsub = unsubscribeUrl(this.config.get('PUBLIC_URL'), u.id, this.config.get('JWT_ACCESS_SECRET'));
+          const m = await this.templates.render('vibe_hour_reminder', { name: u.name || 'there', email: u.email, time, minutes: String(minutes), appUrl }, { unsubscribeUrl: unsub });
+          await this.mail.send({ to: u.email, subject: m.subject, html: m.html, text: m.text, headers: { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } });
+          sent++;
+        } catch (e) {
+          this.logger.warn(`Vibe Hour reminder e-mail to ${u.id} failed: ${(e as Error).message}`);
+        }
       }
     });
     return sent;
@@ -201,4 +249,11 @@ export class EngagementNotifier {
       if (rows.length < BATCH) return;
     }
   }
+}
+
+/** "9:00 PM" in business time. */
+export function clockLabel(at: Date, offsetMinutes: number): string {
+  const m = Math.floor((at.getTime() / 60_000 + offsetMinutes) % 1440 + 1440) % 1440;
+  const h = Math.floor(m / 60);
+  return `${h % 12 || 12}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }

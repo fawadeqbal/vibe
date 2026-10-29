@@ -56,6 +56,27 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     },
   },
   {
+    key: 'vibe_hour_reminder',
+    name: 'Vibe Hour reminder',
+    description: 'Sent 15 minutes before Vibe Hour to people who tapped "Remind me" and have no phone app for a push.',
+    usage: 'system',
+    variables: [
+      { name: 'time', description: 'When Vibe Hour starts (Pakistan time)', sample: '9:00 PM' },
+      { name: 'minutes', description: 'How long it lasts', sample: '60' },
+      { name: 'appUrl', description: 'Link to the match screen', sample: 'https://app.vibe.fawadiqbal.dev/match' },
+    ],
+    defaults: {
+      subject: 'Vibe Hour starts at {{time}} 🔥',
+      preheader: "Everyone's on for the next hour. Free filters, double XP.",
+      heading: 'Hi {{name}}, Vibe Hour starts soon',
+      body: "You asked us to remind you. At **{{time}}** (Pakistan time) everyone comes online for {{minutes}} minutes — it's the best time to meet someone new.\n\nFilters are free and you earn double XP.",
+      highlight: '',
+      buttonLabel: 'Open Vibe',
+      buttonUrl: '{{appUrl}}',
+      footer: 'You get this because you tapped "Remind me" in Vibe. Turn it off in the app, or with the link below.',
+    },
+  },
+  {
     key: 'general_message',
     name: 'General message',
     description: 'A friendly note from the team. Starting point for messages.',

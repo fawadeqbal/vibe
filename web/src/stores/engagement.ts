@@ -16,6 +16,8 @@ interface EngagementState {
   vibeHour: VibeHour | null;
   level: LevelProgress | null;
   streaksAtRisk: number;
+  /** You asked to be reminded before Vibe Hour (push, or e-mail on the web). */
+  vibeHourReminder: boolean;
   /** GET /me/progress (badges, this week's XP). */
   progress: Progress | null;
   recap: WeeklyRecap | null;
@@ -27,6 +29,8 @@ interface EngagementState {
   loadProgress: () => Promise<void>;
   loadRecap: () => Promise<void>;
   loadBoard: (board: Board) => Promise<void>;
+  /** Turns "Remind me" on or off; false when the server said no. */
+  setVibeHourReminder: (on: boolean) => Promise<boolean>;
   clearLevelUp: () => void;
   reset: () => void;
 }
@@ -38,6 +42,7 @@ export const useEngagement = create<EngagementState>()((set) => ({
   vibeHour: null,
   level: null,
   streaksAtRisk: 0,
+  vibeHourReminder: false,
   progress: null,
   recap: null,
   boards: {},
@@ -47,7 +52,7 @@ export const useEngagement = create<EngagementState>()((set) => ({
     if (!api.hasSession) return;
     try {
       const r = asMap(await api.get("/engagement"));
-      set({ vibeHour: mapVibeHour(asMap(r.vibeHour)), level: levelProgress(asMap(r.progress)), streaksAtRisk: typeof r.streaksAtRisk === "number" ? r.streaksAtRisk : 0 });
+      set({ vibeHour: mapVibeHour(asMap(r.vibeHour)), level: levelProgress(asMap(r.progress)), streaksAtRisk: typeof r.streaksAtRisk === "number" ? r.streaksAtRisk : 0, vibeHourReminder: r.vibeHourReminder === true });
       scheduleBoundary();
     } catch {}
   },
@@ -72,11 +77,23 @@ export const useEngagement = create<EngagementState>()((set) => ({
     set((s) => ({ boards: { ...s.boards, [board]: b } }));
   },
 
+  async setVibeHourReminder(on) {
+    const before = useEngagement.getState().vibeHourReminder;
+    set({ vibeHourReminder: on });
+    try {
+      await api.put("/engagement/vibe-hour/reminder", { on });
+      return true;
+    } catch {
+      set({ vibeHourReminder: before });
+      return false;
+    }
+  },
+
   clearLevelUp: () => set({ levelUp: null }),
 
   reset() {
     clearTimeout(boundaryTimer);
-    set({ vibeHour: null, level: null, streaksAtRisk: 0, progress: null, recap: null, boards: {}, levelUp: null });
+    set({ vibeHour: null, level: null, streaksAtRisk: 0, vibeHourReminder: false, progress: null, recap: null, boards: {}, levelUp: null });
   },
 }));
 

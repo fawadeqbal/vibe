@@ -60,6 +60,9 @@ export class ApiClient {
   patch<T = unknown>(path: string, body?: unknown) {
     return this.send<T>("PATCH", path, { body });
   }
+  put<T = unknown>(path: string, body?: unknown) {
+    return this.send<T>("PUT", path, { body });
+  }
   delete<T = unknown>(path: string) {
     return this.send<T>("DELETE", path);
   }
