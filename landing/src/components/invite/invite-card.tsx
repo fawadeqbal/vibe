@@ -94,7 +94,7 @@ export function InviteCard() {
             <Icon name="android" size={20} />
             Get it on Google Play
           </Cta>
-          <Cta href={webAppUrl(keep)} variant="outline" size="lg" className="w-full">
+          <Cta href={webAppUrl(keep)} track="invite_web" variant="outline" size="lg" className="w-full">
             <Icon name="videocam" size={19} />
             Use {site.name} on the web
           </Cta>

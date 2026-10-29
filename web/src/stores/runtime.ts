@@ -1,3 +1,7 @@
+import { ApiError } from "@/lib/api/errors";
+import { browserStorage } from "@/lib/referrals";
+import { captureVisit, clearVisit, readVisit } from "@/lib/site-visit";
+
 import { useAffiliate } from "./affiliate";
 import { useCalls } from "./calls";
 import { useCatalog } from "./catalog";
@@ -8,7 +12,7 @@ import { useInbox } from "./inbox";
 import { useMatch } from "./match";
 import { useMoments } from "./moments";
 import { useReferrals } from "./referrals";
-import { realtime } from "./services";
+import { api, realtime } from "./services";
 import { useSession } from "./session";
 import { useSocial } from "./social";
 import { useWallet } from "./wallet";
@@ -46,6 +50,7 @@ function onSessionChanged(signedIn: boolean) {
     realtime.connect();
     void loadAll();
     void useSession.getState().loadVerification();
+    void sendVisitAttribution();
     startBreakReminder();
   } else if (!signedIn && live) {
     live = false;
@@ -67,11 +72,27 @@ function onSessionChanged(signedIn: boolean) {
   }
 }
 
+/** A new account that came from the marketing site: tell the server which visit (once). */
+async function sendVisitAttribution() {
+  const kv = browserStorage();
+  const v = readVisit(kv);
+  if (!v) return;
+  try {
+    await api.post("/site/attribution", { visitId: v.id });
+    clearVisit(kv);
+  } catch (e) {
+    if (e instanceof ApiError) clearVisit(kv); // the server answered: don't retry
+  }
+}
+
 export function startApp() {
   if (started) return;
   started = true;
   // An invite link (?ref=CODE&s=SOURCE) can land on any page: keep it for sign-up.
   useReferrals.getState().captureFromLocation();
+  // A link from the marketing site (?vid=…): keep the visit for sign-up attribution.
+  const cleaned = captureVisit(new URL(window.location.href), browserStorage());
+  if (cleaned != null) window.history.replaceState(window.history.state, "", cleaned);
   void useCatalog.getState().load();
   void useSession
     .getState()

@@ -92,11 +92,11 @@ function renderBlock(b: Block) {
       <p className="text-lg font-semibold tracking-[-0.3px]">{b.cta.title}</p>
       <p className="mt-2 text-sm leading-[1.6] text-text2">{b.cta.body}</p>
       <div className="mt-5 flex flex-wrap gap-3">
-        <Cta href={site.links.webApp} size="md">
+        <Cta href={site.links.webApp} track="page_cta" size="md">
           <Icon name="videocam" size={18} />
           Start video chat — free
         </Cta>
-        <Cta href={site.links.android} variant="outline" size="md">
+        <Cta href={site.links.android} track="page_android" variant="outline" size="md">
           <Icon name="android" size={17} />
           Get the Android app
         </Cta>

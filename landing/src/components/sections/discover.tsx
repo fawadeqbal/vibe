@@ -113,7 +113,7 @@ export function Discover() {
             </ul>
           </div>
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Cta href={`${site.links.webApp}/discover`}>Open Discover</Cta>
+            <Cta href={`${site.links.webApp}/discover`} track="discover_open">Open Discover</Cta>
             <span className="text-[13px] text-muted">
               Free · 18+ · works in your browser
             </span>

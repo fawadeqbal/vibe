@@ -40,11 +40,11 @@ export default async function KeywordLandingPage({ params }: Props) {
           <h1 className="mt-3 text-[clamp(34px,5vw,54px)] leading-[1.04] font-bold tracking-[-0.035em]">{page.h1}</h1>
           <p className="mt-5 text-[18px] leading-[1.65] text-text2">{page.lede}</p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Cta href={site.links.webApp}>
+            <Cta href={site.links.webApp} track="page_hero">
               <Icon name="videocam" size={20} />
               Start video chat — free
             </Cta>
-            <Cta href={site.links.android} variant="outline" className="px-[22px] text-[15px]">
+            <Cta href={site.links.android} track="page_hero_android" variant="outline" className="px-[22px] text-[15px]">
               <Icon name="android" size={18} />
               Android app
             </Cta>

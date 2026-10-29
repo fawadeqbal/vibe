@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import Script from "next/script";
 
 import { JsonLd } from "@/components/json-ld";
+import { Tracker } from "@/components/tracker";
 import { organizationLd, websiteLd } from "@/lib/seo";
 import { site } from "@/lib/site";
 
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${geist.variable} ${instrumentSerif.variable}`}>
       <body>
         {children}
+        <Tracker />
         <JsonLd nodes={[organizationLd(), websiteLd()]} />
         {site.gaId && (
           <>

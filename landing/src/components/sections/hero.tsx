@@ -26,11 +26,11 @@ export function Hero() {
             {site.name} is free random video chat with real, selfie-verified people: one tap puts you face to face with someone new, anywhere in the world. Swipe to the next when the spark isn&apos;t there, stay when it is. No profile to build first, no waiting. Rather look first? Swipe in Discover and video call once you both say yes.
           </p>
           <div className="mt-[30px] flex flex-wrap items-center gap-3">
-            <Cta href={site.links.webApp}>
+            <Cta href={site.links.webApp} track="hero_start">
               <Icon name="videocam" size={20} />
               Start matching — it&apos;s free
             </Cta>
-            <Cta href={site.links.android} variant="outline" className="px-[22px] text-[15px]">
+            <Cta href={site.links.android} track="hero_android" variant="outline" className="px-[22px] text-[15px]">
               <Icon name="android" size={18} />
               Android
             </Cta>

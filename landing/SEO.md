@@ -67,3 +67,13 @@ Technical SEO gets the site *eligible*; these get it *ranked*. "Random video cha
 - **New blog post**: add to the top of `POSTS` in `src/content/posts.ts`. Use `metaTitle` when the title is longer than ~52 characters.
 - Text supports `[link](/path/)` and `**bold**`. Link new pieces from at least two existing ones.
 - Keep every product claim true — if prices, payouts or features change in admin → Economy, update the copy.
+
+## Traffic counting (admin → Marketing site)
+
+The site counts its own traffic — no third-party trackers. `src/lib/track.ts` sends small beacons to `<API>/v1/site/events`: one per page view, one per "go to the app" click, and time on site when the tab closes. `src/components/tracker.tsx` (mounted once in the layout) sends every link into the web app or an app store through `goToApp()`, which counts the click and adds `?vid=<visit>&b=<button>` to the app link; the web app keeps that through sign-in and links the new account to the visit, so admin shows sign-ups per source, page and button.
+
+- **Name new buttons**: `<Cta href={…} track="my_button">` (lower_case). Untagged app links still count, as "Other links".
+- **Tag your own links**: `?utm_source=tiktok&utm_medium=social&utm_campaign=launch` → Campaigns.
+- **Country, region and city** come from Cloudflare. Country works out of the box; for region and city turn on **Cloudflare → Rules → Transform Rules → Managed Transforms → "Add visitor location headers"** (free). IP addresses are never stored.
+- **Your own visits**: open the site once with `?notrack=1` (the "Ignore my visits" button in admin does this); `?notrack=0` undoes it. Bots, link previews and automated browsers are left out.
+- Raw events are kept 90 days, visits about 13 months.

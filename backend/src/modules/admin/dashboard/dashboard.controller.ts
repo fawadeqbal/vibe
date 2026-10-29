@@ -49,6 +49,12 @@ export class DashboardController {
     return this.dashboard.discover(q.days);
   }
 
+  @Get('marketing')
+  @ApiOperation({ summary: 'Marketing site: visitors, clicks to the app, sign-ups; by source, country/region, page, button, campaign and device; live (cached 60 s)' })
+  marketing(@Query() q: DaysQuery) {
+    return this.dashboard.marketing(q.days ?? 7);
+  }
+
   @Get('series')
   @ApiOperation({ summary: 'Daily series for charts (business days, cached 5 min)' })
   series(@Query() q: SeriesQuery) {

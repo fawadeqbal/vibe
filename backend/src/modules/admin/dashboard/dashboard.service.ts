@@ -8,6 +8,7 @@ import { RedisService } from '../../../infra/redis/redis.service';
 import { EconomyService } from '../../catalog/economy.service';
 import { MatchingService } from '../../matching/matching.service';
 import { discoverCallsReport, type DiscoverCallsReport } from './discover-stats';
+import { type MarketingReport, marketingReport } from './marketing-stats';
 import { buildFunnel, CohortCounts, FunnelReport } from './funnel';
 
 export type SeriesPoint = { day: string; signups: number; revenueUsd: number; purchases: number; matches: number; matchers: number; gifts: number; payoutsUsd: number; reports: number };
@@ -43,6 +44,13 @@ export class DashboardService {
   /** Discover and chat-call numbers (cached 2 min). */
   async discover(days: number): Promise<DiscoverCallsReport> {
     return this.redis.remember(`admin:dash:discover:${days}`, 120, () => discoverCallsReport(this.prisma, this.economy.rules, days, this.clock.now()));
+  }
+
+  /** Marketing-site traffic for the last `days` days (cached 60 s). */
+  async marketing(days: number): Promise<MarketingReport> {
+    return this.redis.remember(`admin:dash:marketing:${days}`, 60, () =>
+      marketingReport(this.prisma, days, this.clock.now(), this.config.get('BUSINESS_TZ_OFFSET_MINUTES'), new URL(this.config.get('INVITE_LINK_BASE')).origin),
+    );
   }
 
   /** New-user funnel for people who signed up in the last `days` business days (cached 5 min). */

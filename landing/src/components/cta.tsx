@@ -23,13 +23,15 @@ type Props = {
   variant?: keyof typeof variants;
   size?: keyof typeof sizes;
   className?: string;
+  /** Button id for the traffic report (admin → Marketing site), e.g. "hero_start". */
+  track?: string;
   children: ReactNode;
 };
 
-export function Cta({ href, variant = "brand", size = "lg", className = "", children }: Props) {
+export function Cta({ href, variant = "brand", size = "lg", className = "", track, children }: Props) {
   const external = isExternal(href);
   return (
-    <a href={href} className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...(external ? { target: "_blank", rel: "noopener" } : {})}>
+    <a href={href} data-cta={track} className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...(external ? { target: "_blank", rel: "noopener" } : {})}>
       {children}
     </a>
   );
