@@ -24,6 +24,7 @@ import { openSheet } from "@/stores/ui";
 
 import { GameCard, gameError, openGamePicker } from "./game";
 import { MutualCelebration } from "./mutual";
+import { markSwipeHintSeen, SwipeHint, swipeHintSeen, SwipeStage } from "./swipe";
 
 export interface ConnectedActions {
   next: () => void;
@@ -41,11 +42,34 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
   const shared = p.interests.filter((i) => me?.interests.includes(i));
   const opener = shared.length ? `You both like ${shared.slice(0, 2).join(" · ")}` : p.interests.length ? `Into ${p.interests.slice(0, 2).join(" · ")}` : null;
   const likeText = mutualLike(m) ? "You both liked each other" : m.partnerLikedMe ? `${p.name} liked you` : null;
+  // First call on this device: show how swiping works, once.
+  const [hint, setHint] = useState(() => !m.friendCall && !swipeHintSeen());
+  const doneHint = () => {
+    markSwipeHintSeen();
+    setHint(false);
+  };
+  const swipeNext = () => {
+    if (hint) doneHint();
+    actions.next();
+  };
+  const doubleTapLike = () => {
+    const s = useMatch.getState();
+    if (!s.likedPartner) s.like();
+  };
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} />
-      <VideoScrims top={220} bottom={460} topAlpha={0.75} bottomAlpha={0.92} bottomMid={0.6} />
+      {m.friendCall ? (
+        <>
+          <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} />
+          <VideoScrims top={220} bottom={460} topAlpha={0.75} bottomAlpha={0.92} bottomMid={0.6} />
+        </>
+      ) : (
+        <SwipeStage onNext={swipeNext} onLike={doubleTapLike}>
+          <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} />
+          <VideoScrims top={220} bottom={460} topAlpha={0.75} bottomAlpha={0.92} bottomMid={0.6} />
+        </SwipeStage>
+      )}
 
       {/* Top: who, timer, report. */}
       <div className="absolute inset-x-0 top-0 flex items-center gap-2 px-3 pt-[calc(10px+env(safe-area-inset-top))]">
@@ -126,6 +150,7 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
         <Composer />
       </div>
 
+      {hint ? <SwipeHint onDone={doneHint} /> : null}
       {m.mutual && m.current && !m.friendCall ? <MutualCelebration key={m.current.id} matchId={m.current.id} friendState={friendState} onAddFriend={actions.addFriend} /> : null}
     </div>
   );

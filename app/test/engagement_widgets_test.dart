@@ -45,7 +45,7 @@ class H {
   DateTime now = DateTime.utc(2026, 10, 6, 16, 20); // 21:20 in Pakistan: Vibe Hour
 
   Future<void> init({List<Friend> friends = const []}) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'vibe.swipeHint.v1': true}); // the swipe hint was seen
     backend = MockBackend(fast: true, random: Random(3));
     if (friends.isNotEmpty) await backend.saveFriends(friends);
     wallet = WalletProvider(backend);

@@ -376,6 +376,24 @@ void main() {
     await snap(t, 'r1_cooldown');
   });
 
+  Future<void> callConnect(WidgetTester t, H h) async {
+    h.match.setAutoBlur(false);
+    await t.pumpWidget(h.app(const HomeShell()));
+    await settle(t);
+    unawaited(h.match.start());
+    for (var i = 0; i < 10; i++) {
+      await t.pump(const Duration(milliseconds: 100));
+    }
+    await t.pump(const Duration(seconds: 6));
+  }
+
+  shot('r2_swipe_hint', (t, h) async {
+    await callConnect(t, h);
+    await snap(t, 'r2_swipe_hint');
+    h.match.stop();
+    await t.pump(const Duration(seconds: 10));
+  });
+
   shot('v1_vip', (t, h) async {
     t.view.physicalSize = const Size(412 * 2, 1900 * 2);
     await t.pumpWidget(h.app(const VipScreen()));

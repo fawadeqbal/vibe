@@ -13,6 +13,7 @@ import { Ended } from "./ended";
 import { GiftBurst } from "./gift-burst";
 import { Lobby } from "./lobby";
 import { openCameraBlocked } from "./match-sheets";
+import { SkippedBar } from "./swipe";
 import { Searching } from "./searching";
 import { useMatchActions } from "./use-match-actions";
 import { dismissLooking } from "./waitlist-strip";
@@ -91,7 +92,10 @@ export function MatchScreen() {
       ) : status === "connected" ? (
         <Connected actions={{ next: () => void actions.next(), gift: () => void actions.gift(), addFriend: () => void actions.addFriend(), report: () => void actions.report() }} />
       ) : status === "searching" ? (
-        <Searching onRestart={() => void actions.start()} />
+        <>
+          <Searching onRestart={() => void actions.start()} />
+          <SkippedBar onUndo={() => void actions.reconnect()} onAddFriend={() => void actions.addLastFriend()} />
+        </>
       ) : status === "ended" && hasLast ? (
         <Ended onReconnect={() => void actions.reconnect()} onFindAnother={() => void actions.start()} onReport={() => void actions.reportLast()} autoNext={freeToMatch} />
       ) : (

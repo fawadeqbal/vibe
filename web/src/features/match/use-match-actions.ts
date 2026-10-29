@@ -14,6 +14,7 @@ import { freeReconnectLeft } from "@/lib/engagement";
 import { economy } from "@/stores/catalog";
 import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { cooldownSeconds, useMatch } from "@/stores/match";
+import { useSocial } from "@/stores/social";
 import { toast } from "@/stores/ui";
 import { filterCost, freeFriendRequestsLeft, isBoosted, isVip, useWallet } from "@/stores/wallet";
 
@@ -121,6 +122,27 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
     else toast("Request sent");
   }, [needCoins]);
 
+  /** After a skip: a friend request to the person you just left. */
+  const addLastFriend = useCallback(async () => {
+    const p = useMatch.getState().lastPartner;
+    if (!p) return;
+    const e = economy();
+    if (freeFriendRequestsLeft(useWallet.getState()) === 0) {
+      const ok = await confirm({
+        title: `Send ${p.name} a friend request?`,
+        body: `Your ${e.freeFriendRequestsPerDay} free requests for today are used. This one costs ${e.friendRequestCost} coins.`,
+        ok: `Send for ${e.friendRequestCost}`,
+      });
+      if (!ok) return;
+    }
+    try {
+      if (await useSocial.getState().sendRequest(p)) toast(`Request sent to ${p.name}`);
+      else await needCoins(`A friend request costs ${e.friendRequestCost} coins once your free ones are used.`);
+    } catch (err) {
+      toast(errorMessage(err), { error: true });
+    }
+  }, [needCoins]);
+
   const report = useCallback(async () => {
     const p = useMatch.getState().partner;
     if (!p) return;
@@ -153,7 +175,7 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
     if (!(await useMatch.getState().reconnect())) await explainFailure(freeReconnectLeft(ended?.freeReconnectUntil ?? null) > 0 ? "Reconnecting is free right now — try again." : `Reconnecting costs ${cost} coins.`);
   }, [explainFailure]);
 
-  return useMemo(() => ({ start, next, gift, addFriend, report, reportLast, reconnect }), [start, next, gift, addFriend, report, reportLast, reconnect]);
+  return useMemo(() => ({ start, next, gift, addFriend, addLastFriend, report, reportLast, reconnect }), [start, next, gift, addFriend, addLastFriend, report, reportLast, reconnect]);
 }
 
 /** Asks before spending on a boost (or using a free one); shared by the lobby and the search. */

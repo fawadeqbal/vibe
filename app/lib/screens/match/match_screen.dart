@@ -18,6 +18,7 @@ import '../../providers/engagement_provider.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
+import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../services/app_services.dart';
 import '../../services/ads/rewarded_ads.dart';
@@ -32,6 +33,7 @@ import 'gift_sheet.dart';
 import 'icebreakers.dart';
 import 'lobby_extras.dart';
 import 'match_sheets.dart';
+import 'swipe.dart';
 import 'report_sheet.dart';
 import 'safety_sheet.dart';
 import 'voice_call.dart';
@@ -59,6 +61,23 @@ class _MatchScreenState extends State<MatchScreen> {
   late int _seenMutual = context.read<MatchProvider>().mutualSeq;
   bool _celebrating = false;
   bool _cameraSheetOpen = false;
+
+  /// "Swipe up for next" hint: shown on the first call on this device.
+  bool _hintSeen = true;
+
+  @override
+  void initState() {
+    super.initState();
+    swipeHintSeen().then((seen) {
+      if (mounted && !seen) setState(() => _hintSeen = false);
+    });
+  }
+
+  void _doneHint() {
+    if (_hintSeen) return;
+    setState(() => _hintSeen = true);
+    markSwipeHintSeen();
+  }
 
   // The camera is not opened here: the lobby preview is opt-in and the
   // provider opens/closes it (see MatchProvider "camera").
@@ -190,6 +209,38 @@ class _MatchScreenState extends State<MatchScreen> {
       } else {
         await _needCoins('A ${g.name} costs ${g.coins} coins.');
       }
+    }
+  }
+
+  /// After a skip: a friend request to the person you just left.
+  Future<void> _addLastFriend() async {
+    final m = context.read<MatchProvider>();
+    final p = m.lastPartner;
+    if (p == null) return;
+    final wallet = context.read<WalletProvider>();
+    final social = context.read<SocialProvider>();
+    if (wallet.freeFriendRequestsLeft == 0) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Send ${p.name} a friend request?'),
+          content: Text('Your ${Economy.freeFriendRequestsPerDay} free requests for today are used. This one costs ${Economy.friendRequestCost} coins.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel', style: TextStyle(color: V.text2))),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text('Send for ${Economy.friendRequestCost}')),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    try {
+      if (await social.sendRequest(p)) {
+        if (mounted) toast(context, 'Request sent to ${p.name}');
+      } else if (mounted) {
+        await _needCoins('A friend request costs ${Economy.friendRequestCost} coins once your free ones are used.');
+      }
+    } on ApiException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
     }
   }
 
@@ -333,6 +384,14 @@ class _MatchScreenState extends State<MatchScreen> {
               MatchState.ended when m.lastPartner != null => _Ended(m: m, onReconnect: _reconnect, onFindAnother: _start, onReport: _reportLast),
               _ => _Lobby(m: m, onStart: _start, onOpenStore: widget.onOpenStore),
             },
+            if (m.isSearching)
+              Positioned(
+                left: 12,
+                right: 12,
+                top: MediaQuery.of(context).padding.top + 12,
+                child: SkippedBar(onUndo: _reconnect, onAddFriend: _addLastFriend),
+              ),
+            if (!_hintSeen && m.isConnected && !m.friendCall && !m.voiceCall) Positioned.fill(child: SwipeHint(onDone: _doneHint)),
             if (_celebrating && m.isConnected && m.partner != null && !m.friendCall)
               Positioned.fill(
                 child: Center(
@@ -1327,8 +1386,20 @@ class _Connected extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        _PartnerStage(m: m, partner: p, blurred: m.blurred),
-        const VideoScrims(top: 220, bottom: 460, topAlpha: 0.75, bottomAlpha: 0.92, bottomMid: 0.6),
+        if (m.friendCall) ...[
+          _PartnerStage(m: m, partner: p, blurred: m.blurred),
+          const VideoScrims(top: 220, bottom: 460, topAlpha: 0.75, bottomAlpha: 0.92, bottomMid: 0.6),
+        ] else
+          SwipeStage(
+            onNext: onNext,
+            onLike: () {
+              if (!m.likedPartner) m.like();
+            },
+            child: Stack(fit: StackFit.expand, children: [
+              _PartnerStage(m: m, partner: p, blurred: m.blurred),
+              const VideoScrims(top: 220, bottom: 460, topAlpha: 0.75, bottomAlpha: 0.92, bottomMid: 0.6),
+            ]),
+          ),
         // Top: who, timer, report.
         Positioned(
           left: 0,
