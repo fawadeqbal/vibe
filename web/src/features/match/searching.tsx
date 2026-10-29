@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { VibeMark } from "@/components/ui/brand";
-import { GhostButton, TextButton } from "@/components/ui/button";
+import { GhostButton } from "@/components/ui/button";
 import { Glass } from "@/components/ui/glass";
 import { Icon } from "@/components/ui/icon";
 import { Headline } from "@/components/ui/typography";
@@ -75,11 +75,15 @@ export function Searching({ onRestart }: { onRestart: () => void }) {
             <MiniChip label={countryLabel(filters.countryCode)} />
             {filters.safeMode ? <MiniChip label="Verified only" trust /> : null}
           </div>
+          {/* A long wait: why, and what to do — right under the status, as part of the screen. */}
+          {slow ? (
+            <div className="mt-6 w-full">
+              <SlowSearchCard filters={filters} nobodyAround={nobodyAround} onRestart={onRestart} />
+            </div>
+          ) : null}
           <div className="min-h-6 flex-1" />
 
-          {slow ? (
-            <SlowSearchCard filters={filters} nobodyAround={nobodyAround} onRestart={onRestart} />
-          ) : (
+          {slow ? null : (
             <Glass radius={22} className="flex w-full items-start border-white/10 bg-bg2/55 p-4">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-trust/14">
                 <Icon name="shield" size={20} className="text-trust" />
@@ -160,7 +164,7 @@ function SearchSteps() {
             >
               {done ? <Icon name="check" size={12} className="text-white" /> : on ? <span className="size-1.5 animate-pulse rounded-full bg-pink" /> : null}
             </span>
-            <span className={cn("type-label ml-1.5 text-[11.5px] whitespace-nowrap", done ? "text-text2" : on ? "text-text" : "text-muted")}>{label}</span>
+            <span className={cn("type-label ml-1.5 text-[11.5px] whitespace-nowrap", done ? "text-text2" : on ? "text-text" : "text-muted", !on && "max-[380px]:sr-only")}>{label}</span>
           </li>
         );
       })}
@@ -168,7 +172,24 @@ function SearchSteps() {
   );
 }
 
-/** Takes the safety card's place once the wait gets long: the likely reason and one useful action. */
+/** A small pill action under the status (no card: it sits in the screen, not on top of it). */
+function PillAction({ icon, label, onClick, tone = "default" }: { icon: string; label: string; onClick: () => void; tone?: "default" | "warn" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "type-label inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[12.5px] font-semibold transition-colors",
+        tone === "warn" ? "border-warn/35 bg-warn/10 text-warn hover:bg-warn/16" : "border-white/14 bg-white/6 text-text hover:bg-white/12",
+      )}
+    >
+      <Icon name={icon} size={16} className={tone === "warn" ? "text-warn" : "text-pink-soft"} />
+      {label}
+    </button>
+  );
+}
+
+/** Takes the safety card's place once the wait gets long: one line on why, and small actions — part of the screen, not a card. */
 function SlowSearchCard({ filters, nobodyAround, onRestart }: { filters: MatchFilters; nobodyAround: boolean; onRestart: () => void }) {
   const router = useRouter();
   const narrowed = isNarrowed(filters);
@@ -181,73 +202,51 @@ function SlowSearchCard({ filters, nobodyAround, onRestart }: { filters: MatchFi
       .filter(Boolean)
       .join(", ");
     return (
-      <div role="status" className="w-full">
-        <Glass radius={22} className="w-full border-warn/30 bg-bg2/70 p-4">
-          <div className="flex items-start">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-warn/14">
-              <Icon name="tune" size={20} className="text-warn" />
-            </span>
-            <span className="ml-3.5 flex-1">
-              <span className="type-title block text-[14px] font-semibold">Few people match your filters</span>
-              <span className="type-body mt-[3px] block text-[12.5px] leading-[1.45] text-text2">
-                You&apos;re searching for {dropped}. Widening to anyone, anywhere usually finds someone in seconds.
-              </span>
-            </span>
-          </div>
-          <div className="mt-1.5 flex justify-end gap-1">
-            <TextButton
-              icon="public"
-              onClick={() => {
-                const m = useMatch.getState();
-                m.stop();
-                m.setFilters({ gender: "anyone", countryCode: null, safeMode: false });
-                onRestart();
-              }}
-            >
-              Match with anyone
-            </TextButton>
-          </div>
-        </Glass>
+      <div role="status" className="flex w-full flex-col items-center text-center">
+        <p className="type-body max-w-[340px] text-[13px] leading-[1.45] text-text2">
+          Few people match <span className="text-text">{dropped}</span> right now. Anyone, anywhere usually connects in seconds.
+        </p>
+        <div className="mt-3 flex flex-wrap justify-center gap-2">
+          <PillAction
+            icon="public"
+            label="Match with anyone"
+            tone="warn"
+            onClick={() => {
+              const m = useMatch.getState();
+              m.stop();
+              m.setFilters({ gender: "anyone", countryCode: null, safeMode: false });
+              onRestart();
+            }}
+          />
+        </div>
       </div>
     );
   }
   return (
-    <div role="status" className="w-full">
-      <Glass radius={22} className="w-full border-white/10 bg-bg2/70 p-4">
-        <div className="flex items-start">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-white/8">
-            <Icon name="hourglass_top" size={20} className="text-lavender" />
-          </span>
-          <span className="ml-3.5 flex-1">
-            <span className="type-title block text-[14px] font-semibold">{nobodyAround ? "It's quiet right now" : "Taking a little longer"}</span>
-            <span className="type-body mt-[3px] block text-[12.5px] leading-[1.45] text-text2">
-              Stay here and we&apos;ll connect you the moment someone joins. Or leave, and we&apos;ll tell you when someone starts looking.
-            </span>
-            <VibeHourNudge />
-          </span>
-        </div>
-        <div className="mt-1.5 flex flex-wrap justify-end gap-1">
-          <TextButton
-            icon="notifications_active"
-            onClick={async () => {
-              const ok = await useWaitlist.getState().notifyMe();
-              useMatch.getState().stop();
-              toast(ok ? "We'll tell you when someone starts looking" : "Couldn't set that up. Try again.", { error: !ok });
-            }}
-          >
-            Notify me instead
-          </TextButton>
-          <TextButton
-            icon="person_add"
-            onClick={() => {
-              useMatch.getState().stop();
-              router.push("/invite");
-            }}
-          >
-            Invite a friend
-          </TextButton>
-        </div>
-      </Glass>
+    <div role="status" className="flex w-full flex-col items-center text-center">
+      <p className="type-body max-w-[340px] text-[13px] leading-[1.45] text-text2">
+        {nobodyAround ? "Stay here — we'll connect you when someone joins." : "Still looking — hang on, or we can tell you when someone's on."}
+      </p>
+      <VibeHourNudge />
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
+        <PillAction
+          icon="notifications_active"
+          label="Notify me instead"
+          onClick={async () => {
+            const ok = await useWaitlist.getState().notifyMe();
+            useMatch.getState().stop();
+            toast(ok ? "We'll tell you when someone starts looking" : "Couldn't set that up. Try again.", { error: !ok });
+          }}
+        />
+        <PillAction
+          icon="person_add"
+          label="Invite a friend"
+          onClick={() => {
+            useMatch.getState().stop();
+            router.push("/invite");
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -272,8 +271,8 @@ function VibeHourNudge() {
   if (!v?.startsAt || vibeHourLive(v)) return null;
   const startsAt = v.startsAt;
   return (
-    <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span className="type-body text-[12.5px] text-text2">
+    <span className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+      <span className="type-body text-[12.5px] text-muted">
         Most people come at <span className="text-text">{clock12(startsAt)}</span> for Vibe Hour.
       </span>
       <button type="button" aria-pressed={remind} onClick={() => void toggleVibeHourReminder(!remind, startsAt)} className="type-label inline-flex items-center gap-1 text-[12.5px] text-pink-soft hover:underline">
