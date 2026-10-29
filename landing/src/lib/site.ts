@@ -30,7 +30,7 @@ export const site = {
   title: `Free Random Video Chat with Verified People | ${name}`,
   tagline: "Meet someone new, right now",
   /** Meta description: keep ≤ 160 characters. */
-  description: `${name} is free random video chat with real, selfie-verified people. One tap to meet someone new anywhere in the world. Calls start blurred. Free, 18+.`,
+  description: `${name} is free random video chat and swipe-to-match with real, selfie-verified people. Meet someone new in one tap, anywhere in the world. Free, 18+.`,
   /** Search phrases the home page is written around (also the meta keywords tag). */
   keywords: [
     "random video chat",
@@ -43,10 +43,13 @@ export const site = {
     "online video call app",
     "make friends online",
     "safe video chat",
+    "meet new people app",
+    "swipe and match",
+    "azar alternative",
   ],
   locale: "en_US",
   /** When the site's own copy last changed meaningfully (sitemap lastModified). */
-  updated: "2026-10-05",
+  updated: "2026-10-29",
   supportEmail: env(process.env.NEXT_PUBLIC_SUPPORT_EMAIL, ""),
   twitter: env(process.env.NEXT_PUBLIC_TWITTER_HANDLE, ""),
   /** Official profiles (Instagram, TikTok, X, Facebook, YouTube, Play Store…): schema.org sameAs. */

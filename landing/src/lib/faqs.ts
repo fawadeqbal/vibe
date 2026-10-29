@@ -11,7 +11,15 @@ export const FAQS: { q: string; a: string }[] = [
   },
   { q: "How does verification work?", a: "A quick selfie check compares you to your profile photo. Verified people get a teal badge, and you can choose to match with verified people only." },
   { q: "What happens when I report someone?", a: "The call ends for you instantly, the report goes to our moderation team with call context, and repeat offenders are removed. Reports are reviewed 24/7." },
-  { q: "Can I choose who I match with?", a: "You can filter by gender and country. Filters cost coins on the free plan and are unlimited with VIP." },
+  { q: "Can I choose who I match with?", a: "Yes. In video match you can filter by gender and country; in Discover by age, gender, country, online now and verified only. Age is always free, every filter is free during the daily Vibe Hour and with VIP, and otherwise filters cost a few coins." },
+  {
+    q: `What is Discover on ${n}?`,
+    a: "Discover is the swipe side of the app: real, active people one at a time. Like or pass; when two people like each other it's a match and the chat opens. Likes are free every day, and VIP gets unlimited likes and sees who liked them.",
+  },
+  {
+    q: "Can someone video call me without my permission?",
+    a: "No. Video calls from a chat stay off until both of you tap Allow, and either person can turn them off again at any time. Missed and finished calls show in the chat. Random video match is separate and always starts blurred.",
+  },
   {
     q: `Can I use ${n} on my computer?`,
     a: `Yes. ${n} runs in any modern browser on a laptop or desktop — no download needed — and as an app on Android phones. Your account, coins and friends are the same on both.`,

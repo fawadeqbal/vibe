@@ -1,5 +1,6 @@
 import { JsonLd } from "@/components/json-ld";
 import { Faq, FinalCta, Invite, Stats } from "@/components/sections/closing";
+import { Daily, Discover } from "@/components/sections/discover";
 import { Gifts } from "@/components/sections/gifts";
 import { Hero } from "@/components/sections/hero";
 import { HowItWorks } from "@/components/sections/how-it-works";
@@ -23,8 +24,10 @@ export default function LandingPage() {
       <main id="main">
         <Hero />
         <HowItWorks />
+        <Discover />
         <Gifts />
         <Safety />
+        <Daily />
         <Vip />
         <Invite />
         <Stats />

@@ -37,6 +37,7 @@ export const metadata: Metadata = {
   title: { default: "Vibe", template: "%s · Vibe" },
   description: "Meet someone new on video, right now. One tap connects you with a real person somewhere in the world.",
   applicationName: "Vibe",
+  appleWebApp: { capable: true, title: "Vibe", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

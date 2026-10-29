@@ -79,7 +79,7 @@ export const PAGES: KeywordPage[] = [
     slug: "random-video-chat",
     navLabel: "Random video chat",
     title: "Random Video Chat — Free, Live & Verified",
-    description: `Free random video chat with real, selfie-verified people worldwide. One tap to connect, one tap to skip, filters by country and gender. Try ${n} in your browser.`,
+    description: `Free random video chat with real, selfie-verified people worldwide. One tap to connect, one tap to skip, country and gender filters. Try ${n} in your browser.`,
     keywords: ["random video chat", "random video call", "free random video chat", "video chat random people", "random cam chat", "random chat app"],
     kicker: "Random video chat",
     h1: "Random video chat with real people, one tap away",
@@ -426,7 +426,8 @@ export const PAGES: KeywordPage[] = [
           "Selfie verification, blurred call starts, two-tap reporting",
           "Live gifts, friends and chat after the call",
           "Wallet, cash-outs and coin purchases (JazzCash, Easypaisa, card, bank)",
-          "VIP: unlimited filters, no ads, priority matching",
+          "Discover: swipe, match and chat, with video calls once you both allow them",
+          "VIP: unlimited likes, every filter free, no ads, priority matching",
         ],
       },
       { cta: { title: "Open video chat in your browser", body: "Nothing to install. Free to match, 18+." } },
@@ -447,6 +448,132 @@ export const PAGES: KeywordPage[] = [
     ],
     related: ["/random-video-chat/", "/omegle-alternative/", "/talk-to-strangers/", "/safe-video-chat/"],
     updated: "2026-10-05",
+  },
+
+  // ── 9 ────────────────────────────────────────────────────────────────────
+  {
+    slug: "meet-new-people",
+    navLabel: "Meet new people",
+    title: "Meet New People Online: Swipe, Match, Video Chat",
+    description: `Meet new people online on ${n}: swipe real, verified profiles, match when you both like each other, chat, and video call once you both allow it. Free, 18+.`,
+    keywords: ["meet new people", "meet new people online", "app to meet new people", "swipe and match", "meet people near me", "new friends app"],
+    kicker: "Meet new people",
+    h1: "Meet new people online — at your own pace",
+    lede: `${n} gives you two ways to meet someone new. Tap **Start** for a live random video chat right now, or open **Discover** to look at real people one at a time, like the ones you click with, and chat when it's a match. Video calls only happen when you both say yes.`,
+    blocks: [
+      { h2: "Discover: look first, then talk" },
+      {
+        p: "Discover shows real, active people with a photo — their name, age, country, a short bio and the interests you share. Like or pass. When two people like each other it's a match: you become friends and the chat opens straight away, with a few openers ready if you're not sure what to say.",
+      },
+      {
+        ul: [
+          "**Free likes every day** — passing is always free.",
+          "**Super Like** someone to stand out: they see your star and you appear first in their deck.",
+          "**Liked you** shows how many people are waiting for your answer; VIP sees who they are.",
+          "**Filters**: age is always free; gender, country, online now and verified only are free during the daily Vibe Hour and with VIP.",
+        ],
+      },
+      { h2: "Calls only when you both want them" },
+      {
+        p: "A match doesn't mean anyone can ring you. Video calls from a chat stay off until **both** of you tap Allow, and either of you can switch them off again at any time. Missed and finished calls show up in the chat, so there are no surprises.",
+      },
+      { h2: "Or skip the swiping" },
+      {
+        p: `Some days you just want to talk. [Random video chat](/random-video-chat/) puts you face to face with someone new in one tap — the video starts blurred for a few seconds, and Next is always one tap away.`,
+      },
+      { cta: { title: "Meet someone new today", body: "Swipe in Discover or start a live video chat. Free, 18+." } },
+    ],
+    faqs: [
+      { q: `How do I meet new people on ${n}?`, a: "Open Discover and like people you'd like to talk to — when they like you back it's a match and the chat opens. Or tap Start on the Match tab for a live random video chat." },
+      { q: "Are the people real?", a: "Discover only shows real, active accounts with a photo. Many have a teal badge from the selfie check, and you can choose to see verified people only." },
+      { q: "Is it free?", a: "Yes. Likes are free every day, chatting is free and video calls with friends are free. VIP adds unlimited likes and shows who liked you." },
+    ],
+    related: ["/make-friends-app/", "/random-video-chat/", "/safe-video-chat/", "/blog/make-friends-online-pakistan/"],
+    updated: "2026-10-29",
+  },
+
+  // ── 10 ───────────────────────────────────────────────────────────────────
+  {
+    slug: "make-friends-app",
+    navLabel: "App to make friends",
+    title: "An App to Make Friends Online (That Feels Real)",
+    description: `Looking for an app to make friends? ${n} matches you with real, verified people by video or by swiping, then keeps it going with chat, calls and streaks.`,
+    keywords: ["app to make friends", "make friends online", "friendship app", "find friends online", "best app to make friends", "make new friends"],
+    kicker: "Make friends",
+    h1: "The app to make friends that feels like meeting in person",
+    lede: `Text-only friend apps stall after "hey". ${n} starts with a face: a live video chat or a profile you liked, then chat, then video calls once you both allow them. Friend streaks and a daily Vibe Hour give you a reason to come back tomorrow.`,
+    blocks: [
+      { h2: "Three ways a friendship starts" },
+      {
+        ol: [
+          "**A live video chat** — tap Start and meet someone random. Got on well? Add each other before you hang up.",
+          "**A match in Discover** — you both liked each other, so the chat opens and you already know you have something in common.",
+          "**An invite** — send your link to someone you know; you both get coins once they're set up.",
+        ],
+      },
+      { h2: "What keeps it going" },
+      {
+        ul: [
+          "**Chat** that stays after the call, with gifts if you want to say thanks.",
+          "**Video calls with friends** — free, and only once you both tap Allow.",
+          "**Friend streaks** — talk every day to keep the flame alive.",
+          "**Vibe Hour** every day — every filter is free for an hour and XP is doubled.",
+        ],
+      },
+      { h2: "Safe by default" },
+      {
+        p: `Everyone is 18+. Selfie verification gives real people a badge, random calls start blurred, and reporting is two taps and reviewed around the clock. More in our [safety guide](/safe-video-chat/).`,
+      },
+      { cta: { title: "Find your next friend", body: "Free to join. Meet by video or by swiping." } },
+    ],
+    faqs: [
+      { q: "What is the best app to make friends online?", a: `Look for one with real, verified people, a way to see each other (video builds trust faster than text) and controls over who can contact you. ${n} has selfie verification, video chat, Discover matching and calls that need both people's permission.` },
+      { q: `Can I make friends in my own country on ${n}?`, a: "Yes. Use the country filter in video match or Discover — free during Vibe Hour and with VIP, a few coins otherwise." },
+      { q: "Do I have to video call?", a: "No. You can match in Discover and just chat. Video calls in a chat only turn on when both of you allow them." },
+    ],
+    related: ["/meet-new-people/", "/talk-to-strangers/", "/blog/make-friends-online-pakistan/", "/video-chat-pakistan/"],
+    updated: "2026-10-29",
+  },
+
+  // ── 11 ───────────────────────────────────────────────────────────────────
+  {
+    slug: "azar-alternative",
+    navLabel: "Azar alternative",
+    title: "Azar Alternative: Free Video Chat + Swipe to Match",
+    description: `A free Azar alternative: one-tap random video chat, a Discover deck to swipe real people, selfie verification and calls only when you both agree. ${n}, 18+.`,
+    keywords: ["azar alternative", "apps like azar", "azar video chat", "azar free alternative", "monkey app alternative", "holla alternative"],
+    kicker: "Azar alternative",
+    h1: "A free Azar alternative with swiping built in",
+    lede: `If you like Azar's swipe-to-the-next-person video chat but not the paywalls, ${n} keeps random video chat free and adds Discover — swipe real profiles, match, chat, and call once you both allow it.`,
+    blocks: [
+      { h2: `${n} next to typical video chat apps` },
+      {
+        table: {
+          head: ["", "Typical random video app", n],
+          rows: [
+            ["Random video chat", "Yes", "Yes — free, one tap, blurred start"],
+            ["Swipe profiles before talking", "Rarely", "Yes — Discover, with free daily likes"],
+            ["Who can call you", "Often anyone you matched", "Only after both of you tap Allow"],
+            ["Verified people", "Sometimes", "Selfie check with a badge; verified-only filter"],
+            ["Filters", "Usually paid", "Age free; the rest free in Vibe Hour and with VIP"],
+            ["Earn from gifts", "Rarely", "Gifts turn into gems you can cash out"],
+          ],
+          caption: "General comparison; other apps change their features and prices often.",
+        },
+      },
+      { h2: "Pay only for extras" },
+      {
+        p: `Matching, chatting and video calls with friends cost nothing. Coins buy gifts, boosts, Super Likes and filter passes; VIP adds unlimited likes, seeing who liked you and every filter free. In Pakistan you can pay with JazzCash or Easypaisa and [cash out gems](/earn-money-video-chat/) to them too.`,
+      },
+      { cta: { title: "Try the Azar alternative", body: "Live video or swipe first. Free, 18+." } },
+    ],
+    faqs: [
+      { q: `Is ${n} like Azar?`, a: `Yes — one tap starts a random video chat and Next moves on. ${n} also has Discover for swiping profiles and matching before you talk.` },
+      { q: `Is ${n} free?`, a: "Yes. Matching, chatting and calls with friends are free. Coins and VIP are optional." },
+      { q: `Is ${n} available on iPhone?`, a: `${n} works in Safari on iPhone with nothing to install, and as an app on Android.` },
+    ],
+    related: ["/omegle-alternative/", "/chatroulette-alternative/", "/meet-new-people/", "/random-video-chat/"],
+    updated: "2026-10-29",
   },
 ];
 
