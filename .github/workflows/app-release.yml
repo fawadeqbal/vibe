@@ -1,0 +1,230 @@
+# Android app releases: test → build a signed APK (+ AAB for Play) → GitHub Release.
+#
+# When it runs:
+#   - by itself on every push to main that changes app/ → next patch version
+#     (0.1.0 → 0.1.1 → 0.1.2 …);
+#   - Actions → "App release" → Run workflow → choose patch / minor / major
+#     (or mark it a pre-release).
+# To jump to a version by hand (say 1.0.0), set `version: 1.0.0+1` in
+# app/pubspec.yaml and push: the higher version wins. Details:
+# .github/scripts/app-version.sh and infra/CICD.md ("Android app releases").
+#
+# Every release has:
+#   vibe-X.Y.Z.apk        install on any Android phone
+#   vibe.apk              the same file under a fixed name, so
+#                         https://github.com/<owner>/<repo>/releases/latest/download/vibe.apk
+#                         always gives the newest app
+#   vibe-X.Y.Z.aab        for Google Play
+#   SHA256SUMS.txt
+#
+# Needs four repository secrets (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+# Optional repository variable APP_ENV: the app's .env (see app/.env.example);
+# without it the app talks to https://api.vibe.fawadiqbal.dev.
+name: App release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - app/**
+      - .github/workflows/app-release.yml
+      - .github/scripts/app-version.sh
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version goes up
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      prerelease:
+        description: Mark it as a pre-release (testers only, not "latest")
+        type: boolean
+        default: false
+
+concurrency:
+  group: app-release
+  cancel-in-progress: false   # releases queue up; versions never collide
+
+permissions:
+  contents: write   # create the tag and the release
+
+jobs:
+  release:
+    name: Build and release the Android app
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tags + history for the version and the notes
+
+      - name: Signing key is set up
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$KS" ] || missing="$missing ANDROID_KEYSTORE_BASE64"
+          [ -n "$KS_PASS" ] || missing="$missing ANDROID_KEYSTORE_PASSWORD"
+          [ -n "$ALIAS" ] || missing="$missing ANDROID_KEY_ALIAS"
+          [ -n "$KEY_PASS" ] || missing="$missing ANDROID_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error title=Signing key missing::Add these repository secrets:$missing — see infra/CICD.md, 'Android app releases'."
+            exit 1
+          fi
+
+      - name: Next version
+        id: v
+        env:
+          BUMP: ${{ inputs.bump || 'patch' }}
+        run: |
+          .github/scripts/app-version.sh | tee -a "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+          cache-dependency-path: |
+            app/android/**/*.gradle*
+            app/android/gradle/wrapper/gradle-wrapper.properties
+
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+
+      - name: Get packages
+        working-directory: app
+        run: flutter pub get
+
+      - name: Analyze and test
+        working-directory: app
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+
+      - name: App config (.env)
+        working-directory: app
+        env:
+          APP_ENV: ${{ vars.APP_ENV }}
+        run: |
+          if [ -n "$APP_ENV" ]; then
+            printf '%s\n' "$APP_ENV" > .env
+          else
+            printf 'VIBE_API=https://api.vibe.fawadiqbal.dev\n' > .env
+          fi
+          # Only the names, not the values, in the log.
+          echo "Build config keys: $(grep -oE '^[A-Z0-9_]+' .env | paste -sd, -)"
+          grep -q '^VIBE_API=' .env || echo "::warning::APP_ENV has no VIBE_API: this build runs offline on the demo data."
+
+      - name: Signing key
+        working-directory: app/android
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$KS" | base64 -d > upload-keystore.jks
+          {
+            echo "storeFile=upload-keystore.jks"
+            echo "storePassword=$KS_PASS"
+            echo "keyAlias=$ALIAS"
+            echo "keyPassword=$KEY_PASS"
+          } > key.properties
+
+      - name: Build APK and App Bundle
+        working-directory: app
+        env:
+          NAME: ${{ steps.v.outputs.name }}
+          CODE: ${{ steps.v.outputs.code }}
+        run: |
+          flutter build apk --release --dart-define-from-file=.env --build-name="$NAME" --build-number="$CODE"
+          flutter build appbundle --release --dart-define-from-file=.env --build-name="$NAME" --build-number="$CODE"
+
+      - name: Check the signature
+        id: sig
+        working-directory: app
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | tee certs.txt
+          # Never ship an APK signed with a debug key (it can't be updated later).
+          if grep -qi 'CN=Android Debug' certs.txt; then
+            echo "::error::The APK is signed with a debug key — check the signing secrets."
+            exit 1
+          fi
+          echo "sha256=$(grep -m1 'SHA-256 digest' certs.txt | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
+
+      - name: Collect files
+        env:
+          NAME: ${{ steps.v.outputs.name }}
+        run: |
+          mkdir -p dist
+          cp app/build/app/outputs/flutter-apk/app-release.apk "dist/vibe-$NAME.apk"
+          cp app/build/app/outputs/flutter-apk/app-release.apk dist/vibe.apk
+          cp app/build/app/outputs/bundle/release/app-release.aab "dist/vibe-$NAME.aab"
+          (cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          ls -la dist
+
+      - name: Release notes
+        env:
+          NAME: ${{ steps.v.outputs.name }}
+          CODE: ${{ steps.v.outputs.code }}
+          PREV: ${{ steps.v.outputs.prev_tag }}
+          CERT: ${{ steps.sig.outputs.sha256 }}
+          REPO: ${{ github.repository }}
+        run: |
+          range=${PREV:+$PREV..}HEAD
+          {
+            echo "## Vibe $NAME for Android"
+            echo
+            echo "**Download:** [vibe-$NAME.apk](https://github.com/$REPO/releases/download/app-v$NAME/vibe-$NAME.apk) — open it on your phone and tap *Install* (allow installs from your browser if Android asks)."
+            echo
+            echo "### What changed"
+            # App changes only, newest first, without merge commits.
+            changes=$(git log --no-merges --pretty='- %s' "$range" -- app | head -60)
+            echo "${changes:-- Maintenance build}"
+            echo
+            echo "<details><summary>Build details</summary>"
+            echo
+            echo "- Version $NAME (code $CODE), commit ${GITHUB_SHA::7}"
+            echo "- Signing certificate SHA-256: \`$CERT\`"
+            echo "- \`vibe-$NAME.aab\` is for Google Play; \`SHA256SUMS.txt\` has the file checksums."
+            [ -n "$PREV" ] && echo "- All changes: https://github.com/$REPO/compare/$PREV...app-v$NAME"
+            echo
+            echo "</details>"
+          } > notes.md
+          cat notes.md
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.v.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Vibe ${{ steps.v.outputs.name }}
+          body_path: notes.md
+          prerelease: ${{ inputs.prerelease || false }}
+          make_latest: ${{ (inputs.prerelease || false) && 'false' || 'true' }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/vibe-${{ steps.v.outputs.name }}.apk
+            dist/vibe.apk
+            dist/vibe-${{ steps.v.outputs.name }}.aab
+            dist/SHA256SUMS.txt
+
+      - name: Summary
+        env:
+          NAME: ${{ steps.v.outputs.name }}
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "### Vibe $NAME released"
+            echo "- Release: https://github.com/$REPO/releases/tag/app-v$NAME"
+            echo "- Always-latest APK: https://github.com/$REPO/releases/latest/download/vibe.apk"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the signing key
+        if: always()
+        run: rm -f app/android/upload-keystore.jks app/android/key.properties app/.env
