@@ -157,7 +157,6 @@ export class MatchingService {
 
     const last = await this.sessions.lastPartner(userId);
     const exclude = [...(await this.blocks.excluded(userId))];
-    if (last) exclude.push(last);
     const ticket: Ticket = {
       userId,
       gender: user.gender,
@@ -169,6 +168,8 @@ export class MatchingService {
       boosted: isBoosted(user.wallet, now),
       enqueuedAt: now.getTime(),
       exclude,
+      lastPartner: last,
+      rematchAfterMs: this.economy.rules.rematchAfterSeconds * 1000,
       interests: user.interests,
       vibeScore: user.vibeScore,
       waved: await this.waves.wavedWith(userId).catch(() => []),

@@ -10,9 +10,21 @@ export function accepts(a: Ticket, b: Ticket): boolean {
   return true;
 }
 
-/** Both filters agree and neither excludes the other. */
-export function compatible(a: Ticket, b: Ticket): boolean {
-  return a.userId !== b.userId && !a.exclude.includes(b.userId) && !b.exclude.includes(a.userId) && accepts(a, b) && accepts(b, a);
+/**
+ * Your last partner comes back only when nobody else has turned up: both
+ * of you have waited `rematchAfterMs` (the admin's "meet the last person
+ * again after waiting"; 0 = never).
+ */
+export function rematchAllowed(a: Ticket, b: Ticket, nowMs: number): boolean {
+  if (a.lastPartner !== b.userId && b.lastPartner !== a.userId) return true;
+  if (!a.rematchAfterMs || !b.rematchAfterMs) return false;
+  const wait = Math.max(a.rematchAfterMs, b.rematchAfterMs);
+  return nowMs - a.enqueuedAt >= wait && nowMs - b.enqueuedAt >= wait;
+}
+
+/** Both filters agree, neither excludes the other, and it isn't too soon to meet again. */
+export function compatible(a: Ticket, b: Ticket, nowMs: number = Date.now()): boolean {
+  return a.userId !== b.userId && !a.exclude.includes(b.userId) && !b.exclude.includes(a.userId) && accepts(a, b) && accepts(b, a) && rematchAllowed(a, b, nowMs);
 }
 
 /**
@@ -45,8 +57,12 @@ export function partnerScore(me: Ticket, c: Ticket, opts: { oldest: boolean; now
   const shared = Math.min(sharedInterests(me, c), 3);
   const closeness = 1 - Math.abs((me.vibeScore ?? 0.5) - (c.vibeScore ?? 0.5));
   const fairness = opts.oldest && opts.nowMs - c.enqueuedAt > FAIR_WAIT_MS ? 4 : 0;
-  return 2 * shared + 3 * closeness + fairness + (wavedWith(me, c) ? WAVE_BONUS : 0);
+  const again = me.lastPartner === c.userId || c.lastPartner === me.userId ? AGAIN_PENALTY : 0;
+  return 2 * shared + 3 * closeness + fairness + (wavedWith(me, c) ? WAVE_BONUS : 0) - again;
 }
+
+/** Anyone new beats the person you just talked to. */
+export const AGAIN_PENALTY = 10;
 
 /** People who waved at each other (either way) beat everything else in the pick window. */
 export const WAVE_BONUS = 20;
@@ -60,7 +76,7 @@ export const wavedWith = (a: Pick<Ticket, 'userId' | 'waved'>, b: Pick<Ticket, '
 export function pickPartner(me: Ticket, candidates: Ticket[], nowMs: number = Date.now()): Ticket | undefined {
   const pool: Ticket[] = [];
   for (const c of candidates) {
-    if (compatible(me, c)) pool.push(c);
+    if (compatible(me, c, nowMs)) pool.push(c);
     if (pool.length >= PICK_WINDOW) break;
   }
   if (pool.length <= 1) return pool[0];

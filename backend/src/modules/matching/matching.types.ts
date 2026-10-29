@@ -21,8 +21,12 @@ export interface Ticket {
   vip: boolean;
   boosted: boolean;
   enqueuedAt: number;
-  /** People they must not meet: blocks both ways and the last partner. */
+  /** People they must never meet: blocks both ways. */
   exclude: string[];
+  /** Who they just talked to: paired again only after both waited `rematchAfterMs` (nobody else came). */
+  lastPartner?: string | null;
+  /** 0 or missing = never meet the last partner again from the queue. */
+  rematchAfterMs?: number;
   /** For partner scoring (optional: tickets queued before these existed). */
   interests?: string[];
   vibeScore?: number;

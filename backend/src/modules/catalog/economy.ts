@@ -19,6 +19,8 @@ export interface EconomyRules {
   skipWindowSeconds: number;
   quickSkipSeconds: number;
   skipCooldownSeconds: number;
+  /** Waiting this long with nobody else around, you can meet your last partner again (0 = never). */
+  rematchAfterSeconds: number;
 
   friendRequestCost: number;
   freeFriendRequestsPerDay: number;
@@ -185,6 +187,14 @@ export const RULE_GROUPS: RuleGroup[] = [
       { key: 'skipWindowSeconds', label: 'Counted within', kind: 'seconds', min: 10, max: 3600 },
       { key: 'quickSkipSeconds', label: 'A skip is "quick" under', kind: 'seconds', min: 1, max: 600 },
       { key: 'skipCooldownSeconds', label: 'Cool-down length', kind: 'seconds', min: 1, max: 3600 },
+      {
+        key: 'rematchAfterSeconds',
+        label: 'Meet the last person again after waiting',
+        help: 'With nobody else in the queue, two people who just talked are paired again after this long. 0 = never.',
+        kind: 'seconds',
+        min: 0,
+        max: 3600,
+      },
     ],
   },
   {
@@ -383,6 +393,7 @@ export const DEFAULT_RULES: EconomyRules = {
   skipWindowSeconds: 60,
   quickSkipSeconds: 10,
   skipCooldownSeconds: 10,
+  rematchAfterSeconds: 15,
 
   friendRequestCost: 10,
   freeFriendRequestsPerDay: 3,
