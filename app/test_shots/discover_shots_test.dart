@@ -228,6 +228,24 @@ void main() {
     await snap(t, 'd3_filters');
   });
 
+  shot('d3b_filters_pass', (t, h) async {
+    t.view.physicalSize = const Size(412 * 2, 1250 * 2);
+    await t.pumpWidget(h.app(const DiscoverScreen()));
+    await settle(t);
+    unawaited(showDiscoverFilters(t.element(find.byType(DiscoverScreen))));
+    await settle(t);
+    await t.tap(find.bySemanticsLabel('Women'));
+    await snap(t, 'd3b_filters_pass');
+  });
+
+  shot('d3c_filters_vip', (t, h) async {
+    t.view.physicalSize = const Size(412 * 2, 1100 * 2);
+    await t.pumpWidget(h.app(const DiscoverScreen()));
+    await settle(t);
+    unawaited(showDiscoverFilters(t.element(find.byType(DiscoverScreen))));
+    await snap(t, 'd3c_filters_vip');
+  }, vip: true);
+
   shot('d4_match', (t, h) async {
     await t.pumpWidget(h.app(const DiscoverScreen()));
     await settle(t);

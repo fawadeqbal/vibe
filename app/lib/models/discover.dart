@@ -42,6 +42,7 @@ class DiscoverStatus {
     this.hasPhoto = true,
     this.likedYouCount = 0,
     this.likedYouUnseen = 0,
+    this.filters = const FilterAccess(),
   });
   final bool enabled;
   final bool vip;
@@ -63,6 +64,9 @@ class DiscoverStatus {
   final int likedYouCount;
   final int likedYouUnseen;
 
+  /// Gender, country, online now and verified filters: open with VIP, Vibe Hour or a pass.
+  final FilterAccess filters;
+
   DiscoverStatus copyWith({int? likesLeft, bool clearLikesLeft = false, int? likedYouCount, int? likedYouUnseen}) => DiscoverStatus(
         enabled: enabled,
         vip: vip,
@@ -79,7 +83,20 @@ class DiscoverStatus {
         hasPhoto: hasPhoto,
         likedYouCount: likedYouCount ?? this.likedYouCount,
         likedYouUnseen: likedYouUnseen ?? this.likedYouUnseen,
+        filters: filters,
       );
+}
+
+/// Why the extra filters are open (or not).
+enum FilterReason { free, vip, vibeHour, pass }
+
+class FilterAccess {
+  const FilterAccess({this.unlocked = true, this.reason, this.passUntil, this.passCost = 25, this.passHours = 24});
+  final bool unlocked;
+  final FilterReason? reason;
+  final DateTime? passUntil;
+  final int passCost;
+  final int passHours;
 }
 
 /// "Liked you": VIP gets people, everyone else blurred previews.
@@ -94,10 +111,32 @@ class LikedYou {
 enum WantedGender { anyone, women, men }
 
 class DiscoverFilters {
-  const DiscoverFilters({this.gender = WantedGender.anyone, this.minAge = 18, this.maxAge = 60});
+  const DiscoverFilters({this.gender = WantedGender.anyone, this.minAge = 18, this.maxAge = 60, this.countryCode = '', this.onlineOnly = false, this.verifiedOnly = false});
   final WantedGender gender;
   final int minAge;
   final int maxAge;
+
+  /// Two-letter code; '' = anywhere.
+  final String countryCode;
+  final bool onlineOnly;
+  final bool verifiedOnly;
+
+  /// Uses a filter that needs VIP, Vibe Hour or a pass (age never does).
+  bool get usesExtra => gender != WantedGender.anyone || countryCode.isNotEmpty || onlineOnly || verifiedOnly;
+
+  /// Just the free part (age).
+  DiscoverFilters get freeOnly => DiscoverFilters(minAge: minAge, maxAge: maxAge);
+
+  bool get isDefault => !usesExtra && minAge == 18 && maxAge == 60;
+
+  DiscoverFilters copyWith({WantedGender? gender, int? minAge, int? maxAge, String? countryCode, bool? onlineOnly, bool? verifiedOnly}) => DiscoverFilters(
+        gender: gender ?? this.gender,
+        minAge: minAge ?? this.minAge,
+        maxAge: maxAge ?? this.maxAge,
+        countryCode: countryCode ?? this.countryCode,
+        onlineOnly: onlineOnly ?? this.onlineOnly,
+        verifiedOnly: verifiedOnly ?? this.verifiedOnly,
+      );
 }
 
 enum SwipeKind { like, superLike, pass }

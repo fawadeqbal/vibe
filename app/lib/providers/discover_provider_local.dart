@@ -43,6 +43,24 @@ class LocalDiscoverProvider extends DiscoverProvider {
         superLikedMe: _superLikesMe(p),
       );
 
+  DateTime? _passUntil;
+
+  FilterAccess _access(bool vip) {
+    final until = _passUntil != null && _passUntil!.isAfter(DateTime.now()) ? _passUntil : null;
+    final reason = !Economy.discoverPremiumFilters ? FilterReason.free : vip ? FilterReason.vip : until != null ? FilterReason.pass : null;
+    return FilterAccess(unlocked: reason != null, reason: reason, passUntil: until, passCost: Economy.discoverFilterPassCost, passHours: Economy.discoverFilterPassHours);
+  }
+
+  @override
+  Future<bool> buyFilterPass() async {
+    if (_access(_wallet.isVip).unlocked) return true;
+    if (!await _wallet.spend(Economy.discoverFilterPassCost, 'Discover filter pass')) return false;
+    _passUntil = DateTime.now().add(Duration(hours: Economy.discoverFilterPassHours));
+    _refreshStatus();
+    notifyListeners();
+    return true;
+  }
+
   void _refreshStatus() {
     _rollDay();
     final vip = _wallet.isVip;
@@ -60,6 +78,7 @@ class LocalDiscoverProvider extends DiscoverProvider {
       packCost: Economy.discoverLikePackCost,
       likedYouCount: pending,
       likedYouUnseen: _status?.likedYouUnseen ?? pending,
+      filters: _access(vip),
     );
   }
 
@@ -72,12 +91,19 @@ class LocalDiscoverProvider extends DiscoverProvider {
   @override
   Future<List<DiscoverCard>> fetchCards() async {
     final f = _filters;
+    if (f.usesExtra && !_access(_wallet.isVip).unlocked) {
+      await filtersRanOut();
+      return fetchCards();
+    }
     final have = {for (final c in _deck) c.profile.id};
     final cards = _pool
         .where((p) => !_swiped.containsKey(p.id) && !have.contains(p.id))
         .where((p) => p.age >= f.minAge && p.age <= f.maxAge)
         .where((p) => f.gender == WantedGender.anyone || (f.gender == WantedGender.women ? p.gender == Gender.female : p.gender == Gender.male))
+        .where((p) => f.countryCode.isEmpty || p.country.code == f.countryCode)
+        .where((p) => !f.verifiedOnly || p.verified)
         .map(_card)
+        .where((c) => !f.onlineOnly || c.online)
         .toList()
       ..sort((a, b) => (b.superLikedMe ? 1 : 0) - (a.superLikedMe ? 1 : 0));
     return cards.take(20).toList();
@@ -153,6 +179,7 @@ class LocalDiscoverProvider extends DiscoverProvider {
       hasPhoto: s.hasPhoto,
       likedYouCount: s.likedYouCount,
       likedYouUnseen: s.likedYouUnseen,
+      filters: s.filters,
     );
     notifyListeners();
   }

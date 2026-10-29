@@ -38,6 +38,7 @@ abstract class DiscoverProvider extends ChangeNotifier {
   DiscoverCard? _lastPassed;
   LikedYou? _likedYou;
   Friend? _matched;
+  bool _filtersExpired = false;
 
   List<DiscoverCard> get deck => List.unmodifiable(_deck);
   DiscoverCard? get top => _deck.isEmpty ? null : _deck.first;
@@ -52,6 +53,11 @@ abstract class DiscoverProvider extends ChangeNotifier {
 
   /// The match to celebrate (your swipe, or theirs over the socket).
   Friend? get matched => _matched;
+
+  /// The filter pass ran out while extra filters were on: they were turned
+  /// off (the screen says so once).
+  bool get filtersExpired => _filtersExpired;
+  void clearFiltersExpired() => _filtersExpired = false;
 
   /// New likes waiting (the Discover tab badge).
   int get badge => _status?.likedYouUnseen ?? 0;
@@ -97,29 +103,49 @@ abstract class DiscoverProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> _saveFilters() async {
+    final f = _filters;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setStringList(_filtersKey, [f.gender.name, '${f.minAge}', '${f.maxAge}', f.countryCode, f.onlineOnly ? '1' : '0', f.verifiedOnly ? '1' : '0']);
+    } catch (_) {}
+  }
+
+  /// The server said the extra filters are locked (the pass ran out, VIP
+  /// ended): keep age, drop the rest, refresh the status, tell the screen.
+  @protected
+  Future<void> filtersRanOut() async {
+    _filters = _filters.freeOnly;
+    _filtersExpired = true;
+    await _saveFilters();
+    await loadStatus();
+  }
+
   Future<void> _readFilters() async {
     try {
       final p = await SharedPreferences.getInstance();
       final raw = p.getStringList(_filtersKey);
-      if (raw == null || raw.length != 3) return;
+      if (raw == null || raw.length < 3) return;
+      final code = raw.length > 3 ? raw[3] : '';
       _filters = DiscoverFilters(
         gender: WantedGender.values.firstWhere((g) => g.name == raw[0], orElse: () => WantedGender.anyone),
         minAge: (int.tryParse(raw[1]) ?? 18).clamp(18, 99),
         maxAge: (int.tryParse(raw[2]) ?? 60).clamp(18, 99),
+        countryCode: RegExp(r'^[A-Z]{2}$').hasMatch(code) ? code : '',
+        onlineOnly: raw.length > 4 && raw[4] == '1',
+        verifiedOnly: raw.length > 5 && raw[5] == '1',
       );
     } catch (_) {}
   }
 
   Future<void> setFilters(DiscoverFilters f) async {
-    _filters = DiscoverFilters(gender: f.gender, minAge: f.minAge, maxAge: f.maxAge < f.minAge ? f.minAge : f.maxAge);
+    _filters = f.copyWith(maxAge: f.maxAge < f.minAge ? f.minAge : f.maxAge);
+    _filtersExpired = false;
     _deck = [];
     _lastPassed = null;
     _loading = true;
     notifyListeners();
-    try {
-      final p = await SharedPreferences.getInstance();
-      await p.setStringList(_filtersKey, [_filters.gender.name, '${_filters.minAge}', '${_filters.maxAge}']);
-    } catch (_) {}
+    await _saveFilters();
     try {
       await fetchDeck(replace: true);
     } catch (_) {}
@@ -171,6 +197,9 @@ abstract class DiscoverProvider extends ChangeNotifier {
 
   /// More likes for coins. False when it can't be paid for.
   Future<bool> buyLikes();
+
+  /// Opens the extra filters for a while. False when it can't be paid for.
+  Future<bool> buyFilterPass();
 
   Future<void> loadLikedYou();
 

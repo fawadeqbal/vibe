@@ -421,6 +421,9 @@ class Economy {
   static int discoverSuperLikeCost = 10;
   static int discoverVipFreeSuperLikes = 1;
   static int discoverUndoCost = 5;
+  static bool discoverPremiumFilters = true;
+  static int discoverFilterPassCost = 25;
+  static int discoverFilterPassHours = 24;
 
   // Video calls in chat (admin group "calls")
   static bool friendCallsEnabled = true;

@@ -362,6 +362,7 @@ List<VipPerkGroup> vipPerkGroups() {
         ('See who liked you', "Their faces, not a blur. Like back and it's a match."),
         if (supers > 0) ('$supers free Super Like${supers == 1 ? '' : 's'} a day', 'They see you first, with a star.'),
         ('Free Undo', 'Bring back someone you passed by mistake.'),
+        if (Economy.discoverPremiumFilters) ('Every Discover filter', 'Gender, country, online now, verified. Others pay ${Economy.discoverFilterPassCost} coins for ${Economy.discoverFilterPassHours} hours.'),
       ]),
     const VipPerkGroup('Video Match', SolarIconsBold.videocamera, V.lavender, [
       ('Free gender and country filters', 'No coins per match.'),
@@ -382,6 +383,7 @@ List<(String, String, String)> vipComparison() => [
         ('See who liked you', 'Blurred', 'Yes'),
         ('Super Likes', '${Economy.discoverSuperLikeCost} coins', Economy.discoverVipFreeSuperLikes > 0 ? '${Economy.discoverVipFreeSuperLikes} free/day' : '${Economy.discoverSuperLikeCost} coins'),
         ('Undo a pass', '${Economy.discoverUndoCost} coins', 'Free'),
+        if (Economy.discoverPremiumFilters) ('Discover filters', 'Age · ${Economy.discoverFilterPassCost} coins/${Economy.discoverFilterPassHours}h', 'All'),
       ],
       ('Match filters', '${Economy.genderFilterCost < Economy.regionFilterCost ? Economy.genderFilterCost : Economy.regionFilterCost}+ coins', 'Free'),
       ('Coins each month', '—', '${Economy.vipMonthlyBonusCoins}'),

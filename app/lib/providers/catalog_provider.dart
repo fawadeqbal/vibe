@@ -52,6 +52,9 @@ class CatalogProvider extends ChangeNotifier {
     Economy.discoverSuperLikeCost = i('discoverSuperLikeCost', Economy.discoverSuperLikeCost);
     Economy.discoverVipFreeSuperLikes = i('discoverVipFreeSuperLikes', Economy.discoverVipFreeSuperLikes);
     Economy.discoverUndoCost = i('discoverUndoCost', Economy.discoverUndoCost);
+    Economy.discoverPremiumFilters = i('discoverPremiumFilters', Economy.discoverPremiumFilters ? 1 : 0) != 0;
+    Economy.discoverFilterPassCost = i('discoverFilterPassCost', Economy.discoverFilterPassCost);
+    Economy.discoverFilterPassHours = i('discoverFilterPassHours', Economy.discoverFilterPassHours);
     Economy.friendCallsEnabled = i('friendCallsEnabled', Economy.friendCallsEnabled ? 1 : 0) != 0;
     Economy.callRingSeconds = i('callRingSeconds', Economy.callRingSeconds);
     if (e['checkInRewards'] is List) Economy.checkInRewards = List.unmodifiable((e['checkInRewards'] as List).map((n) => (n as num).toInt()));

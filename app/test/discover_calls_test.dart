@@ -157,6 +157,65 @@ void main() {
     });
   });
 
+  group('Discover filters', () {
+    test('age is free; the rest need VIP or a pass; status says why', () {
+      const f = DiscoverFilters(minAge: 22, maxAge: 28);
+      expect(f.usesExtra, isFalse);
+      expect(f.copyWith(countryCode: 'PK').usesExtra, isTrue);
+      expect(f.copyWith(onlineOnly: true).usesExtra, isTrue);
+      expect(const DiscoverFilters(gender: WantedGender.men, countryCode: 'AE', verifiedOnly: true, minAge: 22, maxAge: 28).freeOnly.usesExtra, isFalse);
+      final s = ApiMap.discoverStatus({'filters': {'unlocked': false, 'passCost': 30, 'passHours': 12}});
+      expect(s.filters.unlocked, isFalse);
+      expect(s.filters.passCost, 30);
+      expect(ApiMap.discoverStatus({'filters': {'unlocked': true, 'reason': 'vibe_hour'}}).filters.reason, FilterReason.vibeHour);
+    });
+
+    test('locked filters on the server fall back to age only', () async {
+      final queries = <Map<String, String>>[];
+      final api = ApiClient(
+        baseUrl: 'https://api.test/v1',
+        tokens: MemoryTokenStore(),
+        httpClient: MockClient((req) async {
+          if (req.url.path == '/v1/discover/deck') {
+            queries.add(req.url.queryParameters);
+            if (req.url.queryParameters.containsKey('countryCode')) return json({'error': {'code': 'FILTERS_LOCKED', 'message': 'locked'}}, 402);
+            return json({'items': []});
+          }
+          if (req.url.path == '/v1/discover/filter-pass') return json({'filters': {'unlocked': true, 'reason': 'pass'}});
+          return json({'filters': {'unlocked': false}});
+        }),
+      );
+      await api.setTokens({'accessToken': 'a1', 'refreshToken': 'r1'});
+      SharedPreferences.setMockInitialValues({});
+      final d = RemoteDiscoverProvider(api, RealtimeClient(api), RemoteSocialProvider(api, RealtimeClient(api)));
+      await d.setFilters(const DiscoverFilters(countryCode: 'PK', minAge: 20, maxAge: 30));
+      expect(d.filters.countryCode, '');
+      expect(d.filters.minAge, 20);
+      expect(d.filtersExpired, isTrue);
+      expect(queries.last.containsKey('countryCode'), isFalse);
+      expect(await d.buyFilterPass(), isTrue);
+      expect(d.status!.filters.reason, FilterReason.pass);
+    });
+
+    test('offline: a pass costs coins and opens the filters', () async {
+      SharedPreferences.setMockInitialValues({});
+      final backend = MockBackend();
+      final wallet = WalletProvider(backend);
+      await wallet.load();
+      final social = SocialProvider(backend, wallet);
+      await social.load();
+      final d = DiscoverProvider(social, wallet);
+      await d.load();
+      expect(d.status!.filters.unlocked, isFalse);
+      final coins = wallet.coins;
+      expect(await d.buyFilterPass(), isTrue);
+      expect(wallet.coins, coins - Economy.discoverFilterPassCost);
+      expect(d.status!.filters.reason, FilterReason.pass);
+      await d.setFilters(const DiscoverFilters(gender: WantedGender.women, verifiedOnly: true));
+      expect(d.deck.every((c) => c.profile.gender == Gender.female && c.profile.verified), isTrue);
+    });
+  });
+
   group('calls offline', () {
     testWidgets('asking, the friend saying yes, turning calls off', (tester) async {
       SharedPreferences.setMockInitialValues({});

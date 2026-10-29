@@ -41,8 +41,22 @@ class RemoteDiscoverProvider extends DiscoverProvider {
   @override
   Future<List<DiscoverCard>> fetchCards() async {
     final f = _filters;
-    final r = _map(await _api.get('/discover/deck', query: {'gender': f.gender.name, 'minAge': '${f.minAge}', 'maxAge': '${f.maxAge}', 'limit': '20'}));
-    return (r['items'] as List).map((e) => ApiMap.discoverCard(_map(e))).toList();
+    try {
+      final r = _map(await _api.get('/discover/deck', query: {
+        'gender': f.gender.name,
+        'minAge': '${f.minAge}',
+        'maxAge': '${f.maxAge}',
+        if (f.countryCode.isNotEmpty) 'countryCode': f.countryCode,
+        if (f.onlineOnly) 'onlineOnly': 'true',
+        if (f.verifiedOnly) 'verifiedOnly': 'true',
+        'limit': '20',
+      }));
+      return (r['items'] as List).map((e) => ApiMap.discoverCard(_map(e))).toList();
+    } on ApiException catch (e) {
+      if (e.code != 'FILTERS_LOCKED' || !f.usesExtra) rethrow;
+      await filtersRanOut();
+      return fetchCards();
+    }
   }
 
   @override
@@ -79,6 +93,18 @@ class RemoteDiscoverProvider extends DiscoverProvider {
   Future<bool> buyLikes() async {
     try {
       _status = ApiMap.discoverStatus(_map(await _api.post('/discover/likes/buy')));
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      if (e.isInsufficientCoins) return false;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<bool> buyFilterPass() async {
+    try {
+      _status = ApiMap.discoverStatus(_map(await _api.post('/discover/filter-pass')));
       notifyListeners();
       return true;
     } on ApiException catch (e) {

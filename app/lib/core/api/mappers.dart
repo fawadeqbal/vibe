@@ -243,8 +243,17 @@ class ApiMap {
       hasPhoto: m['hasPhoto'] == true,
       likedYouCount: i(liked['count']),
       likedYouUnseen: i(liked['unseen']),
+      filters: filterAccess(m['filters'] is Map ? Map<String, dynamic>.from(m['filters'] as Map) : const {}),
     );
   }
+
+  static FilterAccess filterAccess(Map<String, dynamic> m) => FilterAccess(
+        unlocked: m['unlocked'] != false,
+        reason: switch (m['reason']) { 'free' => FilterReason.free, 'vip' => FilterReason.vip, 'vibe_hour' => FilterReason.vibeHour, 'pass' => FilterReason.pass, _ => null },
+        passUntil: date(m['passUntil']),
+        passCost: (m['passCost'] as num?)?.toInt() ?? 25,
+        passHours: (m['passHours'] as num?)?.toInt() ?? 24,
+      );
 
   static LikedYou likedYou(Map<String, dynamic> m) => LikedYou(
         unlocked: m['unlocked'] == true,

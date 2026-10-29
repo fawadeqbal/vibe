@@ -51,18 +51,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     });
   }
 
-  Future<bool> _needCoins(String why) async {
-    final go = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Not enough coins'),
-        content: Text('$why\n\nTop up, or earn free coins in the store.'),
-        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Not now')), TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Get coins'))],
-      ),
-    );
-    if (go == true && mounted) await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StoreScreen(asPage: true)));
-    return false;
-  }
+  Future<bool> _needCoins(String why) => _askForCoins(context, why);
 
   Future<void> _outOfLikes() async {
     final d = context.read<DiscoverProvider>();
@@ -147,6 +136,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final top = d.top;
     final vip = status?.vip ?? false;
     final media = MediaQuery.of(context);
+    if (d.filtersExpired) {
+      d.clearFiltersExpired();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) toast(context, 'Your filter pass ended, so only age is on now');
+      });
+    }
 
     if (status != null && !status.enabled) {
       return Scaffold(
@@ -196,7 +191,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     ]),
                   ),
                 const SizedBox(width: 8),
-                CircleIconButton(icon: SolarIconsOutline.tuning, tooltip: 'Filters', onTap: () => showDiscoverFilters(context)),
+                Stack(clipBehavior: Clip.none, children: [
+                  CircleIconButton(icon: SolarIconsOutline.tuning, tooltip: d.filters.isDefault ? 'Filters' : 'Filters (on)', onTap: () => _editFilters(context)),
+                  if (!d.filters.isDefault)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: IgnorePointer(child: Container(width: 9, height: 9, decoration: BoxDecoration(color: V.pink, shape: BoxShape.circle, border: Border.all(color: V.bg, width: 2)))),
+                    ),
+                ]),
               ]),
             ),
             if (status != null && status.likedYouCount > 0) _LikedYouStrip(status: status, likedYou: d.likedYou),
@@ -391,9 +394,34 @@ class _EmptyDeck extends StatelessWidget {
           const SizedBox(height: 20),
           if (onOpenMatch != null) GradientButton(label: 'Meet someone live', icon: SolarIconsBold.videocamera, onTap: onOpenMatch),
           const SizedBox(height: 8),
-          GhostButton(label: 'Change filters', icon: SolarIconsOutline.tuning, expand: true, onTap: () => showDiscoverFilters(context)),
+          GhostButton(label: 'Change filters', icon: SolarIconsOutline.tuning, expand: true, onTap: () => _editFilters(context)),
         ],
       ),
     );
+  }
+}
+
+/// "Not enough coins": top up or earn free coins in the store.
+Future<bool> _askForCoins(BuildContext context, String why) async {
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Not enough coins'),
+      content: Text('$why\n\nTop up, or earn free coins in the store.'),
+      actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Not now')), TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Get coins'))],
+    ),
+  );
+  if (go == true && context.mounted) await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StoreScreen(asPage: true)));
+  return false;
+}
+
+/// The filters sheet, then VIP or the store when it asks for them.
+Future<void> _editFilters(BuildContext context) async {
+  final r = await showDiscoverFilters(context);
+  if (!context.mounted) return;
+  if (r == FiltersOutcome.vip) await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen()));
+  if (r == FiltersOutcome.coins) {
+    final cost = context.read<DiscoverProvider>().status?.filters.passCost ?? 25;
+    await _askForCoins(context, 'A filter pass costs $cost coins. VIP gets every filter free.');
   }
 }
