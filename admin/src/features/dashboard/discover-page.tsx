@@ -90,7 +90,7 @@ export function DiscoverPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Video calls in chat" description="Calls need both people to allow them; either can turn them off. Calls are never recorded." />
+        <CardHeader title="Calls in chat" description="Voice or video: both people allow them, each picks voice only or voice and video. Either can turn them off. Never recorded." />
         <CardBody>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <StatCard label="Asked to allow calls" icon={Video} tone="primary" loading={q.isLoading} value={format.number(c?.asked)} hint={c && `${format.number(c.allowed)} said yes · ${format.number(c.notNow)} not now`} />

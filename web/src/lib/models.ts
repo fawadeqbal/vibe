@@ -169,8 +169,8 @@ export interface Friend {
   unread: number;
   online: boolean;
   streak: StreakView;
-  /** Video calls in this chat: each side's "allow". Both true = calls on. */
-  calls: { mine: boolean; theirs: boolean };
+  /** Calls in this chat: each side's "allow" and whether it includes video. Both allow = voice calls; both video too = video calls. */
+  calls: { mine: boolean; theirs: boolean; mineVideo: boolean; theirsVideo: boolean };
 }
 
 /** A friend streak from your side (the server derives it for "today"). */
@@ -195,14 +195,33 @@ export interface ChatMessage {
   id: string;
   fromMe: boolean;
   /** `system`: a line from Vibe ("You matched in Discover", call events), shown centred. */
-  kind?: "text" | "gift" | "system";
-  /** System lines: `{ event, ... }`. */
+  kind?: "text" | "gift" | "system" | "photo" | "voice";
+  /** System lines: `{ event, ... }`. Photos: `{ url, w, h }`. Voice notes: `{ url, seconds }`. */
   meta?: Record<string, unknown> | null;
   text: string;
   at: Date;
   gift?: Gift | null;
   /** Extra gems on a received gift (Vibe Hour). */
   bonusGems?: number;
+  /** The message this replies to. */
+  replyTo?: ReplyRef | null;
+  /** One reaction each. */
+  reactions?: { mine: string | null; theirs: string | null };
+  /** Unsent by the sender. */
+  unsent?: boolean;
+  /** When they read it (your messages). */
+  readAt?: Date | null;
+  /** Still uploading (photo/voice note), shown faded. */
+  pending?: boolean;
+}
+
+/** A quoted message in a reply. */
+export interface ReplyRef {
+  id: string;
+  fromMe: boolean;
+  kind: string;
+  text: string;
+  unsent: boolean;
 }
 
 export type ReportReason = "nudity" | "harassment" | "underage" | "spam" | "scam" | "other";

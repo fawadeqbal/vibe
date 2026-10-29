@@ -78,6 +78,10 @@ export interface Economy {
   discoverFilterPassHours: number;
   /** Video calls in chat: 0 = off. */
   friendCallsEnabled: number;
+  chatPhotosEnabled: number;
+  chatVoiceNotesEnabled: number;
+  chatVoiceNoteMaxSeconds: number;
+  chatUnsendMinutes: number;
   callRingSeconds: number;
   /** Local currency shown next to USD prices. */
   pkrPerUsd: number;
@@ -142,6 +146,10 @@ export const DEFAULT_ECONOMY: Economy = {
   discoverFilterPassCost: 25,
   discoverFilterPassHours: 24,
   friendCallsEnabled: 1,
+  chatPhotosEnabled: 1,
+  chatVoiceNotesEnabled: 1,
+  chatVoiceNoteMaxSeconds: 60,
+  chatUnsendMinutes: 10,
   callRingSeconds: 30,
   pkrPerUsd: 280,
 };

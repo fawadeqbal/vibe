@@ -6,6 +6,7 @@ import type { Gift } from "@/lib/models";
 import { useMatch } from "@/stores/match";
 
 import { Connected } from "./connected";
+import { VoiceCall } from "./voice-call";
 import { Ended } from "./ended";
 import { GiftBurst } from "./gift-burst";
 import { Lobby } from "./lobby";
@@ -20,6 +21,7 @@ import { dismissLooking } from "./waitlist-strip";
  */
 export function MatchScreen() {
   const status = useMatch((s) => s.status);
+  const voiceCall = useMatch((s) => s.voiceCall);
   const hasLast = useMatch((s) => s.lastPartner != null);
   const chat = useMatch((s) => s.chat);
   const [burst, setBurst] = useState<{ gift: Gift; received: boolean; bonusGems?: number; seq: number } | null>(null);
@@ -59,7 +61,9 @@ export function MatchScreen() {
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-bg lg:h-dvh">
-      {status === "connected" ? (
+      {status === "connected" && voiceCall ? (
+        <VoiceCall onReport={() => void actions.report()} />
+      ) : status === "connected" ? (
         <Connected actions={{ next: () => void actions.next(), gift: () => void actions.gift(), addFriend: () => void actions.addFriend(), report: () => void actions.report() }} />
       ) : status === "searching" ? (
         <Searching onRestart={() => void actions.start()} />

@@ -42,6 +42,14 @@ export const Ev = {
   callRinging: "call:ringing",
   /** A ringing call stopped: `{ callId, reason, reply?, from? }`. */
   callEnded: "call:ended",
+  /** Voice → video in a friend call: `{ matchId, state: "asked" | "on" | "declined", from? }`. */
+  callVideo: "call:video",
+  /** Your friend is typing: `{ friendId }`. */
+  chatTyping: "chat:typing",
+  /** A message changed (reaction, unsent): the message. */
+  messageUpdated: "message:updated",
+  /** Your friend read your messages: `{ friendId, at }`. */
+  messagesRead: "message:read",
   rtcSignal: "rtc:signal",
   friendRequest: "social:friend-request",
   friendAccepted: "social:friend-accepted",

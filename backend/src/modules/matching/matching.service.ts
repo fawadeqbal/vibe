@@ -44,6 +44,8 @@ export interface MatchFoundPayload {
   reconnect: boolean;
   /** A call between friends from a chat: no skipping, no searching after it ends. */
   friendCall: boolean;
+  /** A voice call between friends: no camera unless both turn video on (POST /calls/live/:id/video). */
+  audioOnly: boolean;
 }
 
 export const MATCH_STARTED = 'match.started';
@@ -56,6 +58,8 @@ export interface MatchEndedEvent extends MatchStartedEvent {
   mutualLike: boolean;
   /** A call between friends from a chat. */
   friendCall?: boolean;
+  /** It started as a voice call. */
+  voiceCall?: boolean;
 }
 export const MATCH_ACTION = 'match.action';
 export interface MatchStartedEvent {
@@ -200,8 +204,9 @@ export class MatchingService {
   }
 
   /** Starts a call between two tickets already taken out of the queue. */
-  async connect(a: Ticket, b: Ticket, reconnect: boolean, opts: { friend?: boolean } = {}): Promise<string | null> {
+  async connect(a: Ticket, b: Ticket, reconnect: boolean, opts: { friend?: boolean; voice?: boolean } = {}): Promise<string | null> {
     const friend = !!opts.friend;
+    const voice = friend && !!opts.voice;
     const match = await this.prisma.match.create({ data: { userAId: a.userId, userBId: b.userId, reconnect, kind: friend ? MatchKind.FRIEND : MatchKind.RANDOM } });
     // Charge paid filters now that there is someone to talk to.
     const charged: string[] = [];
@@ -218,7 +223,7 @@ export class MatchingService {
     }
     await this.prisma.match.update({ where: { id: match.id }, data: { coinsSpentA: a.cost, coinsSpentB: b.cost } });
     await this.prisma.user.updateMany({ where: { id: { in: [a.userId, b.userId] } }, data: { matchesCount: { increment: 1 } } });
-    await this.sessions.start({ id: match.id, a: a.userId, b: b.userId, startedAt: Date.now(), ...(friend ? { friend: true } : {}) });
+    await this.sessions.start({ id: match.id, a: a.userId, b: b.userId, startedAt: Date.now(), ...(friend ? { friend: true } : {}), ...(voice ? { voice: true } : {}) });
     if (charged.length) this.wallet.changed(charged);
 
     const users = await this.prisma.user.findMany({ where: { id: { in: [a.userId, b.userId] } }, include: PROFILE_INCLUDE });
@@ -236,6 +241,7 @@ export class MatchingService {
       coinsSpent: me.cost,
       reconnect,
       friendCall: friend,
+      audioOnly: voice,
     });
     this.realtime.toUser(a.userId, ServerEvent.MatchFound, payload(a, ub, 'caller'));
     this.realtime.toUser(b.userId, ServerEvent.MatchFound, payload(b, ua, 'callee'));
@@ -248,7 +254,7 @@ export class MatchingService {
    * call they are in, then the usual call starts (same screen, WebRTC,
    * reports and gifts) — marked as a friend call. Free; no filters.
    */
-  async startFriendCall(callerId: string, calleeId: string): Promise<string | null> {
+  async startFriendCall(callerId: string, calleeId: string, opts: { voice?: boolean } = {}): Promise<string | null> {
     for (const id of [callerId, calleeId]) {
       await this.queue.remove(id);
       const current = await this.sessions.forUser(id);
@@ -261,7 +267,7 @@ export class MatchingService {
       const u = users.find((x) => x.id === id)!;
       return { userId: id, gender: u.gender, countryCode: u.countryCode, verified: u.verified, prefs, cost: 0, vip: isVip(u.wallet, now), boosted: false, enqueuedAt: Date.now(), exclude: [], interests: u.interests, vibeScore: u.vibeScore };
     };
-    return this.connect(ticketOf(callerId), ticketOf(calleeId), false, { friend: true });
+    return this.connect(ticketOf(callerId), ticketOf(calleeId), false, { friend: true, voice: !!opts.voice });
   }
 
   /** Whether someone is busy: searching or in a call. */
@@ -481,7 +487,7 @@ export class MatchingService {
     }
     await this.games.clear(m.id).catch(() => undefined);
     await this.afterCall({ matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike }, ended.startedAt, ended.likes);
-    this.events.emit(MATCH_ENDED, { matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike, friendCall: !!m.friend } satisfies MatchEndedEvent);
+    this.events.emit(MATCH_ENDED, { matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike, friendCall: !!m.friend, voiceCall: !!m.voice } satisfies MatchEndedEvent);
   }
 
   /**
