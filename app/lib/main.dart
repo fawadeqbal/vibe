@@ -11,7 +11,9 @@ import 'core/api/api_config.dart';
 import 'core/api/realtime_client.dart';
 import 'core/config/integrations_config.dart';
 import 'core/mock/mock_backend.dart';
+import 'providers/calls_provider.dart';
 import 'providers/catalog_provider.dart';
+import 'providers/discover_provider.dart';
 import 'providers/engagement_provider.dart';
 import 'providers/follows_provider.dart';
 import 'providers/inbox_provider.dart';
@@ -78,6 +80,8 @@ Future<void> main() async {
   final MomentsProvider moments;
   final ReferralsProvider referrals;
   final PartnerProvider partner;
+  final DiscoverProvider discover;
+  final CallsProvider calls;
   if (api != null && realtime != null) {
     session = RemoteSessionProvider(api, invites: invites);
     wallet = RemoteWalletProvider(api, realtime);
@@ -90,6 +94,8 @@ Future<void> main() async {
     moments = RemoteMomentsProvider(api, realtime, session);
     referrals = RemoteReferralsProvider(api, realtime);
     partner = RemotePartnerProvider(api, realtime);
+    discover = RemoteDiscoverProvider(api, realtime, social);
+    calls = RemoteCallsProvider(api, realtime, social, match);
   } else {
     session = SessionProvider(backend, invites: invites);
     wallet = WalletProvider(backend);
@@ -102,6 +108,8 @@ Future<void> main() async {
     moments = MomentsProvider(backend, session);
     referrals = ReferralsProvider(backend);
     partner = PartnerProvider(verified: () => session.me?.verified == true);
+    discover = DiscoverProvider(social, wallet);
+    calls = CallsProvider(social, match);
   }
   invites.signedIn = () => session.signedIn;
 
@@ -116,6 +124,8 @@ Future<void> main() async {
   }
   session.addSignOutHook(() async => referrals.clear());
   session.addSignOutHook(() async => partner.clear());
+  session.addSignOutHook(() async => discover.clear());
+  session.addSignOutHook(() async => calls.clear());
 
   runApp(
     MultiProvider(
@@ -135,6 +145,8 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: moments),
         ChangeNotifierProvider.value(value: referrals),
         ChangeNotifierProvider.value(value: partner),
+        ChangeNotifierProvider.value(value: discover),
+        ChangeNotifierProvider.value(value: calls),
         ChangeNotifierProvider.value(value: invites),
       ],
       child: VibeApp(realtime: realtime),

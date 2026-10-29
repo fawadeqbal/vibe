@@ -289,8 +289,17 @@ class MatchFilters {
 
 enum FriendState { none, requested, incoming, friends, blocked }
 
+/// Video calls in one chat: each side's "allow". Both true = calls on.
+class CallsView {
+  const CallsView({this.mine = false, this.theirs = false});
+  final bool mine;
+  final bool theirs;
+  bool get on => mine && theirs;
+  static const off = CallsView();
+}
+
 class Friend {
-  const Friend({required this.profile, required this.state, required this.since, this.lastMessage, this.unread = 0, this.online = false, this.streak = StreakView.none});
+  const Friend({required this.profile, required this.state, required this.since, this.lastMessage, this.unread = 0, this.online = false, this.streak = StreakView.none, this.calls = CallsView.off});
   final Profile profile;
   final FriendState state;
   final DateTime since;
@@ -298,19 +307,39 @@ class Friend {
   final int unread;
   final bool online;
   final StreakView streak;
+  final CallsView calls;
 
-  Friend copyWith({FriendState? state, String? lastMessage, int? unread, bool? online, StreakView? streak}) {
-    return Friend(profile: profile, state: state ?? this.state, since: since, lastMessage: lastMessage ?? this.lastMessage, unread: unread ?? this.unread, online: online ?? this.online, streak: streak ?? this.streak);
+  Friend copyWith({FriendState? state, String? lastMessage, int? unread, bool? online, StreakView? streak, CallsView? calls}) {
+    return Friend(
+      profile: profile,
+      state: state ?? this.state,
+      since: since,
+      lastMessage: lastMessage ?? this.lastMessage,
+      unread: unread ?? this.unread,
+      online: online ?? this.online,
+      streak: streak ?? this.streak,
+      calls: calls ?? this.calls,
+    );
   }
 }
 
+/// `system`: a line from Vibe in a chat ("You matched in Discover", call events), shown centred.
+enum MessageKind { text, gift, system }
+
 class ChatMessage {
-  const ChatMessage({required this.id, required this.fromMe, required this.text, required this.at, this.gift});
+  const ChatMessage({required this.id, required this.fromMe, required this.text, required this.at, this.gift, this.kind = MessageKind.text, this.meta});
   final String id;
   final bool fromMe;
   final String text;
   final DateTime at;
   final Gift? gift;
+  final MessageKind kind;
+
+  /// System lines: `{ event, ... }` (matched, calls_asked, calls_on, calls_off, calls_declined, call_missed, call_declined, call_ended).
+  final Map<String, dynamic>? meta;
+
+  bool get isSystem => kind == MessageKind.system;
+  String? get event => meta?['event'] as String?;
 }
 
 enum ReportReason { nudity, harassment, underage, spam, scam, other }
@@ -383,6 +412,19 @@ class Economy {
 
   // VIP
   static int vipMonthlyBonusCoins = 200;
+
+  // Discover (admin group "discover")
+  static bool discoverEnabled = true;
+  static int discoverFreeLikesPerDay = 30;
+  static int discoverLikePackSize = 30;
+  static int discoverLikePackCost = 20;
+  static int discoverSuperLikeCost = 10;
+  static int discoverVipFreeSuperLikes = 1;
+  static int discoverUndoCost = 5;
+
+  // Video calls in chat (admin group "calls")
+  static bool friendCallsEnabled = true;
+  static int callRingSeconds = 30;
 
   // Free coins
   static List<int> checkInRewards = const [5, 10, 15, 20, 25, 30, 50];

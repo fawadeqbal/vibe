@@ -6,10 +6,13 @@ import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
+import '../../models/models.dart';
+import '../../providers/calls_provider.dart';
 import '../../providers/social_provider.dart';
 import '../match/gift_sheet.dart';
 import '../profile/user_profile_screen.dart';
 import '../store/store_screen.dart';
+import 'chat_calls.dart';
 import 'streaks.dart';
 
 /// Text chat with a friend. Gifts here earn them gems too — that is what
@@ -32,6 +35,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _social.ensureMessages(widget.friendId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<CallsProvider>().loadState(widget.friendId);
+    });
   }
 
   @override
@@ -132,9 +138,14 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         ),
         actions: [
+          if (f.state == FriendState.friends) CallButton(friend: f),
           PopupMenuButton<String>(
             icon: const Icon(SolarIconsBold.menuDots),
             onSelected: (v) async {
+              if (v == 'calls') {
+                await callsMenuItem(context, f).$2();
+                return;
+              }
               if (v == 'remove') {
                 await social.remove(widget.friendId);
               } else if (v == 'block') {
@@ -142,10 +153,15 @@ class _ChatScreenState extends State<ChatScreen> {
               }
               if (context.mounted) Navigator.of(context).pop();
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'remove', child: Text('Remove friend')),
-              PopupMenuItem(value: 'block', child: Text('Block', style: TextStyle(color: V.bad))),
-            ],
+            itemBuilder: (_) {
+              final (callsLabel, _, callsBad) = callsMenuItem(context, f);
+              return [
+                if (f.state == FriendState.friends && context.read<CallsProvider>().enabled)
+                  PopupMenuItem(value: 'calls', child: Text(callsLabel, style: callsBad ? const TextStyle(color: V.bad) : null)),
+                const PopupMenuItem(value: 'remove', child: Text('Remove friend')),
+                const PopupMenuItem(value: 'block', child: Text('Block', style: TextStyle(color: V.bad))),
+              ];
+            },
           ),
         ],
       ),
@@ -160,6 +176,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemCount: msgs.length,
                     itemBuilder: (context, i) {
                       final m = msgs[i];
+                      if (m.isSystem) return SystemLine(m: m, onCallBack: f.calls.on ? () => context.read<CallsProvider>().ring(f.profile) : null);
                       final mine = m.fromMe;
                       return Align(
                         alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
@@ -187,6 +204,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     },
                   ),
           ),
+          if (f.state == FriendState.friends) CallsCard(friend: f),
           SafeArea(
             top: false,
             child: Padding(

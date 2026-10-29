@@ -7,7 +7,10 @@ import 'package:solar_icons/solar_icons.dart';
 import '../../core/theme/vibe_dock.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
+import '../../models/calls.dart';
 import '../../models/follows.dart';
+import '../../providers/calls_provider.dart';
+import '../../providers/discover_provider.dart';
 import '../../providers/engagement_provider.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/inbox_provider.dart';
@@ -20,6 +23,8 @@ import '../../services/app_services.dart';
 import '../../services/invite/invite_capture.dart';
 import '../../services/push/push_route.dart';
 import '../../services/wellbeing/break_reminder.dart';
+import '../discover/discover_screen.dart';
+import '../discover/match_dialog.dart';
 import '../invite/invite_screen.dart';
 import '../invite/invite_share.dart';
 import '../match/match_screen.dart';
@@ -27,6 +32,7 @@ import '../profile/follow_lists_screen.dart';
 import '../profile/profile_screen.dart';
 import '../profile/progress.dart';
 import '../profile/user_profile_screen.dart';
+import '../social/call_screens.dart';
 import '../social/chat_screen.dart';
 import '../social/chats_screen.dart';
 import '../social/inbox_screen.dart';
@@ -38,8 +44,9 @@ import '../store/wallet_screen.dart';
 /// behind the filters sheet.
 final vibeRouteObserver = RouteObserver<PageRoute<dynamic>>();
 
-/// Four tabs. Match is the app; the other three exist to keep people
-/// coming back to it (friends), to pay (store) and to trust it (profile).
+/// Five tabs. Match is the app; Discover fills the gaps when nobody's live;
+/// the other three keep people coming back (friends), pay (store) and
+/// build trust (profile).
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -47,8 +54,23 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
+/// Tab positions.
+abstract final class Tabs {
+  static const match = 0;
+  static const discover = 1;
+  static const chats = 2;
+  static const store = 3;
+  static const me = 4;
+}
+
 class _HomeShellState extends State<HomeShell> with RouteAware {
   int _index = 0;
+  late final DiscoverProvider _discover;
+  late final CallsProvider _calls;
+  StreamSubscription<String>? _friendCallEnded;
+  bool _matchOpen = false;
+  String? _incomingShown;
+  bool _outgoingShown = false;
   StreamSubscription<PushRoute>? _taps;
   StreamSubscription<FollowNotice>? _followNotices;
   StreamSubscription<int>? _levelUps;
@@ -73,7 +95,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
 
   /// One scroll controller per tab, so tapping the tab you're already on
   /// can take that page back to the top (as on iOS).
-  final _scrollers = [for (var i = 0; i < 4; i++) ScrollController()];
+  final _scrollers = [for (var i = 0; i < 5; i++) ScrollController()];
 
   void _onDockTap(int i) {
     if (i != _index) return go(i);
@@ -110,9 +132,48 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     if (s == AppLifecycleState.resumed) unawaited(context.read<EngagementProvider>().load());
   }
 
-  /// Searching or in a call counts toward the break reminder.
+  /// Searching or in a call counts toward the break reminder. A friend
+  /// picked up: the call screen (Match tab, nothing on top).
   void _onMatchChanged() {
     _breaks.setActive(_match.isSearching || _match.isConnected);
+    if (_match.isConnected && _match.friendCall && (_index != Tabs.match || _covered)) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      go(Tabs.match);
+    }
+  }
+
+  /// Two likes met: "It's a match!" over whatever is on screen.
+  Future<void> _onDiscoverChanged() async {
+    final f = _discover.matched;
+    if (f == null || _matchOpen || !mounted) return;
+    _matchOpen = true;
+    await showMatchDialog(context, f);
+    _matchOpen = false;
+    _discover.dismissMatch();
+  }
+
+  /// A friend calling, or your own call ringing: their full-screen pages.
+  void _onCallsChanged() {
+    if (!mounted) return;
+    final nav = Navigator.of(context);
+    final inc = _calls.incoming;
+    if (inc != null && _incomingShown != inc.callId) {
+      _incomingShown = inc.callId;
+      nav.push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => IncomingCallScreen(call: inc))).then((_) => _incomingShown = null);
+    }
+    final out = _calls.outgoing;
+    if (out != null && !_outgoingShown && out.status == OutgoingStatus.ringing) {
+      _outgoingShown = true;
+      nav
+          .push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => OutgoingCallScreen(onMessage: _openChat)))
+          .then((_) => _outgoingShown = false);
+    }
+  }
+
+  void _openChat(String friendId) {
+    if (!mounted) return;
+    go(Tabs.chats);
+    if (context.read<SocialProvider>().friend(friendId) != null) Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: friendId)));
   }
 
   void _onSessionChanged() {
@@ -202,6 +263,16 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     _session = context.read<SessionProvider>();
     _lastGems = _wallet.gems;
     _match.addListener(_onMatchChanged);
+    _discover = context.read<DiscoverProvider>();
+    _discover.addListener(_onDiscoverChanged);
+    _calls = context.read<CallsProvider>();
+    _calls.addListener(_onCallsChanged);
+    // A friend call ended: back to that chat.
+    _friendCallEnded = _match.friendCallEnded.listen((id) {
+      if (!mounted) return;
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      _openChat(id);
+    });
     _wallet.addListener(_onWalletChanged);
     _session.addListener(_onSessionChanged);
     _onSessionChanged();
@@ -257,6 +328,9 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     }
     _breakTimer?.cancel();
     _match.removeListener(_onMatchChanged);
+    _discover.removeListener(_onDiscoverChanged);
+    _calls.removeListener(_onCallsChanged);
+    _friendCallEnded?.cancel();
     _wallet.removeListener(_onWalletChanged);
     _session.removeListener(_onSessionChanged);
     _lifecycle.dispose();
@@ -281,17 +355,23 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     final nav = Navigator.of(context);
     switch (r.target) {
       case PushTarget.chat:
-        go(1);
+        go(Tabs.chats);
         if (context.read<SocialProvider>().friend(r.friendId!) != null) nav.push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: r.friendId!)));
       case PushTarget.friends:
-        go(1);
+        go(Tabs.chats);
       case PushTarget.inbox:
-        go(1);
+        go(Tabs.chats);
         nav.push(MaterialPageRoute(builder: (_) => const InboxScreen()));
       case PushTarget.wallet:
         nav.push(MaterialPageRoute(builder: (_) => const WalletScreen()));
       case PushTarget.store:
-        go(2);
+        go(Tabs.store);
+      case PushTarget.discover:
+        nav.popUntil((route) => route.isFirst);
+        go(Tabs.discover);
+      case PushTarget.call:
+        // The ring itself comes over the socket; make sure we have it.
+        unawaited(_calls.checkIncoming());
       case PushTarget.match:
         // Vibe Hour started: the lobby, with the banner.
         nav.popUntil((route) => route.isFirst);
@@ -312,6 +392,8 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     final unread = context.select<SocialProvider, int>((s) => s.unreadTotal + s.incoming.length);
     final teamUnread = context.select<InboxProvider, int>((i) => i.unread);
     final live = context.select<MatchProvider, bool>((m) => m.isConnected || m.isSearching);
+    final likes = context.select<DiscoverProvider, int>((d) => d.badge);
+    final discoverOn = context.select<DiscoverProvider, bool>((d) => d.enabled);
     final onVideo = _index == 0;
     // While a match is live the tab bar hides: the match owns the screen.
     return Scaffold(
@@ -325,21 +407,24 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
         child: IndexedStack(
           index: _index,
           children: [
-            MatchScreen(onOpenStore: () => go(2), onOpenChats: () => go(1)),
-            PrimaryScrollController(controller: _scrollers[1], child: ChatsScreen(onFindPeople: () => go(0))),
-            PrimaryScrollController(controller: _scrollers[2], child: const StoreScreen()),
-            PrimaryScrollController(controller: _scrollers[3], child: ProfileScreen(onOpenStore: () => go(2))),
+            MatchScreen(onOpenStore: () => go(Tabs.store), onOpenChats: () => go(Tabs.chats)),
+            DiscoverScreen(onOpenMatch: () => go(Tabs.match)),
+            PrimaryScrollController(controller: _scrollers[Tabs.chats], child: ChatsScreen(onFindPeople: () => go(Tabs.match))),
+            PrimaryScrollController(controller: _scrollers[Tabs.store], child: const StoreScreen()),
+            PrimaryScrollController(controller: _scrollers[Tabs.me], child: ProfileScreen(onOpenStore: () => go(Tabs.store))),
           ],
         ),
       ),
       bottomNavigationBar: live && onVideo
           ? null
           : VibeDock(
-              index: _index,
+              // Without Discover (switched off in admin) the dock has four items.
+              index: discoverOn || _index < Tabs.discover ? _index : _index - 1,
               overVideo: onVideo,
-              onTap: _onDockTap,
+              onTap: (i) => _onDockTap(discoverOn || i < Tabs.discover ? i : i + 1),
               items: [
                 const VibeDockItem(icon: SolarIconsOutline.videocamera, activeIcon: SolarIconsBold.videocamera, label: 'Match'),
+                if (discoverOn) VibeDockItem(icon: SolarIconsOutline.userHeartRounded, activeIcon: SolarIconsBold.userHeartRounded, label: 'Discover', badge: likes),
                 VibeDockItem(icon: SolarIconsOutline.chatRoundDots, activeIcon: SolarIconsBold.chatRoundDots, label: 'Chats', badge: unread + teamUnread),
                 const VibeDockItem(icon: SolarIconsOutline.bagSmile, activeIcon: SolarIconsBold.bagSmile, label: 'Store'),
                 const VibeDockItem(icon: SolarIconsOutline.userRounded, activeIcon: SolarIconsBold.userRounded, label: 'Me'),

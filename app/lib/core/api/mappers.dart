@@ -1,3 +1,5 @@
+import '../../models/calls.dart';
+import '../../models/discover.dart';
 import '../../models/follows.dart';
 import '../../models/models.dart';
 import '../mock/mock_data.dart';
@@ -120,7 +122,10 @@ class ApiMap {
     unread: i(m['unread']),
     online: m['online'] as bool? ?? false,
     streak: m['streak'] is Map ? StreakView.fromJson(Map<String, dynamic>.from(m['streak'] as Map)) : StreakView.none,
+    calls: callsView(m['calls']),
   );
+
+  static CallsView callsView(Object? m) => m is Map ? CallsView(mine: m['mine'] == true, theirs: m['theirs'] == true) : CallsView.off;
 
   static FollowState followState(Object? s) => switch (s) {
         'following' => FollowState.following,
@@ -193,8 +198,70 @@ class ApiMap {
         read: m['read'] as bool? ?? false,
       );
 
-  static ChatMessage message(Map<String, dynamic> m) =>
-      ChatMessage(id: m['id'] as String, fromMe: m['fromMe'] as bool? ?? false, text: m['text'] as String? ?? '', at: date(m['at']) ?? DateTime.now(), gift: gift(m['giftId']));
+  static ChatMessage message(Map<String, dynamic> m) {
+    final kind = switch (m['kind']) {
+      'system' => MessageKind.system,
+      'gift' => MessageKind.gift,
+      _ => m['giftId'] != null ? MessageKind.gift : MessageKind.text,
+    };
+    return ChatMessage(
+      id: m['id'] as String,
+      fromMe: m['fromMe'] as bool? ?? false,
+      text: m['text'] as String? ?? '',
+      at: date(m['at']) ?? DateTime.now(),
+      gift: kind == MessageKind.system ? null : gift(m['giftId']),
+      kind: kind,
+      meta: m['meta'] is Map ? Map<String, dynamic>.from(m['meta'] as Map) : null,
+    );
+  }
+
+  // ── Discover ──────────────────────────────────────────────────────────
+
+  static DiscoverCard discoverCard(Map<String, dynamic> m) => DiscoverCard(
+        profile: profile(Map<String, dynamic>.from(m['profile'] as Map)),
+        online: m['online'] == true,
+        lastSeenAt: date(m['lastSeenAt']),
+        superLikedMe: m['superLikedMe'] == true,
+        sharedInterests: (m['sharedInterests'] as List? ?? const []).whereType<String>().toList(),
+      );
+
+  static DiscoverStatus discoverStatus(Map<String, dynamic> m) {
+    final liked = m['likedYou'] is Map ? Map<String, dynamic>.from(m['likedYou'] as Map) : const <String, dynamic>{};
+    return DiscoverStatus(
+      enabled: m['enabled'] != false,
+      vip: m['vip'] == true,
+      likesLeft: (m['likesLeft'] as num?)?.toInt(),
+      freeLikesPerDay: (m['freeLikesPerDay'] as num?)?.toInt() ?? 30,
+      resetsAt: date(m['resetsAt']),
+      freeSuperLikesLeft: i(m['freeSuperLikesLeft']),
+      superLikeCost: (m['superLikeCost'] as num?)?.toInt() ?? 10,
+      undoCost: i(m['undoCost']),
+      packSize: (m['packSize'] as num?)?.toInt() ?? 30,
+      packCost: (m['packCost'] as num?)?.toInt() ?? 20,
+      visible: m['visible'] == true,
+      showInDiscover: m['showInDiscover'] != false,
+      hasPhoto: m['hasPhoto'] == true,
+      likedYouCount: i(liked['count']),
+      likedYouUnseen: i(liked['unseen']),
+    );
+  }
+
+  static LikedYou likedYou(Map<String, dynamic> m) => LikedYou(
+        unlocked: m['unlocked'] == true,
+        people: (m['people'] as List? ?? const []).map((e) => discoverCard(Map<String, dynamic>.from(e as Map))).toList(),
+        previews: (m['previews'] as List? ?? const []).map((e) => '$e').toList(),
+        count: i(m['count']),
+      );
+
+  // ── calls in chat ─────────────────────────────────────────────────────
+
+  static CallState callState(Map<String, dynamic> m) => CallState(
+        mine: m['mine'] == true,
+        theirs: m['theirs'] == true,
+        canAsk: m['canAsk'] == true,
+        askAfter: date(m['askAfter']),
+        askBlockedBy: m['askBlockedBy'] as String?,
+      );
 
   static MatchRecord? matchRecord(Map<String, dynamic> m) {
     final p = m['partner'];

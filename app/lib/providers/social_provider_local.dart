@@ -55,6 +55,13 @@ class LocalSocialProvider extends SocialProvider {
   }
 
   @override
+  Future<void> addMatched(Friend f) async {
+    if (friend(f.profile.id) == null) _upsert(f);
+    addSystemLine(f.profile.id, 'You matched in Discover', 'matched', extra: {'via': 'discover'});
+    await _persist();
+  }
+
+  @override
   Future<bool> accept(String id) async {
     final f = friend(id);
     if (f == null) return false;

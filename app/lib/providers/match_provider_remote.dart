@@ -266,6 +266,7 @@ class RemoteMatchProvider extends MatchProvider {
     _blurUntil = e['blur'] == true ? DateTime.now().add(const Duration(seconds: 3)) : null;
     _state = MatchState.connected;
     _lastError = null;
+    setFriendCall(e['friendCall'] == true);
     _ticker?.cancel();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       _elapsed += const Duration(seconds: 1);
@@ -312,6 +313,11 @@ class RemoteMatchProvider extends MatchProvider {
     _peerStarting = null;
     _pendingIce.clear();
     unawaited(_closePeer());
+    if (friendCall) {
+      _matchId = null;
+      finishFriendCall();
+      return;
+    }
     final byMe = e['byMe'] == true;
     final reason = e['reason'] as String?;
     final rec = (_current ?? MatchRecord(id: _matchId!, partner: _partner!, startedAt: DateTime.now())).copyWith(
