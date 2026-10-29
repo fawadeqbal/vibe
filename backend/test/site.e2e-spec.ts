@@ -37,6 +37,13 @@ describe('site traffic', () => {
     expect(await t.prisma.siteEvent.count()).toBe(3);
   });
 
+  it('without Cloudflare headers, finds country/region/city from the IP (not stored)', async () => {
+    await beacon({ k: 'view', v: 'visit_dddddddd', u: 'visitor_44444', p: '/' }, phone, { 'x-forwarded-for': '111.119.180.1, 172.18.0.2' });
+    const v = await t.prisma.siteVisit.findUniqueOrThrow({ where: { id: 'visit_dddddddd' } });
+    expect(v).toMatchObject({ country: 'PK', region: 'Punjab', city: 'Lahore' });
+    expect(JSON.stringify(v)).not.toContain('111.119');
+  });
+
   it('links a new account to its visit, once; the admin report counts it', async () => {
     await beacon({ k: 'view', v: 'visit_cccccccc', u: 'visitor_33333', p: '/', r: 'https://www.google.com/' }, phone, { 'cf-ipcountry': 'AE', 'cf-region': 'Dubai' });
     await beacon({ k: 'click', v: 'visit_cccccccc', u: 'visitor_33333', p: '/', b: 'discover_open', t: '/discover' });

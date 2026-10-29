@@ -74,6 +74,6 @@ The site counts its own traffic — no third-party trackers. `src/lib/track.ts` 
 
 - **Name new buttons**: `<Cta href={…} track="my_button">` (lower_case). Untagged app links still count, as "Other links".
 - **Tag your own links**: `?utm_source=tiktok&utm_medium=social&utm_campaign=launch` → Campaigns.
-- **Country, region and city** come from Cloudflare. Country works out of the box; for region and city turn on **Cloudflare → Rules → Transform Rules → Managed Transforms → "Add visitor location headers"** (free). IP addresses are never stored.
+- **Country, region and city**: from Cloudflare's headers when it sends them, otherwise looked up on the API from the visitor's IP address with the free GeoLite2 City database bundled with the API (npm `@ip-location-db/geolite2-city-mmdb`). The address is used for that lookup only and never stored. Update the database now and then with `npm i @ip-location-db/geolite2-city-mmdb@latest` in `backend/`.
 - **Your own visits**: open the site once with `?notrack=1` (the "Ignore my visits" button in admin does this); `?notrack=0` undoes it. Bots, link previews and automated browsers are left out.
 - Raw events are kept 90 days, visits about 13 months.

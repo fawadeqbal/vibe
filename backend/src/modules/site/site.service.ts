@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Clock, MS } from '../../common/utils/clock';
 import { AppConfig } from '../../config/app-config.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { clientIp, GeoService } from './geo.service';
 import { classifySource, isBot, locationFrom, parseDevice } from './site-source';
 
 /** A visit id or visitor id made in the browser. */
@@ -38,6 +39,8 @@ export type SiteEventInput = z.infer<typeof eventSchema>;
 export interface RequestInfo {
   headers: Record<string, string | string[] | undefined>;
   userAgent: string | null;
+  /** The socket's address (behind proxies the headers have the real one). */
+  remoteAddress?: string | null;
 }
 
 const pathOnly = (p: string) => {
@@ -62,6 +65,7 @@ export class SiteService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clock: Clock,
+    private readonly geo: GeoService,
     config: AppConfig,
   ) {
     const host = (u: string) => {
@@ -110,7 +114,7 @@ export class SiteService {
       } else {
         const src = classifySource({ url: e.p, referrer: e.r, userAgent: req.userAgent, ownHosts: this.ownHosts });
         const dev = parseDevice(req.userAgent);
-        const loc = locationFrom(req.headers);
+        const loc = await this.locate(req);
         await this.prisma.siteVisit.upsert({
           where: { id: e.v },
           create: {
@@ -141,6 +145,19 @@ export class SiteService {
     }
     // leave: time on site so far (never goes down)
     if (e.s !== undefined && e.s > visit.seconds) await this.prisma.siteVisit.update({ where: { id: e.v }, data: { seconds: Math.min(e.s, 3600), lastAt: now } });
+  }
+
+  /**
+   * Where the visitor is: Cloudflare's headers when it sends them, filled in
+   * from an IP lookup (GeoLite2) otherwise. The address itself is not kept.
+   */
+  private async locate(req: RequestInfo) {
+    const cf = locationFrom(req.headers);
+    if (cf.country && cf.region && cf.city) return cf;
+    const ip = await this.geo.lookup(clientIp(req.headers, req.remoteAddress));
+    const country = cf.country ?? ip.country;
+    const same = !cf.country || cf.country === ip.country;
+    return { country, region: cf.region ?? (same ? ip.region : null), city: cf.city ?? (same ? ip.city : null) };
   }
 
   /**
