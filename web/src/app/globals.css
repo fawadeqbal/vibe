@@ -74,6 +74,8 @@
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 
   --animate-spin: spin 0.9s linear infinite;
+  --animate-heart-pop: vibe-heart-pop 0.9s ease-out both;
+  --animate-swipe-hint: vibe-swipe-hint 1.8s ease-in-out infinite;
 }
 
 @layer base {
@@ -313,6 +315,38 @@
   }
 }
 /* "It's a vibe!": pop in, then rings burst outward. */
+@keyframes vibe-heart-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+@keyframes vibe-swipe-hint {
+  0% {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  20%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-110px);
+  }
+}
 @keyframes vibe-pop {
   0% {
     opacity: 0;
