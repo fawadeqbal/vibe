@@ -13,14 +13,13 @@ import { Button } from "@/components/ui/button";
 import { useCan } from "@/features/auth/session";
 import { useUrlState } from "@/hooks/use-url-state";
 import type { UserSummary } from "@/lib/api/types";
+import { countryOptions } from "@/lib/countries";
 import { format } from "@/lib/format";
 import { P } from "@/lib/permissions";
 
-import { useUsers } from "./api";
+import { useUserCountries, useUsers } from "./api";
 
 const DEFAULTS = { q: "", status: "", banned: "", verified: "", vip: "", gender: "", country: "", bots: "", sort: "newest", from: "", to: "" };
-
-export const COUNTRIES = ["PK", "IN", "US", "GB", "TR", "BR", "DE", "FR", "AE", "SA", "ID", "PH", "KR", "JP", "MX", "NG", "EG", "CA", "AU", "ES"];
 
 export function userStateBadges(u: Pick<UserSummary, "status" | "bannedUntil" | "vipUntil" | "openReports">) {
   return (
@@ -47,6 +46,7 @@ export function UsersPage() {
   const router = useRouter();
   const [f, setF, reset] = useUrlState(DEFAULTS);
   const list = useUsers({ ...f, sort: f.sort });
+  const countries = useUserCountries();
   const filtered = Object.entries(f).some(([k, v]) => v !== DEFAULTS[k as keyof typeof DEFAULTS]);
   const can = useCan();
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -91,7 +91,7 @@ export function UsersPage() {
               <FilterBool label="Verified" value={f.verified} onChange={(verified) => setF({ verified })} />
               <FilterBool label="VIP" value={f.vip} onChange={(vip) => setF({ vip })} />
               <FilterSelect label="Gender" value={f.gender} onChange={(gender) => setF({ gender })} options={["FEMALE", "MALE", "OTHER"].map((g) => ({ value: g, label: format.enum(g) }))} />
-              <FilterSelect label="Country" value={f.country} onChange={(country) => setF({ country })} options={COUNTRIES.map((c) => ({ value: c, label: c }))} />
+              <FilterSelect label="Country" value={f.country} onChange={(country) => setF({ country })} options={countryOptions(countries.data, { include: [f.country] })} />
               <FilterBool label="Dev bots" value={f.bots} onChange={(bots) => setF({ bots })} yes="Include" no="Hide" />
               <DateRange from={f.from} to={f.to} onChange={(r) => setF(r)} />
               <ResetFilters show={filtered} onReset={reset} />

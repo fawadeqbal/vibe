@@ -51,7 +51,18 @@ export function SearchInput({ value, onChange, placeholder = "Search…", classN
 export interface Option {
   value: string;
   label: string;
+  /** What typing a letter jumps by, when the label starts with an emoji ("🇵🇰 Pakistan" → "Pakistan"). */
+  textValue?: string;
+  /** A quiet number on the right (e.g. how many users). */
+  count?: number;
 }
+
+const OptionBody = ({ o }: { o: Option }) => (
+  <>
+    <span className="min-w-0 flex-1 truncate">{o.label}</span>
+    {o.count != null && <span className="ml-3 text-xs text-muted tabular">{o.count.toLocaleString("en-US")}</span>}
+  </>
+);
 
 const chip = (active: boolean) =>
   cn("h-8 gap-1 border-dashed px-2.5 text-xs font-medium", active && "border-solid border-primary/40 bg-primary-soft text-primary hover:bg-primary-soft");
@@ -72,8 +83,8 @@ export function FilterSelect({ label, value, options, onChange, allLabel = "All"
         <MenuItem onSelect={() => onChange("")}>{allLabel}</MenuItem>
         <MenuSeparator />
         {options.map((o) => (
-          <MenuCheckboxItem key={o.value} checked={o.value === value} onCheckedChange={() => onChange(o.value)}>
-            {o.label}
+          <MenuCheckboxItem key={o.value} textValue={o.textValue} checked={o.value === value} onCheckedChange={() => onChange(o.value)}>
+            <OptionBody o={o} />
           </MenuCheckboxItem>
         ))}
       </MenuContent>
@@ -98,11 +109,12 @@ export function FilterMulti({ label, value, options, onChange }: { label: string
         {options.map((o) => (
           <MenuCheckboxItem
             key={o.value}
+            textValue={o.textValue}
             checked={value.includes(o.value)}
             onSelect={(e) => e.preventDefault()}
             onCheckedChange={(c) => onChange(c ? [...value, o.value] : value.filter((v) => v !== o.value))}
           >
-            {o.label}
+            <OptionBody o={o} />
           </MenuCheckboxItem>
         ))}
         {value.length > 0 && (
