@@ -35,6 +35,14 @@ export class AdminUsersController {
     return this.users.list(me, q);
   }
 
+  @Get('countries')
+  @RequirePermissions(P.UsersView)
+  @ApiOperation({ summary: 'Countries people are from, with how many (real, active) users each; most first' })
+  async countries() {
+    const rows = await this.prisma.user.groupBy({ by: ['countryCode'], where: { isBot: false, status: 'ACTIVE' }, _count: { _all: true } });
+    return rows.map((r) => ({ code: r.countryCode, count: r._count._all })).sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
+  }
+
   @Get(':id')
   @RequirePermissions(P.UsersView)
   get(@CurrentStaff() me: StaffPrincipal, @Param('id') id: string) {
