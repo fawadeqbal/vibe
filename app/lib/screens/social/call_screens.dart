@@ -69,13 +69,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
             padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
             child: Column(
               children: [
-                Text('VIBE · VIDEO CALL', style: VT.overline(color: const Color(0xFFE0D6F5))),
+                Text(widget.call.media == CallMedia.voice ? 'VIBE · VOICE CALL' : 'VIBE · VIDEO CALL', style: VT.overline(color: const Color(0xFFE0D6F5))),
                 const SizedBox(height: 44),
                 PulseRings(child: VAvatar(url: from.avatarUrl, name: from.name, size: 160)),
                 const SizedBox(height: 32),
                 Text(first, style: VT.display(34)),
                 const SizedBox(height: 6),
-                Text('wants to video call you', style: VT.body(15, color: const Color(0xFFD8CFE8))),
+                Text(widget.call.media == CallMedia.voice ? 'wants to voice call you' : 'wants to video call you', style: VT.body(15, color: const Color(0xFFD8CFE8))),
                 const Spacer(),
                 Wrap(
                   alignment: WrapAlignment.center,
@@ -97,7 +97,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _BigButton(label: 'Decline', icon: Icons.call_end_rounded, color: const Color(0xFFE11D48), onTap: () => _calls.decline()),
-                    _BigButton(label: 'Accept', icon: SolarIconsBold.videocamera, color: V.ok, iconColor: V.bg, onTap: () => _calls.accept()),
+                    _BigButton(label: 'Accept', icon: widget.call.media == CallMedia.voice ? SolarIconsBold.phone : SolarIconsBold.videocamera, color: V.ok, iconColor: V.bg, onTap: () => _calls.accept()),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -207,7 +207,7 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
                 const SizedBox(height: 20),
                 Text(first, style: VT.display(30)),
                 const SizedBox(height: 6),
-                Semantics(liveRegion: true, child: Text(done?.$1 ?? 'Calling… ${_secs}s', style: VT.body(15, color: const Color(0xFFD8CFE8)))),
+                Semantics(liveRegion: true, child: Text(done?.$1 ?? '${c.media == CallMedia.voice ? 'Voice call' : 'Video call'} · Calling… ${_secs}s', style: VT.body(15, color: const Color(0xFFD8CFE8)))),
                 if (done != null) ...[
                   const SizedBox(height: 16),
                   Container(

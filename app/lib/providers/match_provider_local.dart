@@ -267,13 +267,49 @@ class LocalMatchProvider extends MatchProvider {
   }
 
   @override
-  Future<void> beginFriendCall(Profile p) async {
+  Future<void> beginFriendCall(Profile p, {bool voice = false}) async {
     if (_state == MatchState.connected) _end(EndReason.stopped);
-    setFriendCall(true);
+    setFriendCall(true, voice: voice);
+    if (voice) {
+      // No camera in a voice call: reopen with the mic only.
+      await releaseCamera();
+    }
     unawaited(ensureCamera());
     _connect(p);
     _blurUntil = null;
   }
+
+  /// The demo friend says yes after a moment.
+  @override
+  Future<void> askVideo() async {
+    if (!voiceCall || _partner == null) return;
+    setVideoAsk(VideoAsk.mine);
+    final p = _partner;
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (_partner != p || !voiceCall) return;
+    await turnOnVideo();
+  }
+
+  @override
+  Future<void> answerVideo(bool yes) async {
+    if (!yes) {
+      setVideoAsk(VideoAsk.none);
+      return;
+    }
+    await turnOnVideo();
+  }
+
+  @override
+  Future<void> turnOnVideo() async {
+    if (!voiceCall) return;
+    await super.turnOnVideo();
+    await releaseCamera();
+    await ensureCamera();
+  }
+
+  /// Test seam: the demo friend asks to turn on video.
+  @visibleForTesting
+  void debugTheyAskVideo() => setVideoAsk(VideoAsk.theirs);
 
   /// Call the last person again (paid). False when unaffordable or nobody.
   @override

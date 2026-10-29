@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -36,6 +37,9 @@ import 'package:vibe_app/screens/discover/liked_you_screen.dart';
 import 'package:vibe_app/screens/discover/match_dialog.dart';
 import 'package:vibe_app/screens/social/call_screens.dart';
 import 'package:vibe_app/screens/social/chat_screen.dart';
+import 'package:vibe_app/screens/social/chat_calls.dart';
+import 'package:vibe_app/screens/social/chat_tools.dart';
+import 'package:vibe_app/screens/match/voice_call.dart';
 import 'package:vibe_app/screens/store/vip_screen.dart';
 import 'package:vibe_app/services/app_services.dart';
 
@@ -285,6 +289,65 @@ void main() {
     await t.pumpWidget(h.app(OutgoingCallScreen(onMessage: (_) {})));
     await h.calls.ring(h.sana);
     await snap(t, 'c4_calling');
+  });
+
+  Future<void> toolsChat(WidgetTester t, H h, {CallsView calls = const CallsView(mine: true, theirs: true)}) async {
+    await t.runAsync(() async {
+      await h.social.addMatched(Friend(profile: h.sana, state: FriendState.friends, since: DateTime.now(), online: true));
+      await h.social.sendMessage(h.sana.id, 'hey! fellow Coke Studio fan? 🎶');
+      final first = h.social.messages(h.sana.id).last;
+      await h.social.react(h.sana.id, first.id, '❤️');
+      await h.social.sendMessage(h.sana.id, 'which season is your favourite', replyToId: first.id);
+      await h.social.sendMedia(h.sana.id, MessageKind.voice, Uint8List(1), contentType: 'audio/mp4', seconds: 14);
+    });
+    h.social.debugAppend(h.sana.id, ChatMessage(id: 'ph1', fromMe: false, text: '📷 Photo', at: DateTime.now(), kind: MessageKind.photo, meta: const {'w': 400, 'h': 400}, localBytes: File('/tmp/imgcache/400_47.jpg').readAsBytesSync()));
+    h.social.setCalls(h.sana.id, calls);
+  }
+
+  shot('t1_chat_tools', (t, h) async {
+    await toolsChat(t, h);
+    await t.pumpWidget(h.app(ChatScreen(friendId: h.sana.id)));
+    await snap(t, 't1_chat_tools');
+  });
+
+  shot('t2_ask_sheet', (t, h) async {
+    await toolsChat(t, h, calls: CallsView.off);
+    await t.pumpWidget(h.app(ChatScreen(friendId: h.sana.id)));
+    await settle(t);
+    unawaited(openAskCalls(t.element(find.byType(ChatScreen)), h.social.friend(h.sana.id)!));
+    await snap(t, 't2_ask_sheet');
+  });
+
+  shot('t3_they_asked_video', (t, h) async {
+    await toolsChat(t, h, calls: const CallsView(theirs: true, theirsVideo: true));
+    await t.pumpWidget(h.app(ChatScreen(friendId: h.sana.id)));
+    await snap(t, 't3_they_asked_video');
+  });
+
+  shot('t4_message_menu', (t, h) async {
+    await toolsChat(t, h);
+    await t.pumpWidget(h.app(ChatScreen(friendId: h.sana.id)));
+    await settle(t);
+    unawaited(showMessageMenu(t.element(find.byType(ChatScreen)), h.social.messages(h.sana.id).firstWhere((m) => m.text.startsWith('which'))));
+    await snap(t, 't4_message_menu');
+  });
+
+  shot('t5_emoji', (t, h) async {
+    await toolsChat(t, h);
+    await t.pumpWidget(h.app(ChatScreen(friendId: h.sana.id)));
+    await settle(t);
+    await t.tap(find.byTooltip('Emoji'));
+    await snap(t, 't5_emoji');
+  });
+
+  shot('t6_voice_call', (t, h) async {
+    await t.runAsync(() async {
+      await h.social.addMatched(Friend(profile: h.sana, state: FriendState.friends, since: DateTime.now(), calls: const CallsView(mine: true, theirs: true, mineVideo: true, theirsVideo: true)));
+      await h.match.beginFriendCall(h.sana, voice: true);
+    });
+    (h.match as dynamic).debugTheyAskVideo();
+    await t.pumpWidget(h.app(Scaffold(body: Consumer<MatchProvider>(builder: (_, m, _) => VoiceCallView(m: m, onReport: () {})))));
+    await snap(t, 't6_voice_call');
   });
 
   shot('v1_vip', (t, h) async {

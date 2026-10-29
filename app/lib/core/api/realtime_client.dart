@@ -65,6 +65,18 @@ class Ev {
 
   /// A ringing call stopped: `{ callId, reason, reply?, from? }`.
   static const callEnded = 'call:ended';
+
+  /// Voice call → video: `{ matchId, state: asked|on|declined, from? }`.
+  static const callVideo = 'call:video';
+
+  /// A friend is typing to you: `{ friendId }`.
+  static const chatTyping = 'chat:typing';
+
+  /// A message changed (reaction, unsent): the full message view.
+  static const messageUpdated = 'message:updated';
+
+  /// They read your messages: `{ friendId, at }`.
+  static const messagesRead = 'message:read';
 }
 
 class RealtimeEvent {

@@ -6,6 +6,7 @@ import 'ads/rewarded_ads.dart';
 import 'auth/social_sign_in.dart';
 import 'media/media_picker.dart';
 import 'media/selfie_camera.dart';
+import 'media/voice_recorder.dart';
 import 'payments/payment_links.dart';
 import 'payments/store_billing.dart';
 import 'push/push_service.dart';
@@ -26,6 +27,7 @@ class AppServices {
     PushService? push,
     MediaPicker? media,
     SelfieCamera? selfieCamera,
+    VoiceRecorder? voice,
     ShareService? share,
     TargetPlatform? platform,
   })  : share = share ?? const PlatformShare(),
@@ -36,6 +38,7 @@ class AppServices {
         push = push ?? NoPush(),
         media = media ?? const NoMediaPicker(),
         selfieCamera = selfieCamera ?? const NoSelfieCamera(),
+        voice = voice ?? const NoVoiceRecorder(),
         platform = platform ?? defaultTargetPlatform;
 
   /// Everything off: tests and the offline demo's defaults.
@@ -52,6 +55,9 @@ class AppServices {
 
   /// The live front camera for the selfie check (pose challenge).
   final SelfieCamera selfieCamera;
+
+  /// The mic for voice notes in chats.
+  final VoiceRecorder voice;
 
   /// Share sheet, WhatsApp, the browser (invites, share cards, partner page).
   final ShareService share;

@@ -15,6 +15,19 @@ class RemoteSocialProvider extends SocialProvider {
         if (id != null && e['streak'] is Map) setStreak(id, StreakView.fromJson(Map<String, dynamic>.from(e['streak'] as Map)));
       }),
       _rt.on(Ev.presence).listen(_onPresence),
+      _rt.on(Ev.messageUpdated).listen((m) {
+        final id = m['friendId'] as String?;
+        if (id != null) replaceMessage(id, ApiMap.message(m));
+      }),
+      _rt.on(Ev.chatTyping).listen((e) {
+        final id = e['friendId'] as String?;
+        if (id != null) noteTyping(id);
+      }),
+      _rt.on(Ev.messagesRead).listen((e) {
+        final id = e['friendId'] as String?;
+        final at = DateTime.tryParse('${e['at']}');
+        if (id != null && at != null) noteSeen(id, at);
+      }),
     ];
   }
 
@@ -68,10 +81,11 @@ class RemoteSocialProvider extends SocialProvider {
     final list = _chats.putIfAbsent(friendId, () => []);
     if (list.any((x) => x.id == msg.id)) return;
     list.add(msg);
+    if (!msg.fromMe && !msg.isSystem) noteTyping(friendId, on: false);
     final f = friend(friendId);
     if (f != null) {
       final unread = !msg.fromMe && !msg.isSystem && _openChat != friendId ? f.unread + 1 : f.unread;
-      _replace(f.copyWith(lastMessage: msg.gift != null ? '${msg.gift!.emoji} ${msg.gift!.name}' : msg.text, unread: unread));
+      _replace(f.copyWith(lastMessage: SocialProvider.lastLine(msg), unread: unread));
     }
     if (_openChat == friendId && !msg.fromMe) markRead(friendId);
     notifyListeners();
@@ -173,9 +187,75 @@ class RemoteSocialProvider extends SocialProvider {
   }
 
   @override
-  Future<void> sendMessage(String friendId, String text) async {
+  Future<void> sendMessage(String friendId, String text, {String? replyToId}) async {
     if (text.trim().isEmpty) return;
-    _onMessage(Map<String, dynamic>.from(await _api.post('/friends/$friendId/messages', {'text': text.trim()}) as Map));
+    _onMessage(Map<String, dynamic>.from(await _api.post('/friends/$friendId/messages', {'text': text.trim(), 'replyToId': ?replyToId}) as Map));
+  }
+
+  @override
+  Future<void> sendMedia(String friendId, MessageKind kind, Uint8List bytes, {required String contentType, int? seconds, int? w, int? h, String? replyToId}) async {
+    final photo = kind == MessageKind.photo;
+    // Shows at once, greyed, until the upload is done.
+    final tempId = 'up${DateTime.now().microsecondsSinceEpoch}';
+    final list = _chats.putIfAbsent(friendId, () => []);
+    list.add(ChatMessage(
+      id: tempId,
+      fromMe: true,
+      text: photo ? '📷 Photo' : '🎤 Voice message',
+      at: DateTime.now(),
+      kind: kind,
+      meta: {'seconds': ?seconds, 'w': ?w, 'h': ?h},
+      pending: true,
+      localBytes: bytes,
+    ));
+    notifyListeners();
+    final ext = switch (contentType) { 'image/png' => 'png', 'image/webp' => 'webp', 'image/jpeg' => 'jpg', 'audio/mp4' || 'audio/m4a' || 'audio/aac' => 'm4a', 'audio/ogg' => 'ogg', _ => photo ? 'jpg' : 'webm' };
+    try {
+      final r = Map<String, dynamic>.from(await _api.upload(
+        '/friends/$friendId/messages/media',
+        field: 'file',
+        bytes: bytes,
+        filename: '${photo ? 'photo' : 'voice'}.$ext',
+        contentType: contentType,
+        fields: {'kind': kind.name, 'seconds': ?seconds?.toString(), 'w': ?w?.toString(), 'h': ?h?.toString(), 'replyToId': ?replyToId},
+      ) as Map);
+      final m = ApiMap.message(r);
+      if (list.any((x) => x.id == m.id)) {
+        list.removeWhere((x) => x.id == tempId);
+        notifyListeners();
+      } else {
+        replaceMessage(friendId, m, oldId: tempId);
+        final f = friend(friendId);
+        if (f != null) _replace(f.copyWith(lastMessage: m.text));
+      }
+    } catch (_) {
+      list.removeWhere((x) => x.id == tempId);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> react(String friendId, String messageId, String? emoji) async {
+    final r = await _api.put('/friends/$friendId/messages/$messageId/reaction', {'emoji': emoji ?? ''});
+    if (r is Map) replaceMessage(friendId, ApiMap.message(Map<String, dynamic>.from(r)));
+  }
+
+  @override
+  Future<void> unsend(String friendId, String messageId) async {
+    final r = await _api.delete('/friends/$friendId/messages/$messageId');
+    if (r is Map) replaceMessage(friendId, ApiMap.message(Map<String, dynamic>.from(r)));
+  }
+
+  final Map<String, DateTime> _typingSent = {};
+
+  @override
+  void typingTo(String friendId) {
+    final now = DateTime.now();
+    final last = _typingSent[friendId];
+    if (last != null && now.difference(last).inMilliseconds < 3000) return;
+    _typingSent[friendId] = now;
+    _api.post('/friends/$friendId/typing').catchError((_) => null);
   }
 
   @override

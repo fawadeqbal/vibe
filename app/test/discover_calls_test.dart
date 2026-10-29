@@ -204,7 +204,7 @@ void main() {
           theme: V.theme(),
           home: Scaffold(
             body: Column(children: [
-              SystemLine(m: ChatMessage(id: 's1', fromMe: false, text: 'Missed video call', at: now, kind: MessageKind.system, meta: const {'event': 'call_missed'}), onCallBack: () {}),
+              SystemLine(m: ChatMessage(id: 's1', fromMe: false, text: 'Missed video call', at: now, kind: MessageKind.system, meta: const {'event': 'call_missed'}), onCallBack: (_) {}),
               SystemLine(m: ChatMessage(id: 's2', fromMe: true, text: 'Wahab asked to allow video calls', at: now, kind: MessageKind.system, meta: const {'event': 'calls_asked'})),
               CallsCard(friend: f),
             ]),
@@ -213,9 +213,19 @@ void main() {
       ));
       expect(find.textContaining('Missed video call'), findsOneWidget);
       expect(find.text('Call back'), findsOneWidget);
-      expect(find.textContaining('You asked to allow video calls'), findsOneWidget);
-      expect(find.text('Sana wants to allow video calls'), findsOneWidget);
-      expect(find.text('Allow calls'), findsOneWidget);
+      expect(find.textContaining('You asked to allow voice and video calls'), findsOneWidget);
+      // They asked for voice only.
+      expect(find.text('Sana wants to call'), findsOneWidget);
+      expect(find.text('Allow voice calls'), findsOneWidget);
+      expect(find.text('Not now'), findsOneWidget);
+
+      // They asked for voice and video: allow both, voice only, or not now.
+      await tester.pumpWidget(MultiProvider(
+        providers: [ChangeNotifierProvider<CallsProvider>.value(value: calls)],
+        child: MaterialApp(theme: V.theme(), home: Scaffold(body: CallsCard(friend: f.copyWith(calls: const CallsView(theirs: true, theirsVideo: true))))),
+      ));
+      expect(find.text('Allow voice and video'), findsOneWidget);
+      expect(find.text('Voice only'), findsOneWidget);
       expect(find.text('Not now'), findsOneWidget);
       match.dispose();
     });
