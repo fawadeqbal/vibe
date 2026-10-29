@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Gift } from "@/lib/models";
 import { useMatch } from "@/stores/match";
+import { useWaitlist } from "@/stores/waitlist";
 
 import { Connected } from "./connected";
 import { Ended } from "./ended";
@@ -40,6 +41,11 @@ export function MatchScreen() {
       useMatch.getState().setLobbyVisible(false);
     };
   }, []);
+
+  // Once you're searching or in a call, "someone's looking" has done its job.
+  useEffect(() => {
+    if (status === "searching" || status === "connected") useWaitlist.getState().dismiss();
+  }, [status]);
 
   // A new incoming gift → burst.
   useEffect(() => {

@@ -10,6 +10,7 @@ import { realtime } from "./services";
 import { useSession } from "./session";
 import { useSocial } from "./social";
 import { useWallet } from "./wallet";
+import { useWaitlist } from "./waitlist";
 import { startBreakReminder, stopBreakReminder } from "./wellbeing";
 
 /**
@@ -31,6 +32,7 @@ async function loadAll() {
     useEngagement.getState().load(),
     useMoments.getState().load(),
     useSession.getState().syncTimezone(),
+    useWaitlist.getState().load(),
   ]);
 }
 
@@ -53,6 +55,7 @@ function onSessionChanged(signedIn: boolean) {
     useMoments.getState().reset();
     useReferrals.getState().reset();
     useAffiliate.getState().reset();
+    useWaitlist.getState().reset();
     stopBreakReminder();
   }
 }

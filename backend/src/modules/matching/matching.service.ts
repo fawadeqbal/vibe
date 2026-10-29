@@ -26,6 +26,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { SettingsService } from '../settings/settings.service';
 import { MatchGamesService } from './match-games.service';
 import { MatchQueueService } from './match-queue.service';
+import { MatchWaitlistService } from './match-waitlist.service';
 import { callSignal, freeReconnectUntil, GOOD_CALL_SECONDS, isFreeReconnect, isNightCall, VIBE_SCORE_ALPHA } from './match-rules';
 import { MatchSessionStore } from './match-session.store';
 import { ActiveMatch, EndedReason, MatchPrefs, Ticket } from './matching.types';
@@ -122,6 +123,7 @@ export class MatchingService {
     private readonly progress: ProgressService,
     private readonly streaks: StreakService,
     private readonly games: MatchGamesService,
+    private readonly waitlist: MatchWaitlistService,
   ) {}
 
   // ── queue ─────────────────────────────────────────────────────────────
@@ -163,7 +165,11 @@ export class MatchingService {
     await this.sessions.savePrefs(userId, prefs);
     await this.queue.enqueue(ticket);
     this.realtime.toUser(userId, ServerEvent.MatchSearching, { cost, boosted: ticket.boosted });
+    // You're here now: no need to be told when someone else is.
+    await this.waitlist.remove(userId);
     const matched = await this.tryMatch(userId);
+    // Waiting alone: wake up the people who asked to hear about it.
+    if (!matched && !user.isBot) await this.waitlist.notify(userId).catch(() => []);
     return { status: matched ? 'matched' : 'searching', cost, position: matched ? 0 : await this.queue.size() };
   }
 

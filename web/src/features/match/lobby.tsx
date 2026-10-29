@@ -22,6 +22,7 @@ import { useCatalog } from "@/stores/catalog";
 import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
+import { useWaitlist } from "@/stores/waitlist";
 import { filterCost, isBoosted, isVip, useWallet } from "@/stores/wallet";
 
 import { openFiltersSheet, TRUST_ROW } from "./filters-sheet";
@@ -30,6 +31,7 @@ import { FriendsOnline, VibeHourBanner } from "./lobby-extras";
 import { openSafetySheet } from "./safety-sheet";
 import { SelfVideo } from "./self-video";
 import { type Availability, useAvailability } from "./use-availability";
+import { WaitlistStrip } from "./waitlist-strip";
 import { confirmBoost } from "./use-match-actions";
 
 /**
@@ -41,7 +43,8 @@ import { confirmBoost } from "./use-match-actions";
  */
 export function Lobby({ onStart }: { onStart: () => void }) {
   const wide = useIsDesktop();
-  const availability = useAvailability();
+  const someoneLooking = useWaitlist((s) => s.someoneLookingAt?.getTime());
+  const availability = useAvailability({ refreshKey: someoneLooking });
   return wide ? <WideLobby onStart={onStart} availability={availability} /> : <PhoneLobby onStart={onStart} availability={availability} />;
 }
 
@@ -106,6 +109,7 @@ function PhoneLobby({ onStart, availability }: { onStart: () => void; availabili
 
         <div className="mx-auto w-full max-w-[560px]">
           <AvailabilityLine availability={availability} className="justify-center px-4" />
+          <WaitlistStrip availability={availability} onStart={onStart} className="mt-2.5 px-4" />
 
           <div className="mt-4 flex flex-wrap justify-center gap-1.5 px-4">
             <GlassPill
@@ -281,6 +285,7 @@ function WideLobby({ onStart, availability }: { onStart: () => void; availabilit
           Start pairs you with one random person for a face-to-face video chat. Not feeling it? Skip to the next one.
         </p>
         <AvailabilityLine availability={availability} className="mt-4" />
+        <WaitlistStrip availability={availability} onStart={onStart} className="mt-3 justify-start" />
 
         <SectionTitle text="Who you'll meet" top={26} bottom={10} note={s.filtersFree ? (s.vip ? "Free with VIP" : "Free during Vibe Hour") : undefined} />
         <FilterRows free={s.filtersFree} />

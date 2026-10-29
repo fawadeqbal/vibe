@@ -1,10 +1,11 @@
-import { Controller, Get, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Logger, OnApplicationBootstrap, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { hmacSha1Base64 } from '../../common/utils/crypto';
 import { AppConfig } from '../../config/app-config.service';
+import { MatchWaitlistService } from './match-waitlist.service';
 import { MatchingService } from './matching.service';
 
 @ApiTags('match')
@@ -16,6 +17,7 @@ export class RtcController implements OnApplicationBootstrap {
   constructor(
     private readonly config: AppConfig,
     private readonly matching: MatchingService,
+    private readonly waitlist: MatchWaitlistService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -47,5 +49,26 @@ export class RtcController implements OnApplicationBootstrap {
   @ApiOperation({ summary: 'How many people are online / searching right now' })
   online() {
     return this.matching.onlineCount();
+  }
+
+  @Get('match/notify-me')
+  @ApiOperation({ summary: "Your \"tell me when someone's looking\" request: { until } or { until: null }" })
+  async notifyStatus(@CurrentUser('id') userId: string) {
+    const until = await this.waitlist.until(userId);
+    return { until: until?.toISOString() ?? null };
+  }
+
+  @Post('match/notify-me')
+  @HttpCode(200)
+  @ApiOperation({ summary: "Tell me (once, within 3 h) when someone starts looking for a match: match:someone-looking, or a push when the app is closed" })
+  async notifyMe(@CurrentUser('id') userId: string) {
+    return { until: (await this.waitlist.add(userId)).toISOString() };
+  }
+
+  @Delete('match/notify-me')
+  @ApiOperation({ summary: 'Cancel the request' })
+  async cancelNotify(@CurrentUser('id') userId: string) {
+    await this.waitlist.remove(userId);
+    return { until: null };
   }
 }
