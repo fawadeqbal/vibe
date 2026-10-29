@@ -87,13 +87,42 @@ describe('discover', () => {
     expect(items[0].sharedInterests).toEqual(['Music']);
   });
 
-  it('filters by gender and age', async () => {
-    const me = await person('Maha');
-    await person('Ali', { gender: 'male', age: 30 });
-    await person('Zara', { gender: 'female', age: 22 });
-    await person('Hina', { gender: 'female', age: 35 });
+  it('age is free; gender, country, online and verified need VIP, Vibe Hour or a filter pass', async () => {
+    await setRules({});
+    const me = await person('Maha', { countryCode: 'PK' });
+    await person('Ali', { gender: 'male', age: 30, countryCode: 'PK' });
+    await person('Zara', { gender: 'female', age: 22, countryCode: 'AE' });
+    const hina = await person('Hina', { gender: 'female', age: 35, countryCode: 'PK' });
+    await t.prisma.user.update({ where: { id: hina.id }, data: { verified: true } });
+    expect((await deck(me, '?maxAge=30')).map((c) => c.profile.name).sort()).toEqual(['Ali', 'Zara']);
+
+    const locked = await t.http.get('/v1/discover/deck?gender=women').set(me.auth).expect(402);
+    expect(locked.body.error.code).toBe('FILTERS_LOCKED');
+    const before = (await t.http.get('/v1/discover/status').set(me.auth).expect(200)).body.filters;
+    expect(before).toMatchObject({ unlocked: false, passCost: 25, passHours: 24 });
+
+    await giveCoins(me, 100);
+    const after = (await t.http.post('/v1/discover/filter-pass').set(me.auth).expect(200)).body.filters;
+    expect(after).toMatchObject({ unlocked: true, reason: 'pass' });
+    expect(await coins(me)).toBe(75);
+    // Already open: nothing more is charged.
+    await t.http.post('/v1/discover/filter-pass').set(me.auth).expect(200);
+    expect(await coins(me)).toBe(75);
+
     expect((await deck(me, '?gender=women')).map((c) => c.profile.name).sort()).toEqual(['Hina', 'Zara']);
     expect((await deck(me, '?gender=women&maxAge=30')).map((c) => c.profile.name)).toEqual(['Zara']);
+    expect((await deck(me, '?countryCode=PK')).map((c) => c.profile.name).sort()).toEqual(['Ali', 'Hina']);
+    expect((await deck(me, '?verifiedOnly=true')).map((c) => c.profile.name)).toEqual(['Hina']);
+    expect(await deck(me, '?onlineOnly=true')).toEqual([]);
+
+    const vip = await person('Vip');
+    await makeVip(vip);
+    expect((await t.http.get('/v1/discover/status').set(vip.auth).expect(200)).body.filters).toMatchObject({ unlocked: true, reason: 'vip' });
+    expect((await deck(vip, '?countryCode=AE')).map((c) => c.profile.name)).toEqual(['Zara']);
+
+    await setRules({ discoverPremiumFilters: 0 });
+    const free = await person('Free');
+    expect((await deck(free, '?gender=men')).map((c) => c.profile.name)).toEqual(['Ali']);
   });
 
   it('two likes make a match: friends, a chat line, both told; swiped people leave the deck', async () => {

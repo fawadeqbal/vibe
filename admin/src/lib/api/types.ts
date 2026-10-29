@@ -838,7 +838,10 @@ export interface UserReferrals {
 export interface DiscoverCallsReport {
   days: number;
   generatedAt: string;
-  discover: { visibleNow: number; likes: number; superLikes: number; passes: number; swipers: number; matches: number; pendingLikes: number };
+  discover: { visibleNow: number; likes: number; superLikes: number; passes: number; swipers: number; matches: number; pendingLikes: number;
+    /** Coins spent in Discover in the period. */
+    coins: { superLikes: number; likePacks: number; undo: number; filterPasses: number; filterPassesSold: number };
+  };
   calls: { asked: number; allowed: number; notNow: number; turnedOff: number; chatsWithCallsOn: number; calls: number; missed: number; declined: number; avgSeconds: number; reported: number };
   recentCalls: { id: string; startedAt: string; seconds: number | null; a: { id: string; name: string }; b: { id: string; name: string }; endReason: string | null }[];
 }

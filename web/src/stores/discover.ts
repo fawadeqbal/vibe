@@ -35,6 +35,16 @@ export interface DiscoverStatus {
   showInDiscover: boolean;
   hasPhoto: boolean;
   likedYou: { count: number; unseen: number };
+  /** Gender, country, online now and verified filters: open with VIP, Vibe Hour or a filter pass. */
+  filters: FilterAccess;
+}
+
+export interface FilterAccess {
+  unlocked: boolean;
+  reason: "free" | "vip" | "vibe_hour" | "pass" | null;
+  passUntil: Date | null;
+  passCost: number;
+  passHours: number;
 }
 
 export type WantedGender = "anyone" | "women" | "men";
@@ -42,14 +52,23 @@ export interface DiscoverFilters {
   gender: WantedGender;
   minAge: number;
   maxAge: number;
+  /** Two-letter code; "" = anywhere. */
+  countryCode: string;
+  onlineOnly: boolean;
+  verifiedOnly: boolean;
 }
+
+/** The filters that need VIP, Vibe Hour or a pass (age is free for everyone). */
+export const usesExtraFilters = (f: DiscoverFilters): boolean => f.gender !== "anyone" || !!f.countryCode || f.onlineOnly || f.verifiedOnly;
+/** Just the free part (age) of some filters. */
+export const freeOnly = (f: DiscoverFilters): DiscoverFilters => ({ ...DEFAULT_DISCOVER_FILTERS, minAge: f.minAge, maxAge: f.maxAge });
 
 export type SwipeKind = "like" | "super" | "pass";
 
 /** What a swipe did, so the screen can react (match dialog, out-of-likes sheet, coins). */
 export type SwipeOutcome = { ok: true; matched: Friend | null } | { ok: false; reason: "out-of-likes" | "coins" | "error"; message?: string };
 
-export const DEFAULT_DISCOVER_FILTERS: DiscoverFilters = { gender: "anyone", minAge: 18, maxAge: 60 };
+export const DEFAULT_DISCOVER_FILTERS: DiscoverFilters = { gender: "anyone", minAge: 18, maxAge: 60, countryCode: "", onlineOnly: false, verifiedOnly: false };
 const FILTERS_KEY = "vibe.discover.filters";
 
 const card = (m: Json): DiscoverCard => ({
@@ -79,8 +98,26 @@ const status = (m: Json): DiscoverStatus => {
     showInDiscover: m.showInDiscover !== false,
     hasPhoto: m.hasPhoto === true,
     likedYou: { count: num(liked.count), unseen: num(liked.unseen) },
+    filters: filterAccess(asMap(m.filters)),
   };
 };
+
+const filterAccess = (m: Json): FilterAccess => {
+  const reason = m.reason;
+  return {
+    unlocked: m.unlocked !== false,
+    reason: reason === "free" || reason === "vip" || reason === "vibe_hour" || reason === "pass" ? reason : null,
+    passUntil: typeof m.passUntil === "string" ? new Date(m.passUntil) : null,
+    passCost: num(m.passCost, 25),
+    passHours: num(m.passHours, 24),
+  };
+};
+
+function saveFilters(f: DiscoverFilters) {
+  try {
+    window.localStorage.setItem(FILTERS_KEY, JSON.stringify(f));
+  } catch {}
+}
 
 function readFilters(): DiscoverFilters {
   try {
@@ -91,6 +128,9 @@ function readFilters(): DiscoverFilters {
       gender: f.gender === "women" || f.gender === "men" ? f.gender : "anyone",
       minAge: Math.min(99, Math.max(18, Number(f.minAge) || 18)),
       maxAge: Math.min(99, Math.max(18, Number(f.maxAge) || 60)),
+      countryCode: typeof f.countryCode === "string" && /^[A-Z]{2}$/.test(f.countryCode) ? f.countryCode : "",
+      onlineOnly: f.onlineOnly === true,
+      verifiedOnly: f.verifiedOnly === true,
     };
   } catch {
     return DEFAULT_DISCOVER_FILTERS;
@@ -114,6 +154,8 @@ interface DiscoverState {
   lastPassed: DiscoverCard | null;
   /** "Liked you": VIP gets people, everyone else blurred previews. */
   likedYou: { unlocked: boolean; people: DiscoverCard[]; previews: string[]; count: number } | null;
+  /** The filter pass ran out while extra filters were on: they were turned off (the screen says so once). */
+  filtersExpired: boolean;
   /** The match to celebrate (from your swipe, or theirs over the socket). */
   matched: Friend | null;
 
@@ -126,6 +168,9 @@ interface DiscoverState {
   /** False with "coins" when it can't be paid for. */
   undo: () => Promise<"ok" | "coins" | "nothing">;
   buyLikes: () => Promise<"ok" | "coins">;
+  /** Opens the extra filters for a while; "coins" when short. */
+  buyFilterPass: () => Promise<"ok" | "coins">;
+  clearFiltersExpired: () => void;
   loadLikedYou: () => Promise<void>;
   markLikesSeen: () => void;
   setVisible: (visible: boolean) => Promise<void>;
@@ -138,7 +183,29 @@ let loadingDeck: Promise<void> | null = null;
 export const useDiscover = create<DiscoverState>()((set, get) => {
   const fetchDeck = async (replace: boolean) => {
     const f = get().filters;
-    const r = asMap(await api.get("/discover/deck", { gender: f.gender, minAge: f.minAge, maxAge: f.maxAge, limit: 20 }));
+    const q = {
+      gender: f.gender,
+      minAge: f.minAge,
+      maxAge: f.maxAge,
+      ...(f.countryCode ? { countryCode: f.countryCode } : {}),
+      ...(f.onlineOnly ? { onlineOnly: "true" } : {}),
+      ...(f.verifiedOnly ? { verifiedOnly: "true" } : {}),
+      limit: 20,
+    };
+    let r: Json;
+    try {
+      r = asMap(await api.get("/discover/deck", q));
+    } catch (e) {
+      // The pass ran out (or VIP ended): keep age, drop the rest, tell the screen.
+      if (e instanceof ApiError && e.code === "FILTERS_LOCKED" && usesExtraFilters(f)) {
+        const free = freeOnly(f);
+        saveFilters(free);
+        set({ filters: free, filtersExpired: true });
+        void get().loadStatus();
+        return fetchDeck(replace);
+      }
+      throw e;
+    }
     const fresh = asList(r.items).map((e) => card(asMap(e)));
     set((s) => {
       const have = new Set(replace ? [] : s.deck.map((c) => c.profile.id));
@@ -156,6 +223,7 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     lastPassed: null,
     likedYou: null,
     matched: null,
+    filtersExpired: false,
 
     async load() {
       if (!api.hasSession) return;
@@ -189,10 +257,8 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     },
 
     setFilters(f) {
-      try {
-        window.localStorage.setItem(FILTERS_KEY, JSON.stringify(f));
-      } catch {}
-      set({ filters: f, deck: [], lastPassed: null });
+      saveFilters(f);
+      set({ filters: f, deck: [], lastPassed: null, filtersExpired: false });
       set({ loading: true });
       void fetchDeck(true)
         .catch(() => {})
@@ -247,6 +313,20 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
       }
     },
 
+    async buyFilterPass() {
+      try {
+        set({ status: status(asMap(await api.post("/discover/filter-pass"))) });
+        return "ok";
+      } catch (e) {
+        if (e instanceof ApiError && e.isInsufficientCoins) return "coins";
+        throw e;
+      }
+    },
+
+    clearFiltersExpired() {
+      set({ filtersExpired: false });
+    },
+
     async loadLikedYou() {
       try {
         const r = asMap(await api.get("/discover/liked-you"));
@@ -275,7 +355,7 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     },
 
     reset() {
-      set({ deck: [], loading: false, exhausted: false, status: null, lastPassed: null, likedYou: null, matched: null });
+      set({ deck: [], loading: false, exhausted: false, status: null, lastPassed: null, likedYou: null, matched: null, filtersExpired: false });
     },
   };
 });

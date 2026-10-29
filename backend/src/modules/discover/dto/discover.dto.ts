@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Length, Matches, Max, Min } from 'class-validator';
+
+const bool = ({ value }: { value: unknown }) => value === true || value === 'true' || value === '1';
 
 export class DeckQueryDto {
   @ApiPropertyOptional({ enum: ['anyone', 'women', 'men'] })
@@ -23,6 +25,23 @@ export class DeckQueryDto {
   @Min(18)
   @Max(99)
   maxAge?: number;
+
+  @ApiPropertyOptional({ description: 'Two-letter country code; empty = anywhere' })
+  @IsOptional()
+  @Matches(/^[A-Z]{2}$/)
+  countryCode?: string;
+
+  @ApiPropertyOptional({ description: 'Only people online right now' })
+  @IsOptional()
+  @Transform(bool)
+  @IsBoolean()
+  onlineOnly?: boolean;
+
+  @ApiPropertyOptional({ description: 'Only selfie-verified people' })
+  @IsOptional()
+  @Transform(bool)
+  @IsBoolean()
+  verifiedOnly?: boolean;
 
   @ApiPropertyOptional({ minimum: 1, maximum: 50, default: 20 })
   @IsOptional()

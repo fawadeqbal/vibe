@@ -97,6 +97,8 @@ export enum ErrorCode {
   OUT_OF_LIKES = 'OUT_OF_LIKES',
   /** Nothing to undo (only the last pass can come back) (409). */
   NOTHING_TO_UNDO = 'NOTHING_TO_UNDO',
+  /** Gender/country/online/verified filters without VIP, Vibe Hour or a filter pass (402): details `{ passCost, passHours }`. */
+  FILTERS_LOCKED = 'FILTERS_LOCKED',
 
   // video calls in chat
   /** Calls in chat are switched off (503). */
