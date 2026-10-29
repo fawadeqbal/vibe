@@ -53,7 +53,13 @@ export function LikedYouScreen() {
           <Spinner />
         </div>
       ) : liked.count === 0 || (liked.unlocked && !people.length) ? (
-        <EmptyState className="py-16" icon="favorite" title="No likes " accent="waiting" body="When someone likes you in Discover, they show up here. Like them back and it's a match." />
+        <EmptyState
+          className="py-16"
+          icon="favorite"
+          title="No likes "
+          accent="waiting"
+          body="When someone likes you in Discover, they show up here. Like them back and it's a match."
+        />
       ) : liked.unlocked ? (
         <>
           <p className="type-body mb-4 text-[14px] text-text2">Like them back and it&apos;s a match — the chat opens right away.</p>
@@ -117,7 +123,9 @@ export function LikedYouScreen() {
           <h2 className="type-display mt-6 text-[26px]">
             {liked.count} {liked.count === 1 ? "person likes" : "people like"} <span className="type-serif text-[30px] text-gold">you</span>
           </h2>
-          <p className="type-body mt-2 max-w-[360px] text-[14px] text-text2">With VIP you see who they are and can like them back — instant match. Or keep swiping: they may show up in your deck.</p>
+          <p className="type-body mt-2 max-w-[360px] text-[14px] text-text2">
+            With VIP you see who they are and can like them back — instant match. Or keep swiping: they may show up in your deck.
+          </p>
           <GradientButton label="See who with VIP" icon="workspace_premium" tone="gold" className="mt-6 max-w-[360px]" onClick={() => router.push("/vip")} />
         </div>
       )}

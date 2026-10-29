@@ -34,6 +34,14 @@ export const Ev = {
   discoverMatch: "discover:match",
   /** Someone liked you in Discover: `{ superLike, from, unseen }`. */
   discoverLiked: "discover:liked",
+  /** Video calls in a chat changed: `{ friendId, mine, theirs, asked?, from? }`. */
+  callConsent: "call:consent",
+  /** A friend is calling you: `{ callId, from, expiresAt }`. */
+  callIncoming: "call:incoming",
+  /** Your call is ringing on their side: `{ callId, to, expiresAt }`. */
+  callRinging: "call:ringing",
+  /** A ringing call stopped: `{ callId, reason, reply?, from? }`. */
+  callEnded: "call:ended",
   rtcSignal: "rtc:signal",
   friendRequest: "social:friend-request",
   friendAccepted: "social:friend-accepted",

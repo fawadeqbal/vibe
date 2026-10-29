@@ -15,9 +15,11 @@ import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { ago, time } from "@/lib/format";
 import type { ChatMessage } from "@/lib/models";
+import { useCalls } from "@/stores/calls";
 import { useSocial } from "@/stores/social";
 import { toast } from "@/stores/ui";
 
+import { CallButton, CallsCard, callsMenuItem, useCallState } from "./chat-calls";
 import { StreakHeaderChip } from "./streak";
 
 /**
@@ -31,6 +33,7 @@ export function ChatView({ friendId }: { friendId: string }) {
   const msgs = useSocial((s) => s.chats[friendId]);
   const list = useRef<HTMLDivElement>(null);
   const [text, setText] = useState("");
+  const callState = useCallState(friendId);
   const back = () => router.push("/chats");
 
   useEffect(() => {
@@ -85,13 +88,17 @@ export function ChatView({ friendId }: { friendId: string }) {
         onBack={back}
         className="border-b border-line-soft lg:pl-5 lg:[&>span:first-child]:hidden"
         actions={
+          <span className="flex items-center gap-1.5">
+          {f.state === "friends" ? <CallButton f={f} state={callState} /> : null}
           <MenuButton
             label="More"
             items={[
+              ...(f.state === "friends" ? [callsMenuItem(f, callState)] : []),
               { label: "Remove friend", onSelect: () => void useSocial.getState().remove(friendId).then(back) },
               { label: "Block", tone: "bad", onSelect: () => void useSocial.getState().block(p).then(back) },
             ]}
           />
+          </span>
         }
       >
         <button type="button" aria-label={`Open ${p.name}'s profile`} className="flex min-w-0 items-center text-left" onClick={() => router.push(`/u/${friendId}`)}>
@@ -115,10 +122,11 @@ export function ChatView({ friendId }: { friendId: string }) {
       ) : (
         <div ref={list} className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3">
           {msgs.map((m) => (
-            <Bubble key={m.id} m={m} />
+            <Bubble key={m.id} m={m} onCallBack={f.calls.mine && f.calls.theirs ? () => void useCalls.getState().ring(p) : undefined} />
           ))}
         </div>
       )}
+      {f.state === "friends" ? <CallsCard f={f} state={callState} /> : null}
 
       <form onSubmit={send} className="flex items-center px-3 pt-2 pb-[calc(10px+env(safe-area-inset-bottom))]">
         <CircleIconButton icon="redeem" label="Send a gift" size={52} iconSize={24} className="bg-gold/12 text-gold" onClick={() => void gift()} />
@@ -138,8 +146,8 @@ export function ChatView({ friendId }: { friendId: string }) {
   );
 }
 
-function Bubble({ m }: { m: ChatMessage }) {
-  if (m.kind === "system") return <SystemLine m={m} />;
+function Bubble({ m, onCallBack }: { m: ChatMessage; onCallBack?: () => void }) {
+  if (m.kind === "system") return <SystemLine m={m} onCallBack={onCallBack} />;
   const mine = m.fromMe;
   const gift = !!m.gift;
   return (
@@ -160,19 +168,33 @@ function Bubble({ m }: { m: ChatMessage }) {
 }
 
 /** A line from Vibe in the chat ("You matched in Discover", call events). */
-function SystemLine({ m }: { m: ChatMessage }) {
+const SYSTEM_LOOK: Record<string, { icon: string; tone: string }> = {
+  matched: { icon: "favorite", tone: "bg-pink/12 text-pink-soft" },
+  calls_on: { icon: "videocam", tone: "bg-ok/10 text-ok" },
+  calls_asked: { icon: "videocam", tone: "bg-violet/14 text-lavender" },
+  calls_off: { icon: "videocam_off", tone: "bg-surface text-text2" },
+  calls_declined: { icon: "videocam_off", tone: "bg-surface text-text2" },
+  call_ended: { icon: "videocam", tone: "bg-surface text-text2" },
+  call_missed: { icon: "missed_video_call", tone: "bg-pink/10 text-pink-soft" },
+  call_declined: { icon: "phone_missed", tone: "bg-surface text-text2" },
+};
+
+function SystemLine({ m, onCallBack }: { m: ChatMessage; onCallBack?: () => void }) {
   const event = typeof m.meta?.event === "string" ? m.meta.event : "";
-  const matched = event === "matched";
+  const look = SYSTEM_LOOK[event] ?? { icon: "info", tone: "bg-surface text-text2" };
+  // Your own ask reads "You asked…"; theirs keeps their name.
+  const text = event === "calls_asked" && m.fromMe ? "You asked to allow video calls" : event === "call_missed" && m.fromMe ? "No answer" : m.text;
+  const callBack = event === "call_missed" && !m.fromMe && onCallBack;
   return (
     <div className="my-2.5 flex justify-center">
-      <span
-        className={cn(
-          "type-label inline-flex max-w-[86%] items-center gap-1.5 rounded-full px-3 py-1.5 text-center text-[12px] font-semibold",
-          matched ? "bg-pink/12 text-pink-soft" : "bg-surface text-text2",
-        )}
-      >
-        {matched ? <Icon name="favorite" variant="filled" size={13} /> : null}
-        {m.text} · {time(m.at)}
+      <span className={cn("type-label inline-flex max-w-[86%] items-center gap-1.5 rounded-full py-1.5 pr-3 pl-3 text-center text-[12px] font-semibold", look.tone, callBack && "pr-1.5")}>
+        <Icon name={look.icon} variant={event === "matched" ? "filled" : undefined} size={14} />
+        {text} · {time(m.at)}
+        {callBack ? (
+          <button type="button" onClick={onCallBack} className="ml-1 rounded-full bg-white/10 px-2.5 py-1 text-[11.5px] font-semibold text-text hover:bg-white/16">
+            Call back
+          </button>
+        ) : null}
       </span>
     </div>
   );

@@ -95,6 +95,19 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
             <GameCard game={m.game} partnerName={p.name} />
           </div>
         ) : null}
+        {m.friendCall ? (
+          <div className="mt-3.5 flex items-end justify-center gap-6 px-1">
+            <RoundControl icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
+            <RoundControl icon="casino" iconColor={m.game ? "lavender" : "white"} tint={m.game ? "violet" : undefined} onClick={() => void playGame()} label="Play" />
+            <button type="button" onClick={() => m.stop()} aria-label="End call" className="flex flex-col items-center">
+              <span className="flex size-[64px] items-center justify-center rounded-full bg-bad-deep text-white shadow-[0_10px_26px_rgb(225_29_72/0.4)] hover:brightness-110">
+                <Icon name="call_end" size={30} />
+              </span>
+              <span className="type-label mt-1.5 text-[11px] font-semibold text-white/85">End</span>
+            </button>
+            <RoundControl icon="more_horiz" onClick={() => void openCallOptions()} label="More" />
+          </div>
+        ) : (
         <div className="mt-3.5 flex items-end justify-between px-1">
           <RoundControl
             icon={m.likedPartner ? "favorite" : "favorite_border"}
@@ -109,10 +122,11 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
           <FriendControl state={friendState} onAdd={actions.addFriend} />
           <RoundControl icon="more_horiz" onClick={() => void openCallOptions()} label="More" />
         </div>
+        )}
         <Composer />
       </div>
 
-      {m.mutual && m.current ? <MutualCelebration key={m.current.id} matchId={m.current.id} friendState={friendState} onAddFriend={actions.addFriend} /> : null}
+      {m.mutual && m.current && !m.friendCall ? <MutualCelebration key={m.current.id} matchId={m.current.id} friendState={friendState} onAddFriend={actions.addFriend} /> : null}
     </div>
   );
 }

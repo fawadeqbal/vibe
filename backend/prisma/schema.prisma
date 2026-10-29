@@ -608,8 +608,16 @@ enum MatchEndReason {
   DISCONNECTED
 }
 
+enum MatchKind {
+  /// Random Video Match.
+  RANDOM
+  /// A video call between friends, started from a chat.
+  FRIEND
+}
+
 model Match {
   id          String          @id @default(cuid())
+  kind        MatchKind       @default(RANDOM)
   userAId     String
   userBId     String
   startedAt   DateTime        @default(now())
@@ -666,22 +674,25 @@ enum FriendshipStatus {
 /// One row per pair. userLowId < userHighId keeps the pair unique no matter
 /// who asked first.
 model Friendship {
-  id            String           @id @default(cuid())
-  userLowId     String
-  userHighId    String
-  requesterId   String
-  status        FriendshipStatus @default(PENDING)
-  createdAt     DateTime         @default(now())
-  acceptedAt    DateTime?
-  lastMessageAt DateTime?
+  id               String           @id @default(cuid())
+  userLowId        String
+  userHighId       String
+  requesterId      String
+  status           FriendshipStatus @default(PENDING)
+  createdAt        DateTime         @default(now())
+  acceptedAt       DateTime?
+  lastMessageAt    DateTime?
   /// Friend streak: consecutive business days both talked (see social/streaks.ts).
-  streakCount   Int              @default(0)
-  streakBest    Int              @default(0)
+  streakCount      Int              @default(0)
+  streakBest       Int              @default(0)
   /// Business day index of the last counted day.
-  streakDay     Int?
+  streakDay        Int?
   /// Last business day each side was active (sent a message/gift or was in a call together).
-  streakLowDay  Int?
-  streakHighDay Int?
+  streakLowDay     Int?
+  streakHighDay    Int?
+  /// Video calls in chat need both to allow them; either can turn them off (sets both false).
+  callsLowAllowed  Boolean          @default(false)
+  callsHighAllowed Boolean          @default(false)
 
   messages Message[]
 

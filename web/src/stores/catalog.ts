@@ -100,6 +100,8 @@ export const useCatalog = create<CatalogState>()((set, get) => ({
       discoverSuperLikeCost: n("discoverSuperLikeCost", prev.discoverSuperLikeCost),
       discoverVipFreeSuperLikes: n("discoverVipFreeSuperLikes", prev.discoverVipFreeSuperLikes),
       discoverUndoCost: n("discoverUndoCost", prev.discoverUndoCost),
+      friendCallsEnabled: n("friendCallsEnabled", prev.friendCallsEnabled),
+      callRingSeconds: n("callRingSeconds", prev.callRingSeconds),
     };
     const list = (k: string) => asList(c[k]).map(asMap);
     const packs: CoinPack[] = list("packs").map((p) => ({

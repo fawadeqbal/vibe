@@ -295,7 +295,9 @@ realtime.on(Ev.discoverMatch, (e) => {
 
 realtime.on(Ev.discoverLiked, (e) => {
   const unseen = typeof e.unseen === "number" ? e.unseen : null;
-  useDiscover.setState((s) => (s.status && unseen != null ? { status: { ...s.status, likedYou: { count: Math.max(s.status.likedYou.count, unseen), unseen } } } : {}));
+  useDiscover.setState((s) =>
+    s.status && unseen != null ? { status: { ...s.status, likedYou: { count: Math.max(s.status.likedYou.count, unseen), unseen } } } : {},
+  );
   if (e.superLike === true && e.from) {
     const from: Profile = mapProfile(asMap(e.from));
     notifyInBackground(`${from.name.split(" ")[0]} Super Liked you ⭐`, "Open Discover to see them first.", { tag: `discover-super:${from.id}` });

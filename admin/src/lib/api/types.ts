@@ -833,3 +833,12 @@ export interface UserReferrals {
   invited: { counts: Partial<Record<ReferralStatus, number>>; items: ReferralRow[] };
   affiliate: { id: string; code: string; status: AffiliateStatus; displayName: string } | null;
 }
+
+/** GET admin/dashboard/discover — Discover and video calls in chat. */
+export interface DiscoverCallsReport {
+  days: number;
+  generatedAt: string;
+  discover: { visibleNow: number; likes: number; superLikes: number; passes: number; swipers: number; matches: number; pendingLikes: number };
+  calls: { asked: number; allowed: number; notNow: number; turnedOff: number; chatsWithCallsOn: number; calls: number; missed: number; declined: number; avgSeconds: number; reported: number };
+  recentCalls: { id: string; startedAt: string; seconds: number | null; a: { id: string; name: string }; b: { id: string; name: string }; endReason: string | null }[];
+}
