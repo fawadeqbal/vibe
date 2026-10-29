@@ -1,18 +1,23 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
 import { confirm, useNeedCoins } from "@/components/shared/dialogs";
 import { pickGift } from "@/components/shared/gift-sheet";
 import { pickReport } from "@/components/shared/report-sheet";
+import { rewardedAds } from "@/components/shared/rewarded-ads";
 import { errorMessage } from "@/lib/api/errors";
 import type { Gift } from "@/lib/models";
+import { COUNTRIES } from "@/lib/catalog";
 import { freeReconnectLeft } from "@/lib/engagement";
 import { economy } from "@/stores/catalog";
 import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { cooldownSeconds, useMatch } from "@/stores/match";
 import { toast } from "@/stores/ui";
 import { filterCost, freeFriendRequestsLeft, isBoosted, isVip, useWallet } from "@/stores/wallet";
+
+import { openCooldown, openFilterCoins } from "./match-sheets";
 
 /**
  * Every tap on the match screen that can cost coins or needs a question
@@ -21,6 +26,7 @@ import { filterCost, freeFriendRequestsLeft, isBoosted, isVip, useWallet } from 
  */
 export function useMatchActions(onGiftSent: (g: Gift) => void) {
   const needCoins = useNeedCoins();
+  const router = useRouter();
 
   /** After a failed action: coins → offer the store; anything else → toast. */
   const explainFailure = useCallback(
@@ -34,23 +40,53 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
 
   const currentFilterCost = () => filterCost(useMatch.getState().filters, isVip(useWallet.getState().wallet) || isVibeHour(useEngagement.getState()));
 
+  /**
+   * Filters they can't afford: get coins, watch a video, VIP, or match with
+   * anyone for free (which starts right away).
+   */
+  const filtersNeedCoins = useCallback(async (): Promise<boolean> => {
+    const f = useMatch.getState().filters;
+    const label = [f.gender === "women" ? "Women" : f.gender === "men" ? "Men" : null, f.countryCode ? (COUNTRIES.find((c) => c.code === f.countryCode)?.name ?? f.countryCode) : null]
+      .filter(Boolean)
+      .join(" · ");
+    const choice = await openFilterCoins({ cost: currentFilterCost(), coins: useWallet.getState().wallet.coins, filterLabel: label || "Filters" });
+    if (choice === "store") router.push("/store");
+    else if (choice === "vip") router.push("/vip");
+    else if (choice === "ad") {
+      const r = await rewardedAds.show();
+      if (r.outcome === "rewarded" && r.token) {
+        const coins = await useWallet.getState().rewardAd(r.token).catch(() => null);
+        toast(coins == null ? "Daily ad limit reached" : `+${coins} coins — tap Start again`, { error: coins == null });
+      } else if (r.outcome !== "dismissed") toast(r.message ?? "No video right now. Try again in a minute.", { error: true });
+    } else if (choice === "anyone") {
+      useMatch.getState().setFilters({ ...f, gender: "anyone", countryCode: null });
+      return true;
+    }
+    return false;
+  }, [router]);
+
   const start = useCallback(async () => {
-    if (!(await useMatch.getState().start())) await explainFailure(`These filters cost ${currentFilterCost()} coins per match.`);
-  }, [explainFailure]);
+    if (await useMatch.getState().start()) return;
+    if (useMatch.getState().needsCoins) {
+      if (await filtersNeedCoins()) await useMatch.getState().start();
+      return;
+    }
+    await explainFailure(`These filters cost ${currentFilterCost()} coins per match.`);
+  }, [explainFailure, filtersNeedCoins]);
 
   const next = useCallback(async () => {
     const bypass = economy().skipCooldownBypassCost;
     // The server can answer "slow down" — then offer the same choice as a local cooldown.
     for (let attempt = 0; attempt < 2; attempt++) {
       const m = useMatch.getState();
-      if (cooldownSeconds(m) > 0) {
-        const pay = await confirm({
-          title: "Slow down a second",
-          body: `Five quick skips in a row. Wait ${cooldownSeconds(m)}s, or skip now for ${bypass} coins.`,
-          cancel: "Wait",
-          ok: `Skip for ${bypass}`,
-        });
-        if (!pay) return;
+      if (cooldownSeconds(m) > 0 && m.cooldownUntil) {
+        const choice = await openCooldown({ until: m.cooldownUntil, bypassCost: bypass, skipped: economy().skipsBeforeCooldown });
+        if (!choice || useMatch.getState().status !== "connected") return;
+        if (choice === "next") {
+          // The wait is over: carry on to the next person.
+          if (!(await useMatch.getState().next())) await explainFailure(`These filters cost ${currentFilterCost()} coins per match.`);
+          return;
+        }
         if (!(await useMatch.getState().next(true))) await explainFailure(`Skipping the cooldown costs ${bypass} coins.`);
         return;
       }

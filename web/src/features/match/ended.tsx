@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { openShareCard } from "@/components/shared/share-card";
 import { Avatar } from "@/components/ui/avatar";
@@ -21,7 +21,18 @@ import { useMatch } from "@/stores/match";
  * A recap, not an alert: their portrait blurs behind, the numbers become a
  * readable row, and reporting stays reachable after the call.
  */
-export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: () => void; onFindAnother: () => void; onReport: () => void }) {
+export function Ended({
+  onReconnect,
+  onFindAnother,
+  onReport,
+  autoNext = false,
+}: {
+  onReconnect: () => void;
+  onFindAnother: () => void;
+  onReport: () => void;
+  /** They left and matching is free for you: carry on by yourself after a few seconds (never spends coins without a tap). */
+  autoNext?: boolean;
+}) {
   const p = useMatch((s) => s.lastPartner)!;
   const endReason = useMatch((s) => s.endReason);
   const last = useMatch((s) => (s.history.length ? s.history[s.history.length - 1] : null));
@@ -32,7 +43,21 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
   const freeLeft = freeReconnectLeft(ended?.freeReconnectUntil ?? null, now);
   const mutualLike = ended?.mutualLike ?? (!!last?.liked && !!last?.likedMe);
   const reported = endReason === "reported";
-  const why = endReason === "partnerLeft" ? `${p.name} left` : endReason === "skipped" ? `You skipped ${p.name}` : endReason === "reported" ? "Reported" : "Call ended";
+  const theyLeft = endReason === "partnerLeft";
+  // They left: the next person comes by itself in a few seconds, unless you
+  // stay (any tap on the card stays).
+  const [autoAt, setAutoAt] = useState<number | null>(() => (theyLeft && autoNext ? Date.now() + AUTO_NEXT_MS : null));
+  const tick = useNow(250, autoAt != null);
+  const autoLeft = autoAt == null ? 0 : Math.max(0, Math.ceil((autoAt - tick) / 1000));
+  const fired = useRef(false);
+  useEffect(() => {
+    if (autoAt != null && autoLeft === 0 && !fired.current) {
+      fired.current = true;
+      onFindAnother();
+    }
+  }, [autoAt, autoLeft, onFindAnother]);
+  const stay = () => setAutoAt(null);
+  const why = theyLeft ? `${p.name} moved on` : endReason === "skipped" ? `You skipped ${p.name}` : endReason === "reported" ? "Reported" : "Call ended";
   const like = mutualLike
     ? { icon: "favorite", cls: "text-pink", label: "Both liked" }
     : last?.likedMe
@@ -57,7 +82,7 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
           <p className="type-overline flex-1 text-center text-[12px] tracking-[1.2px] text-text2">Call ended</p>
           <span className="w-10" />
         </div>
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 pt-4 pb-6">
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 pt-4 pb-6" onPointerDownCapture={autoAt != null ? stay : undefined}>
           <Glass radius={30} className="flex w-full max-w-[420px] flex-col items-center border-white/10 bg-surface/88 px-[22px] pt-7 pb-5">
             <span className="relative">
               <Avatar url={p.avatarUrl} name={p.name} size={92} ring gapColor="var(--color-surface)" />
@@ -68,6 +93,7 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
               ) : null}
             </span>
             <h2 className="type-display mt-4 text-center text-[26px] leading-[1.1]">{why}</h2>
+            {theyLeft ? <p className="type-body mt-1 text-center text-[13.5px] text-text2">It happens — it&apos;s not about you.</p> : null}
             <p className="type-body mt-1 text-[13px] text-text2">
               {p.country.flag} {p.country.name} · {p.age}
             </p>
@@ -102,8 +128,16 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
             </div>
 
             <div className="mt-5 w-full">
-              <GradientButton label="Find someone else" icon="videocam" onClick={onFindAnother} />
+              <GradientButton label={autoAt != null ? "Next person now" : "Find someone else"} icon="videocam" onClick={onFindAnother} />
             </div>
+            {autoAt != null ? (
+              <p role="status" className="type-body mt-2 flex items-center gap-1.5 text-[13px] text-text2">
+                Finding someone new in <span className="type-number font-semibold text-text tabular-nums">{autoLeft}s</span>
+                <button type="button" onClick={stay} className="type-label ml-1 rounded-full bg-white/8 px-2.5 py-1 text-[12px] font-semibold text-text hover:bg-white/12">
+                  Stay here
+                </button>
+              </p>
+            ) : null}
             {!reported ? (
               <>
                 <div className="mt-2.5 w-full">
@@ -142,6 +176,9 @@ export function Ended({ onReconnect, onFindAnother, onReport }: { onReconnect: (
     </div>
   );
 }
+
+/** How long "they left" waits before finding the next person. */
+export const AUTO_NEXT_MS = 5000;
 
 function Stat({ label, children }: { label: string; children: ReactNode }) {
   return (

@@ -6,10 +6,9 @@ import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef,
 
 import { useNeedCoins } from "@/components/shared/dialogs";
 import { FaceStack } from "@/components/ui/avatar";
-import { GhostButton, GradientButton } from "@/components/ui/button";
+import { GhostButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { EmptyState } from "@/components/ui/misc";
-import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { DEFAULT_DISCOVER_FILTERS, type DiscoverCard, type SwipeKind, useDiscover, usesExtraFilters } from "@/stores/discover";
@@ -17,6 +16,7 @@ import { toast } from "@/stores/ui";
 
 import { DiscoverCardView } from "./discover-card";
 import { openDiscoverFilters, openOutOfLikes } from "./discover-sheets";
+import { DeckEmpty, DeckOffline, DeckSkeleton, NoPhotoPanel, OutOfLikesBanner } from "./discover-states";
 
 /** How far a card must be dragged to count (px). */
 const SWIPE_X = 110;
@@ -48,6 +48,10 @@ export function DiscoverScreen() {
   };
   const deck = useDiscover((s) => s.deck);
   const loading = useDiscover((s) => s.loading);
+  const failed = useDiscover((s) => s.failed);
+  const filters = useDiscover((s) => s.filters);
+  const [lookAround, setLookAround] = useState(false);
+  const [offline, setOffline] = useState(false);
   const status = useDiscover((s) => s.status);
   const lastPassed = useDiscover((s) => s.lastPassed);
   const [fly, setFly] = useState<Fly>(null);
@@ -60,8 +64,39 @@ export function DiscoverScreen() {
     void useDiscover.getState().loadLikedYou();
   }, []);
 
+  // Offline: say so, and reload by itself when the connection is back.
+  useEffect(() => {
+    const sync = () => setOffline(!navigator.onLine);
+    const back = () => {
+      sync();
+      if (useDiscover.getState().failed) void useDiscover.getState().load();
+    };
+    sync();
+    window.addEventListener("online", back);
+    window.addEventListener("offline", sync);
+    return () => {
+      window.removeEventListener("online", back);
+      window.removeEventListener("offline", sync);
+    };
+  }, []);
+
   const top = deck[0];
   const vip = status?.vip ?? false;
+
+  /** No likes left: VIP, or buy a pack of likes. */
+  const moreLikes = useCallback(async () => {
+    const st = useDiscover.getState().status;
+    const pick = await openOutOfLikes();
+    if (pick === "vip") router.push("/vip");
+    if (pick === "buy") {
+      const r = await useDiscover
+        .getState()
+        .buyLikes()
+        .catch((e) => (toast(errorMessage(e), { error: true }), null));
+      if (r === "coins") await needCoins(`${st?.packSize ?? 10} more likes cost ${st?.packCost ?? 20} coins.`);
+      if (r === "ok") toast(`${st?.packSize ?? 10} more likes added`);
+    }
+  }, [needCoins, router]);
 
   const doSwipe = useCallback(
     async (c: DiscoverCard, kind: SwipeKind) => {
@@ -70,16 +105,7 @@ export function DiscoverScreen() {
       // Out of likes: say so before the card flies.
       if (kind === "like" && st && st.likesLeft === 0) {
         setDrag({ x: 0, y: 0, active: false });
-        const pick = await openOutOfLikes();
-        if (pick === "vip") router.push("/vip");
-        if (pick === "buy") {
-          const r = await useDiscover
-            .getState()
-            .buyLikes()
-            .catch((e) => (toast(errorMessage(e), { error: true }), null));
-          if (r === "coins") await needCoins(`${st.packSize} more likes cost ${st.packCost} coins.`);
-          if (r === "ok") toast(`${st.packSize} more likes added`);
-        }
+        await moreLikes();
         return;
       }
       busy.current = true;
@@ -91,19 +117,14 @@ export function DiscoverScreen() {
       busy.current = false;
       if (r.ok) return;
       if (r.reason === "out-of-likes") {
-        const pick = await openOutOfLikes();
-        if (pick === "vip") router.push("/vip");
-        if (pick === "buy") {
-          const b = await useDiscover.getState().buyLikes();
-          if (b === "coins") await needCoins(`More likes cost ${useDiscover.getState().status?.packCost ?? 20} coins.`);
-        }
+        await moreLikes();
       } else if (r.reason === "coins") {
         await needCoins(`A Super Like costs ${st?.superLikeCost ?? 10} coins.`);
       } else {
         toast(r.message ?? "Something went wrong. Try again.", { error: true });
       }
     },
-    [needCoins, router],
+    [needCoins, moreLikes],
   );
 
   const undo = useCallback(async () => {
@@ -230,7 +251,9 @@ export function DiscoverScreen() {
           </Link>
         ) : null}
 
-        {status && !status.visible ? (
+        {status && status.likesLeft === 0 && top ? <OutOfLikesBanner resetsAt={status.resetsAt} onMore={() => void moreLikes()} /> : null}
+
+        {status && !status.visible && (status.hasPhoto || lookAround) ? (
           <p className="type-body mx-4 mb-2.5 flex items-center gap-2 rounded-[14px] bg-warn/10 px-3 py-2 text-[12.5px] text-warn">
             <Icon name="visibility_off" size={16} />
             {!status.hasPhoto ? (
@@ -248,7 +271,9 @@ export function DiscoverScreen() {
         ) : null}
 
         <div className="relative mx-4 min-h-[380px] flex-1">
-          {top ? (
+          {status && !status.hasPhoto && !lookAround ? (
+            <NoPhotoPanel hasName onLookAround={() => setLookAround(true)} />
+          ) : top ? (
             <>
               {deck[1] ? <DiscoverCardView key={deck[1].profile.id} c={deck[1]} className="absolute inset-0 scale-[0.96] opacity-80" /> : null}
               <div
@@ -264,23 +289,16 @@ export function DiscoverScreen() {
               </div>
             </>
           ) : loading ? (
-            <div className="flex h-full items-center justify-center">
-              <Spinner />
-            </div>
+            <DeckSkeleton />
+          ) : failed || offline ? (
+            <DeckOffline offline={offline} onRetry={() => void useDiscover.getState().load()} />
           ) : (
-            <div className="flex h-full flex-col items-center justify-center rounded-[28px] border border-dashed border-line px-6 text-center">
-              <span className="flex size-16 items-center justify-center rounded-full bg-pink/12 text-pink-soft">
-                <Icon name="travel_explore" size={30} />
-              </span>
-              <h2 className="type-title-lg mt-4 text-[20px]">You&apos;ve seen everyone for now</h2>
-              <p className="type-body mt-1.5 max-w-[300px] text-[14px] text-text2">
-                New people join every day. Widen your filters, or meet someone live on Match right now.
-              </p>
-              <div className="mt-5 flex w-full max-w-[300px] flex-col gap-2">
-                <GradientButton label="Meet someone live" icon="videocam" onClick={() => router.push("/match")} />
-                <GhostButton label="Change filters" icon="tune" expand onClick={() => void editFilters()} />
-              </div>
-            </div>
+            <DeckEmpty
+              filters={filters}
+              onSetFilters={(f) => useDiscover.getState().setFilters(f)}
+              onEditFilters={() => void editFilters()}
+              onMeetLive={() => router.push("/match")}
+            />
           )}
         </div>
 
@@ -312,8 +330,8 @@ export function DiscoverScreen() {
             onClick={() => top && void doSwipe(top, "super")}
           />
           <RoundAction
-            label="Like"
-            icon="favorite"
+            label={status?.likesLeft === 0 ? "Like (no likes left today)" : "Like"}
+            icon={status?.likesLeft === 0 ? "lock" : "favorite"}
             filled
             size={64}
             iconSize={30}

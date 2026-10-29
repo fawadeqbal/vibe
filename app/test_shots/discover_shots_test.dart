@@ -5,7 +5,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/theme/vibe_theme.dart';
+import 'package:vibe_app/core/theme/vibe_widgets.dart';
 import 'package:vibe_app/models/calls.dart';
 import 'package:vibe_app/models/models.dart';
 import 'package:vibe_app/providers/calls_provider.dart';
@@ -36,6 +36,8 @@ import 'package:vibe_app/screens/home/home_shell.dart';
 import 'package:vibe_app/screens/discover/liked_you_screen.dart';
 import 'package:vibe_app/screens/discover/match_dialog.dart';
 import 'package:vibe_app/screens/social/call_screens.dart';
+import 'package:vibe_app/screens/match/match_sheets.dart';
+import 'package:vibe_app/models/discover.dart';
 import 'package:vibe_app/screens/social/chat_screen.dart';
 import 'package:vibe_app/screens/social/chat_calls.dart';
 import 'package:vibe_app/screens/social/chat_tools.dart';
@@ -348,6 +350,30 @@ void main() {
     (h.match as dynamic).debugTheyAskVideo();
     await t.pumpWidget(h.app(Scaffold(body: Consumer<MatchProvider>(builder: (_, m, _) => VoiceCallView(m: m, onReport: () {})))));
     await snap(t, 't6_voice_call');
+  });
+
+  shot('r1_discover_narrow', (t, h) async {
+    await t.runAsync(() => h.discover.setFilters(const DiscoverFilters(gender: WantedGender.women, minAge: 58, maxAge: 59)));
+    await t.pumpWidget(h.app(const DiscoverScreen()));
+    await snap(t, 'r1_discover_narrow');
+  });
+
+  shot('r1_camera_blocked', (t, h) async {
+    await t.pumpWidget(h.app(const Scaffold(body: SizedBox.expand())));
+    unawaited(showVibeSheet<CameraFix>(t.element(find.byType(Scaffold)), child: const CameraBlockedSheet(checkPermissions: false)));
+    await snap(t, 'r1_camera_blocked');
+  });
+
+  shot('r1_filter_coins', (t, h) async {
+    await t.pumpWidget(h.app(const Scaffold(body: SizedBox.expand())));
+    unawaited(showFilterCoins(t.element(find.byType(Scaffold)), cost: 10, coins: 4, filterLabel: 'Women · Pakistan', adsAvailable: true));
+    await snap(t, 'r1_filter_coins');
+  });
+
+  shot('r1_cooldown', (t, h) async {
+    await t.pumpWidget(h.app(const Scaffold(body: SizedBox.expand())));
+    unawaited(showCooldown(t.element(find.byType(Scaffold)), until: DateTime.now().add(const Duration(seconds: 8)), bypassCost: 5, skipped: 5));
+    await snap(t, 'r1_cooldown');
   });
 
   shot('v1_vip', (t, h) async {

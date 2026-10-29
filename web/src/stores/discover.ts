@@ -148,6 +148,8 @@ interface DiscoverState {
   loading: boolean;
   /** The last load found nobody left. */
   exhausted: boolean;
+  /** The last load failed (offline, server down): the screen offers Try again. */
+  failed: boolean;
   status: DiscoverStatus | null;
   filters: DiscoverFilters;
   /** A pass that can still be undone (the card it was). */
@@ -218,6 +220,7 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     deck: [],
     loading: false,
     exhausted: false,
+    failed: false,
     status: null,
     filters: DEFAULT_DISCOVER_FILTERS,
     lastPassed: null,
@@ -232,8 +235,10 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
       loadingDeck = (async () => {
         try {
           await Promise.all([get().loadStatus(), fetchDeck(true)]);
+          set({ failed: false });
         } catch {
-          // The screen shows what it has; status says when Discover is off.
+          // The screen shows what it has, or "can't reach Vibe" with Try again.
+          set({ failed: true });
         } finally {
           set({ loading: false });
           loadingDeck = null;
@@ -261,7 +266,8 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
       set({ filters: f, deck: [], lastPassed: null, filtersExpired: false });
       set({ loading: true });
       void fetchDeck(true)
-        .catch(() => {})
+        .then(() => set({ failed: false }))
+        .catch(() => set({ failed: true }))
         .finally(() => set({ loading: false }));
     },
 
@@ -355,7 +361,7 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     },
 
     reset() {
-      set({ deck: [], loading: false, exhausted: false, status: null, lastPassed: null, likedYou: null, matched: null, filtersExpired: false });
+      set({ deck: [], loading: false, exhausted: false, failed: false, status: null, lastPassed: null, likedYou: null, matched: null, filtersExpired: false });
     },
   };
 });

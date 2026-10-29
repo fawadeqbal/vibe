@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Gift } from "@/lib/models";
+import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { useMatch } from "@/stores/match";
+import { filterCost, isVip, useWallet } from "@/stores/wallet";
 
 import { Connected } from "./connected";
 import { VoiceCall } from "./voice-call";
 import { Ended } from "./ended";
 import { GiftBurst } from "./gift-burst";
 import { Lobby } from "./lobby";
+import { openCameraBlocked } from "./match-sheets";
 import { Searching } from "./searching";
 import { useMatchActions } from "./use-match-actions";
 import { dismissLooking } from "./waitlist-strip";
@@ -24,6 +27,8 @@ export function MatchScreen() {
   const voiceCall = useMatch((s) => s.voiceCall);
   const hasLast = useMatch((s) => s.lastPartner != null);
   const chat = useMatch((s) => s.chat);
+  const filters = useMatch((s) => s.filters);
+  const freeToMatch = useWallet((w) => filterCost(filters, isVip(w.wallet) || isVibeHour(useEngagement.getState())) === 0);
   const [burst, setBurst] = useState<{ gift: Gift; received: boolean; bonusGems?: number; seq: number } | null>(null);
   const seen = useRef(0);
   const actions = useMatchActions((g) => setBurst((b) => ({ gift: g, received: false, seq: (b?.seq ?? 0) + 1 })));
@@ -43,6 +48,26 @@ export function MatchScreen() {
       useMatch.getState().setLobbyVisible(false);
     };
   }, []);
+
+  // The camera didn't open (blocked, missing, busy…): say why and how to fix
+  // it, once per failure, instead of a silent black square.
+  const cameraErrorKind = useMatch((s) => s.cameraErrorKind);
+  useEffect(() => {
+    if (!cameraErrorKind) return;
+    let live = true;
+    void openCameraBlocked(cameraErrorKind).then((retry) => {
+      if (!live) return;
+      const m = useMatch.getState();
+      useMatch.setState({ cameraError: null, cameraErrorKind: null });
+      if (retry) {
+        m.releaseCamera();
+        void m.ensureCamera();
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [cameraErrorKind]);
 
   // Once you're searching or in a call, "someone's looking" has done its job.
   useEffect(() => {
@@ -68,7 +93,7 @@ export function MatchScreen() {
       ) : status === "searching" ? (
         <Searching onRestart={() => void actions.start()} />
       ) : status === "ended" && hasLast ? (
-        <Ended onReconnect={() => void actions.reconnect()} onFindAnother={() => void actions.start()} onReport={() => void actions.reportLast()} />
+        <Ended onReconnect={() => void actions.reconnect()} onFindAnother={() => void actions.start()} onReport={() => void actions.reportLast()} autoNext={freeToMatch} />
       ) : (
         <Lobby onStart={() => void actions.start()} />
       )}
