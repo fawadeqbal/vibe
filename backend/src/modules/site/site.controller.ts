@@ -26,7 +26,7 @@ export class SiteController {
   @Throttle({ default: { limit: 240, ttl: 60_000 } })
   @ApiOperation({ summary: 'Marketing-site traffic: { k: view|click|leave, v: visitId, u: visitorId, p: path, r?, b?, t?, l?, s? } (or a list of ≤10)' })
   async events(@Body() body: unknown, @Req() req: Request): Promise<void> {
-    await this.site.record(body, { headers: req.headers, userAgent: req.get('user-agent') ?? null });
+    await this.site.record(body, { headers: req.headers, userAgent: req.get('user-agent') ?? null, remoteAddress: req.socket?.remoteAddress ?? null });
   }
 
   @ApiBearerAuth()
