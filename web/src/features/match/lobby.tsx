@@ -106,7 +106,8 @@ function PhoneLobby({ onStart, availability }: { onStart: () => void; availabili
           <FriendsOnline />
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
+        {/* Takes what's left; on short screens the camera prompt shrinks rather than overlapping the banners. */}
+        <div className="flex min-h-[88px] flex-1 flex-col items-center justify-center overflow-hidden px-6 py-2">
           <CameraState />
         </div>
 
@@ -217,7 +218,7 @@ function Shutter({ onClick, cost }: { onClick: () => void; cost: number }) {
           </>
         ) : null}
       </span>
-      <span className="type-body mt-0.5 text-[11.5px] text-white/62">1-on-1 with someone random</span>
+      <span className="type-body mt-0.5 text-[11.5px] whitespace-nowrap text-white/62">1-on-1 with someone random</span>
     </button>
   );
 }
@@ -505,13 +506,21 @@ function CameraState({ wide = false }: { wide?: boolean }) {
         aria-label="Turn on camera preview"
         className="group flex flex-col items-center text-center"
       >
-        <span className="flex size-[64px] items-center justify-center rounded-full border border-white/22 bg-white/8 transition-colors group-hover:bg-white/14">
+        <span
+          className={cn(
+            "flex size-[64px] items-center justify-center rounded-full border border-white/22 bg-white/8 transition-colors group-hover:bg-white/14",
+            !wide && "[@media(max-height:700px)]:size-[48px]",
+          )}
+        >
           <Icon name="videocam" size={28} className="text-white" />
         </span>
-        <span className="type-label mt-3 text-[14px] font-semibold text-white">{wide ? "Check your camera" : "Tap to preview your camera"}</span>
-        <span className="type-body mt-1 text-[12px] text-white/62">Only you see this. It stays off until you need it.</span>
+        <span className={cn("type-label mt-3 text-[14px] font-semibold text-white", !wide && "[@media(max-height:700px)]:mt-2")}>
+          {wide ? "Check your camera" : "Tap to preview your camera"}
+        </span>
+        <span className={cn("type-body mt-1 text-[12px] text-white/62", !wide && "[@media(max-height:760px)]:hidden")}>Only you see this. It stays off until you need it.</span>
       </button>
-      <HowItWorks autoBlur={autoBlur} className={cn("mt-6 w-full", !wide && "[@media(max-height:760px)]:hidden")} />
+      {/* Wide screens have room to explain Start; phones keep the lobby short. */}
+      {wide ? <HowItWorks autoBlur={autoBlur} className="mt-6 w-full" /> : null}
     </div>
   );
 }

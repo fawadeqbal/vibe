@@ -79,7 +79,7 @@ export function WaitlistStrip({ availability, onStart, className }: { availabili
         className="type-label inline-flex h-9 items-center gap-1.5 rounded-full border border-white/16 bg-white/6 px-3.5 text-[12.5px] text-white/90 transition-colors hover:bg-white/12"
       >
         <Icon name="notifications_none" size={16} className="text-pink-soft" />
-        Nobody&apos;s searching · notify me when someone is
+        Nobody&apos;s searching · notify me
       </button>
     </div>
   );
