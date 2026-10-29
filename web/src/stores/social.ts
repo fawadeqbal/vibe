@@ -17,6 +17,10 @@ import { api, realtime } from "./services";
 interface SocialState {
   all: Friend[];
   chats: Record<string, ChatMessage[]>;
+  /** Friends typing to you right now (id → until when, ms). */
+  typing: Record<string, number>;
+  /** When each friend last read your messages ("Seen"). */
+  seenAt: Record<string, Date>;
   blocked: string[];
   /** Free users only get blurred faces (placeholders); `likedYouCount` is the real number. */
   likedYou: Profile[];
@@ -36,7 +40,13 @@ interface SocialState {
   remove: (id: string) => Promise<void>;
   block: (p: Profile) => Promise<void>;
   unblock: (id: string) => Promise<void>;
-  sendMessage: (friendId: string, text: string) => Promise<void>;
+  sendMessage: (friendId: string, text: string, replyToId?: string | null) => Promise<void>;
+  /** A photo or voice note. Shown at once (faded) while it uploads. */
+  sendMedia: (friendId: string, kind: "photo" | "voice", file: Blob, info?: { seconds?: number; w?: number; h?: number; replyToId?: string | null }) => Promise<void>;
+  react: (friendId: string, messageId: string, emoji: string | null) => Promise<void>;
+  unsend: (friendId: string, messageId: string) => Promise<void>;
+  /** Tell them you're typing (throttled here: at most every 3 s). */
+  typingTo: (friendId: string) => void;
   /** False when there aren't enough coins. */
   sendGift: (friendId: string, gift: Gift) => Promise<boolean>;
   markRead: (friendId: string) => void;
@@ -92,6 +102,8 @@ export const useSocial = create<SocialState>()((set, get) => {
   return {
     all: [],
     chats: {},
+    typing: {},
+    seenAt: {},
     blocked: [],
     likedYou: [],
     likedYouCount: 0,
@@ -168,9 +180,58 @@ export const useSocial = create<SocialState>()((set, get) => {
       set((s) => ({ blocked: s.blocked.filter((x) => x !== id) }));
     },
 
-    async sendMessage(friendId, text) {
+    async sendMessage(friendId, text, replyToId) {
       if (!text.trim()) return;
-      onMessage(asMap(await api.post(`/friends/${friendId}/messages`, { text: text.trim() })));
+      onMessage(asMap(await api.post(`/friends/${friendId}/messages`, { text: text.trim(), ...(replyToId ? { replyToId } : {}) })));
+    },
+
+    async sendMedia(friendId, kind, file, info = {}) {
+      const tempId = `pending-${Date.now()}`;
+      const url = URL.createObjectURL(file);
+      const temp: ChatMessage = {
+        id: tempId,
+        fromMe: true,
+        kind,
+        meta: kind === "photo" ? { url, w: info.w, h: info.h } : { url, seconds: info.seconds ?? 0 },
+        text: kind === "photo" ? "📷 Photo" : "🎤 Voice message",
+        at: new Date(),
+        pending: true,
+      };
+      set((s) => ({ chats: { ...s.chats, [friendId]: [...(s.chats[friendId] ?? []), temp] } }));
+      const drop = () => set((s) => ({ chats: { ...s.chats, [friendId]: (s.chats[friendId] ?? []).filter((m) => m.id !== tempId) } }));
+      const ext = kind === "photo" ? (file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg") : file.type.includes("mp4") ? "m4a" : file.type.includes("ogg") ? "ogg" : "webm";
+      const fields: Record<string, string> = { kind };
+      if (info.seconds != null) fields.seconds = String(Math.round(info.seconds));
+      if (info.w && info.h) {
+        fields.w = String(Math.round(info.w));
+        fields.h = String(Math.round(info.h));
+      }
+      if (info.replyToId) fields.replyToId = info.replyToId;
+      try {
+        const m = asMap(await api.upload(`/friends/${friendId}/messages/media`, "file", file, `${kind}.${ext}`, fields));
+        drop();
+        onMessage(m);
+      } catch (e) {
+        drop();
+        throw e;
+      } finally {
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    },
+
+    async react(friendId, messageId, emoji) {
+      onUpdated(asMap(await api.put(`/friends/${friendId}/messages/${messageId}/reaction`, { emoji: emoji ?? "" })));
+    },
+
+    async unsend(friendId, messageId) {
+      onUpdated(asMap(await api.delete(`/friends/${friendId}/messages/${messageId}`)));
+    },
+
+    typingTo(friendId) {
+      const now = Date.now();
+      if ((typingSent[friendId] ?? 0) > now - 3000) return;
+      typingSent[friendId] = now;
+      api.post(`/friends/${friendId}/typing`).catch(() => {});
     },
 
     async sendGift(friendId, gift) {
@@ -204,10 +265,23 @@ export const useSocial = create<SocialState>()((set, get) => {
     reset() {
       loadedChats.clear();
       openChat = null;
-      set({ all: [], chats: {}, blocked: [], likedYou: [], likedYouCount: 0, loaded: false });
+      set({ all: [], chats: {}, typing: {}, seenAt: {}, blocked: [], likedYou: [], likedYouCount: 0, loaded: false });
     },
   };
 });
+
+const typingSent: Record<string, number> = {};
+
+/** A message changed (reaction, unsent): replace it in place. */
+function onUpdated(m: Json) {
+  const friendId = String(m.friendId);
+  const msg = mapMessage(m, giftById);
+  useSocial.setState((s) => {
+    const list = s.chats[friendId];
+    if (!list) return {};
+    return { chats: { ...s.chats, [friendId]: list.map((x) => (x.id === msg.id ? { ...msg, gift: x.gift ?? msg.gift } : x.replyTo?.id === msg.id ? { ...x, replyTo: { ...x.replyTo, unsent: !!msg.unsent, text: msg.unsent ? "" : x.replyTo.text } } : x)) } };
+  });
+}
 
 function onMessage(m: Json) {
   const friendId = String(m.friendId);
@@ -215,6 +289,12 @@ function onMessage(m: Json) {
   const s = useSocial.getState();
   const list = s.chats[friendId] ?? [];
   if (list.some((x) => x.id === msg.id)) return;
+  // Their message ends "typing…".
+  if (!msg.fromMe && s.typing[friendId]) {
+    const typing = { ...s.typing };
+    delete typing[friendId];
+    useSocial.setState({ typing });
+  }
   const all = s.all.map((f) => {
     if (f.profile.id !== friendId) return f;
     const unread = !msg.fromMe && msg.kind !== "system" && openChat !== friendId ? f.unread + 1 : f.unread;
@@ -247,6 +327,27 @@ export const friendStateOf = (s: Pick<SocialState, "all" | "blocked">, userId: s
   s.blocked.includes(userId) ? "blocked" : (s.all.find((f) => f.profile.id === userId)?.state ?? "none");
 
 realtime.on(Ev.message, onMessage);
+realtime.on(Ev.messageUpdated, onUpdated);
+realtime.on(Ev.chatTyping, (d) => {
+  if (typeof d.friendId !== "string") return;
+  const id = d.friendId;
+  const until = Date.now() + 5000;
+  useSocial.setState((s) => ({ typing: { ...s.typing, [id]: until } }));
+  setTimeout(() => {
+    useSocial.setState((s) => {
+      if ((s.typing[id] ?? 0) > Date.now()) return {};
+      const typing = { ...s.typing };
+      delete typing[id];
+      return { typing };
+    });
+  }, 5100);
+});
+realtime.on(Ev.messagesRead, (d) => {
+  if (typeof d.friendId !== "string") return;
+  const id = d.friendId;
+  const at = typeof d.at === "string" ? new Date(d.at) : new Date();
+  useSocial.setState((s) => ({ seenAt: { ...s.seenAt, [id]: at } }));
+});
 const reload = () => void useSocial.getState().load();
 realtime.on(Ev.friendRequest, reload);
 realtime.on(Ev.friendAccepted, reload);

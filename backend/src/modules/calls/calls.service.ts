@@ -24,14 +24,20 @@ export interface RingingCall {
   to: string;
   friendshipId: string;
   expiresAt: number;
+  /** A video call (else voice only). */
+  video: boolean;
 }
+
+export type CallMedia = 'voice' | 'video';
 
 export type CallEndReason = 'declined' | 'no_answer' | 'cancelled' | 'accepted' | 'turned_off';
 
 export interface CallState extends CallsView {
   friendId: string;
-  /** Both allowed: the call button works. */
+  /** Both allowed: voice calls work. */
   on: boolean;
+  /** Both allowed video too: video calls work. */
+  video: boolean;
   /** You may ask now (or `askAfter` says when). */
   canAsk: boolean;
   askAfter: string | null;
@@ -49,6 +55,8 @@ const DECLINES = (caller: string, callee: string) => `call:declines:${caller}:${
 const PAUSE = (caller: string, callee: string) => `call:pause:${caller}:${callee}`;
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || 'Someone';
+const kindText = (video: boolean) => (video ? 'Video' : 'Voice');
+const VIDEO_ASK = (matchId: string) => `call:videoask:${matchId}`;
 const minutesText = (s: number) => (s < 60 ? `${Math.max(1, s)} sec` : `${Math.round(s / 60)} min`);
 
 /**
@@ -81,7 +89,7 @@ export class CallsService {
 
   private assertOn(): void {
     if (!this.rules.friendCallsEnabled)
-      throw new AppError(ErrorCode.CALLS_OFF, 'Video calls in chat are off for now', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new AppError(ErrorCode.CALLS_OFF, 'Calls in chat are off for now', HttpStatus.SERVICE_UNAVAILABLE);
   }
 
   private async profile(id: string): Promise<PublicProfile> {
@@ -108,7 +116,7 @@ export class CallsService {
         askBlockedBy = 'messages';
       }
     }
-    return { friendId, ...v, on, canAsk: !on && !v.mine && !askBlockedBy, askAfter, askBlockedBy };
+    return { friendId, ...v, on, video: on && v.mineVideo && v.theirsVideo, canAsk: !on && !v.mine && !askBlockedBy, askAfter, askBlockedBy };
   }
 
   private async bothWrote(friendshipId: string, a: string, b: string): Promise<boolean> {
@@ -128,25 +136,48 @@ export class CallsService {
     this.realtime.toUser(friendId, ServerEvent.CallConsent, { friendId: me, ...theirs, ...extra });
   }
 
-  private sideOf(f: { userLowId: string }, userId: string): 'callsLowAllowed' | 'callsHighAllowed' {
-    return f.userLowId === userId ? 'callsLowAllowed' : 'callsHighAllowed';
+  private sides(f: { userLowId: string }, userId: string) {
+    const low = f.userLowId === userId;
+    return { allowed: low ? 'callsLowAllowed' : 'callsHighAllowed', video: low ? 'callsLowVideo' : 'callsHighVideo' } as const;
+  }
+
+  private setMine(f: { id: string; userLowId: string }, me: string, allowed: boolean, video: boolean) {
+    const s = this.sides(f, me);
+    return this.prisma.friendship.update({ where: { id: f.id }, data: { [s.allowed]: allowed, [s.video]: allowed && video } });
   }
 
   /**
-   * Allow video calls with a friend. If they already allowed, calls are on
-   * for both; otherwise this asks them (a card in the chat and a push).
+   * Allow calls with a friend: voice only, or voice and video (`video`).
+   * If they already allowed, calls are on for both at the lower of the two
+   * levels; otherwise this asks them (a card in the chat and a push).
+   * Already allowed: changes your level (lowering to voice is instant;
+   * raising to video asks them for video too).
    */
-  async allow(me: string, friendId: string): Promise<CallState> {
+  async allow(me: string, friendId: string, video = true): Promise<CallState> {
     this.assertOn();
     const f = await this.friends.requireFriends(me, friendId);
     const v = callsView(f, me);
-    if (v.mine) return this.state(me, friendId);
     const meUser = await this.prisma.user.findUniqueOrThrow({ where: { id: me }, select: { name: true } });
+    if (v.mine) {
+      if (v.mineVideo === video) return this.state(me, friendId);
+      await this.setMine(f, me, true, video);
+      if (v.theirs) {
+        if (!video && v.theirsVideo)
+          await this.messages.system(f.id, me, friendId, 'Video was turned off · voice calls only', { event: 'calls_voice_only' });
+        else if (video && v.theirsVideo)
+          await this.messages.system(f.id, me, friendId, 'You both allowed voice and video calls', { event: 'calls_on', video: true });
+        else if (video)
+          await this.messages.system(f.id, me, friendId, `${firstName(meUser.name)} asked to allow video too`, { event: 'calls_asked', video: true });
+      }
+      await this.tellConsent(me, friendId, video && v.theirs && !v.theirsVideo ? { asked: true, video: true, from: await this.profile(me) } : {});
+      return this.state(me, friendId);
+    }
     if (v.theirs) {
-      // Saying yes to their ask: calls are on.
-      await this.prisma.friendship.update({ where: { id: f.id }, data: { [this.sideOf(f, me)]: true } });
+      // Saying yes to their ask: calls are on, at the lower level.
+      await this.setMine(f, me, true, video);
       await this.redis.client.del(WAIT(f.id, me), WAIT(f.id, friendId));
-      await this.messages.system(f.id, me, friendId, 'You both allowed video calls', { event: 'calls_on' });
+      const both = video && v.theirsVideo;
+      await this.messages.system(f.id, me, friendId, both ? 'You both allowed voice and video calls' : 'You both allowed voice calls', { event: 'calls_on', video: both });
       await this.tellConsent(me, friendId);
       return this.state(me, friendId);
     }
@@ -173,11 +204,12 @@ export class CallsService {
         },
       );
     }
-    await this.prisma.friendship.update({ where: { id: f.id }, data: { [this.sideOf(f, me)]: true } });
-    await this.messages.system(f.id, me, friendId, `${firstName(meUser.name)} asked to allow video calls`, {
+    await this.setMine(f, me, true, video);
+    await this.messages.system(f.id, me, friendId, `${firstName(meUser.name)} asked to allow ${video ? 'voice and video' : 'voice'} calls`, {
       event: 'calls_asked',
+      video,
     });
-    await this.tellConsent(me, friendId, { asked: true, from: await this.profile(me) });
+    await this.tellConsent(me, friendId, { asked: true, video, from: await this.profile(me) });
     return this.state(me, friendId);
   }
 
@@ -192,16 +224,16 @@ export class CallsService {
     if (!v.mine && !v.theirs) return this.state(me, friendId);
     await this.prisma.friendship.update({
       where: { id: f.id },
-      data: { callsLowAllowed: false, callsHighAllowed: false },
+      data: { callsLowAllowed: false, callsHighAllowed: false, callsLowVideo: false, callsHighVideo: false },
     });
     if (v.mine && v.theirs) {
       // The other person waits before asking again; you can ask whenever you like.
       await this.redis.client.set(WAIT(f.id, friendId), '1', 'EX', Math.max(1, this.rules.callAskCooldownHours * 3600));
-      await this.messages.system(f.id, me, friendId, 'Video calls were turned off', { event: 'calls_off' });
+      await this.messages.system(f.id, me, friendId, 'Calls were turned off', { event: 'calls_off' });
     } else if (v.theirs) {
       // "Not now" to their ask.
       await this.redis.client.set(WAIT(f.id, friendId), '1', 'EX', Math.max(1, this.rules.callAskCooldownHours * 3600));
-      await this.messages.system(f.id, me, friendId, 'Not now for video calls', { event: 'calls_declined' });
+      await this.messages.system(f.id, me, friendId, 'Not now for calls', { event: 'calls_declined' });
     }
     await this.stopRingingBetween(me, friendId, 'turned_off');
     await this.tellConsent(me, friendId);
@@ -215,22 +247,25 @@ export class CallsService {
   }
 
   /** The call ringing for you right now, if any (an app opening from a push). */
-  async incoming(me: string): Promise<{ callId: string; from: PublicProfile; expiresAt: string } | null> {
+  async incoming(me: string): Promise<{ callId: string; from: PublicProfile; expiresAt: string; media: CallMedia } | null> {
     const id = await this.redis.client.get(USER(me));
     const c = id ? await this.ringing(id) : null;
     if (!c || c.to !== me || c.expiresAt < Date.now()) return null;
-    return { callId: c.id, from: await this.profile(c.from), expiresAt: new Date(c.expiresAt).toISOString() };
+    return { callId: c.id, from: await this.profile(c.from), expiresAt: new Date(c.expiresAt).toISOString(), media: c.video ? 'video' : 'voice' };
   }
 
-  /** Ring a friend. Both must have allowed calls; neither may be busy. */
-  async ring(me: string, friendId: string): Promise<{ callId: string; to: PublicProfile; expiresAt: string }> {
+  /** Ring a friend, voice or video. Both must have allowed it; neither may be busy. */
+  async ring(me: string, friendId: string, media: CallMedia = 'video'): Promise<{ callId: string; to: PublicProfile; expiresAt: string; media: CallMedia }> {
     this.assertOn();
     const f = await this.friends.requireFriends(me, friendId);
     if (await this.blocks.eitherBlocked(me, friendId))
       throw new AppError(ErrorCode.BLOCKED, 'Not available', HttpStatus.FORBIDDEN);
     const v = callsView(f, me);
     if (!v.mine || !v.theirs)
-      throw new AppError(ErrorCode.CALLS_NOT_ALLOWED, 'You both need to allow video calls first', HttpStatus.FORBIDDEN);
+      throw new AppError(ErrorCode.CALLS_NOT_ALLOWED, 'You both need to allow calls first', HttpStatus.FORBIDDEN);
+    const video = media === 'video';
+    if (video && !(v.mineVideo && v.theirsVideo))
+      throw new AppError(ErrorCode.CALLS_NOT_ALLOWED, 'Video calls aren’t allowed in this chat — try a voice call', HttpStatus.FORBIDDEN);
     const pauseTtl = await this.redis.client.pttl(PAUSE(me, friendId));
     if (pauseTtl > 0)
       throw new AppError(
@@ -253,6 +288,7 @@ export class CallsService {
       to: friendId,
       friendshipId: f.id,
       expiresAt: Date.now() + ringMs,
+      video,
     };
     const ttl = Math.ceil(ringMs / 1000) + 30;
     // Claim both people (NX) so two calls can't ring the same person.
@@ -266,9 +302,9 @@ export class CallsService {
       .exec();
     const [from, to] = await Promise.all([this.profile(me), this.profile(friendId)]);
     const expiresAt = new Date(call.expiresAt).toISOString();
-    this.realtime.toUser(friendId, ServerEvent.CallIncoming, { callId: call.id, from, expiresAt });
-    this.realtime.toUser(me, ServerEvent.CallRinging, { callId: call.id, to, expiresAt });
-    return { callId: call.id, to, expiresAt };
+    this.realtime.toUser(friendId, ServerEvent.CallIncoming, { callId: call.id, from, expiresAt, media });
+    this.realtime.toUser(me, ServerEvent.CallRinging, { callId: call.id, to, expiresAt, media });
+    return { callId: call.id, to, expiresAt, media };
   }
 
   /** Stops a ringing call exactly once; returns it (null if already over). */
@@ -296,9 +332,9 @@ export class CallsService {
     if (!c) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
     await this.redis.client.del(DECLINES(c.from, c.to));
     this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId, reason: 'accepted' });
-    const matchId = await this.matching.startFriendCall(c.from, c.to);
+    const matchId = await this.matching.startFriendCall(c.from, c.to, { voice: !c.video });
     if (matchId)
-      await this.redis.client.hset(LIVE, matchId, JSON.stringify({ a: c.from, b: c.to, startedAt: Date.now() }));
+      await this.redis.client.hset(LIVE, matchId, JSON.stringify({ a: c.from, b: c.to, startedAt: Date.now(), video: c.video }));
     return { matchId };
   }
 
@@ -310,7 +346,7 @@ export class CallsService {
     this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId, reason: 'declined', reply: reply ?? null });
     if (reply?.trim()) await this.messages.send(me, c.from, reply.trim().slice(0, 200)).catch(() => undefined);
     await this.messages
-      .system(c.friendshipId, me, c.from, 'Video call declined', { event: 'call_declined' })
+      .system(c.friendshipId, me, c.from, `${kindText(c.video)} call declined`, { event: 'call_declined', video: c.video })
       .catch(() => undefined);
     const n = await this.redis.incrWithTtl(DECLINES(c.from, c.to), 86_400);
     if (this.rules.callDeclinePause > 0 && n >= this.rules.callDeclinePause) {
@@ -330,7 +366,7 @@ export class CallsService {
     this.realtime.toUser(c.to, ServerEvent.CallEnded, { callId: c.id, reason, from });
     this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId: c.id, reason });
     await this.messages
-      .system(c.friendshipId, c.from, c.to, 'Missed video call', { event: 'call_missed' })
+      .system(c.friendshipId, c.from, c.to, `Missed ${c.video ? 'video' : 'voice'} call`, { event: 'call_missed', video: c.video })
       .catch(() => undefined);
   }
 
@@ -369,12 +405,15 @@ export class CallsService {
   async onCallEnded(e: MatchEndedEvent): Promise<void> {
     if (!e.friendCall) return;
     try {
-      await this.redis.client.hdel(LIVE, e.matchId);
+      const raw = await this.redis.client.hget(LIVE, e.matchId);
+      await this.redis.client.multi().hdel(LIVE, e.matchId).del(VIDEO_ASK(e.matchId)).exec();
+      const video = raw ? (JSON.parse(raw) as { video?: boolean }).video !== false : !e.voiceCall;
       const f = await this.prisma.friendship.findUnique({ where: this.friends.pairWhere(e.a, e.b) });
       if (!f) return;
-      await this.messages.system(f.id, e.a, e.b, `Video call · ${minutesText(e.durationSeconds)}`, {
+      await this.messages.system(f.id, e.a, e.b, `${kindText(video)} call · ${minutesText(e.durationSeconds)}`, {
         event: 'call_ended',
         seconds: e.durationSeconds,
+        video,
       });
     } catch (err) {
       this.logger.warn(`call log for ${e.matchId} failed: ${(err as Error).message}`);
@@ -387,10 +426,45 @@ export class CallsService {
     await this.prisma.friendship
       .updateMany({
         where: this.pairFields(e.blockerId, e.blockedId),
-        data: { callsLowAllowed: false, callsHighAllowed: false },
+        data: { callsLowAllowed: false, callsHighAllowed: false, callsLowVideo: false, callsHighVideo: false },
       })
       .catch(() => undefined);
     await this.stopRingingBetween(e.blockerId, e.blockedId, 'turned_off').catch(() => undefined);
+  }
+
+  // ── voice → video during a call ───────────────────────────────────────
+
+  /**
+   * In a voice call: ask to turn on video ("ask"), or answer it ("yes" /
+   * "no"). Only between friends who both allow video. A yes turns the call
+   * into a video call for both (`call:video` { matchId, state: "on" }); the
+   * cameras open on each side then.
+   */
+  async video(me: string, matchId: string, action: 'ask' | 'yes' | 'no'): Promise<{ state: 'asked' | 'on' | 'declined' }> {
+    const raw = await this.redis.client.hget(LIVE, matchId);
+    const live = raw ? (JSON.parse(raw) as { a: string; b: string; startedAt: number; video?: boolean }) : null;
+    if (!live || ![live.a, live.b].includes(me)) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
+    const other = live.a === me ? live.b : live.a;
+    if (live.video) return { state: 'on' };
+    const f = await this.friends.requireFriends(me, other);
+    const v = callsView(f, me);
+    if (!(v.mineVideo && v.theirsVideo))
+      throw new AppError(ErrorCode.CALLS_NOT_ALLOWED, 'You both need to allow video in this chat first', HttpStatus.FORBIDDEN);
+    if (action === 'ask') {
+      await this.redis.client.set(VIDEO_ASK(matchId), me, 'EX', 60);
+      this.realtime.toUser(other, ServerEvent.CallVideo, { matchId, state: 'asked', from: me });
+      return { state: 'asked' };
+    }
+    const asker = await this.redis.client.get(VIDEO_ASK(matchId));
+    if (!asker || asker === me) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'Nothing to answer', HttpStatus.CONFLICT);
+    await this.redis.client.del(VIDEO_ASK(matchId));
+    if (action === 'no') {
+      this.realtime.toUser(asker, ServerEvent.CallVideo, { matchId, state: 'declined' });
+      return { state: 'declined' };
+    }
+    await this.redis.client.hset(LIVE, matchId, JSON.stringify({ ...live, video: true }));
+    for (const uid of [live.a, live.b]) this.realtime.toUser(uid, ServerEvent.CallVideo, { matchId, state: 'on' });
+    return { state: 'on' };
   }
 
   private pairFields(a: string, b: string) {

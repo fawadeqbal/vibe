@@ -58,6 +58,11 @@ export interface EconomyRules {
   discoverVerifiedOnly: number;
   /** 1: gender, country, online-now and verified filters need VIP, Vibe Hour or a filter pass. 0: all free. */
   discoverPremiumFilters: number;
+  /** Chat tools */
+  chatPhotosEnabled: number;
+  chatVoiceNotesEnabled: number;
+  chatVoiceNoteMaxSeconds: number;
+  chatUnsendMinutes: number;
   discoverFilterPassCost: number;
   discoverFilterPassHours: number;
 
@@ -240,16 +245,27 @@ export const RULE_GROUPS: RuleGroup[] = [
   },
   {
     key: 'calls',
-    label: 'Video calls in chat',
-    description: 'Friends can video call from a chat, but only after both allow it. Either can turn calls off at any time, for both. Calls are never recorded.',
+    label: 'Calls in chat',
+    description: 'Friends can voice or video call from a chat, but only after both allow it — each picks voice only or voice and video, and the lower of the two applies. Either can lower it or turn calls off at any time, for both. Calls are never recorded.',
     fields: [
-      { key: 'friendCallsEnabled', label: 'Video calls in chat are on', help: 'Off hides calling in every chat. What people allowed is kept.', kind: 'flag', min: 0, max: 1 },
+      { key: 'friendCallsEnabled', label: 'Calls in chat are on', help: 'Off hides calling in every chat. What people allowed is kept.', kind: 'flag', min: 0, max: 1 },
       { key: 'callNeedsMessagesFirst', label: 'Both must have written first', help: 'Stops asks from people who never said hi.', kind: 'flag', min: 0, max: 1 },
       { key: 'callRingSeconds', label: 'Ring for', kind: 'seconds', min: 10, max: 120 },
       count('callAsksPerDay', '"Allow video calls?" asks per day', 1, 100, 'Across all chats.'),
       { key: 'callAskCooldownHours', label: 'Wait before asking the same person again', help: 'After "Not now", or after calls were turned off.', kind: 'hours', min: 0, max: 720 },
       { key: 'callMaxMinutes', label: 'Longest call', help: '0 = no limit.', kind: 'minutes', min: 0, max: 600 },
       count('callDeclinePause', 'Declines in a row before calls pause for a day', 0, 20, '0 = never pause.'),
+    ],
+  },
+  {
+    key: 'chat',
+    label: 'Chat',
+    description: 'What friends can send each other in a chat. Text, emoji, reactions and replies are always on. Photos show blurred until tapped.',
+    fields: [
+      { key: 'chatPhotosEnabled', label: 'Photos in chat', help: 'Off hides the photo button for everyone.', kind: 'flag', min: 0, max: 1 },
+      { key: 'chatVoiceNotesEnabled', label: 'Voice notes in chat', kind: 'flag', min: 0, max: 1 },
+      count('chatVoiceNoteMaxSeconds', 'Longest voice note, seconds', 5, 300),
+      count('chatUnsendMinutes', 'Unsend a message within, minutes', 0, 1440, '0 = unsend is off.'),
     ],
   },
   {
@@ -399,6 +415,10 @@ export const DEFAULT_RULES: EconomyRules = {
   discoverPassResetDays: 30,
   discoverVerifiedOnly: 0,
   discoverPremiumFilters: 1,
+  chatPhotosEnabled: 1,
+  chatVoiceNotesEnabled: 1,
+  chatVoiceNoteMaxSeconds: 60,
+  chatUnsendMinutes: 10,
   discoverFilterPassCost: 25,
   discoverFilterPassHours: 24,
 

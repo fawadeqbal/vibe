@@ -693,6 +693,9 @@ model Friendship {
   /// Video calls in chat need both to allow them; either can turn them off (sets both false).
   callsLowAllowed  Boolean          @default(false)
   callsHighAllowed Boolean          @default(false)
+  /// Each side's level: video too (false = voice only). Calls work at the lower of the two.
+  callsLowVideo    Boolean          @default(false)
+  callsHighVideo   Boolean          @default(false)
 
   messages Message[]
 
@@ -707,6 +710,10 @@ enum MessageKind {
   GIFT
   /// A line from Vibe in the chat ("You matched in Discover", call events); `meta.event` says which.
   SYSTEM
+  /// A photo: `meta { url, w, h }`, shown blurred until tapped.
+  PHOTO
+  /// A voice note: `meta { url, seconds }`.
+  VOICE
 }
 
 model Message {
@@ -719,6 +726,12 @@ model Message {
   meta         Json?
   createdAt    DateTime    @default(now())
   readAt       DateTime?
+  /// The message this one replies to (shown as a quote).
+  replyToId    String?
+  /// Reactions: `{ [userId]: "❤️" }` (one each).
+  reactions    Json?
+  /// Unsent by its sender: text and media are cleared, a "Message unsent" line stays.
+  unsentAt     DateTime?
 
   friendship Friendship @relation(fields: [friendshipId], references: [id], onDelete: Cascade)
 

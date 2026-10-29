@@ -50,6 +50,14 @@ export const ServerEvent = {
   CallRinging: 'call:ringing',
   /** A ringing call stopped: `{ callId, reason: 'declined' | 'no_answer' | 'cancelled' | 'accepted' | 'turned_off', reply? }`. Accepted calls continue as `match:found`. */
   CallEnded: 'call:ended',
+  /** Voice → video during a friend call: `{ matchId, state: 'asked' | 'on' | 'declined', from? }`. */
+  CallVideo: 'call:video',
+  /** Your friend is typing to you: `{ friendId }` (lasts ~5 s). */
+  ChatTyping: 'chat:typing',
+  /** A message changed (reaction, unsent): the full message view. */
+  MessageUpdated: 'message:updated',
+  /** Your friend read your messages: `{ friendId, at }`. */
+  MessagesRead: 'message:read',
 
   RtcSignal: 'rtc:signal',
 

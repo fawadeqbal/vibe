@@ -104,6 +104,10 @@ export const useCatalog = create<CatalogState>()((set, get) => ({
       discoverFilterPassCost: n("discoverFilterPassCost", prev.discoverFilterPassCost),
       discoverFilterPassHours: n("discoverFilterPassHours", prev.discoverFilterPassHours),
       friendCallsEnabled: n("friendCallsEnabled", prev.friendCallsEnabled),
+      chatPhotosEnabled: n("chatPhotosEnabled", prev.chatPhotosEnabled),
+      chatVoiceNotesEnabled: n("chatVoiceNotesEnabled", prev.chatVoiceNotesEnabled),
+      chatVoiceNoteMaxSeconds: n("chatVoiceNoteMaxSeconds", prev.chatVoiceNoteMaxSeconds),
+      chatUnsendMinutes: n("chatUnsendMinutes", prev.chatUnsendMinutes),
       callRingSeconds: n("callRingSeconds", prev.callRingSeconds),
     };
     const list = (k: string) => asList(c[k]).map(asMap);

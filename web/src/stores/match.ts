@@ -59,6 +59,10 @@ interface MatchState {
   friendCall: boolean;
   /** A friend call just ended: go back to that chat. */
   friendCallEnded: { friendId: string; at: number } | null;
+  /** A voice call with a friend: no camera until you both turn video on. */
+  voiceCall: boolean;
+  /** Turning video on in a voice call: you asked, they asked, or nothing. */
+  videoAsk: "none" | "mine" | "theirs";
   elapsed: number;
   cooldownUntil: number | null;
   blurred: boolean;
@@ -119,6 +123,10 @@ interface MatchState {
   dismissEnded: () => void;
   clearError: () => void;
   reset: () => void;
+  /** In a voice call: ask to turn on video. */
+  askVideo: () => Promise<void>;
+  /** Answer their ask to turn on video. */
+  answerVideo: (yes: boolean) => Promise<void>;
 }
 
 // ── connection state that never renders ───────────────────────────────────
@@ -180,7 +188,8 @@ export const useMatch = create<MatchState>()((set, get) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
-        video: { facingMode: get().frontCamera ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
+        // A voice call never opens the camera (until both turn video on).
+        video: get().voiceCall ? false : { facingMode: get().frontCamera ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
       });
       if (gen !== cameraGen) {
         // Released while it was opening (left the page, hid the tab…).
@@ -234,6 +243,8 @@ export const useMatch = create<MatchState>()((set, get) => {
     ended: null,
     friendCall: false,
     friendCallEnded: null,
+    voiceCall: false,
+    videoAsk: "none",
     elapsed: 0,
     cooldownUntil: null,
     blurred: false,
@@ -542,6 +553,24 @@ export const useMatch = create<MatchState>()((set, get) => {
 
     clearError: () => set({ lastError: null, needsCoins: false }),
 
+    async askVideo() {
+      const id = matchId;
+      if (!id || !get().voiceCall) return;
+      set({ videoAsk: "mine" });
+      try {
+        await api.post(`/calls/live/${id}/video`, { action: "ask" });
+      } catch (e) {
+        set({ videoAsk: "none", lastError: e instanceof Error ? e.message : "Couldn't ask for video." });
+      }
+    },
+
+    async answerVideo(yes) {
+      const id = matchId;
+      set({ videoAsk: "none" });
+      if (!id) return;
+      await api.post(`/calls/live/${id}/video`, { action: yes ? "yes" : "no" }).catch(() => {});
+    },
+
     reset() {
       clearInterval(ticker);
       clearTimeout(blurTimer);
@@ -636,7 +665,11 @@ realtime.on(Ev.matchFound, (e) => {
     lastError: null,
     friendCall: e.friendCall === true,
     friendCallEnded: null,
+    voiceCall: e.friendCall === true && e.audioOnly === true,
+    videoAsk: "none",
   });
+  // A voice call starts with the microphone only: drop a camera the lobby had open.
+  if (get().voiceCall && get().localStream?.getVideoTracks().length) get().releaseCamera();
   clearTimeout(blurTimer);
   if (blur) blurTimer = setTimeout(() => set({ blurred: false }), 3000);
   clearInterval(ticker);
@@ -749,7 +782,7 @@ realtime.on(Ev.matchEnded, (e) => {
     reason === "skipped" ? "skipped" : reason === "stopped" || reason === "disconnected" ? "stopped" : reason === "reported" || reason === "blocked" || reason === "banned" ? "reported" : "partnerLeft";
   if (s.friendCall) {
     // A call with a friend: no recap, back to your chat with them.
-    set({ current: null, partner: null, game: null, mutual: false, status: "idle", blurred: false, friendCall: false, friendCallEnded: s.partner ? { friendId: s.partner.id, at: Date.now() } : null });
+    set({ current: null, partner: null, game: null, mutual: false, status: "idle", blurred: false, friendCall: false, voiceCall: false, videoAsk: "none", friendCallEnded: s.partner ? { friendId: s.partner.id, at: Date.now() } : null });
     return;
   }
   // Skipping puts you straight back in the queue; anything else ends here.
@@ -797,6 +830,8 @@ async function startPeer(caller: boolean) {
   }
   pc = peer;
   local.getTracks().forEach((t) => peer.addTrack(t, local));
+  // Voice calls keep a video line ready (no camera yet) so video can be turned on without renegotiating.
+  if (get().voiceCall && caller) peer.addTransceiver("video", { direction: "sendrecv" });
   peer.onicecandidate = (ev) => {
     if (!ev.candidate) return;
     realtime.request("rtc:signal", { type: "ice", data: ev.candidate.toJSON() as unknown as Json }).catch(() => {});
@@ -831,6 +866,8 @@ async function onSignal(e: Json) {
         if (!peer) return;
         await peer.setRemoteDescription({ sdp: String(data.sdp ?? ""), type: "offer" });
         await flushIce();
+        // Answer the reserved video line as send-and-receive too (voice calls).
+        for (const t of peer.getTransceivers()) if (t.receiver.track.kind === "video" && !t.sender.track) t.direction = "sendrecv";
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
         await realtime.request("rtc:signal", { type: "answer", data: { sdp: answer.sdp, type: answer.type } });
@@ -858,6 +895,33 @@ async function onSignal(e: Json) {
     console.warn(`rtc signal ${String(e.type)} failed`, err);
   }
 }
+
+/** Both said yes: open the camera and send it on the reserved video line. */
+async function turnOnVideo() {
+  if (!get().voiceCall) return;
+  set({ voiceCall: false, videoAsk: "none", camOn: true });
+  try {
+    const cam = await navigator.mediaDevices.getUserMedia({ video: { facingMode: get().frontCamera ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } } });
+    const track = cam.getVideoTracks()[0];
+    const local = get().localStream;
+    if (!track) return;
+    if (local) {
+      local.addTrack(track);
+      set({ localStream: new MediaStream(local.getTracks()) });
+    } else set({ localStream: cam });
+    const t = pc?.getTransceivers().find((x) => x.receiver.track.kind === "video");
+    await t?.sender.replaceTrack(track);
+  } catch (e) {
+    set({ cameraError: `Camera unavailable: ${e instanceof Error ? e.message : String(e)}` });
+  }
+}
+
+realtime.on(Ev.callVideo, (e) => {
+  if (e.matchId !== matchId) return;
+  if (e.state === "asked") set({ videoAsk: "theirs" });
+  else if (e.state === "on") void turnOnVideo();
+  else if (e.state === "declined") set({ videoAsk: "none", lastError: "They'd rather stay on voice for now." });
+});
 
 async function flushIce() {
   remoteDescriptionSet = true;

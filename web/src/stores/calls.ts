@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { ApiError } from "@/lib/api/errors";
-import { asMap, profile as mapProfile } from "@/lib/api/mappers";
+import { asMap, callsOf, profile as mapProfile } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
 import { notifyInBackground } from "@/lib/browser-notify";
 import type { Profile } from "@/lib/models";
@@ -10,16 +10,20 @@ import { api, realtime } from "./services";
 import { useSocial } from "./social";
 
 /** Someone calling you. */
+export type CallMedia = "voice" | "video";
+
 export interface IncomingCall {
   callId: string;
   from: Profile;
   expiresAt: Date;
+  media: CallMedia;
 }
 
 /** Your call, ringing on their side — or how it ended. */
 export interface OutgoingCall {
   callId: string | null;
   to: Profile;
+  media: CallMedia;
   status: "ringing" | "declined" | "no_answer" | "busy" | "paused" | "error";
   reply: string | null;
   message: string | null;
@@ -29,23 +33,29 @@ export interface OutgoingCall {
 export interface CallState {
   mine: boolean;
   theirs: boolean;
+  /** Each side allows video too. */
+  mineVideo: boolean;
+  theirsVideo: boolean;
+  /** Both allowed: voice calls work. */
   on: boolean;
+  /** Both allowed video too: video calls work. */
+  video: boolean;
   canAsk: boolean;
   askAfter: Date | null;
   askBlockedBy: "messages" | "wait" | null;
 }
 
 const callState = (m: Record<string, unknown>): CallState => ({
-  mine: m.mine === true,
-  theirs: m.theirs === true,
+  ...callsOf(m),
   on: m.on === true,
+  video: m.video === undefined ? m.on === true : m.video === true,
   canAsk: m.canAsk === true,
   askAfter: typeof m.askAfter === "string" ? new Date(m.askAfter) : null,
   askBlockedBy: m.askBlockedBy === "messages" || m.askBlockedBy === "wait" ? m.askBlockedBy : null,
 });
 
 /** Updates the friend's `calls` in the friends list. */
-function setFriendCalls(friendId: string, calls: { mine: boolean; theirs: boolean }) {
+function setFriendCalls(friendId: string, calls: { mine: boolean; theirs: boolean; mineVideo: boolean; theirsVideo: boolean }) {
   useSocial.setState((s) => ({ all: s.all.map((f) => (f.profile.id === friendId ? { ...f, calls } : f)) }));
 }
 
@@ -62,11 +72,14 @@ interface CallsState {
   states: Record<string, CallState>;
 
   loadState: (friendId: string) => Promise<CallState | null>;
-  /** Ask them, or say yes to their ask. Throws ApiError (CALL_NEEDS_MESSAGES, CALL_ASK_TOO_SOON). */
-  allow: (friendId: string) => Promise<CallState>;
+  /**
+   * Ask them, say yes to their ask, or change your level: `video` false =
+   * voice calls only. Throws ApiError (CALL_NEEDS_MESSAGES, CALL_ASK_TOO_SOON).
+   */
+  allow: (friendId: string, video?: boolean) => Promise<CallState>;
   /** Turn calls off for both (or "not now" to their ask, or take back yours). */
   turnOff: (friendId: string) => Promise<CallState>;
-  ring: (friend: Profile) => Promise<void>;
+  ring: (friend: Profile, media?: CallMedia) => Promise<void>;
   accept: () => Promise<void>;
   decline: (reply?: string) => Promise<void>;
   cancel: () => Promise<void>;
@@ -79,7 +92,7 @@ interface CallsState {
 export const useCalls = create<CallsState>()((set, get) => {
   const apply = (friendId: string, st: CallState) => {
     set((s) => ({ states: { ...s.states, [friendId]: st } }));
-    setFriendCalls(friendId, { mine: st.mine, theirs: st.theirs });
+    setFriendCalls(friendId, { mine: st.mine, theirs: st.theirs, mineVideo: st.mineVideo, theirsVideo: st.theirsVideo });
     return st;
   };
 
@@ -96,23 +109,23 @@ export const useCalls = create<CallsState>()((set, get) => {
       }
     },
 
-    async allow(friendId) {
-      return apply(friendId, callState(asMap(await api.put(`/friends/${friendId}/calls`, { allow: true }))));
+    async allow(friendId, video = true) {
+      return apply(friendId, callState(asMap(await api.put(`/friends/${friendId}/calls`, { allow: true, video }))));
     },
 
     async turnOff(friendId) {
       return apply(friendId, callState(asMap(await api.put(`/friends/${friendId}/calls`, { allow: false }))));
     },
 
-    async ring(friend) {
-      set({ outgoing: { callId: null, to: friend, status: "ringing", reply: null, message: null } });
+    async ring(friend, media = "video") {
+      set({ outgoing: { callId: null, to: friend, media, status: "ringing", reply: null, message: null } });
       try {
-        const r = asMap(await api.post(`/friends/${friend.id}/call`));
+        const r = asMap(await api.post(`/friends/${friend.id}/call`, { media }));
         set((s) => (s.outgoing?.to.id === friend.id ? { outgoing: { ...s.outgoing, callId: String(r.callId) } } : {}));
       } catch (e) {
         const code = e instanceof ApiError ? e.code : "";
         const status: OutgoingCall["status"] = code === "CALL_BUSY" ? "busy" : code === "CALL_PAUSED" ? "paused" : "error";
-        set({ outgoing: { callId: null, to: friend, status, reply: null, message: e instanceof Error ? e.message : null } });
+        set({ outgoing: { callId: null, to: friend, media, status, reply: null, message: e instanceof Error ? e.message : null } });
         if (code === "CALLS_NOT_ALLOWED") void get().loadState(friend.id);
       }
     },
@@ -151,7 +164,7 @@ export const useCalls = create<CallsState>()((set, get) => {
         const c = asMap(await api.get("/calls/incoming")).call;
         if (c && typeof c === "object") {
           const m = asMap(c);
-          set({ incoming: { callId: String(m.callId), from: mapProfile(asMap(m.from)), expiresAt: new Date(String(m.expiresAt)) } });
+          set({ incoming: { callId: String(m.callId), from: mapProfile(asMap(m.from)), expiresAt: new Date(String(m.expiresAt)), media: m.media === "voice" ? "voice" : "video" } });
         }
       } catch {}
     },
@@ -166,19 +179,19 @@ export const useCalls = create<CallsState>()((set, get) => {
 
 realtime.on(Ev.callConsent, (e) => {
   if (typeof e.friendId !== "string") return;
-  const calls = { mine: e.mine === true, theirs: e.theirs === true };
-  setFriendCalls(e.friendId, calls);
+  setFriendCalls(e.friendId, callsOf(e));
   void useCalls.getState().loadState(e.friendId);
   if (e.asked === true && e.from) {
     const from = mapProfile(asMap(e.from));
-    notifyInBackground(`${from.name.split(" ")[0]} wants to allow video calls`, "Say yes in the chat, or not now.", { tag: `call-ask:${from.id}` });
+    notifyInBackground(`${from.name.split(" ")[0]} wants to call you`, e.video === false ? "Voice calls — say yes in the chat, or not now." : "Voice and video calls — say yes in the chat, or not now.", { tag: `call-ask:${from.id}` });
   }
 });
 
 realtime.on(Ev.callIncoming, (e) => {
   const from = mapProfile(asMap(e.from));
-  useCalls.setState({ incoming: { callId: String(e.callId), from, expiresAt: new Date(String(e.expiresAt)) } });
-  notifyInBackground(`${from.name.split(" ")[0]} is calling 📹`, "Video call on Vibe — click to answer.", { tag: `call:${String(e.callId)}` });
+  const media: CallMedia = e.media === "voice" ? "voice" : "video";
+  useCalls.setState({ incoming: { callId: String(e.callId), from, expiresAt: new Date(String(e.expiresAt)), media } });
+  notifyInBackground(`${from.name.split(" ")[0]} is calling ${media === "voice" ? "📞" : "📹"}`, `${media === "voice" ? "Voice" : "Video"} call on Vibe — click to answer.`, { tag: `call:${String(e.callId)}` });
 });
 
 realtime.on(Ev.callRinging, (e) => {
@@ -198,6 +211,6 @@ realtime.on(Ev.callEnded, (e) => {
   }
   if ((reason === "no_answer" || reason === "cancelled") && e.from) {
     const from = mapProfile(asMap(e.from));
-    notifyInBackground("Missed video call", `From ${from.name.split(" ")[0]}.`, { tag: `call:${id}` });
+    notifyInBackground("Missed call", `From ${from.name.split(" ")[0]}.`, { tag: `call:${id}` });
   }
 });

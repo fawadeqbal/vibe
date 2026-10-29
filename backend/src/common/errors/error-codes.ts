@@ -8,6 +8,8 @@ export enum ErrorCode {
   NOT_FOUND = 'NOT_FOUND',
   CONFLICT = 'CONFLICT',
   FORBIDDEN = 'FORBIDDEN',
+  /** A feature is switched off in admin (403). */
+  FEATURE_DISABLED = 'FEATURE_DISABLED',
   RATE_LIMITED = 'RATE_LIMITED',
   INTERNAL = 'INTERNAL',
   MAINTENANCE = 'MAINTENANCE',

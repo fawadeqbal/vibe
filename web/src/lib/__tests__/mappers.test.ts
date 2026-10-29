@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "../api/errors";
-import { friend, profile, wallet } from "../api/mappers";
+import { callsOf, friend, message, profile, wallet } from "../api/mappers";
 import { parsePurchase } from "../payments";
 
 describe("API mappers", () => {
@@ -26,5 +26,32 @@ describe("API mappers", () => {
   it("surfaces the first field message of a validation error", () => {
     const e = ApiError.fromBody(400, { error: { code: "VALIDATION_FAILED", message: "Some fields are invalid", details: { fields: ["Return URL must be vibe:// or https://"] } } });
     expect(e.message).toBe("Return URL must be vibe:// or https://");
+  });
+});
+
+describe("chat tools and call levels", () => {
+  it("maps photos, voice notes, replies, reactions and unsent messages", () => {
+    const m = message(
+      {
+        id: "m2",
+        fromMe: false,
+        kind: "voice",
+        text: "🎤 Voice message",
+        meta: { url: "https://x/v.webm", seconds: 14 },
+        at: "2026-10-29T10:00:00Z",
+        replyTo: { id: "m1", fromMe: true, kind: "text", text: "road trip", unsent: false },
+        reactions: { mine: "❤️", theirs: null },
+        unsent: false,
+        readAt: null,
+      },
+      () => null,
+    );
+    expect(m).toMatchObject({ kind: "voice", meta: { seconds: 14 }, replyTo: { id: "m1", fromMe: true }, reactions: { mine: "❤️", theirs: null }, unsent: false });
+    expect(message({ id: "m3", fromMe: true, kind: "photo", text: "", unsent: true }, () => null)).toMatchObject({ kind: "photo", unsent: true, gift: null });
+  });
+
+  it("reads each side's voice/video level (older servers meant video)", () => {
+    expect(callsOf({ mine: true, theirs: true, mineVideo: false, theirsVideo: true })).toEqual({ mine: true, theirs: true, mineVideo: false, theirsVideo: true });
+    expect(callsOf({ mine: true, theirs: false })).toEqual({ mine: true, theirs: false, mineVideo: true, theirsVideo: false });
   });
 });

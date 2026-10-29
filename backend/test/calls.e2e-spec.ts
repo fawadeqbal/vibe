@@ -98,7 +98,7 @@ describe('calls in chat', () => {
     expect(await lines(a, b)).toEqual(['matched', 'calls_asked', 'calls_on']);
     // The friends list carries it too.
     const list = (await t.http.get('/v1/friends').set(a.auth).expect(200)).body;
-    expect(list[0].calls).toEqual({ mine: true, theirs: true });
+    expect(list[0].calls).toEqual({ mine: true, theirs: true, mineVideo: true, theirsVideo: true });
   });
 
   it('"not now" and turning calls off stop calls for both; the other waits before asking again', async () => {
@@ -161,6 +161,8 @@ describe('calls in chat', () => {
         status: 'ACCEPTED',
         callsLowAllowed: true,
         callsHighAllowed: true,
+        callsLowVideo: true,
+        callsHighVideo: true,
       },
     });
     expect((await t.http.post(`/v1/friends/${b.id}/call`).set(c.auth).expect(409)).body.error.code).toBe('CALL_BUSY');
@@ -184,6 +186,50 @@ describe('calls in chat', () => {
     expect(r2.discover).toMatchObject({ likes: 2, matches: 1, swipers: 2 });
     expect(r2.calls).toMatchObject({ asked: 1, allowed: 1, chatsWithCallsOn: 2, calls: 1 });
     expect(r2.recentCalls[0]).toMatchObject({ a: { name: 'Asad' }, b: { name: 'Bina' } });
+  });
+
+  it('voice or video: the lower level wins; voice calls start audio-only and can turn on video when both say yes', async () => {
+    const { a, b } = await friends();
+    await say(a, b, 'hey');
+    await say(b, a, 'hi');
+    // A asks for voice and video, B allows voice only.
+    await t.http.put(`/v1/friends/${b.id}/calls`).set(a.auth).send({ allow: true, video: true }).expect(200);
+    const st = (await t.http.put(`/v1/friends/${a.id}/calls`).set(b.auth).send({ allow: true, video: false }).expect(200)).body;
+    expect(st).toMatchObject({ on: true, video: false, mineVideo: false, theirsVideo: true });
+    expect((await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).send({ media: 'video' }).expect(403)).body.error.code).toBe('CALLS_NOT_ALLOWED');
+
+    // A voice call starts audio-only; video can't be turned on while B only allows voice.
+    const sa = await online(a);
+    const sb = await online(b);
+    const incoming = next(sb, 'call:incoming');
+    const r = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).send({ media: 'voice' }).expect(200)).body;
+    expect(await incoming).toMatchObject({ media: 'voice' });
+    const foundA = next(sa, 'match:found');
+    await t.http.post(`/v1/calls/${r.callId}/accept`).set(b.auth).expect(200);
+    const found = await foundA;
+    expect(found).toMatchObject({ friendCall: true, audioOnly: true });
+    expect((await t.http.post(`/v1/calls/live/${found.matchId}/video`).set(a.auth).send({ action: 'ask' }).expect(403)).body.error.code).toBe('CALLS_NOT_ALLOWED');
+
+    // B raises to video (they both allow it now): ask → yes turns video on for both.
+    await t.http.put(`/v1/friends/${a.id}/calls`).set(b.auth).send({ allow: true, video: true }).expect(200);
+    const asked = next(sb, 'call:video');
+    await t.http.post(`/v1/calls/live/${found.matchId}/video`).set(a.auth).send({ action: 'ask' }).expect(200);
+    expect(await asked).toMatchObject({ state: 'asked', from: a.id });
+    const onA = next(sa, 'call:video');
+    expect((await t.http.post(`/v1/calls/live/${found.matchId}/video`).set(b.auth).send({ action: 'yes' }).expect(200)).body).toEqual({ state: 'on' });
+    expect(await onA).toMatchObject({ state: 'on' });
+
+    const ended = next(sb, 'match:ended');
+    await emit(sa, 'match:end');
+    await ended;
+    await sleep(200);
+    const msgs = (await t.http.get(`/v1/friends/${b.id}/messages`).set(a.auth).expect(200)).body.items as { text: string; meta: { event?: string; video?: boolean } | null }[];
+    expect(msgs.find((m) => m.meta?.event === 'call_ended')).toMatchObject({ meta: { video: true } });
+    expect(msgs.map((m) => m.text)).toEqual(expect.arrayContaining(['Asad asked to allow voice and video calls', 'You both allowed voice calls', 'You both allowed voice and video calls']));
+
+    // Lowering to voice is instant for both.
+    const low = (await t.http.put(`/v1/friends/${b.id}/calls`).set(a.auth).send({ allow: true, video: false }).expect(200)).body;
+    expect(low).toMatchObject({ on: true, video: false });
   });
 
   it('declines (with a quick reply) and missed calls are logged; declines in a row pause ringing', async () => {

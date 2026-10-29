@@ -36,11 +36,16 @@ export interface FriendView {
 export interface CallsView {
   mine: boolean;
   theirs: boolean;
+  /** Each side allows video too (false = voice only). */
+  mineVideo: boolean;
+  theirsVideo: boolean;
 }
 
 /** Each side's "allow video calls", from your point of view. */
-export const callsView = (f: Pick<Friendship, 'userLowId' | 'callsLowAllowed' | 'callsHighAllowed'>, me: string): CallsView =>
-  f.userLowId === me ? { mine: f.callsLowAllowed, theirs: f.callsHighAllowed } : { mine: f.callsHighAllowed, theirs: f.callsLowAllowed };
+export const callsView = (f: Pick<Friendship, 'userLowId' | 'callsLowAllowed' | 'callsHighAllowed' | 'callsLowVideo' | 'callsHighVideo'>, me: string): CallsView =>
+  f.userLowId === me
+    ? { mine: f.callsLowAllowed, theirs: f.callsHighAllowed, mineVideo: f.callsLowAllowed && f.callsLowVideo, theirsVideo: f.callsHighAllowed && f.callsHighVideo }
+    : { mine: f.callsHighAllowed, theirs: f.callsLowAllowed, mineVideo: f.callsHighAllowed && f.callsHighVideo, theirsVideo: f.callsLowAllowed && f.callsLowVideo };
 
 /**
  * Friend requests and the friend list. One Friendship row per pair; a

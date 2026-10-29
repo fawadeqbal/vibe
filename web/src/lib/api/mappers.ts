@@ -128,7 +128,7 @@ export function friend(m: Json): Friend {
     unread: int(m.unread),
     online: bool(m.online),
     streak: streak(asMap(m.streak)),
-    calls: { mine: bool(asMap(m.calls).mine), theirs: bool(asMap(m.calls).theirs) },
+    calls: callsOf(asMap(m.calls)),
   };
 }
 
@@ -156,10 +156,31 @@ export function teamMessage(m: Json): TeamMessage {
   };
 }
 
+/** Each side's call permission (older servers send only mine/theirs, which meant video). */
+export function callsOf(c: Json): { mine: boolean; theirs: boolean; mineVideo: boolean; theirsVideo: boolean } {
+  const mine = bool(c.mine);
+  const theirs = bool(c.theirs);
+  return { mine, theirs, mineVideo: mine && (c.mineVideo === undefined ? true : bool(c.mineVideo)), theirsVideo: theirs && (c.theirsVideo === undefined ? true : bool(c.theirsVideo)) };
+}
+
 export function message(m: Json, giftById: (id: unknown) => Gift | null): ChatMessage {
-  const kind = m.kind === "system" ? "system" : m.kind === "gift" || m.giftId ? "gift" : "text";
+  const kind = m.kind === "system" || m.kind === "photo" || m.kind === "voice" ? m.kind : m.kind === "gift" || m.giftId ? "gift" : "text";
   const meta = m.meta && typeof m.meta === "object" ? (m.meta as Record<string, unknown>) : null;
-  return { id: str(m.id), fromMe: bool(m.fromMe), kind, meta, text: str(m.text), at: date(m.at) ?? new Date(), gift: kind === "system" ? null : giftById(m.giftId) };
+  const r = m.replyTo && typeof m.replyTo === "object" ? asMap(m.replyTo) : null;
+  const re = asMap(m.reactions);
+  return {
+    id: str(m.id),
+    fromMe: bool(m.fromMe),
+    kind,
+    meta,
+    text: str(m.text),
+    at: date(m.at) ?? new Date(),
+    gift: kind === "gift" ? giftById(m.giftId) : null,
+    replyTo: r ? { id: str(r.id), fromMe: bool(r.fromMe), kind: str(r.kind), text: str(r.text), unsent: bool(r.unsent) } : null,
+    reactions: { mine: typeof re.mine === "string" ? re.mine : null, theirs: typeof re.theirs === "string" ? re.theirs : null },
+    unsent: bool(m.unsent),
+    readAt: date(m.readAt),
+  };
 }
 
 export function matchRecord(m: Json): MatchRecord | null {

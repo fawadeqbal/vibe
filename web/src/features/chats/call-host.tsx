@@ -107,7 +107,7 @@ function Incoming({ c }: { c: IncomingCall }) {
         )}
         style={{ animation: "vibe-dialog-in 200ms ease-out" }}
       >
-        <p className="type-overline text-[#e0d6f5] lg:hidden">Vibe · video call</p>
+        <p className="type-overline text-[#e0d6f5] lg:hidden">Vibe · {c.media === "voice" ? "voice" : "video"} call</p>
         <div className="mt-10 lg:mt-0 lg:flex lg:w-full lg:items-center lg:gap-3">
           <span className="relative inline-flex">
             <span aria-hidden className="absolute -inset-3 animate-ping rounded-full border-2 border-pink-soft/40 lg:hidden" />
@@ -124,8 +124,8 @@ function Incoming({ c }: { c: IncomingCall }) {
               <span className="hidden lg:inline">{first} is calling</span>
             </h2>
             <p className="type-body mt-1 text-[15px] text-[#d8cfe8] lg:mt-0.5 lg:text-[13px] lg:text-muted">
-              <span className="lg:hidden">wants to video call you</span>
-              <span className="hidden lg:inline">Video call · {left}s</span>
+              <span className="lg:hidden">{c.media === "voice" ? "wants to voice call you" : "wants to video call you"}</span>
+              <span className="hidden lg:inline">{c.media === "voice" ? "Voice" : "Video"} call · {left}s</span>
             </p>
           </div>
         </div>
@@ -158,11 +158,11 @@ function Incoming({ c }: { c: IncomingCall }) {
           <button
             type="button"
             onClick={() => void calls.accept()}
-            aria-label="Accept video call"
+            aria-label={c.media === "voice" ? "Accept voice call" : "Accept video call"}
             className="flex flex-col items-center gap-2 lg:flex-row lg:justify-center lg:rounded-full lg:bg-ok lg:py-2.5"
           >
             <span className="flex size-[76px] items-center justify-center rounded-full bg-ok text-bg shadow-[0_12px_30px_rgb(52_211_153/0.4)] lg:size-auto lg:bg-transparent lg:shadow-none">
-              <Icon name="videocam" size={32} className="lg:!text-[20px]" />
+              <Icon name={c.media === "voice" ? "call" : "videocam"} size={32} className="lg:!text-[20px]" />
             </span>
             <span className="type-label text-[13px] font-semibold text-[#e0d6f5] lg:text-bg">Accept</span>
           </button>
@@ -210,7 +210,7 @@ function Outgoing({ c }: { c: OutgoingCall }) {
         {first}
       </h2>
       <p role="status" className="type-body mt-1.5 text-[15px] text-[#d8cfe8]">
-        {done ? done.title : `Calling… ${secs}s`}
+        {done ? done.title : `${c.media === "voice" ? "Voice call" : "Video call"} · Calling… ${secs}s`}
       </p>
       {done ? (
         <p className="type-body mt-4 max-w-[340px] rounded-[16px] bg-black/40 px-4 py-3 text-center text-[13.5px] leading-[1.45] text-text">

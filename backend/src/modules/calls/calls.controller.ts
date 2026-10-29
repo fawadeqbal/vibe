@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CallsService } from './calls.service';
-import { CallConsentDto, DeclineCallDto } from './dto/calls.dto';
+import { CallConsentDto, CallVideoDto, DeclineCallDto, RingDto } from './dto/calls.dto';
 
 @ApiTags('calls')
 @ApiBearerAuth()
@@ -23,7 +23,7 @@ export class CallsController {
       'allow: true asks them (or says yes to their ask); allow: false turns calls off for both. Both sides get `call:consent`.',
   })
   consent(@CurrentUser('id') me: string, @Param('userId') userId: string, @Body() dto: CallConsentDto) {
-    return dto.allow ? this.calls.allow(me, userId) : this.calls.turnOff(me, userId);
+    return dto.allow ? this.calls.allow(me, userId, dto.video ?? true) : this.calls.turnOff(me, userId);
   }
 
   @Post('friends/:userId/call')
@@ -32,8 +32,15 @@ export class CallsController {
     summary:
       'Ring a friend (both must have allowed calls). They get `call:incoming`; answered, both get `match:found` with friendCall: true.',
   })
-  ring(@CurrentUser('id') me: string, @Param('userId') userId: string) {
-    return this.calls.ring(me, userId);
+  ring(@CurrentUser('id') me: string, @Param('userId') userId: string, @Body() dto: RingDto) {
+    return this.calls.ring(me, userId, dto?.media ?? 'video');
+  }
+
+  @Post('calls/live/:matchId/video')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'In a voice call with a friend: ask to turn on video, or answer (yes/no). Both must allow video in the chat. `call:video` to both.' })
+  video(@CurrentUser('id') me: string, @Param('matchId') matchId: string, @Body() dto: CallVideoDto) {
+    return this.calls.video(me, matchId, dto.action);
   }
 
   @Get('calls/incoming')
