@@ -38,14 +38,19 @@ export const sharedInterests = (a: Pick<Ticket, 'interests'>, b: Pick<Ticket, 'i
 /**
  * How good a pairing `c` is for `me`: shared interests (up to 3) and a
  * similar vibe score, plus +4 for the oldest candidate once it has waited
- * over 20 s so nobody starves behind better-scored newcomers.
+ * over 20 s so nobody starves behind better-scored newcomers, plus a big
+ * bonus when the two waved at each other.
  */
 export function partnerScore(me: Ticket, c: Ticket, opts: { oldest: boolean; nowMs: number }): number {
   const shared = Math.min(sharedInterests(me, c), 3);
   const closeness = 1 - Math.abs((me.vibeScore ?? 0.5) - (c.vibeScore ?? 0.5));
   const fairness = opts.oldest && opts.nowMs - c.enqueuedAt > FAIR_WAIT_MS ? 4 : 0;
-  return 2 * shared + 3 * closeness + fairness;
+  return 2 * shared + 3 * closeness + fairness + (wavedWith(me, c) ? WAVE_BONUS : 0);
 }
+
+/** People who waved at each other (either way) beat everything else in the pick window. */
+export const WAVE_BONUS = 20;
+export const wavedWith = (a: Pick<Ticket, 'userId' | 'waved'>, b: Pick<Ticket, 'userId' | 'waved'>): boolean => !!(a.waved?.includes(b.userId) || b.waved?.includes(a.userId));
 
 /**
  * Picks the best candidate for `me` from queue-ordered tickets: the

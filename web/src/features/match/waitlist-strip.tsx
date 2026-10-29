@@ -5,6 +5,7 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
 import { toast } from "@/stores/ui";
 import { useWaitlist } from "@/stores/waitlist";
+import { useWaves } from "@/stores/waves";
 
 import type { Availability } from "./use-availability";
 
@@ -16,6 +17,7 @@ import type { Availability } from "./use-availability";
 export function WaitlistStrip({ availability, onStart, className }: { availability: Availability | null; onStart: () => void; className?: string }) {
   const until = useWaitlist((s) => s.until);
   const lookingAt = useWaitlist((s) => s.someoneLookingAt);
+  const who = useWaves((s) => s.lookingFrom);
 
   if (lookingAt)
     return (
@@ -25,11 +27,11 @@ export function WaitlistStrip({ availability, onStart, className }: { availabili
             <span className="absolute inset-0 animate-ping rounded-full bg-pink-soft opacity-70" />
             <span className="relative size-2.5 rounded-full bg-pink" />
           </span>
-          <span className="type-label truncate text-[13px] text-white">Someone&apos;s looking right now</span>
+          <span className="type-label truncate text-[13px] text-white">{who ? `${who.name.split(" ")[0]} is looking right now` : "Someone's looking right now"}</span>
           <button
             type="button"
             onClick={() => {
-              useWaitlist.getState().dismiss();
+              dismissLooking();
               onStart();
             }}
             className="type-label h-8 shrink-0 rounded-full bg-white px-3.5 text-[13px] font-semibold text-bg transition-[filter] hover:brightness-90"
@@ -39,7 +41,7 @@ export function WaitlistStrip({ availability, onStart, className }: { availabili
           <button
             type="button"
             aria-label="Dismiss"
-            onClick={() => useWaitlist.getState().dismiss()}
+            onClick={dismissLooking}
             className="flex size-8 shrink-0 items-center justify-center rounded-full text-white/70 hover:bg-white/10"
           >
             <Icon name="close" size={16} />
@@ -81,4 +83,10 @@ export function WaitlistStrip({ availability, onStart, className }: { availabili
       </button>
     </div>
   );
+}
+
+/** Clears "someone's looking" (and who it was). */
+export function dismissLooking() {
+  useWaitlist.getState().dismiss();
+  useWaves.getState().clearLooking();
 }

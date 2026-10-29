@@ -26,6 +26,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { SettingsService } from '../settings/settings.service';
 import { MatchGamesService } from './match-games.service';
 import { MatchQueueService } from './match-queue.service';
+import { WavesService } from '../waves/waves.service';
 import { MatchWaitlistService } from './match-waitlist.service';
 import { callSignal, freeReconnectUntil, GOOD_CALL_SECONDS, isFreeReconnect, isNightCall, VIBE_SCORE_ALPHA } from './match-rules';
 import { MatchSessionStore } from './match-session.store';
@@ -124,6 +125,7 @@ export class MatchingService {
     private readonly streaks: StreakService,
     private readonly games: MatchGamesService,
     private readonly waitlist: MatchWaitlistService,
+    private readonly waves: WavesService,
   ) {}
 
   // ── queue ─────────────────────────────────────────────────────────────
@@ -161,6 +163,7 @@ export class MatchingService {
       exclude,
       interests: user.interests,
       vibeScore: user.vibeScore,
+      waved: await this.waves.wavedWith(userId).catch(() => []),
     };
     await this.sessions.savePrefs(userId, prefs);
     await this.queue.enqueue(ticket);
@@ -169,7 +172,11 @@ export class MatchingService {
     await this.waitlist.remove(userId);
     const matched = await this.tryMatch(userId);
     // Waiting alone: wake up the people who asked to hear about it.
-    if (!matched && !user.isBot) await this.waitlist.notify(userId).catch(() => []);
+    if (!matched && !user.isBot) {
+      await this.waitlist.notify(userId).catch(() => []);
+      // The people they waved with hear about it ("Sara is looking for a match now").
+      await this.waves.announceLooking(userId, async (id) => (await this.queue.isQueued(id)) || !!(await this.sessions.forUser(id))).catch(() => []);
+    }
     return { status: matched ? 'matched' : 'searching', cost, position: matched ? 0 : await this.queue.size() };
   }
 

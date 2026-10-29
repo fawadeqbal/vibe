@@ -8,13 +8,14 @@ import { MatchGamesService } from './match-games.service';
 import { MatchGateway } from './match.gateway';
 import { MatchQueueService } from './match-queue.service';
 import { MatchSessionStore } from './match-session.store';
+import { WavesModule } from '../waves/waves.module';
 import { MatchWaitlistService } from './match-waitlist.service';
 import { MatchingService } from './matching.service';
 import { RtcController } from './rtc.controller';
 import { SkipCooldownService } from './skip-cooldown.service';
 
 @Module({
-  imports: [WalletModule, SocialModule, ModerationModule],
+  imports: [WalletModule, SocialModule, ModerationModule, WavesModule],
   controllers: [RtcController],
   providers: [MatchingService, MatchQueueService, MatchSessionStore, SkipCooldownService, MatchGateway, DevBotsService, MatchGamesService, MatchWaitlistService],
   exports: [MatchingService],

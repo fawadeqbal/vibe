@@ -62,6 +62,19 @@ export class PushBridge implements OnModuleInit {
       category: 'social',
       collapseKey: 'match:someone-looking',
     }),
+    [ServerEvent.WaveNew]: async (p, userId) => {
+      const from = (p.from ?? {}) as { id?: string; name?: string };
+      if (!(await this.firstToday(`push:wave:${from.id}:${userId}`))) return null;
+      const name = String(from.name ?? '').trim().split(/\s+/)[0] || 'Someone';
+      return p.mutual
+        ? { title: `${name} waved back 👋`, body: "You're matched first when you're both looking. Open Vibe to meet.", data: { route: 'match' }, category: 'social', collapseKey: `wave:${from.id}` }
+        : { title: `${name} waved at you 👋`, body: 'Wave back, and you\'re matched first when you\'re both on Vibe.', data: { route: 'match' }, category: 'social', collapseKey: `wave:${from.id}` };
+    },
+    [ServerEvent.WaveLooking]: (p) => {
+      const from = (p.from ?? {}) as { id?: string; name?: string };
+      const name = String(from.name ?? '').trim().split(/\s+/)[0] || 'Someone you waved at';
+      return { title: `${name} is looking for a match now`, body: 'Open Vibe and press Start: you two are matched first.', data: { route: 'match' }, category: 'social', collapseKey: `wave-looking:${from.id}` };
+    },
     [ServerEvent.GoalReached]: (p) => ({ title: 'Goal reached 🎯', body: `You reached your goal of ${Number(p.goal).toLocaleString('en-US')} gems.`, data: { route: 'wallet' }, category: 'payments' }),
     [ServerEvent.InboxMessage]: (p) => ({ title: String(p.title ?? 'Message from Vibe'), body: String(p.body ?? '').slice(0, 160), data: { route: 'inbox' }, category: 'inbox' }),
     [ServerEvent.PaymentUpdated]: (p) => {

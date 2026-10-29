@@ -136,6 +136,9 @@ model User {
 
   activeDays UserActiveDay[]
 
+  wavesSent     Wave[] @relation("WaveFrom")
+  wavesReceived Wave[] @relation("WaveTo")
+
   @@index([createdAt])
   @@index([bannedUntil])
   @@index([lastSeenAt])
@@ -159,6 +162,24 @@ model UserActiveDay {
 
   @@id([userId, day])
   @@index([day])
+}
+
+/// A 👋 from one person to another ("Recently here"). One row per direction;
+/// waving again after a day refreshes it. People who waved either way are
+/// matched first when both are searching.
+model Wave {
+  id        String    @id @default(cuid())
+  fromId    String
+  toId      String
+  createdAt DateTime  @default(now())
+  /// When the recipient saw it (clears their badge).
+  seenAt    DateTime?
+
+  from User @relation("WaveFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("WaveTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId])
+  @@index([toId, createdAt])
 }
 
 model AuthIdentity {

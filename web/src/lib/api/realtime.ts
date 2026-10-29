@@ -26,6 +26,10 @@ export const Ev = {
   matchGameClosed: "match:game-closed",
   /** You asked to be told when someone's looking (POST /match/notify-me), and someone is. One-shot. */
   matchSomeoneLooking: "match:someone-looking",
+  /** Someone waved at you: `{ from, mutual }`. */
+  waveNew: "wave:new",
+  /** Someone you waved with started looking for a match: `{ from }`. */
+  waveLooking: "wave:looking",
   rtcSignal: "rtc:signal",
   friendRequest: "social:friend-request",
   friendAccepted: "social:friend-accepted",

@@ -32,6 +32,10 @@ export const ServerEvent = {
   MatchGameClosed: 'match:game-closed',
   /** You asked to hear when someone's looking (POST /match/notify-me), and someone is now. One-shot. */
   MatchSomeoneLooking: 'match:someone-looking',
+  /** Someone waved at you: `{ from: PublicProfile, mutual }` (mutual = you had waved at them). */
+  WaveNew: 'wave:new',
+  /** Someone you waved with started looking for a match: `{ from: PublicProfile }`. */
+  WaveLooking: 'wave:looking',
 
   RtcSignal: 'rtc:signal',
 
