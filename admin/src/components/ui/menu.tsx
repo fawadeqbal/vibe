@@ -12,7 +12,14 @@ export const MenuTrigger = M.Trigger;
 export function MenuContent({ className, align = "end", ...props }: React.ComponentProps<typeof M.Content>) {
   return (
     <M.Portal>
-      <M.Content align={align} sideOffset={6} className={cn("z-50 min-w-48 rounded-lg border border-line bg-surface p-1 shadow-pop data-[state=open]:animate-in", className)} {...props} />
+      <M.Content
+        align={align}
+        sideOffset={6}
+        collisionPadding={8}
+        // Never taller than the space left on screen (phones): long lists scroll inside the menu.
+        className={cn("z-50 max-h-[min(var(--radix-dropdown-menu-content-available-height),24rem)] min-w-48 overflow-y-auto overscroll-contain rounded-lg border border-line bg-surface p-1 shadow-pop data-[state=open]:animate-in", className)}
+        {...props}
+      />
     </M.Portal>
   );
 }

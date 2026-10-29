@@ -10,11 +10,12 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useAction } from "@/hooks/use-action";
 import { api } from "@/lib/api/client";
 import type { UserDetail } from "@/lib/api/types";
+import { countryOptions } from "@/lib/countries";
 import { format } from "@/lib/format";
 import { newKey } from "@/lib/utils";
 
 import { userKeys } from "./api";
-import { COUNTRIES } from "./users-page";
+import { useUserCountries } from "./api";
 
 interface DialogProps {
   user: UserDetail;
@@ -80,6 +81,7 @@ export function BanDialog({ user, open, onOpenChange }: DialogProps) {
 }
 
 export function EditProfileDialog({ user, open, onOpenChange }: DialogProps) {
+  const countries = useUserCountries();
   const [form, setForm] = React.useState({ name: user.name, age: user.age ?? 18, gender: user.gender, countryCode: user.countryCode, bio: user.bio, removeAvatar: false, reason: "" });
   const set = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }));
   const save = useAction(
@@ -129,9 +131,9 @@ export function EditProfileDialog({ user, open, onOpenChange }: DialogProps) {
           </Field>
           <Field label="Country">
             <NativeSelect value={form.countryCode} onChange={(e) => set({ countryCode: e.target.value })}>
-              {[...new Set([form.countryCode, ...COUNTRIES])].map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {countryOptions(countries.data, { include: [form.countryCode], fallback: true }).map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
                 </option>
               ))}
             </NativeSelect>
