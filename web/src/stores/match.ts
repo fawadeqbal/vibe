@@ -831,15 +831,22 @@ async function startPeer(caller: boolean) {
   pc = peer;
   local.getTracks().forEach((t) => peer.addTrack(t, local));
   // Voice calls keep a video line ready (no camera yet) so video can be turned on without renegotiating.
-  if (get().voiceCall && caller) peer.addTransceiver("video", { direction: "sendrecv" });
+  if (get().voiceCall && caller) peer.addTransceiver("video", { direction: "sendrecv", streams: [local] });
   peer.onicecandidate = (ev) => {
     if (!ev.candidate) return;
     realtime.request("rtc:signal", { type: "ice", data: ev.candidate.toJSON() as unknown as Json }).catch(() => {});
   };
   peer.ontrack = (ev) => {
     if (pc !== peer) return;
-    const stream = ev.streams[0] ?? new MediaStream([ev.track]);
-    set({ remoteStream: stream });
+    const cur = get().remoteStream;
+    const s = ev.streams[0];
+    if (s && (!cur || cur.id === s.id)) {
+      set({ remoteStream: s });
+      return;
+    }
+    // A track without a stream (a voice call's video line): keep the audio
+    // we already have and add it, instead of replacing the stream.
+    set({ remoteStream: new MediaStream([...(cur?.getTracks() ?? []).filter((t) => t.id !== ev.track.id), ev.track]) });
   };
   peer.onconnectionstatechange = () => {
     if (pc !== peer) return;
@@ -867,7 +874,12 @@ async function onSignal(e: Json) {
         await peer.setRemoteDescription({ sdp: String(data.sdp ?? ""), type: "offer" });
         await flushIce();
         // Answer the reserved video line as send-and-receive too (voice calls).
-        for (const t of peer.getTransceivers()) if (t.receiver.track.kind === "video" && !t.sender.track) t.direction = "sendrecv";
+        for (const t of peer.getTransceivers()) {
+          if (t.receiver.track.kind !== "video" || t.sender.track) continue;
+          t.direction = "sendrecv";
+          const local = get().localStream;
+          if (local && typeof t.sender.setStreams === "function") t.sender.setStreams(local);
+        }
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
         await realtime.request("rtc:signal", { type: "answer", data: { sdp: answer.sdp, type: answer.type } });
