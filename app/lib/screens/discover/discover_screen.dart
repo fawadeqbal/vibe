@@ -10,10 +10,12 @@ import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/discover.dart';
 import '../../providers/discover_provider.dart';
+import '../onboarding/profile_setup_screen.dart';
 import '../store/store_screen.dart';
 import '../store/vip_screen.dart';
 import 'discover_card.dart';
 import 'discover_sheets.dart';
+import 'discover_states.dart';
 import 'liked_you_screen.dart';
 
 /// How far a card must be dragged to count.
@@ -39,6 +41,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   bool _dragging = false;
   (String, SwipeKind)? _fly;
   bool _busy = false;
+  bool _lookAround = false;
 
   @override
   void initState() {
@@ -200,7 +203,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ]),
             ),
             if (status != null && status.likedYouCount > 0) _LikedYouStrip(status: status, likedYou: d.likedYou),
-            if (status != null && !status.visible)
+            if (status != null && status.likesLeft == 0 && top != null) OutOfLikesBanner(resetsAt: status.resetsAt, onMore: _outOfLikes),
+            if (status != null && !status.visible && (status.hasPhoto || _lookAround))
               Container(
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -219,7 +223,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: top != null
+                child: status != null && !status.hasPhoto && !_lookAround
+                    ? NoPhotoPanel(
+                        onAddPhoto: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileSetupScreen(editing: true))).then((_) => d.loadStatus()),
+                        onLookAround: () => setState(() => _lookAround = true),
+                      )
+                    : top != null
                     ? Stack(
                         fit: StackFit.expand,
                         children: [
@@ -241,8 +250,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         ],
                       )
                     : d.loading
-                        ? const Center(child: CircularProgressIndicator())
-                        : _EmptyDeck(onOpenMatch: widget.onOpenMatch),
+                        ? const DeckSkeleton()
+                        : d.failed
+                            ? DeckOffline(offline: d.offline, onRetry: d.load)
+                            : DeckEmpty(
+                                filters: d.filters,
+                                onSetFilters: d.setFilters,
+                                onEditFilters: () => showDiscoverFilters(context),
+                                onMeetLive: widget.onOpenMatch,
+                              ),
               ),
             ),
             Padding(
@@ -272,7 +288,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     onTap: top == null || _fly != null ? null : () => _swipe(top, SwipeKind.superLike),
                   ),
                   const SizedBox(width: 16),
-                  _RoundAction(icon: SolarIconsBold.heart, size: 64, iconSize: 30, color: Colors.white, gradient: V.brand, glow: true, label: 'Like', onTap: top == null || _fly != null ? null : () => _swipe(top, SwipeKind.like)),
+                  _RoundAction(icon: SolarIconsBold.heart, size: 64, iconSize: 30, color: Colors.white, gradient: V.brand, glow: true, label: status?.likesLeft == 0 ? 'Like (no likes left today)' : 'Like', onTap: top == null || _fly != null ? null : () => _swipe(top, SwipeKind.like)),
                 ],
               ),
             ),
@@ -366,33 +382,6 @@ class _LikedYouStrip extends StatelessWidget {
           const SizedBox(width: 6),
           const Icon(SolarIconsOutline.altArrowRight, size: 20, color: V.muted),
         ]),
-      ),
-    );
-  }
-}
-
-class _EmptyDeck extends StatelessWidget {
-  const _EmptyDeck({this.onOpenMatch});
-  final VoidCallback? onOpenMatch;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), border: Border.all(color: V.line)),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(width: 64, height: 64, decoration: BoxDecoration(color: V.pink.withValues(alpha: 0.12), shape: BoxShape.circle), child: const Icon(SolarIconsBold.usersGroupRounded, size: 30, color: V.pinkSoft)),
-          const SizedBox(height: 16),
-          Text("You've seen everyone for now", textAlign: TextAlign.center, style: VT.title(20)),
-          const SizedBox(height: 6),
-          Text('New people join every day. Widen your filters, or meet someone live on Match right now.', textAlign: TextAlign.center, style: VT.body(14, color: V.text2)),
-          const SizedBox(height: 20),
-          if (onOpenMatch != null) GradientButton(label: 'Meet someone live', icon: SolarIconsBold.videocamera, onTap: onOpenMatch),
-          const SizedBox(height: 8),
-          GhostButton(label: 'Change filters', icon: SolarIconsOutline.tuning, expand: true, onTap: () => showDiscoverFilters(context)),
-        ],
       ),
     );
   }

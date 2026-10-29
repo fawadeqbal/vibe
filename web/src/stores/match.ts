@@ -77,6 +77,8 @@ interface MatchState {
   camOn: boolean;
   frontCamera: boolean;
   cameraError: string | null;
+  /** Why the camera didn't open: blocked by the person, no camera, another app has it, or not https. */
+  cameraErrorKind: CameraErrorKind | null;
   /** You asked for the lobby preview (it may be paused while the page is hidden). */
   previewOn: boolean;
   /** The camera is open or opening. */
@@ -196,10 +198,10 @@ export const useMatch = create<MatchState>()((set, get) => {
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
-      set({ localStream: stream, cameraError: null });
+      set({ localStream: stream, cameraError: null, cameraErrorKind: null });
       applyTracks();
     } catch (e) {
-      if (gen === cameraGen) set({ cameraError: `Camera unavailable: ${e instanceof Error ? e.message : String(e)}` });
+      if (gen === cameraGen) set({ cameraError: `Camera unavailable: ${e instanceof Error ? e.message : String(e)}`, cameraErrorKind: cameraErrorKind(e) });
     }
   };
 
@@ -257,6 +259,7 @@ export const useMatch = create<MatchState>()((set, get) => {
     camOn: true,
     frontCamera: true,
     cameraError: null,
+    cameraErrorKind: null,
     previewOn: false,
     cameraActive: false,
 
@@ -277,7 +280,12 @@ export const useMatch = create<MatchState>()((set, get) => {
      * for it, often at the same moment: they share the one in-flight request.
      */
     ensureCamera() {
-      if (get().localStream || typeof navigator === "undefined" || !navigator.mediaDevices) return Promise.resolve();
+      if (get().localStream || typeof navigator === "undefined") return Promise.resolve();
+      if (!navigator.mediaDevices) {
+        // Browsers only allow cameras on https (or localhost).
+        set({ cameraError: "Camera unavailable: this page isn't secure", cameraErrorKind: "insecure" });
+        return Promise.resolve();
+      }
       const inFlight = cameraOpening;
       if (inFlight && openingGen === cameraGen) return inFlight;
       // An open cancelled by releaseCamera() finishes (and is stopped) first:
@@ -303,7 +311,7 @@ export const useMatch = create<MatchState>()((set, get) => {
     },
 
     startPreview() {
-      set({ previewOn: true, camOn: true, cameraError: null });
+      set({ previewOn: true, camOn: true, cameraError: null, cameraErrorKind: null });
       armIdle();
       syncCamera();
     },
@@ -616,6 +624,18 @@ if (typeof document !== "undefined") {
 // ── derived values ─────────────────────────────────────────────────────────
 
 export const mutualLike = (s: Pick<MatchState, "likedPartner" | "partnerLikedMe">) => s.likedPartner && s.partnerLikedMe;
+
+export type CameraErrorKind = "blocked" | "missing" | "busy" | "insecure" | "other";
+
+/** Sorts a getUserMedia failure into something we can explain. */
+export function cameraErrorKind(e: unknown): CameraErrorKind {
+  const name = e instanceof Error || (typeof e === "object" && e && "name" in e) ? String((e as { name?: unknown }).name) : "";
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") return "blocked";
+  if (name === "NotFoundError" || name === "DevicesNotFoundError" || name === "OverconstrainedError") return "missing";
+  if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") return "busy";
+  if (name === "SecurityError") return "insecure";
+  return "other";
+}
 
 /** Seconds left of the skip cooldown, 0 when none. */
 export function cooldownSeconds(s: Pick<MatchState, "cooldownUntil">, now = Date.now()): number {

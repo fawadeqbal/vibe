@@ -33,6 +33,8 @@ abstract class DiscoverProvider extends ChangeNotifier {
   List<DiscoverCard> _deck = [];
   bool _loading = false;
   bool _exhausted = false;
+  bool _failed = false;
+  bool _offline = false;
   DiscoverStatus? _status;
   DiscoverFilters _filters = const DiscoverFilters();
   DiscoverCard? _lastPassed;
@@ -43,6 +45,11 @@ abstract class DiscoverProvider extends ChangeNotifier {
   DiscoverCard? get top => _deck.isEmpty ? null : _deck.first;
   bool get loading => _loading;
   bool get exhausted => _exhausted;
+
+  /// The last load failed: the screen offers Try again ([offline] when it
+  /// was the connection).
+  bool get failed => _failed;
+  bool get offline => _offline;
   DiscoverStatus? get status => _status;
   DiscoverFilters get filters => _filters;
 
@@ -67,8 +74,12 @@ abstract class DiscoverProvider extends ChangeNotifier {
     await _readFilters();
     try {
       await Future.wait([loadStatus(), fetchDeck(replace: true)]);
-    } catch (_) {
-      // The screen shows what it has; status says when Discover is off.
+      _failed = false;
+      _offline = false;
+    } catch (e) {
+      // The screen shows what it has, or "can't reach Vibe" with Try again.
+      _failed = true;
+      _offline = e is ApiException && e.isNetwork;
     } finally {
       _loading = false;
       notifyListeners();
@@ -122,7 +133,12 @@ abstract class DiscoverProvider extends ChangeNotifier {
     } catch (_) {}
     try {
       await fetchDeck(replace: true);
-    } catch (_) {}
+      _failed = false;
+      _offline = false;
+    } catch (e) {
+      _failed = true;
+      _offline = e is ApiException && e.isNetwork;
+    }
     _loading = false;
     notifyListeners();
   }

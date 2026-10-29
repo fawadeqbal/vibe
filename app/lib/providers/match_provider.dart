@@ -446,8 +446,29 @@ abstract class MatchProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _lastError = 'Camera unavailable: $e';
+      _cameraFailed = true;
       notifyListeners();
     }
+  }
+
+  bool _cameraFailed = false;
+
+  /// The camera or mic didn't open (permission off, busy…): the screen
+  /// explains how to fix it once, then calls [clearCameraFailed].
+  bool get cameraFailed => _cameraFailed;
+
+  void clearCameraFailed() {
+    if (!_cameraFailed) return;
+    _cameraFailed = false;
+    if (_lastError?.startsWith('Camera unavailable') ?? false) _lastError = null;
+    notifyListeners();
+  }
+
+  /// Try the camera again (after allowing it in Settings).
+  Future<void> retryCamera() async {
+    clearCameraFailed();
+    await releaseCamera();
+    await ensureCamera();
   }
 
   /// Closes the camera hardware (and cancels an open in flight).

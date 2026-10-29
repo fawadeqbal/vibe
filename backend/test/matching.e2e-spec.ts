@@ -36,7 +36,9 @@ describe('matching over sockets', () => {
     const foundB = next(sb, 'match:found');
     await emit(sa, 'match:join', {});
     const joinB = await emit<{ status: string }>(sb, 'match:join', {});
-    expect(joinB.status).toBe('matched');
+    // Usually B's join pairs them ("matched"), but the 1-second background
+    // matcher can get there first ("searching", then match:found anyway).
+    expect(['matched', 'searching']).toContain(joinB.status);
     return { a, b, sa, sb, fa: await foundA, fb: await foundB };
   }
 
