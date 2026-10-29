@@ -15,10 +15,11 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Avatar, Skeleton, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/controls";
 import { Field } from "@/components/ui/field";
 import { Input, NativeSelect } from "@/components/ui/input";
-import { COUNTRIES } from "@/features/users/users-page";
+import { useUserCountries } from "@/features/users/api";
 import { useDebounced } from "@/hooks/use-url-state";
 import { api } from "@/lib/api/client";
 import type { Campaign, CampaignAudience, MailFields, MailTemplate, Page, PersonRef, Segment, TemplateVariable, UserDetail, UserSummary } from "@/lib/api/types";
+import { countryOptions } from "@/lib/countries";
 import { flag, format } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -482,6 +483,7 @@ const yesNo = (v: boolean | undefined) => (v === undefined ? "" : v ? "yes" : "n
 const fromYesNo = (v: string) => (v === "" ? undefined : v === "yes");
 
 function SegmentBuilder({ value, onChange }: { value: Segment; onChange: (s: Segment) => void }) {
+  const countries = useUserCountries();
   const set = (patch: Partial<Segment>) => {
     const next: Segment = { ...value, ...patch };
     for (const k of Object.keys(next) as (keyof Segment)[]) if (next[k] === undefined || next[k] === "" || (Array.isArray(next[k]) && !(next[k] as unknown[]).length)) delete next[k];
@@ -556,10 +558,7 @@ function SegmentBuilder({ value, onChange }: { value: Segment; onChange: (s: Seg
           label="Countries"
           value={value.countries ?? []}
           onChange={(countries) => set({ countries })}
-          options={COUNTRIES.map((cc) => ({
-            value: cc,
-            label: `${flag(cc)} ${cc}`,
-          }))}
+          options={countryOptions(countries.data, { include: value.countries ?? [] })}
         />
       </div>
     </div>

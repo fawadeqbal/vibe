@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useCursorQuery } from "@/hooks/use-cursor-query";
 import { api, type Query } from "@/lib/api/client";
+import type { CountryCount } from "@/lib/countries";
 import type { AuditEntry, Cashout, LedgerEntry, MatchRow, Page, Purchase, Report, StaffNote, UserDetail, UserSummary, Verification } from "@/lib/api/types";
 
 /** Query keys for users. Invalidate `userKeys.all` after any user write. */
@@ -14,6 +15,11 @@ export const userKeys = {
   detail: (id: string) => ["users", "detail", id] as const,
   sub: (id: string, what: string, q?: Query) => ["users", "detail", id, what, q ?? {}] as const,
 };
+
+/** Countries people are from, with counts (filters and pickers). Cached 10 min. */
+export function useUserCountries() {
+  return useQuery({ queryKey: [...userKeys.all, "countries"] as const, queryFn: ({ signal }) => api.get<CountryCount[]>("admin/users/countries", undefined, signal), staleTime: 10 * 60_000 });
+}
 
 export function useUsers(q: Query) {
   return useCursorQuery<UserSummary>(userKeys.list(q), (cursor, signal) => api.get<Page<UserSummary>>("admin/users", { ...q, cursor, limit: 30 }, signal));
