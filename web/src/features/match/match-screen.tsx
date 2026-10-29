@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Gift } from "@/lib/models";
 import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { useMatch } from "@/stores/match";
+import { useSession } from "@/stores/session";
 import { filterCost, isVip, useWallet } from "@/stores/wallet";
 
 import { Connected } from "./connected";
@@ -13,6 +14,7 @@ import { Ended } from "./ended";
 import { GiftBurst } from "./gift-burst";
 import { Lobby } from "./lobby";
 import { openCameraBlocked } from "./match-sheets";
+import { AccountPaused } from "./account-paused";
 import { SkippedBar } from "./swipe";
 import { Searching } from "./searching";
 import { useMatchActions } from "./use-match-actions";
@@ -25,6 +27,7 @@ import { dismissLooking } from "./waitlist-strip";
  */
 export function MatchScreen() {
   const status = useMatch((s) => s.status);
+  const pausedUntil = useSession((s) => s.pausedUntil);
   const voiceCall = useMatch((s) => s.voiceCall);
   const hasLast = useMatch((s) => s.lastPartner != null);
   const chat = useMatch((s) => s.chat);
@@ -93,9 +96,11 @@ export function MatchScreen() {
         <Connected actions={{ next: () => void actions.next(), gift: () => void actions.gift(), addFriend: () => void actions.addFriend(), report: () => void actions.report() }} />
       ) : status === "searching" ? (
         <>
-          <Searching onRestart={() => void actions.start()} />
+          <Searching onRestart={() => void actions.start()} onReconnect={() => void actions.reconnect()} />
           <SkippedBar onUndo={() => void actions.reconnect()} onAddFriend={() => void actions.addLastFriend()} />
         </>
+      ) : pausedUntil ? (
+        <AccountPaused until={pausedUntil} />
       ) : status === "ended" && hasLast ? (
         <Ended onReconnect={() => void actions.reconnect()} onFindAnother={() => void actions.start()} onReport={() => void actions.reportLast()} autoNext={freeToMatch} />
       ) : (

@@ -11,6 +11,10 @@ class RemoteDiscoverProvider extends DiscoverProvider {
         unawaited(_social.addMatched(f));
         unawaited(loadStatus());
       }),
+      // Someone new joined (you asked): fill an empty deck.
+      _rt.on(Ev.discoverNewPeople).listen((_) {
+        if (exhausted || deck.isEmpty) unawaited(load());
+      }),
       _rt.on(Ev.discoverLiked).listen((e) {
         final unseen = (e['unseen'] as num?)?.toInt();
         if (_status != null && unseen != null) {
@@ -48,7 +52,16 @@ class RemoteDiscoverProvider extends DiscoverProvider {
   @override
   Future<SwipeOutcome> doSwipe(DiscoverCard c, SwipeKind kind) async {
     try {
-      final r = _map(await _api.post('/discover/swipes', {'userId': c.profile.id, 'kind': switch (kind) { SwipeKind.like => 'like', SwipeKind.superLike => 'super', SwipeKind.pass => 'pass' }}));
+      final r = _map(
+        await _api.post('/discover/swipes', {
+          'userId': c.profile.id,
+          'kind': switch (kind) {
+            SwipeKind.like => 'like',
+            SwipeKind.superLike => 'super',
+            SwipeKind.pass => 'pass',
+          },
+        }),
+      );
       if (r['status'] is Map) _status = ApiMap.discoverStatus(_map(r['status']));
       final friend = r['matched'] == true && r['friend'] is Map ? ApiMap.friend(_map(r['friend'])) : null;
       return SwipeOutcome.ok(friend);
@@ -106,6 +119,38 @@ class RemoteDiscoverProvider extends DiscoverProvider {
   Future<void> setVisible(bool visible) async {
     _status = ApiMap.discoverStatus(_map(await _api.put('/discover/visibility', {'visible': visible})));
     notifyListeners();
+  }
+
+  @override
+  Future<WelcomeBack?> welcomeBack() async {
+    try {
+      final w = _map(await _api.get('/discover/welcome'));
+      if (w['show'] != true) return null;
+      return WelcomeBack(awayDays: (w['awayDays'] as num?)?.toInt() ?? 0, likesSince: (w['likesSince'] as num?)?.toInt() ?? 0, newPeople: (w['newPeople'] as num?)?.toInt() ?? 0);
+    } on ApiException catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> loadNotifyNew() async {
+    try {
+      _notifyNew = _map(await _api.get('/discover/notify-new'))['on'] == true;
+      notifyListeners();
+    } on ApiException catch (_) {}
+  }
+
+  @override
+  Future<void> setNotifyNew(bool on) async {
+    final was = _notifyNew;
+    await super.setNotifyNew(on);
+    try {
+      await _api.put('/discover/notify-new', {'on': on});
+    } on ApiException catch (_) {
+      _notifyNew = was;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   @override

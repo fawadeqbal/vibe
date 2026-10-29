@@ -28,6 +28,18 @@ class Ev {
   static const matchGameAnswer = 'match:game-answer';
   static const matchGameClosed = 'match:game-closed';
   static const rtcSignal = 'rtc:signal';
+
+  /// Only your last partner is waiting: `{ partner: { id, name, avatarUrl }, at }`.
+  static const matchRematchSoon = 'match:rematch-soon';
+
+  /// Your partner's camera / mic: `{ matchId, camOn, micOn }`.
+  static const matchMedia = 'match:media';
+
+  /// A moderator answered your appeal: `{ status, note }`.
+  static const accountAppeal = 'account:appeal';
+
+  /// New people joined Discover (you asked): `{ count }`.
+  static const discoverNewPeople = 'discover:new-people';
   static const friendRequest = 'social:friend-request';
   static const friendAccepted = 'social:friend-accepted';
   static const friendRemoved = 'social:friend-removed';

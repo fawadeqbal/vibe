@@ -390,3 +390,11 @@ realtime.on(Ev.discoverLiked, (e) => {
   }
   if (!useDiscover.getState().status) void useDiscover.getState().loadStatus();
 });
+
+realtime.on(Ev.discoverNewPeople, (e) => {
+  const n = typeof e.count === "number" ? e.count : 1;
+  notifyInBackground("New people on Vibe ✨", n > 1 ? `${n} new people joined Discover. Come say hi.` : "Someone new joined Discover. Come say hi.", { tag: "discover-new-people" });
+  // Caught up: there's someone new to show now.
+  const s = useDiscover.getState();
+  if (s.exhausted || !s.deck.length) void s.load();
+});

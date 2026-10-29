@@ -57,6 +57,14 @@ export class MatchQueueService {
     return this.redis.client.zrange(QUEUE, 0, n - 1);
   }
 
+  /** Who else is waiting (the tickets the matcher would look at). */
+  async others(userId: string): Promise<Ticket[]> {
+    const ids = (await this.redis.client.zrange(QUEUE, 0, this.config.get('MATCH_SCAN_LIMIT') - 1)).filter((id) => id !== userId);
+    if (!ids.length) return [];
+    const raw = await this.redis.client.mget(ids.map(TICKET));
+    return raw.flatMap((r) => (r ? [JSON.parse(r) as Ticket] : []));
+  }
+
   /**
    * Finds and atomically claims a partner for `userId`. Returns the partner's
    * ticket, or null if nobody compatible is waiting (or someone else won
@@ -65,10 +73,8 @@ export class MatchQueueService {
   async claimPartner(userId: string): Promise<{ me: Ticket; partner: Ticket } | null> {
     const me = await this.ticket(userId);
     if (!me) return null;
-    const ids = (await this.redis.client.zrange(QUEUE, 0, this.config.get('MATCH_SCAN_LIMIT') - 1)).filter((id) => id !== userId);
-    if (!ids.length) return null;
-    const raw = await this.redis.client.mget(ids.map(TICKET));
-    const candidates = raw.flatMap((r) => (r ? [JSON.parse(r) as Ticket] : []));
+    const candidates = await this.others(userId);
+    if (!candidates.length) return null;
     const partner = pickPartner(me, candidates);
     if (!partner) return null;
     const claimed = await this.redis.client.eval(CLAIM_PAIR, 1, QUEUE, userId, partner.userId);

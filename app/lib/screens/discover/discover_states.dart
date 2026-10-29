@@ -191,11 +191,15 @@ class NoPhotoPanel extends StatelessWidget {
 
 /// Nobody left: with filters on, which to drop; without, all caught up.
 class DeckEmpty extends StatelessWidget {
-  const DeckEmpty({super.key, required this.filters, required this.onSetFilters, required this.onEditFilters, this.onMeetLive});
+  const DeckEmpty({super.key, required this.filters, required this.onSetFilters, required this.onEditFilters, this.onMeetLive, this.notifyOn, this.onNotify});
   final DiscoverFilters filters;
   final ValueChanged<DiscoverFilters> onSetFilters;
   final VoidCallback onEditFilters;
   final VoidCallback? onMeetLive;
+
+  /// "Tell me when new people join": on, off, or not known yet (hidden).
+  final bool? notifyOn;
+  final ValueChanged<bool>? onNotify;
 
   @override
   Widget build(BuildContext context) {
@@ -251,6 +255,71 @@ class DeckEmpty extends StatelessWidget {
         if (onMeetLive != null) GradientButton(label: 'Meet someone live', icon: SolarIconsBold.videocamera, onTap: onMeetLive),
         const SizedBox(height: 8),
         GhostButton(label: 'Change filters', icon: SolarIconsOutline.tuning, expand: true, onTap: onEditFilters),
+        if (notifyOn != null && onNotify != null) ...[
+          const SizedBox(height: 10),
+          if (notifyOn!)
+            Semantics(
+              liveRegion: true,
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(SolarIconsBold.bell, size: 16, color: V.ok),
+                const SizedBox(width: 6),
+                Flexible(child: Text("We'll tell you when new people join", style: VT.body(13, color: V.text2))),
+                TextButton(onPressed: () => onNotify!(false), child: Text('Turn off', style: VT.label(13, weight: FontWeight.w700))),
+              ]),
+            )
+          else
+            TextButton.icon(
+              onPressed: () => onNotify!(true),
+              icon: const Icon(SolarIconsOutline.bell, size: 18, color: V.lavender),
+              label: Text('Tell me when new people join', style: VT.label(14, color: V.lavender, weight: FontWeight.w600)),
+            ),
+        ],
+      ]),
+    );
+  }
+}
+
+/// Back after a few days: what happened while you were away. Pops "liked" to see who liked you.
+class WelcomeBackSheet extends StatelessWidget {
+  const WelcomeBackSheet({super.key, required this.awayDays, required this.likesSince, required this.newPeople, this.freeLikes});
+  final int awayDays;
+  final int likesSince;
+  final int newPeople;
+  final int? freeLikes;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget row(IconData icon, Color tint, String text) => Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(color: V.surface2, borderRadius: BorderRadius.circular(16)),
+          child: Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: tint.withValues(alpha: 0.16), shape: BoxShape.circle),
+              child: Icon(icon, size: 19, color: tint),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(text, style: VT.body(14.5, weight: FontWeight.w600))),
+          ]),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        Headline('Welcome ', accent: 'back', accentColor: V.pinkSoft, size: 26),
+        const SizedBox(height: 6),
+        Text("Here's what happened in the $awayDays days you were away.", style: VT.body(14, color: V.text2)),
+        const SizedBox(height: 16),
+        if (likesSince > 0) row(SolarIconsBold.heart, V.pinkSoft, '$likesSince ${likesSince == 1 ? 'person' : 'people'} liked you'),
+        if (newPeople > 0) row(SolarIconsBold.userPlus, V.lavender, '$newPeople new ${newPeople == 1 ? 'person' : 'people'} to see'),
+        if ((freeLikes ?? 0) > 0) row(SolarIconsBold.bolt, V.gold, 'Your $freeLikes free likes are ready'),
+        const SizedBox(height: 12),
+        GradientButton(label: 'Start swiping', onTap: () => Navigator.of(context).pop('swipe')),
+        if (likesSince > 0) ...[
+          const SizedBox(height: 8),
+          GhostButton(label: 'See who liked you', icon: SolarIconsBold.heart, expand: true, onTap: () => Navigator.of(context).pop('liked')),
+        ],
       ]),
     );
   }

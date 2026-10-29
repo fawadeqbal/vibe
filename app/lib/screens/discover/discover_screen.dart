@@ -51,7 +51,26 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       final d = context.read<DiscoverProvider>();
       unawaited(d.load());
       unawaited(d.loadLikedYou());
+      unawaited(d.loadNotifyNew());
+      unawaited(_welcomeBack(d));
     });
+  }
+
+  /// Back after a few days: what happened while you were away (once per visit).
+  Future<void> _welcomeBack(DiscoverProvider d) async {
+    final w = await d.welcomeBack();
+    if (w == null || !mounted) return;
+    final pick = await showVibeSheet<String>(context, child: WelcomeBackSheet(awayDays: w.awayDays, likesSince: w.likesSince, newPeople: w.newPeople, freeLikes: d.status?.likesLeft));
+    if (pick == 'liked' && mounted) await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LikedYouScreen()));
+  }
+
+  Future<void> _setNotify(DiscoverProvider d, bool on) async {
+    try {
+      await d.setNotifyNew(on);
+      if (on && mounted) toast(context, "We'll tell you when new people join");
+    } on ApiException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+    }
   }
 
   Future<bool> _needCoins(String why) async {
@@ -258,6 +277,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                 onSetFilters: d.setFilters,
                                 onEditFilters: () => showDiscoverFilters(context),
                                 onMeetLive: widget.onOpenMatch,
+                                notifyOn: d.notifyNew,
+                                onNotify: (on) => unawaited(_setNotify(d, on)),
                               ),
               ),
             ),

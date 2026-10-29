@@ -116,6 +116,46 @@ describe('matching over sockets', () => {
     }
   });
 
+  it('"just you two here": both are told who is waiting and when they meet again', async () => {
+    const rules = await t.prisma.appSetting.findUnique({ where: { key: 'economy.rules' } });
+    await t.prisma.appSetting.upsert({
+      where: { key: 'economy.rules' },
+      create: { key: 'economy.rules', value: { rematchAfterSeconds: 3 } },
+      update: { value: { ...((rules?.value as object) ?? {}), rematchAfterSeconds: 3 } },
+    });
+    await t.app.get(EconomyService).reload();
+    try {
+      const { a, b, sa, sb } = await pair();
+      const soonA = next(sa, 'match:rematch-soon', 4000);
+      const soonB = next(sb, 'match:rematch-soon', 4000);
+      await emit(sa, 'match:next', {});
+      await emit(sb, 'match:join', {});
+      const [ra, rb] = [await soonA, await soonB];
+      expect(ra.partner).toMatchObject({ id: b.id, name: 'Bilal' });
+      expect(rb.partner.id).toBe(a.id);
+      const wait = new Date(ra.at).getTime() - Date.now();
+      expect(wait).toBeGreaterThan(0);
+      expect(wait).toBeLessThanOrEqual(3_100);
+      // Told once per wait, then they're put back together.
+      let again = 0;
+      sa.on('match:rematch-soon', () => again++);
+      expect((await next(sa, 'match:found', 6000)).partner.id).toBe(b.id);
+      expect(again).toBe(0);
+    } finally {
+      await t.prisma.appSetting.deleteMany({ where: { key: 'economy.rules' } });
+      if (rules) await t.prisma.appSetting.create({ data: { key: rules.key, value: rules.value as object } });
+      await t.app.get(EconomyService).reload();
+    }
+  });
+
+  it('camera and mic on/off reach the partner', async () => {
+    const { sa, sb, fa } = await pair();
+    const media = next(sb, 'match:media');
+    await emit(sa, 'match:media', { camOn: false, micOn: true });
+    expect(await media).toEqual({ matchId: fa.matchId, camOn: false, micOn: true });
+    await expect(emit(sa, 'match:media', { camOn: 'no' })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+
   it('paid filters are charged when the match happens, and only for compatible people', async () => {
     const a = await signUp(t, { gender: 'female' });
     const man = await signUp(t, { gender: 'male' });

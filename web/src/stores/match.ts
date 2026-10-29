@@ -12,6 +12,7 @@ import { sameDay } from "@/lib/format";
 import { useCatalog } from "./catalog";
 import { api, realtime } from "./services";
 import { useSession } from "./session";
+import { toast } from "./ui";
 import { useSocial } from "./social";
 
 export type MatchStatus = "idle" | "searching" | "connected" | "ended";
@@ -76,6 +77,13 @@ interface MatchState {
   micOn: boolean;
   camOn: boolean;
   frontCamera: boolean;
+  /** What the partner told us: camera / mic on (both true until told otherwise). */
+  partnerCamOn: boolean;
+  partnerMicOn: boolean;
+  /** Their video stopped arriving or the connection is wobbly ("video may freeze"). */
+  weakSignal: boolean;
+  /** Only your last partner is waiting: who, and when you're put back together (null = never by itself). */
+  rematchSoon: RematchSoon | null;
   cameraError: string | null;
   /** Why the camera didn't open: blocked by the person, no camera, another app has it, or not https. */
   cameraErrorKind: CameraErrorKind | null;
@@ -131,6 +139,11 @@ interface MatchState {
   answerVideo: (yes: boolean) => Promise<void>;
 }
 
+export interface RematchSoon {
+  partner: { id: string; name: string; avatarUrl: string };
+  at: Date | null;
+}
+
 // ── connection state that never renders ───────────────────────────────────
 let matchId: string | null = null;
 let lastMatchId: string | null = null;
@@ -163,6 +176,9 @@ let hiddenTimer: ReturnType<typeof setTimeout> | undefined;
 export const PREVIEW_IDLE_MS = 60_000;
 export const HIDDEN_GRACE_MS = 30_000;
 let ticker: ReturnType<typeof setInterval> | undefined;
+/** What we last told this partner (camera, mic), so each change is sent once. */
+let toldMedia = "on:on";
+let statsTimer: ReturnType<typeof setInterval> | undefined;
 let blurTimer: ReturnType<typeof setTimeout> | undefined;
 
 const REASONS: Record<ReportReason, string> = { nudity: "NUDITY", harassment: "HARASSMENT", underage: "UNDERAGE", spam: "SPAM", scam: "SCAM", other: "OTHER" };
@@ -171,6 +187,7 @@ const DEFAULT_FILTERS: MatchFilters = { gender: "anyone", countryCode: null, saf
 
 export const useMatch = create<MatchState>()((set, get) => {
   const fail = (e: ApiError) => {
+    if (e.code === "ACCOUNT_BANNED" && typeof e.details.until === "string") useSession.setState({ pausedUntil: new Date(e.details.until) });
     set((s) => ({
       needsCoins: e.isInsufficientCoins,
       lastError: e.isInsufficientCoins ? "Not enough coins for these filters." : e.message,
@@ -183,6 +200,7 @@ export const useMatch = create<MatchState>()((set, get) => {
     localStream?.getAudioTracks().forEach((t) => (t.enabled = micOn));
     // Paused while the tab is hidden: the partner sees "camera off", not a frozen frame.
     localStream?.getVideoTracks().forEach((t) => (t.enabled = camOn && !pageHidden));
+    tellMedia();
   };
 
   const openCamera = async (gen: number) => {
@@ -258,6 +276,10 @@ export const useMatch = create<MatchState>()((set, get) => {
     micOn: true,
     camOn: true,
     frontCamera: true,
+    partnerCamOn: true,
+    partnerMicOn: true,
+    weakSignal: false,
+    rematchSoon: null,
     cameraError: null,
     cameraErrorKind: null,
     previewOn: false,
@@ -429,6 +451,7 @@ export const useMatch = create<MatchState>()((set, get) => {
     },
 
     stop() {
+      set({ rematchSoon: null });
       const st = get().status;
       if (st === "connected") realtime.request("match:end").catch(() => {});
       else if (st === "searching") {
@@ -687,7 +710,14 @@ realtime.on(Ev.matchFound, (e) => {
     friendCallEnded: null,
     voiceCall: e.friendCall === true && e.audioOnly === true,
     videoAsk: "none",
+    partnerCamOn: true,
+    partnerMicOn: true,
+    weakSignal: false,
+    rematchSoon: null,
   });
+  toldMedia = "on:on";
+  tellMedia();
+  watchSignal();
   // A voice call starts with the microphone only: drop a camera the lobby had open.
   if (get().voiceCall && get().localStream?.getVideoTracks().length) get().releaseCamera();
   clearTimeout(blurTimer);
@@ -763,7 +793,19 @@ realtime.on(Ev.matchError, (e) =>
   failFromEvent(new ApiError(typeof e.code === "string" ? e.code : "INTERNAL", typeof e.message === "string" ? e.message : "Could not start the match")),
 );
 
-realtime.on(Ev.accountBanned, () => failFromEvent(new ApiError("ACCOUNT_BANNED", "Your account is paused after reports. Try again later.")));
+realtime.on(Ev.accountBanned, (e) => {
+  const until = mapDate(e.until);
+  if (until) useSession.setState({ pausedUntil: until });
+  failFromEvent(new ApiError("ACCOUNT_BANNED", "Your account is paused after reports. Try again later."));
+});
+
+realtime.on(Ev.accountAppeal, (e) => {
+  if (e.status === "ACCEPTED") {
+    useSession.setState({ pausedUntil: null });
+    toast("We looked again and lifted the pause. Welcome back!");
+  }
+  void useSession.getState().refreshMe();
+});
 
 function failFromEvent(e: ApiError) {
   set((s) => ({
@@ -776,6 +818,8 @@ function failFromEvent(e: ApiError) {
 realtime.on(Ev.matchEnded, (e) => {
   if (e.matchId !== matchId) return;
   clearInterval(ticker);
+  clearInterval(statsTimer);
+  set({ weakSignal: false });
   clearTimeout(blurTimer);
   peerStarting = null;
   pendingIce = [];
@@ -813,6 +857,54 @@ realtime.on(Ev.matchEnded, (e) => {
 });
 
 realtime.on(Ev.rtcSignal, (e) => void onSignal(e));
+
+realtime.on(Ev.matchMedia, (e) => {
+  if (e.matchId !== matchId) return;
+  set({ partnerCamOn: e.camOn !== false, partnerMicOn: e.micOn !== false });
+});
+
+realtime.on(Ev.matchRematchSoon, (e) => {
+  if (get().status !== "searching") return;
+  const p = asMap(e.partner);
+  set({ rematchSoon: { partner: { id: String(p.id ?? ""), name: typeof p.name === "string" ? p.name : "", avatarUrl: typeof p.avatarUrl === "string" ? p.avatarUrl : "" }, at: mapDate(e.at) } });
+});
+
+/** Tell the partner when our camera or mic goes on or off (a hidden tab counts as camera off). */
+function tellMedia() {
+  const s = useMatch.getState();
+  if (s.status !== "connected" || !matchId) return;
+  const camOn = s.camOn && !pageHidden && !s.voiceCall;
+  const key = `${camOn ? "on" : "off"}:${s.micOn ? "on" : "off"}`;
+  if (key === toldMedia) return;
+  toldMedia = key;
+  realtime.request("match:media", { camOn, micOn: s.micOn }).catch(() => {});
+}
+
+/** Their video should keep moving: no new frames for ~4 s (while their camera is on) means a weak connection. */
+function watchSignal() {
+  clearInterval(statsTimer);
+  let lastFrames = -1;
+  let stalls = 0;
+  statsTimer = setInterval(async () => {
+    const s = useMatch.getState();
+    if (s.status !== "connected") return clearInterval(statsTimer);
+    const peer = pc;
+    if (!peer || !s.remoteStream) return;
+    let frames = -1;
+    try {
+      (await peer.getStats()).forEach((r: { type?: string; kind?: string; framesDecoded?: number }) => {
+        if (r.type === "inbound-rtp" && r.kind === "video" && typeof r.framesDecoded === "number") frames = r.framesDecoded;
+      });
+    } catch {
+      return;
+    }
+    const stuck = frames >= 0 && frames === lastFrames && s.partnerCamOn && !s.voiceCall;
+    lastFrames = frames;
+    stalls = stuck ? stalls + 1 : 0;
+    const weak = stalls >= 2 || peer.connectionState === "disconnected";
+    if (weak !== s.weakSignal) set({ weakSignal: weak });
+  }, 2000);
+}
 
 // ── WebRTC ─────────────────────────────────────────────────────────────────
 
@@ -920,6 +1012,7 @@ async function onSignal(e: Json) {
 async function turnOnVideo() {
   if (!get().voiceCall) return;
   set({ voiceCall: false, videoAsk: "none", camOn: true });
+  tellMedia();
   try {
     const cam = await navigator.mediaDevices.getUserMedia({ video: { facingMode: get().frontCamera ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } } });
     const track = cam.getVideoTracks()[0];

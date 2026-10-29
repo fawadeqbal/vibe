@@ -47,7 +47,29 @@ class RemoteMatchProvider extends MatchProvider {
             setVideoAsk(VideoAsk.none);
         }
       }),
-      _rt.on(Ev.accountBanned).listen((_) => _fail(ApiException('ACCOUNT_BANNED', 'Your account is paused after reports. Try again later.'))),
+      _rt.on(Ev.accountBanned).listen((e) {
+        _pausedUntil = DateTime.tryParse('${e['until'] ?? ''}')?.toLocal() ?? _pausedUntil;
+        _fail(ApiException('ACCOUNT_BANNED', 'Your account is paused after reports. Try again later.'));
+      }),
+      _rt.on(Ev.accountAppeal).listen((e) {
+        if (e['status'] == 'ACCEPTED') {
+          _pausedUntil = null;
+          _lastError = null;
+          notifyListeners();
+        }
+      }),
+      _rt.on(Ev.matchMedia).listen((e) {
+        if (e['matchId'] != _matchId) return;
+        _partnerCamOn = e['camOn'] != false;
+        _partnerMicOn = e['micOn'] != false;
+        notifyListeners();
+      }),
+      _rt.on(Ev.matchRematchSoon).listen((e) {
+        if (_state != MatchState.searching) return;
+        final p = Map<String, dynamic>.from((e['partner'] as Map?) ?? const {});
+        _rematchSoon = RematchSoon(partnerId: '${p['id'] ?? ''}', name: p['name'] as String? ?? '', avatarUrl: p['avatarUrl'] as String? ?? '', at: DateTime.tryParse('${e['at'] ?? ''}')?.toLocal());
+        notifyListeners();
+      }),
     ];
   }
 
@@ -66,12 +88,80 @@ class RemoteMatchProvider extends MatchProvider {
   DateTime? _iceFetchedAt;
   Duration _iceReuse = const Duration(minutes: 30);
 
+  /// What we last told this partner (camera:mic), so each change is sent once.
+  String _toldMedia = 'on:on';
+  Timer? _statsTimer;
+
+  @override
+  void tellMedia() {
+    if (_state != MatchState.connected || _matchId == null) return;
+    final cam = camOn && !inBackground && !voiceCall;
+    final key = '${cam ? 'on' : 'off'}:${micOn ? 'on' : 'off'}';
+    if (key == _toldMedia) return;
+    _toldMedia = key;
+    _rt.request('match:media', {'camOn': cam, 'micOn': micOn}).catchError((_) => null);
+  }
+
+  /// Their video should keep moving: no new frames for ~4 s (camera on) means a weak line.
+  void _watchSignal() {
+    _statsTimer?.cancel();
+    var lastFrames = -1;
+    var stalls = 0;
+    _statsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (_state != MatchState.connected) {
+        _statsTimer?.cancel();
+        return;
+      }
+      final pc = _pc;
+      if (pc == null || !_hasRemoteVideo) return;
+      var frames = -1;
+      try {
+        for (final r in await pc.getStats()) {
+          if (r.type == 'inbound-rtp' && (r.values['kind'] ?? r.values['mediaType']) == 'video') {
+            final f = r.values['framesDecoded'];
+            if (f is num) frames = f.toInt();
+          }
+        }
+      } catch (_) {
+        return;
+      }
+      final stuck = frames >= 0 && frames == lastFrames && _partnerCamOn && !voiceCall;
+      lastFrames = frames;
+      stalls = stuck ? stalls + 1 : 0;
+      final weak = stalls >= 2 || pc.connectionState == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected;
+      if (weak != _weakSignal) {
+        _weakSignal = weak;
+        notifyListeners();
+      }
+    });
+  }
+
+  @override
+  Future<String?> appealStatus() async {
+    try {
+      final r = await _api.get('/me/appeal') as Map;
+      return (r['appeal'] as Map?)?['status'] as String?;
+    } on ApiException catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> sendAppeal(String message) async {
+    try {
+      await _api.post('/me/appeal', {'message': message});
+    } on ApiException catch (e) {
+      if (e.code != 'CONFLICT') rethrow;
+    }
+  }
+
   void _setState(MatchState s) {
     _state = s;
     notifyListeners();
   }
 
   void _fail(ApiException e) {
+    if (e.code == 'ACCOUNT_BANNED') _pausedUntil = DateTime.tryParse('${e.details['until'] ?? ''}')?.toLocal() ?? _pausedUntil;
     _needsCoins = e.isInsufficientCoins;
     _lastError = e.isInsufficientCoins ? 'Not enough coins for these filters.' : e.message;
     if (_state == MatchState.searching) _state = MatchState.idle;
@@ -145,6 +235,7 @@ class RemoteMatchProvider extends MatchProvider {
 
   @override
   void stop() {
+    _rematchSoon = null;
     if (_state == MatchState.connected) {
       _rt.request('match:end').catchError((_) => null);
     } else if (_state == MatchState.searching) {
@@ -160,13 +251,16 @@ class RemoteMatchProvider extends MatchProvider {
     _current = _current?.copyWith(liked: true);
     notifyListeners();
     final id = _matchId;
-    _rt.request('match:like').then((r) {
-      // `{ mutual }`: the partner had already liked you in this call.
-      if (r is Map && r['mutual'] == true && id != null && id == _matchId) {
-        noteMutual(id);
-        notifyListeners();
-      }
-    }).catchError((_) => null);
+    _rt
+        .request('match:like')
+        .then((r) {
+          // `{ mutual }`: the partner had already liked you in this call.
+          if (r is Map && r['mutual'] == true && id != null && id == _matchId) {
+            noteMutual(id);
+            notifyListeners();
+          }
+        })
+        .catchError((_) => null);
   }
 
   @override
@@ -288,10 +382,15 @@ class RemoteMatchProvider extends MatchProvider {
     // ICE from the partner can arrive while the peer is still being set up;
     // it waits in _pendingIce, so only clear it when a new match begins.
     _pendingIce.clear();
+    _toldMedia = 'on:on';
+    tellMedia();
+    _watchSignal();
     final starting = _peerStarting = _startPeer(caller: e['role'] == 'caller');
-    unawaited(starting.whenComplete(() {
-      if (identical(_peerStarting, starting)) _peerStarting = null;
-    }));
+    unawaited(
+      starting.whenComplete(() {
+        if (identical(_peerStarting, starting)) _peerStarting = null;
+      }),
+    );
   }
 
   void _onChat(Map<String, dynamic> e) {
@@ -321,6 +420,8 @@ class RemoteMatchProvider extends MatchProvider {
   void _onEnded(Map<String, dynamic> e) {
     if (e['matchId'] != _matchId) return;
     _ticker?.cancel();
+    _statsTimer?.cancel();
+    _weakSignal = false;
     _ticker = null;
     _peerStarting = null;
     _pendingIce.clear();
@@ -465,11 +566,7 @@ class RemoteMatchProvider extends MatchProvider {
     final iceServers = await _ice();
     // The match may have ended (or a new one begun) during the awaits above.
     if (_matchId != matchId || matchId == null) return;
-    final pc = await createPeerConnection({
-      'iceServers': iceServers,
-      'sdpSemantics': 'unified-plan',
-      if (ApiConfig.forceRelay) 'iceTransportPolicy': 'relay',
-    });
+    final pc = await createPeerConnection({'iceServers': iceServers, 'sdpSemantics': 'unified-plan', if (ApiConfig.forceRelay) 'iceTransportPolicy': 'relay'});
     if (_matchId != matchId || _pc != null) {
       await pc.close();
       return;
@@ -655,6 +752,7 @@ class RemoteMatchProvider extends MatchProvider {
     for (final s in _subs) {
       s.cancel();
     }
+    _statsTimer?.cancel();
     _closePeer();
     super.dispose();
   }

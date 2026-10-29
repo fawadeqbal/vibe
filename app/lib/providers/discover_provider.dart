@@ -23,6 +23,14 @@ part 'discover_provider_remote.dart';
 ///
 /// [LocalDiscoverProvider] runs the offline demo on mock people;
 /// [RemoteDiscoverProvider] talks to `/discover/*` and the socket.
+/// Back after a few days: likes waiting and new people since then.
+class WelcomeBack {
+  const WelcomeBack({required this.awayDays, required this.likesSince, required this.newPeople});
+  final int awayDays;
+  final int likesSince;
+  final int newPeople;
+}
+
 abstract class DiscoverProvider extends ChangeNotifier {
   DiscoverProvider.base(this._social);
 
@@ -203,6 +211,18 @@ abstract class DiscoverProvider extends ChangeNotifier {
   Future<void> sendLikesSeen();
 
   Future<void> setVisible(bool visible);
+
+  /// What happened since the last Discover visit (also records this one). Null = nothing to show.
+  Future<WelcomeBack?> welcomeBack() async => null;
+
+  /// "Tell me when new people join": on/off, null until loaded.
+  bool? _notifyNew;
+  bool? get notifyNew => _notifyNew;
+  Future<void> loadNotifyNew() async {}
+  Future<void> setNotifyNew(bool on) async {
+    _notifyNew = on;
+    notifyListeners();
+  }
 
   void dismissMatch() {
     _matched = null;

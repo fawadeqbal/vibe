@@ -130,7 +130,7 @@ export class DiscoverService {
   }
 
   /** Who may appear in anyone's deck (before per-viewer exclusions). */
-  private visibleWhere(now: Date): Prisma.UserWhereInput {
+  visibleWhere(now: Date): Prisma.UserWhereInput {
     return {
       isBot: false,
       status: UserStatus.ACTIVE,
@@ -476,7 +476,7 @@ export class DiscoverService {
   // ── liked you ─────────────────────────────────────────────────────────
 
   /** Likes waiting for an answer: from visible people you haven't swiped and aren't connected with. */
-  private async pendingLikesWhere(me: string): Promise<Prisma.DiscoverSwipeWhereInput> {
+  async pendingLikesWhere(me: string): Promise<Prisma.DiscoverSwipeWhereInput> {
     const now = this.clock.now();
     const exclude = [...(await this.blocks.excluded(me)), ...(await this.friends.connectedIds(me))];
     return {
