@@ -62,7 +62,8 @@ export const site = {
 
   links: {
     webApp,
-    android: env(process.env.NEXT_PUBLIC_ANDROID_URL, "#download"),
+    /** Android: the API counts the download, then sends the browser to the latest APK (GitHub release). */
+    android: env(process.env.NEXT_PUBLIC_ANDROID_URL, api ? `${api}/v1/site/download/android` : "#download"),
     terms: env(process.env.NEXT_PUBLIC_TERMS_URL, "/#faq"),
     privacy: env(process.env.NEXT_PUBLIC_PRIVACY_URL, "/#faq"),
     support: env(process.env.NEXT_PUBLIC_SUPPORT_URL, "/#faq"),
@@ -96,3 +97,6 @@ export const abs = (path = "/") => `${site.url}${path.startsWith("/") ? path : `
 
 /** External links open in a new tab; in-page anchors don't. */
 export const isExternal = (href: string) => /^https?:\/\//.test(href);
+
+/** The "count it, then download the APK" link on the API. */
+export const isApkDownload = (href: string) => /\/v1\/site\/download\/android(\?|$)/.test(href);

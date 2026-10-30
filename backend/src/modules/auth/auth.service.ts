@@ -139,6 +139,8 @@ export class AuthService {
       try {
         user = await create();
         isNew = true;
+        // Where the account was made: the Android app, iOS or the web.
+        if (client.client) user = await this.prisma.user.update({ where: { id: user.id }, data: { signupClient: client.client } });
       } catch (e) {
         // Two devices signing up the same number at once: use the winner.
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002' && onRace) user = await onRace();

@@ -11,6 +11,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
+import { PlatformsModule } from './modules/platforms/platforms.module';
 import { SiteModule } from './modules/site/site.module';
 import { AppConfig } from './config/app-config.service';
 import { ConfigModule } from './config/config.module';
@@ -116,6 +117,7 @@ function canPrettyPrint(): boolean {
     AnnouncementsModule,
     MessagingModule,
     SiteModule,
+    PlatformsModule,
     AdminModule,
   ],
   providers: [

@@ -5,6 +5,7 @@ import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
 import { P } from '../core/permissions';
 import { RequirePermissions, StaffApi } from '../core/staff-api.decorator';
+import { PlatformsService } from '../../platforms/platforms.service';
 import { DashboardService } from './dashboard.service';
 
 class SeriesQuery {
@@ -29,7 +30,16 @@ class DaysQuery {
 @RequirePermissions(P.DashboardView)
 @Controller('admin/dashboard')
 export class DashboardController {
-  constructor(private readonly dashboard: DashboardService) {}
+  constructor(
+    private readonly dashboard: DashboardService,
+    private readonly platforms: PlatformsService,
+  ) {}
+
+  @Get('platforms')
+  @ApiOperation({ summary: 'App vs web: sign-ups by where they were made, daily active people by client, Android downloads (cached 60 s)' })
+  platformsReport(@Query() q: DaysQuery) {
+    return this.platforms.report(q.days ?? 7);
+  }
 
   @Get('summary')
   @ApiOperation({ summary: 'KPIs and work queues (cached 60 s; live numbers are real-time)' })

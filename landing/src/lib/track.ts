@@ -8,7 +8,7 @@
  * counted and the visit id is put on the app link, so a sign-up can be
  * credited to where the visitor came from.
  */
-import { site } from "@/lib/site";
+import { isApkDownload, site } from "@/lib/site";
 
 const VISITOR = "vibe.visitor";
 const VISIT = "vibe.visit";
@@ -108,7 +108,8 @@ export function trackLeave() {
 
 const APP = site.links.webApp;
 const isAppLink = (href: string) => href === APP || href.startsWith(`${APP}/`) || href.startsWith(`${APP}?`);
-const isStoreLink = (href: string) => /play\.google\.com|apps\.apple\.com|^market:/.test(href) || href === site.links.android;
+const isApkLink = isApkDownload;
+const isStoreLink = (href: string) => /play\.google\.com|apps\.apple\.com|^market:/.test(href) || href === site.links.android || isApkLink(href);
 
 /**
  * THE way into the app: counts the click (button id, where it goes) and puts
@@ -128,10 +129,10 @@ export function goToApp(button: string, href: string): string {
       target = u.pathname === "/" ? "/" : u.pathname;
     } catch {}
   } else {
-    target = "store";
+    target = isApkLink(href) ? "apk" : "store";
   }
   send({ k: "click", v: v.id, u: visitorId(), p: window.location.pathname, b: button.slice(0, 40), t: target });
-  if (!app) return href;
+  if (!app && !isApkLink(href)) return href;
   const u = new URL(href);
   u.searchParams.set("vid", v.id);
   u.searchParams.set("b", button);

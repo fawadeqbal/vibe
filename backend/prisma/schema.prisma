@@ -70,6 +70,8 @@ model User {
   inviteRewardedAt     DateTime?
   /// sha256(HMAC) of the install id sent at sign-up (referral fraud checks).
   signupDeviceHash     String?
+  /// Where the account was made: android (the app), ios, or web.
+  signupClient         String?    @db.VarChar(16)
   /// Referrals of this user that reached REWARDED (milestones, Ambassador badge).
   referralsRewarded    Int        @default(0)
   matchesCount         Int        @default(0)
@@ -1339,6 +1341,35 @@ model SiteVisit {
 enum SiteEventKind {
   VIEW
   CLICK
+}
+
+/// "Download the app" pressed on the marketing site (the APK link). One row
+/// per person per 10 minutes; the browser is sent on to the latest release.
+model AppDownload {
+  id       String   @id @default(cuid())
+  at       DateTime @default(now())
+  platform String   @db.VarChar(16)
+  /// The site visit it came from, when the link carried it.
+  visitId  String?
+  button   String?  @db.VarChar(40)
+  source   String?  @db.VarChar(40)
+  country  String?  @db.VarChar(2)
+  device   String?  @db.VarChar(16)
+
+  @@index([at])
+}
+
+/// Who used Vibe on which client each day (one row per person, client and
+/// business day): "how many use the app vs the web".
+model ClientActivity {
+  /// Start of the business day.
+  day    DateTime
+  userId String
+  /// android | ios | web
+  client String   @db.VarChar(16)
+
+  @@id([day, userId, client])
+  @@index([day, client])
 }
 
 /// A page view or a button click on the marketing site (kept 90 days).
