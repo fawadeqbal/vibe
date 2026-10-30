@@ -165,7 +165,12 @@ describe('mail templates and messages', () => {
       await t.redis.client.del(`mail:rate:${Math.floor(Date.now() / 60_000)}`);
       sent.length = 0;
       const msg = await t.http.post('/v1/admin/messages').set(owner.auth).send({ name: 'Paced', audience: 'USERS', userIds: people.map((p) => p.id), sendEmail: true, sendInApp: false, subject: 'S', heading: 'H', body: 'B' }).expect(201);
-      await t.app.get(CampaignWorker).tick();
+      // The 3-second background tick may be running (then ours is skipped): tick until it has started.
+      for (let i = 0; i < 20; i++) {
+        await t.app.get(CampaignWorker).tick();
+        if ((await t.prisma.campaign.findUniqueOrThrow({ where: { id: msg.body.id } })).status !== 'QUEUED') break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
       const mid = (await t.http.get(`/v1/admin/messages/${msg.body.id}`).set(owner.auth)).body;
       expect(mid.status).toBe('SENDING');
       expect(sent.length).toBeLessThanOrEqual(1);
