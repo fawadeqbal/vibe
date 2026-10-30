@@ -61,6 +61,8 @@ model User {
   vibeHourReminder     Boolean    @default(false)
   onboardedAt          DateTime?
   bannedUntil          DateTime?
+  /// Last time Discover was opened (for "welcome back").
+  discoverSeenAt       DateTime?
   inviteCode           String     @unique
   /// Kept in sync with the user Referral (inviterId) — the admin panel reads it.
   invitedById          String?
@@ -125,6 +127,7 @@ model User {
   followsGot     Follow[]              @relation("FollowsGot")
   reportsMade    Report[]              @relation("ReportsMade")
   reportsGot     Report[]              @relation("ReportsGot")
+  banAppeals     BanAppeal[]
   staffNotes     StaffNote[]
   inbox          UserMessage[]
   identities     AuthIdentity[]
@@ -1002,6 +1005,30 @@ model Report {
 
   @@unique([reporterId, reportedId, matchId])
   @@index([reportedId, createdAt])
+  @@index([status, createdAt])
+}
+
+enum AppealStatus {
+  OPEN
+  ACCEPTED
+  REJECTED
+}
+
+/// "Think this is a mistake? Tell us": one per pause, read by moderators.
+model BanAppeal {
+  id          String       @id @default(cuid())
+  userId      String
+  /// The pause this is about (the user's bannedUntil when they wrote it).
+  bannedUntil DateTime
+  message     String       @db.VarChar(1000)
+  status      AppealStatus @default(OPEN)
+  staffNote   String?      @db.VarChar(500)
+  createdAt   DateTime     @default(now())
+  resolvedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bannedUntil])
   @@index([status, createdAt])
 }
 

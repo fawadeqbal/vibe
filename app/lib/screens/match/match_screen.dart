@@ -33,9 +33,10 @@ import 'gift_sheet.dart';
 import 'icebreakers.dart';
 import 'lobby_extras.dart';
 import 'match_sheets.dart';
-import 'swipe.dart';
+import 'call_states.dart';
 import 'report_sheet.dart';
 import 'safety_sheet.dart';
+import 'swipe.dart';
 import 'voice_call.dart';
 
 /// The app. Four looks on one screen: lobby (idle), searching, connected,
@@ -226,7 +227,10 @@ class _MatchScreenState extends State<MatchScreen> {
           title: Text('Send ${p.name} a friend request?'),
           content: Text('Your ${Economy.freeFriendRequestsPerDay} free requests for today are used. This one costs ${Economy.friendRequestCost} coins.'),
           actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel', style: TextStyle(color: V.text2))),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: V.text2)),
+            ),
             TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text('Send for ${Economy.friendRequestCost}')),
           ],
         ),
@@ -380,11 +384,12 @@ class _MatchScreenState extends State<MatchScreen> {
             switch (m.state) {
               MatchState.connected when m.voiceCall && m.partner != null => VoiceCallView(m: m, onReport: _report),
               MatchState.connected => _Connected(m: m, onNext: _next, onGift: _gift, onAddFriend: _addFriend, onReport: _report, onPlay: _play, message: _message, chatScroll: _chatScroll),
-              MatchState.searching => _Searching(m: m),
+              MatchState.searching => _Searching(m: m, onCallNow: _reconnect),
+              _ when m.pausedUntil != null => AccountPausedView(m: m, until: m.pausedUntil!, onOpenChats: widget.onOpenChats),
               MatchState.ended when m.lastPartner != null => _Ended(m: m, onReconnect: _reconnect, onFindAnother: _start, onReport: _reportLast),
               _ => _Lobby(m: m, onStart: _start, onOpenStore: widget.onOpenStore),
             },
-            if (m.isSearching)
+            if (m.isSearching && m.rematchSoon == null)
               Positioned(
                 left: 12,
                 right: 12,
@@ -1193,8 +1198,9 @@ class _EndedState extends State<_Ended> {
 /// The brand's two rings become the loader; the wait sets expectations
 /// about blur and reporting.
 class _Searching extends StatelessWidget {
-  const _Searching({required this.m});
+  const _Searching({required this.m, required this.onCallNow});
   final MatchProvider m;
+  final VoidCallback onCallNow;
 
   @override
   Widget build(BuildContext context) {
@@ -1250,40 +1256,42 @@ class _Searching extends StatelessWidget {
                   runSpacing: 6,
                   children: [_miniChip(_genderLabel(f.gender)), _miniChip(_countryLabel(f.countryCode)), if (f.safeMode) _miniChip('Verified only', trust: true)],
                 ),
+                if (m.rematchSoon != null) ...[const SizedBox(height: 20), RematchSoonCard(m: m, onCallNow: onCallNow)],
                 const Spacer(),
-                Glass(
-                  radius: 22,
-                  color: V.bg2.withValues(alpha: 0.55),
-                  border: Colors.white.withValues(alpha: 0.1),
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
-                        child: const Icon(SolarIconsBold.shield, size: 20, color: V.trust),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(m.autoBlur && !wallet.isVip ? 'Both videos start blurred' : 'Report is one tap away', style: VT.title(14, weight: FontWeight.w600)),
-                            const SizedBox(height: 3),
-                            Text(
-                              m.autoBlur && !wallet.isVip
-                                  ? 'The first 3 seconds stay soft. Report and block are always top-right, one tap away.'
-                                  : 'Report and block are always top-right. Turn on blur in Safety if you want a softer start.',
-                              style: VT.body(12.5, color: V.text2, height: 1.45),
-                            ),
-                          ],
+                if (m.rematchSoon == null)
+                  Glass(
+                    radius: 22,
+                    color: V.bg2.withValues(alpha: 0.55),
+                    border: Colors.white.withValues(alpha: 0.1),
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
+                          child: const Icon(SolarIconsBold.shield, size: 20, color: V.trust),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(m.autoBlur && !wallet.isVip ? 'Both videos start blurred' : 'Report is one tap away', style: VT.title(14, weight: FontWeight.w600)),
+                              const SizedBox(height: 3),
+                              Text(
+                                m.autoBlur && !wallet.isVip
+                                    ? 'The first 3 seconds stay soft. Report and block are always top-right, one tap away.'
+                                    : 'Report and block are always top-right. Turn on blur in Safety if you want a softer start.',
+                                style: VT.body(12.5, color: V.text2, height: 1.45),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 const SizedBox(height: 16),
                 GhostButton(label: 'Cancel', expand: true, fill: Colors.white.withValues(alpha: 0.08), onTap: m.stop),
                 const SizedBox(height: 14),
@@ -1395,10 +1403,13 @@ class _Connected extends StatelessWidget {
             onLike: () {
               if (!m.likedPartner) m.like();
             },
-            child: Stack(fit: StackFit.expand, children: [
-              _PartnerStage(m: m, partner: p, blurred: m.blurred),
-              const VideoScrims(top: 220, bottom: 460, topAlpha: 0.75, bottomAlpha: 0.92, bottomMid: 0.6),
-            ]),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _PartnerStage(m: m, partner: p, blurred: m.blurred),
+                const VideoScrims(top: 220, bottom: 460, topAlpha: 0.75, bottomAlpha: 0.92, bottomMid: 0.6),
+              ],
+            ),
           ),
         // Top: who, timer, report.
         Positioned(
@@ -1507,6 +1518,7 @@ class _Connected extends StatelessWidget {
             children: [
               if (opener != null) GlassPill(label: opener, icon: SolarIconsBold.widget_4, iconColor: V.lavender, height: 30, fontSize: 12),
               if (likeText != null) ...[const SizedBox(height: 8), GlassPill(label: likeText, icon: SolarIconsBold.heart, iconColor: V.pinkSoft, tint: V.pink, height: 30, fontSize: 12)],
+              PartnerMediaPills(m: m, name: p.name),
             ],
           ),
         ),
@@ -1901,6 +1913,8 @@ class _PartnerStage extends StatelessWidget {
               child: VAvatar(url: '', name: partner.name, size: 120, ring: true),
             ),
           ),
+        // Over the video, not instead of it: their voice keeps playing.
+        if (!m.partnerCamOn && !m.voiceCall) CameraOffCover(partner: partner),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 600),
           child: blurred

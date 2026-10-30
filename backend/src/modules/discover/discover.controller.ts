@@ -2,14 +2,36 @@ import { Body, Controller, Get, HttpCode, Post, Put, Query } from '@nestjs/commo
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { DiscoverReturnService } from './discover-return.service';
 import { DiscoverService } from './discover.service';
-import { DeckQueryDto, SwipeDto, VisibilityDto } from './dto/discover.dto';
+import { DeckQueryDto, NotifyNewDto, SwipeDto, VisibilityDto } from './dto/discover.dto';
 
 @ApiTags('discover')
 @ApiBearerAuth()
 @Controller('discover')
 export class DiscoverController {
-  constructor(private readonly discover: DiscoverService) {}
+  constructor(
+    private readonly discover: DiscoverService,
+    private readonly back: DiscoverReturnService,
+  ) {}
+
+  @Get('welcome')
+  @ApiOperation({ summary: 'What happened since your last Discover visit (show after 2+ days away). Also records this visit.' })
+  welcome(@CurrentUser('id') me: string) {
+    return this.back.welcome(me);
+  }
+
+  @Get('notify-new')
+  @ApiOperation({ summary: 'Whether you asked to hear when new people join' })
+  async notifyNew(@CurrentUser('id') me: string) {
+    return { on: await this.back.notifyOn(me) };
+  }
+
+  @Put('notify-new')
+  @ApiOperation({ summary: '"Tell me when new people join" — discover:new-people (push when away), at most once a day' })
+  async setNotifyNew(@CurrentUser('id') me: string, @Body() dto: NotifyNewDto) {
+    return { on: await this.back.setNotify(me, dto.on) };
+  }
 
   @Get('status')
   @ApiOperation({

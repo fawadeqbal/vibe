@@ -68,3 +68,8 @@ export class VisibilityDto {
   @IsBoolean()
   visible!: boolean;
 }
+
+export class NotifyNewDto {
+  @IsBoolean()
+  on!: boolean;
+}

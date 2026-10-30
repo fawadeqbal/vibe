@@ -61,12 +61,12 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
     <div className="absolute inset-0 overflow-hidden">
       {m.friendCall ? (
         <>
-          <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} />
+          <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn && !m.voiceCall} />
           <VideoScrims top={220} bottom={460} topAlpha={0.75} bottomAlpha={0.92} bottomMid={0.6} />
         </>
       ) : (
         <SwipeStage onNext={swipeNext} onLike={doubleTapLike}>
-          <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} />
+          <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn && !m.voiceCall} />
           <VideoScrims top={220} bottom={460} topAlpha={0.75} bottomAlpha={0.92} bottomMid={0.6} />
         </SwipeStage>
       )}
@@ -106,6 +106,7 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
       <div className="absolute left-3 flex flex-col items-start gap-2" style={{ top: "calc(64px + env(safe-area-inset-top))", right: 122 }}>
         {opener ? <GlassPill label={opener} icon="interests" iconColor="lavender" height={30} fontSize={12} /> : null}
         {likeText ? <GlassPill label={likeText} icon="favorite" iconColor="pink-soft" tint="pink" height={30} fontSize={12} /> : null}
+        <PartnerMediaPills name={p.name} />
       </div>
 
       {/* You, picture-in-picture. */}
@@ -167,8 +168,44 @@ async function playGame() {
   }
 }
 
+/** Their mic is off, or the connection is weak: small, calm notes under the name. */
+export function PartnerMediaPills({ name }: { name: string }) {
+  const micOff = useMatch((s) => !s.partnerMicOn);
+  const weak = useMatch((s) => s.weakSignal);
+  return (
+    <>
+      {weak ? (
+        <span role="status">
+          <GlassPill label="Weak connection — video may freeze" icon="signal_cellular_alt_1_bar" iconColor="gold" height={30} fontSize={12} />
+        </span>
+      ) : null}
+      {micOff ? (
+        <span role="status">
+          <GlassPill label={`${name} muted their mic`} icon="mic_off" height={30} fontSize={12} />
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+/** The partner turned their camera off: their photo, dimmed, and a plain line saying so. */
+function CameraOffCover({ partner }: { partner: Profile }) {
+  return (
+    <div role="status" className="absolute inset-0 flex flex-col items-center justify-center bg-bg/80 px-6 text-center backdrop-blur-xl">
+      <span className="relative">
+        <Avatar url={partner.avatarUrl} name={partner.name} size={112} ring />
+        <span className="absolute -right-1 -bottom-1 flex size-10 items-center justify-center rounded-full bg-surface2 text-text2 ring-4 ring-bg">
+          <Icon name="videocam_off" size={20} />
+        </span>
+      </span>
+      <span className="type-title mt-4 text-[19px] font-bold">{partner.name} turned their camera off</span>
+      <span className="type-body mt-1 max-w-[280px] text-[13.5px] text-text2">You can still talk and chat. It comes back when they turn it on.</span>
+    </div>
+  );
+}
+
 /** The partner's video, or their portrait while it connects (or for a dev bot). */
-function PartnerStage({ partner, remote, blurred }: { partner: Profile; remote: MediaStream | null; blurred: boolean }) {
+function PartnerStage({ partner, remote, blurred, camOff = false }: { partner: Profile; remote: MediaStream | null; blurred: boolean; camOff?: boolean }) {
   const [failed, setFailed] = useState(false);
   return (
     <div className="absolute inset-0">
@@ -182,6 +219,8 @@ function PartnerStage({ partner, remote, blurred }: { partner: Profile; remote: 
           <Avatar url="" name={partner.name} size={120} ring />
         </div>
       )}
+      {/* Over the video, not instead of it: their voice keeps playing. */}
+      {camOff ? <CameraOffCover partner={partner} /> : null}
       <div
         className={cn("absolute inset-0 flex items-center justify-center bg-black/10 transition-opacity duration-600", blurred ? "opacity-100" : "pointer-events-none opacity-0")}
         style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}

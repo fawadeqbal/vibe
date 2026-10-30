@@ -26,6 +26,14 @@ export const Ev = {
   matchGameClosed: "match:game-closed",
   /** You asked to be told when someone's looking (POST /match/notify-me), and someone is. One-shot. */
   matchSomeoneLooking: "match:someone-looking",
+  /** Only your last partner is waiting: `{ partner: { id, name, avatarUrl }, at }`. */
+  matchRematchSoon: "match:rematch-soon",
+  /** Your partner's camera / mic: `{ matchId, camOn, micOn }`. */
+  matchMedia: "match:media",
+  /** A moderator answered your appeal: `{ status, note }`. */
+  accountAppeal: "account:appeal",
+  /** New people joined Discover (you asked): `{ count }`. */
+  discoverNewPeople: "discover:new-people",
   /** Someone waved at you: `{ from, mutual }`. */
   waveNew: "wave:new",
   /** Someone you waved with started looking for a match: `{ from }`. */

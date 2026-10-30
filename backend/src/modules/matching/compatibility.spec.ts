@@ -1,4 +1,4 @@
-import { compatible, partnerScore, pickPartner, queueScore } from './compatibility';
+import { compatible, partnerScore, pickPartner, queueScore, rematchSoon } from './compatibility';
 import { callSignal, freeReconnectUntil, isFreeReconnect, isNightCall, nextVibeScore } from './match-rules';
 import { Ticket } from './matching.types';
 
@@ -60,6 +60,19 @@ describe('compatibility', () => {
     expect(pickPartner(me, [old], 16_000)?.userId).toBe('old');
     expect(pickPartner(me, [old, t('new', { enqueuedAt: 4_000 })], 5_000)?.userId).toBe('new');
     expect(pickPartner(me, [old, t('new', { enqueuedAt: 4_000 })], 16_000)?.userId).toBe('new');
+  });
+
+  it('tells you when only your last partner is here, and when you meet again', () => {
+    const me = t('me', { lastPartner: 'old', rematchAfterMs: 15_000, enqueuedAt: 0 });
+    const old = t('old', { lastPartner: 'me', rematchAfterMs: 15_000, enqueuedAt: 2_000 });
+    expect(rematchSoon(me, [old], 5_000)).toEqual({ partnerId: 'old', at: 17_000 });
+    // Someone else fits: nothing to say.
+    expect(rematchSoon(me, [old, t('new')], 5_000)).toBeNull();
+    // Never rematches on this server.
+    expect(rematchSoon({ ...me, rematchAfterMs: 0 }, [old], 5_000)).toEqual({ partnerId: 'old', at: null });
+    // Their filters don't fit each other, or nobody is here.
+    expect(rematchSoon({ ...me, prefs: { ...me.prefs, safeMode: true } }, [{ ...old, verified: false }], 5_000)).toBeNull();
+    expect(rematchSoon(me, [], 5_000)).toBeNull();
   });
 
   it('VIP and boost get a head start, not the front', () => {

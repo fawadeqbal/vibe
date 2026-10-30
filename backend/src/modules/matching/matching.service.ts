@@ -24,6 +24,7 @@ import { PROFILE_INCLUDE, PublicProfile, toPublicProfile } from '../users/user.m
 import { isBoosted, isVip } from '../wallet/wallet.mapper';
 import { WalletService } from '../wallet/wallet.service';
 import { SettingsService } from '../settings/settings.service';
+import { rematchSoon } from './compatibility';
 import { MatchGamesService } from './match-games.service';
 import { MatchQueueService } from './match-queue.service';
 import { WavesService } from '../waves/waves.service';
@@ -294,9 +295,24 @@ export class MatchingService {
   async sweep(): Promise<void> {
     await this.redis.withLock('match-sweep', this.config.get('MATCH_SWEEP_MS') * 5, async () => {
       for (const id of await this.queue.head(50)) {
-        if (await this.queue.isQueued(id)) await this.tryMatch(id).catch((e) => this.logger.warn(`sweep ${id}: ${e.message}`));
+        if (!(await this.queue.isQueued(id))) continue;
+        const matched = await this.tryMatch(id).catch((e) => (this.logger.warn(`sweep ${id}: ${e.message}`), true));
+        if (!matched) await this.noteRematchSoon(id).catch(() => undefined);
       }
     });
+  }
+
+  /** "Just you and Sara here": told once per wait, so the searching screen can explain it. */
+  private async noteRematchSoon(userId: string): Promise<void> {
+    const me = await this.queue.ticket(userId);
+    if (!me) return;
+    const soon = rematchSoon(me, await this.queue.others(userId), this.clock.now().getTime());
+    if (!soon) return;
+    const fresh = await this.redis.client.set(`mrsoon:${userId}:${soon.partnerId}:${me.enqueuedAt}`, '1', 'EX', 15 * 60, 'NX');
+    if (!fresh) return;
+    const p = await this.prisma.user.findUnique({ where: { id: soon.partnerId }, select: { id: true, name: true, avatarUrl: true } });
+    if (!p) return;
+    this.realtime.toUser(userId, ServerEvent.MatchRematchSoon, { partner: p, at: soon.at === null ? null : new Date(soon.at).toISOString() });
   }
 
   // ── in a call ─────────────────────────────────────────────────────────
@@ -345,6 +361,13 @@ export class MatchingService {
       this.realtime.toUser(partnerId, ServerEvent.MatchMutual, { matchId: m.id });
     }
     return { mutual };
+  }
+
+  /** Camera / mic on or off: told to the partner ("Sara turned their camera off"). */
+  async media(userId: string, camOn: boolean, micOn: boolean): Promise<void> {
+    const { m, partnerId } = await this.requireMatch(userId);
+    if ((await this.redis.incrWithTtl(`mmedia:${userId}`, 10)) > 20) return;
+    this.realtime.toUser(partnerId, ServerEvent.MatchMedia, { matchId: m.id, camOn, micOn });
   }
 
   async chat(userId: string, text: string): Promise<{ at: string }> {

@@ -169,7 +169,7 @@ export function SwipeHint({ onDone }: { onDone: () => void }) {
  * friend and Undo (call them back — the reconnect price, or free for a while).
  */
 export function SkippedBar({ onUndo, onAddFriend }: { onUndo: () => void; onAddFriend: () => void }) {
-  const p = useMatch((s) => (s.endReason === "skipped" && s.status === "searching" ? s.lastPartner : null));
+  const p = useMatch((s) => (s.endReason === "skipped" && s.status === "searching" && !s.rematchSoon ? s.lastPartner : null));
   const last = useMatch((s) => (s.history.length ? s.history[s.history.length - 1] : null));
   const ended = useMatch((s) => s.ended);
   const friend = useSocial((s) => (p ? friendStateOf(s, p.id) : "none"));

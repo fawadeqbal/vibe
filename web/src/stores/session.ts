@@ -43,6 +43,8 @@ interface SessionState {
   verificationState: VerificationState;
   /** Gem goal, quiet hours, time zone and break reminder (GET /me). */
   prefs: MePrefs;
+  /** Matching is paused after reports until then (null = not paused). */
+  pausedUntil: Date | null;
 
   restore: () => Promise<void>;
   requestCode: (email: string) => Promise<void>;
@@ -88,6 +90,7 @@ export const useSession = create<SessionState>()((set, get) => {
       referralClaimable: m.referralClaimable === true,
       emailUpdates: m.marketingEmails !== false,
       prefs: mePrefs(m),
+      pausedUntil: typeof m.bannedUntil === "string" && new Date(m.bannedUntil).getTime() > Date.now() ? new Date(m.bannedUntil) : null,
     });
 
   const busyWhile = async <T,>(fn: () => Promise<T>): Promise<T> => {
@@ -117,6 +120,7 @@ export const useSession = create<SessionState>()((set, get) => {
 
   return {
     me: null,
+    pausedUntil: null,
     booting: true,
     onboarded: false,
     busy: false,

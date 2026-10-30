@@ -38,6 +38,16 @@ enum VideoAsk { none, mine, theirs }
 /// [LocalMatchProvider] replays scripted partners from [MockBackend];
 /// [RemoteMatchProvider] uses the Vibe matching socket and a real WebRTC
 /// peer connection. The camera, state and stats live here, shared by both.
+/// Only your last partner is waiting: who, and when you're put back
+/// together (null = this server never does it by itself).
+class RematchSoon {
+  const RematchSoon({required this.partnerId, required this.name, required this.avatarUrl, this.at});
+  final String partnerId;
+  final String name;
+  final String avatarUrl;
+  final DateTime? at;
+}
+
 abstract class MatchProvider extends ChangeNotifier {
   MatchProvider.base(this._wallet, this._social, this._session, {bool cameraEnabled = true}) : _cameraEnabled = cameraEnabled;
 
@@ -120,6 +130,44 @@ abstract class MatchProvider extends ChangeNotifier {
   /// What `reconnect()` costs right now.
   int get reconnectPrice => reconnectFree ? 0 : _reconnectCost;
   Duration get elapsed => _elapsed;
+  // What the partner told us about their camera and mic, and how the line is.
+  bool _partnerCamOn = true;
+  bool _partnerMicOn = true;
+  bool _weakSignal = false;
+  RematchSoon? _rematchSoon;
+  DateTime? _pausedUntil;
+  bool get partnerCamOn => _partnerCamOn;
+  bool get partnerMicOn => _partnerMicOn;
+
+  /// Their video stopped arriving or the connection wobbles ("video may freeze").
+  bool get weakSignal => _weakSignal;
+  RematchSoon? get rematchSoon => _rematchSoon;
+
+  /// Matching is paused after reports until then.
+  DateTime? get pausedUntil => _pausedUntil != null && _pausedUntil!.isAfter(DateTime.now()) ? _pausedUntil : null;
+
+  void dismissRematchSoon() {
+    _rematchSoon = null;
+    notifyListeners();
+  }
+
+  /// The pause ran out (or was lifted).
+  void clearPaused() {
+    if (_pausedUntil == null) return;
+    _pausedUntil = null;
+    notifyListeners();
+  }
+
+  /// "Think this is a mistake?": the status of the appeal for this pause (OPEN / ACCEPTED / REJECTED), or null.
+  Future<String?> appealStatus() async => null;
+
+  /// Sends the appeal. Throws ApiException on failure.
+  Future<void> sendAppeal(String message) async {}
+
+  /// Tell the partner our camera / mic changed (server mode).
+  @protected
+  void tellMedia() {}
+
   bool get micOn => _micOn;
   bool get camOn => _camOn;
   bool get frontCamera => _frontCamera;
@@ -428,12 +476,7 @@ abstract class MatchProvider extends ChangeNotifier {
       }
       final stream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
-        'video': _voiceCall ? false : {
-          'facingMode': _frontCamera ? 'user' : 'environment',
-          'width': 720,
-          'height': 1280,
-          'frameRate': 24,
-        },
+        'video': _voiceCall ? false : {'facingMode': _frontCamera ? 'user' : 'environment', 'width': 720, 'height': 1280, 'frameRate': 24},
       });
       if (gen != _cameraGen) {
         // Released while it was opening (tab switched, app backgrounded…).
@@ -531,6 +574,7 @@ abstract class MatchProvider extends ChangeNotifier {
       // Paused in the background: the partner sees "camera off", not a frozen frame.
       t.enabled = _camOn && !_inBackground;
     }
+    tellMedia();
   }
 
   // ── filters ───────────────────────────────────────────────────────────
@@ -591,6 +635,10 @@ abstract class MatchProvider extends ChangeNotifier {
   void resetCallExtras() {
     _game = null;
     _mutualFor = null;
+    _partnerCamOn = true;
+    _partnerMicOn = true;
+    _weakSignal = false;
+    _rematchSoon = null;
   }
 
   /// Back to idle from the ended card.

@@ -22,6 +22,24 @@ export function rematchAllowed(a: Ticket, b: Ticket, nowMs: number): boolean {
   return nowMs - a.enqueuedAt >= wait && nowMs - b.enqueuedAt >= wait;
 }
 
+/**
+ * "Just you two here": nobody else fits `me`, but their last partner is
+ * waiting too and only the rematch wait is in the way. Returns that partner
+ * and when they'll be put back together (null = this server never rematches).
+ */
+export function rematchSoon(me: Ticket, candidates: Ticket[], nowMs: number = Date.now()): { partnerId: string; at: number | null } | null {
+  let last: Ticket | undefined;
+  for (const c of candidates) {
+    if (c.userId === me.userId) continue;
+    if (compatible(me, c, nowMs)) return null;
+    const isLast = me.lastPartner === c.userId || c.lastPartner === me.userId;
+    if (isLast && !me.exclude.includes(c.userId) && !c.exclude.includes(me.userId) && accepts(me, c) && accepts(c, me)) last = c;
+  }
+  if (!last) return null;
+  if (!me.rematchAfterMs || !last.rematchAfterMs) return { partnerId: last.userId, at: null };
+  return { partnerId: last.userId, at: Math.max(me.enqueuedAt, last.enqueuedAt) + Math.max(me.rematchAfterMs, last.rematchAfterMs) };
+}
+
 /** Both filters agree, neither excludes the other, and it isn't too soon to meet again. */
 export function compatible(a: Ticket, b: Ticket, nowMs: number = Date.now()): boolean {
   return a.userId !== b.userId && !a.exclude.includes(b.userId) && !b.exclude.includes(a.userId) && accepts(a, b) && accepts(b, a) && rematchAllowed(a, b, nowMs);

@@ -10,6 +10,8 @@ export const ServerEvent = {
   CashoutUpdated: 'cashout:updated',
   AccountBanned: 'account:banned',
   AccountWarning: 'account:warning',
+  /** A moderator answered your appeal: `{ status: ACCEPTED | REJECTED, note }` (accepted = the pause is lifted). */
+  AccountAppeal: 'account:appeal',
   Announcement: 'system:announcement',
   InboxMessage: 'inbox:message',
   /** Staff changed prices or rules; re-read GET /catalog. */
@@ -32,6 +34,12 @@ export const ServerEvent = {
   MatchGameClosed: 'match:game-closed',
   /** You asked to hear when someone's looking (POST /match/notify-me), and someone is now. One-shot. */
   MatchSomeoneLooking: 'match:someone-looking',
+  /** Only your last partner is waiting: `{ partner: { id, name, avatarUrl }, at: ISO | null }` (null = no auto rematch). */
+  MatchRematchSoon: 'match:rematch-soon',
+  /** Your partner turned their camera or mic on/off: `{ matchId, camOn, micOn }`. */
+  MatchMedia: 'match:media',
+  /** New people joined Discover since you asked (POST /discover/notify-new): `{ count }`. At most once a day. */
+  DiscoverNewPeople: 'discover:new-people',
   /** Someone waved at you: `{ from: PublicProfile, mutual }` (mutual = you had waved at them). */
   WaveNew: 'wave:new',
   /** Someone you waved with started looking for a match: `{ from: PublicProfile }`. */

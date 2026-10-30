@@ -61,6 +61,14 @@ export class MatchReportDto {
   block: boolean = true;
 }
 
+export class MediaDto {
+  @IsBoolean()
+  camOn!: boolean;
+
+  @IsBoolean()
+  micOn!: boolean;
+}
+
 export class SignalDto {
   @IsIn(['offer', 'answer', 'ice', 'hangup'])
   type!: 'offer' | 'answer' | 'ice' | 'hangup';

@@ -12,11 +12,13 @@ import { EmptyState } from "@/components/ui/misc";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { DEFAULT_DISCOVER_FILTERS, type DiscoverCard, type SwipeKind, useDiscover, usesExtraFilters } from "@/stores/discover";
+import { asMap } from "@/lib/api/mappers";
+import { api } from "@/stores/services";
 import { toast } from "@/stores/ui";
 
 import { DiscoverCardView } from "./discover-card";
 import { openDiscoverFilters, openOutOfLikes } from "./discover-sheets";
-import { DeckEmpty, DeckOffline, DeckSkeleton, NoPhotoPanel, OutOfLikesBanner } from "./discover-states";
+import { DeckEmpty, DeckOffline, DeckSkeleton, NoPhotoPanel, OutOfLikesBanner, openWelcomeBack } from "./discover-states";
 
 /** How far a card must be dragged to count (px). */
 const SWIPE_X = 110;
@@ -31,6 +33,9 @@ type Fly = { id: string; kind: SwipeKind } | null;
  * ← pass, → like, ↑ Super Like, Backspace undo. Two likes make a match
  * (the dialog opens wherever you are, see DiscoverMatchHost).
  */
+let welcomeAsk: Promise<unknown> | null = null;
+let welcomeShown = false;
+
 export function DiscoverScreen() {
   const router = useRouter();
   const needCoins = useNeedCoins();
@@ -55,6 +60,7 @@ export function DiscoverScreen() {
   const status = useDiscover((s) => s.status);
   const lastPassed = useDiscover((s) => s.lastPassed);
   const [fly, setFly] = useState<Fly>(null);
+  const [notifyOn, setNotifyOn] = useState<boolean | null>(null);
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
   const start = useRef<{ x: number; y: number; id: number } | null>(null);
   const busy = useRef(false);
@@ -63,6 +69,41 @@ export function DiscoverScreen() {
     void useDiscover.getState().load();
     void useDiscover.getState().loadLikedYou();
   }, []);
+
+  // Back after a few days: what happened while you were away (once per visit).
+  useEffect(() => {
+    let live = true;
+    // Asked once per page load: the server records the visit, so a second ask would say "nothing new".
+    welcomeAsk ??= api.get("/discover/welcome");
+    welcomeAsk
+      .then(async (r) => {
+        const w = asMap(r);
+        if (!live || w.show !== true || welcomeShown) return;
+        welcomeShown = true;
+        const st = useDiscover.getState().status;
+        const pick = await openWelcomeBack({ awayDays: Number(w.awayDays) || 0, likesSince: Number(w.likesSince) || 0, newPeople: Number(w.newPeople) || 0, freeLikes: st && st.likesLeft != null ? st.likesLeft : null });
+        if (pick === "liked") router.push("/discover/liked-you");
+      })
+      .catch(() => {});
+    api
+      .get("/discover/notify-new")
+      .then((r) => live && setNotifyOn(asMap(r).on === true))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [router]);
+
+  const setNotify = async (on: boolean) => {
+    setNotifyOn(on);
+    try {
+      await api.put("/discover/notify-new", { on });
+      if (on) toast("We'll tell you when new people join");
+    } catch (e) {
+      setNotifyOn(!on);
+      toast(errorMessage(e));
+    }
+  };
 
   // Offline: say so, and reload by itself when the connection is back.
   useEffect(() => {
@@ -298,6 +339,8 @@ export function DiscoverScreen() {
               onSetFilters={(f) => useDiscover.getState().setFilters(f)}
               onEditFilters={() => void editFilters()}
               onMeetLive={() => router.push("/match")}
+              notifyOn={notifyOn}
+              onNotify={(on) => void setNotify(on)}
             />
           )}
         </div>

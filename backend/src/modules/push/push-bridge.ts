@@ -55,6 +55,17 @@ export class PushBridge implements OnModuleInit {
       const by = (p.by ?? {}) as { id?: string; name?: string };
       return { title: 'Request accepted', body: `${by.name || 'Someone'} accepted your follow request`, data: { route: 'profile', userId: String(by.id ?? '') }, category: 'social' };
     },
+    [ServerEvent.AccountAppeal]: (p) =>
+      p.status === 'ACCEPTED'
+        ? { title: "You're back on Vibe", body: 'We looked again and lifted the pause. Thanks for telling us.', data: { route: 'match' }, category: 'inbox' }
+        : { title: 'About your appeal', body: 'We looked again and the pause stays for now.', data: { route: 'inbox' }, category: 'inbox' },
+    [ServerEvent.DiscoverNewPeople]: (p) => ({
+      title: 'New people on Vibe ✨',
+      body: Number(p.count) > 1 ? `${Number(p.count)} new people joined Discover. Come say hi.` : 'Someone new joined Discover. Come say hi.',
+      data: { route: 'discover' },
+      category: 'social',
+      collapseKey: 'discover:new-people',
+    }),
     [ServerEvent.MatchSomeoneLooking]: () => ({
       title: "Someone's looking for a match 👋",
       body: 'You asked us to tell you. Open Vibe now to meet them.',

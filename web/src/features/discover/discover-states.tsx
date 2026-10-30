@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/icon";
 import { Headline } from "@/components/ui/typography";
 import { COUNTRIES } from "@/lib/catalog";
 import { DEFAULT_DISCOVER_FILTERS, type DiscoverFilters } from "@/stores/discover";
+import { openSheet } from "@/stores/ui";
 
 import { comesBackIn } from "./discover-sheets";
 
@@ -129,11 +130,16 @@ export function DeckEmpty({
   onSetFilters,
   onEditFilters,
   onMeetLive,
+  notifyOn = null,
+  onNotify,
 }: {
   filters: DiscoverFilters;
   onSetFilters: (f: DiscoverFilters) => void;
   onEditFilters: () => void;
   onMeetLive: () => void;
+  /** "Tell me when new people join": on, off, or not known yet (hidden). */
+  notifyOn?: boolean | null;
+  onNotify?: (on: boolean) => void;
 }) {
   const active = activeFilters(filters);
   if (active.length) {
@@ -182,7 +188,54 @@ export function DeckEmpty({
         <GradientButton label="Meet someone live" icon="videocam" onClick={onMeetLive} />
         <GhostButton label="Change filters" icon="tune" expand onClick={onEditFilters} />
       </div>
+      {notifyOn == null || !onNotify ? null : notifyOn ? (
+        <p role="status" className="type-body mt-4 flex items-center gap-1.5 text-[13px] text-text2">
+          <Icon name="notifications_active" size={17} className="text-ok" />
+          We&apos;ll tell you when new people join ·{" "}
+          <button type="button" className="font-semibold text-text underline-offset-2 hover:underline" onClick={() => onNotify(false)}>
+            Turn off
+          </button>
+        </p>
+      ) : (
+        <TextButton className="mt-3 text-lavender" onClick={() => onNotify(true)}>
+          <Icon name="notifications" size={18} className="mr-1.5" />
+          Tell me when new people join
+        </TextButton>
+      )}
     </Frame>
+  );
+}
+
+export interface WelcomeBack {
+  awayDays: number;
+  likesSince: number;
+  newPeople: number;
+}
+
+/** Back after a few days: what happened while you were away. Resolves "liked" to see who liked you. */
+export const openWelcomeBack = (w: WelcomeBack & { freeLikes: number | null }) => openSheet<"swipe" | "liked">((close) => <WelcomeBackSheet {...w} onPick={close} />);
+
+function WelcomeBackSheet({ awayDays, likesSince, newPeople, freeLikes, onPick }: WelcomeBack & { freeLikes: number | null; onPick: (v?: "swipe" | "liked") => void }) {
+  const row = (icon: string, cls: string, text: string) => (
+    <li className="flex items-center gap-3 rounded-[16px] bg-surface2 px-3.5 py-3">
+      <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${cls}`}>
+        <Icon name={icon} size={19} variant="filled" />
+      </span>
+      <span className="type-body text-[14.5px] font-semibold">{text}</span>
+    </li>
+  );
+  return (
+    <div className="flex flex-col px-5 pt-2.5 pb-5">
+      <Headline as="h2" text="Welcome " accent="back" accentColor="pink-soft" size={26} />
+      <p className="type-body mt-1.5 text-[14px] text-text2">Here&apos;s what happened in the {awayDays} days you were away.</p>
+      <ul className="mt-4 flex flex-col gap-2">
+        {likesSince > 0 ? row("favorite", "bg-pink/16 text-pink-soft", `${likesSince} ${likesSince === 1 ? "person" : "people"} liked you`) : null}
+        {newPeople > 0 ? row("person_add", "bg-violet/18 text-lavender", `${newPeople} new ${newPeople === 1 ? "person" : "people"} to see`) : null}
+        {freeLikes ? row("bolt", "bg-gold/14 text-gold", `Your ${freeLikes} free likes are ready`) : null}
+      </ul>
+      <GradientButton label="Start swiping" className="mt-5" onClick={() => onPick("swipe")} />
+      {likesSince > 0 ? <GhostButton label="See who liked you" icon="favorite" expand className="mt-2" onClick={() => onPick("liked")} /> : null}
+    </div>
   );
 }
 

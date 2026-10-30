@@ -258,6 +258,47 @@ describe('discover', () => {
     expect(titles).toEqual(expect.arrayContaining(['Someone liked you 💜', 'Bilal Super Liked you ⭐']));
   });
 
+  it('welcome back: after 2+ days away, the likes and new people since then', async () => {
+    const me = await person('Mina');
+    const welcome = async () => (await t.http.get('/v1/discover/welcome').set(me.auth).expect(200)).body;
+    expect(await welcome()).toMatchObject({ show: false }); // first visit
+    expect(await welcome()).toMatchObject({ show: false, awayDays: 0 });
+
+    const longAgo = new Date(Date.now() - 3 * 86_400_000);
+    await t.prisma.user.update({ where: { id: me.id }, data: { discoverSeenAt: longAgo } });
+    expect(await welcome()).toMatchObject({ show: false, awayDays: 3, likesSince: 0, newPeople: 0 }); // nothing happened
+
+    await t.prisma.user.update({ where: { id: me.id }, data: { discoverSeenAt: longAgo } });
+    const fan = await person('Fahad', { gender: 'male' });
+    await person('Zara');
+    await swipe(fan, me.id, 'like').expect(200);
+    expect(await welcome()).toEqual({ show: true, awayDays: 3, likesSince: 1, newPeople: 2 });
+    expect(await welcome()).toMatchObject({ show: false }); // seen now
+  });
+
+  it('"tell me when new people join": once a day, never about yourself', async () => {
+    const { DiscoverReturnService } = await import('../src/modules/discover/discover-return.service');
+    const back = t.app.get(DiscoverReturnService);
+    const me = await person('Hira');
+    expect((await t.http.get('/v1/discover/notify-new').set(me.auth).expect(200)).body.on).toBe(false);
+    expect((await t.http.put('/v1/discover/notify-new').set(me.auth).send({ on: true }).expect(200)).body.on).toBe(true);
+    const s = await online(me);
+    await t.redis.client.set('discover:new-scan-at', String(Date.now() - 60_000));
+    expect(await back.scan()).toEqual([]); // only herself is new
+
+    await t.redis.client.set('discover:new-scan-at', String(Date.now() - 1_000));
+    await person('Omar', { gender: 'male' });
+    await person('Asad', { gender: 'male' });
+    const ping = next(s, 'discover:new-people');
+    expect(await back.scan(new Date(Date.now() + 1_000))).toEqual([me.id]);
+    expect(await ping).toEqual({ count: 2 });
+
+    await person('Noor');
+    expect(await back.scan(new Date(Date.now() + 1_000))).toEqual([]); // already told today
+    await t.http.put('/v1/discover/notify-new').set(me.auth).send({ on: false }).expect(200);
+    expect((await t.http.get('/v1/discover/notify-new').set(me.auth).expect(200)).body.on).toBe(false);
+  });
+
   it('can be switched off from the admin rules', async () => {
     await setRules({ discoverEnabled: 0 });
     const me = await person('Maha');

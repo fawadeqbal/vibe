@@ -6,7 +6,7 @@ import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { WsExceptionFilter } from '../../common/filters/ws-exception.filter';
 import type { AuthUser } from '../../common/types/auth-user';
-import { ChatDto, GameDto, GiftDto, JoinDto, MatchReportDto, NextDto, SignalDto } from './dto/match.dto';
+import { ChatDto, GameDto, GiftDto, JoinDto, MatchReportDto, MediaDto, NextDto, SignalDto } from './dto/match.dto';
 import { GameAction, MatchGamesService } from './match-games.service';
 import { MatchingService } from './matching.service';
 
@@ -65,6 +65,13 @@ export class MatchGateway {
   @SubscribeMessage('match:chat')
   async chat(@ConnectedSocket() s: Socket, @MessageBody() dto: ChatDto) {
     return ok(await this.matching.chat(uid(s), dto.text));
+  }
+
+  /** `{ camOn, micOn }` — the partner gets `match:media`. */
+  @SubscribeMessage('match:media')
+  async media(@ConnectedSocket() s: Socket, @MessageBody() dto: MediaDto) {
+    await this.matching.media(uid(s), dto.camOn, dto.micOn);
+    return ok(null);
   }
 
   @SubscribeMessage('match:gift')

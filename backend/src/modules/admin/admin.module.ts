@@ -20,6 +20,7 @@ import { DashboardController } from './dashboard/dashboard.controller';
 import { DashboardService } from './dashboard/dashboard.service';
 import { FinanceController } from './finance/finance.controller';
 import { FinanceService } from './finance/finance.service';
+import { AdminAppealsController } from './moderation/admin-appeals.controller';
 import { AdminReportsController } from './moderation/admin-reports.controller';
 import { AdminReportsService } from './moderation/admin-reports.service';
 import { OpsController } from './ops/ops.controller';
@@ -38,7 +39,7 @@ import { AdminGrowthController } from './growth/admin-growth.controller';
  */
 @Module({
   imports: [AdminCoreModule, UsersModule, WalletModule, PaymentsModule, ModerationModule, MatchingModule, AnnouncementsModule, MessagingModule, ReferralsModule],
-  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, FinanceController, OpsController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController, AdminGrowthController],
+  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, AdminAppealsController, FinanceController, OpsController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController, AdminGrowthController],
   providers: [StaffTokenService, StaffAuthService, TeamService, DashboardService, AdminUsersService, AdminReportsService, FinanceService],
 })
 export class AdminModule {}
