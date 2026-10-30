@@ -12,6 +12,7 @@ import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../match/safety_sheet.dart' show VerifyPill;
+import 'blocked_people_screen.dart';
 import 'follow_lists_screen.dart';
 import 'progress.dart';
 import 'sign_in_methods.dart';
@@ -149,21 +150,13 @@ class SafetySectionScreen extends StatelessWidget {
               subtitle: 'Both videos start blurred.',
               trailing: Switch(value: match.autoBlur, onChanged: match.setAutoBlur),
             ),
-            if (social.blocked.isNotEmpty)
-              GroupRow(
-                icon: SolarIconsBold.forbiddenCircle,
-                title: '${social.blocked.length} blocked',
-                subtitle: 'They can never match with you.',
-                trailing: TextButton(
-                  onPressed: () async {
-                    for (final id in social.blocked.toList()) {
-                      await social.unblock(id);
-                    }
-                    if (context.mounted) toast(context, 'Everyone unblocked');
-                  },
-                  child: const Text('Unblock all'),
-                ),
-              ),
+            GroupRow(
+              icon: SolarIconsBold.forbiddenCircle,
+              title: 'Blocked people',
+              subtitle: social.blocked.isEmpty ? 'Nobody blocked' : '${social.blocked.length} blocked · tap to unblock',
+              trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BlockedPeopleScreen())),
+            ),
             GroupRow(
               icon: SolarIconsBold.headphonesRound,
               title: 'Help and safety',

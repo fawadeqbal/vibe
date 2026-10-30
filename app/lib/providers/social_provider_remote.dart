@@ -180,6 +180,15 @@ class RemoteSocialProvider extends SocialProvider {
   }
 
   @override
+  Future<List<BlockedPerson>> blockedPeople() async {
+    final list = await _api.get('/blocks') as List;
+    final people = [for (final e in list) BlockedPerson(ApiMap.profile(Map<String, dynamic>.from(e as Map)), DateTime.tryParse('${e['blockedAt'] ?? ''}')?.toLocal())];
+    _blocked = people.map((p) => p.profile.id).toSet();
+    notifyListeners();
+    return people;
+  }
+
+  @override
   Future<void> unblock(String id) async {
     await _api.delete('/blocks/$id');
     _blocked.remove(id);
