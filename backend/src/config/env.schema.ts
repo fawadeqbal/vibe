@@ -24,6 +24,10 @@ export const envSchema = z.object({
   INVITE_LINK_BASE: z.string().url().default('https://vibe.fawadiqbal.dev/i'),
   /** The web app, for links in e-mails ("Open Vibe"). */
   WEB_APP_URL: z.string().url().default('https://app.vibe.fawadiqbal.dev'),
+  /** Where "Download for Android" sends people (the latest release's APK). */
+  APK_DOWNLOAD_URL: z.string().url().default('https://github.com/fawadeqbal/vibe/releases/latest/download/vibe.apk'),
+  /** owner/repo whose releases hold the APK (admin shows GitHub's download count); empty = off. */
+  APP_RELEASES_REPO: z.string().default('fawadeqbal/vibe'),
 
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1).default('redis://127.0.0.1:6379'),

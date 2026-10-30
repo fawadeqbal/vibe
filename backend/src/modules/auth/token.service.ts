@@ -19,6 +19,8 @@ export interface TokenPair {
 export interface ClientInfo {
   userAgent?: string;
   ip?: string;
+  /** android | ios | web (see clientKind). */
+  client?: string;
 }
 
 /**

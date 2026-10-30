@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { SiteEventKind } from '@prisma/client';
@@ -6,6 +8,7 @@ import { z } from 'zod';
 import { Clock, MS } from '../../common/utils/clock';
 import { AppConfig } from '../../config/app-config.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { clientIp, GeoService } from './geo.service';
 import { classifySource, isBot, locationFrom, parseDevice } from './site-source';
 
@@ -66,6 +69,7 @@ export class SiteService {
     private readonly prisma: PrismaService,
     private readonly clock: Clock,
     private readonly geo: GeoService,
+    private readonly redis: RedisService,
     config: AppConfig,
   ) {
     const host = (u: string) => {
@@ -145,6 +149,32 @@ export class SiteService {
     }
     // leave: time on site so far (never goes down)
     if (e.s !== undefined && e.s > visit.seconds) await this.prisma.siteVisit.update({ where: { id: e.v }, data: { seconds: Math.min(e.s, 3600), lastAt: now } });
+  }
+
+  /**
+   * "Download for Android" was pressed: count it (once per person per 10
+   * minutes; bots never), crediting the site visit when the link carried it.
+   * The caller then sends the browser on to the APK.
+   */
+  async download(q: { vid?: string; b?: string }, req: RequestInfo, platform = 'android'): Promise<boolean> {
+    if (isBot(req.userAgent)) return false;
+    const ip = clientIp(req.headers, req.remoteAddress) ?? 'unknown';
+    const who = createHash('sha256').update(`${ip}|${req.userAgent ?? ''}`).digest('hex').slice(0, 32);
+    if (!(await this.redis.client.set(`dl:${platform}:${who}`, '1', 'EX', 600, 'NX'))) return false;
+    const vid = q.vid && /^[\w-]{6,64}$/.test(q.vid) ? q.vid : null;
+    const visit = vid ? await this.prisma.siteVisit.findUnique({ where: { id: vid }, select: { id: true, source: true, country: true, device: true } }) : null;
+    const loc = visit ? null : await this.locate(req);
+    await this.prisma.appDownload.create({
+      data: {
+        platform,
+        visitId: visit?.id ?? null,
+        button: q.b ? q.b.slice(0, 40) : null,
+        source: visit?.source ?? 'direct',
+        country: (visit?.country ?? loc?.country ?? null)?.slice(0, 2) ?? null,
+        device: visit?.device ?? parseDevice(req.userAgent).device,
+      },
+    });
+    return true;
   }
 
   /**

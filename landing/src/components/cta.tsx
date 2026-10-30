@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { isExternal } from "@/lib/site";
+import { isApkDownload, isExternal } from "@/lib/site";
 
 const base =
   "inline-flex items-center justify-center gap-2.5 rounded-full font-semibold whitespace-nowrap transition-[transform,box-shadow,background-color,border-color,filter] duration-300 ease-(--ease-out-expo) active:scale-[0.97]";
@@ -29,7 +29,8 @@ type Props = {
 };
 
 export function Cta({ href, variant = "brand", size = "lg", className = "", track, children }: Props) {
-  const external = isExternal(href);
+  // The APK link downloads in place (no empty new tab); other outside links open a tab.
+  const external = isExternal(href) && !isApkDownload(href);
   return (
     <a href={href} data-cta={track} className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...(external ? { target: "_blank", rel: "noopener" } : {})}>
       {children}

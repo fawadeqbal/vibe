@@ -12,9 +12,10 @@ import { OK } from '../../common/dto/ok.dto';
 import { AuthService } from './auth.service';
 import { InviteFields, LinkIdentityDto, RefreshDto, RequestOtpDto, SocialProviderName, SocialSignInDto, VerifyOtpDto } from './dto/auth.dto';
 import { IdentityService } from './identity/identity.service';
+import { clientKind } from '../platforms/client-kind';
 import { ClientInfo } from './token.service';
 
-const client = (req: Request): ClientInfo => ({ userAgent: req.headers['user-agent'], ip: req.ip });
+const client = (req: Request): ClientInfo => ({ userAgent: req.headers['user-agent'], ip: req.ip, client: clientKind(req.headers) });
 const toProvider = (p: SocialProviderName): AuthProvider => p.toUpperCase() as AuthProvider;
 const invite = (dto: InviteFields) => ({ inviteCode: dto.inviteCode, inviteSource: dto.inviteSource, inviteVia: dto.inviteVia, deviceId: dto.deviceId });
 const credential = (dto: SocialSignInDto | LinkIdentityDto) => ({ idToken: dto.idToken, accessToken: dto.accessToken, authorizationCode: dto.authorizationCode, nonce: dto.nonce, name: dto.name });

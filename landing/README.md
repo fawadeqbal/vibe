@@ -16,7 +16,7 @@ npm run build                # static site in out/
 | Variable | Used for |
 |---|---|
 | `NEXT_PUBLIC_WEB_APP_URL` | "Start matching", "Start 3-day free trial", "Invite a friend" → the web app |
-| `NEXT_PUBLIC_ANDROID_URL` | "Get the app", "Android", "Get Vibe for Android" → Play Store or a direct .apk |
+| `NEXT_PUBLIC_ANDROID_URL` | "Get the app", "Android", "Get Vibe for Android". Leave empty to use the API's counted download (`<API>/v1/site/download/android` → latest GitHub release APK); set it for the Play Store |
 | `NEXT_PUBLIC_ANDROID_PACKAGE` | Android application id (default `com.pingcrood.vibe_app`): the invite page's Play Store link |
 | `NEXT_PUBLIC_VIBE_API` | Live online count: `GET <API>/v1/stats/online` → `{ "online": n }`, polled every 30 s while the tab is visible; invite pages: `GET <API>/v1/referrals/preview/<code>` |
 | `NEXT_PUBLIC_ONLINE_FALLBACK` | Number shown before the first answer and when the API can't be reached (default 2743) |

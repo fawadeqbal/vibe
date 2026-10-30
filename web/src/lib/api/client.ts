@@ -106,6 +106,8 @@ export class ApiClient {
     const init = build();
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
+    // Which Vibe is calling (admin → App vs web).
+    headers.set("X-Client", "web");
     if (this.access) headers.set("Authorization", `Bearer ${this.access}`);
     let res: Response;
     try {
