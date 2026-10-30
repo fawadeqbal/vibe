@@ -17,6 +17,13 @@ part 'social_provider_remote.dart';
 ///
 /// [LocalSocialProvider] simulates the other side; [RemoteSocialProvider]
 /// talks to the Vibe API and receives requests and messages live.
+/// Someone you blocked, and when.
+class BlockedPerson {
+  const BlockedPerson(this.profile, this.blockedAt);
+  final Profile profile;
+  final DateTime? blockedAt;
+}
+
 abstract class SocialProvider extends ChangeNotifier {
   SocialProvider.base();
 
@@ -91,6 +98,9 @@ abstract class SocialProvider extends ChangeNotifier {
   Future<void> remove(String id);
   Future<void> block(Profile p);
   Future<void> unblock(String id);
+
+  /// The people you blocked, newest first (for "Blocked people").
+  Future<List<BlockedPerson>> blockedPeople() async => const [];
   Future<void> sendMessage(String friendId, String text, {String? replyToId});
   Future<bool> sendGift(String friendId, Gift gift);
   void markRead(String friendId);

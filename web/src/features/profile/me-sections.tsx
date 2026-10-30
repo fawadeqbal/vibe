@@ -8,7 +8,6 @@ import { Screen } from "@/components/layout/screen";
 import { confirm } from "@/components/shared/dialogs";
 import { startSelfieVerification, verificationSubtitle, VerifyPill } from "@/components/shared/selfie-verification";
 import { Avatar } from "@/components/ui/avatar";
-import { TextButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { EmptyState } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
@@ -25,6 +24,7 @@ import { useSession, verification } from "@/stores/session";
 import { useSocial } from "@/stores/social";
 import { toast } from "@/stores/ui";
 
+import { openBlockedPeople } from "./blocked-people";
 import { ProgressCard } from "@/features/engagement/progress-card";
 import { WellbeingSection } from "@/features/engagement/wellbeing-section";
 
@@ -85,10 +85,6 @@ export function SafetyPage() {
   const blocked = useSocial((s) => s.blocked);
   if (!me) return null;
   const v = verification(session);
-  const unblockAll = async () => {
-    for (const id of [...blocked]) await useSocial.getState().unblock(id);
-    toast("Everyone unblocked");
-  };
   return (
     <MeSection title="Safety & trust">
       <GroupCard className="border-trust/22">
@@ -101,9 +97,13 @@ export function SafetyPage() {
           trailing={me.verified ? <Icon name="check_circle" className="text-trust" /> : <VerifyPill busy={session.busy} onClick={() => void startSelfieVerification()} />}
         />
         <GroupRow icon="blur_on" title="Blur the first 3 seconds" subtitle="Both videos start blurred." trailing={<Switch checked={autoBlur} onChange={(x) => useMatch.getState().setAutoBlur(x)} label="Blur the first 3 seconds" />} />
-        {blocked.length ? (
-          <GroupRow icon="block" title={`${blocked.length} blocked`} subtitle="They can never match with you." trailing={<TextButton onClick={() => void unblockAll()}>Unblock all</TextButton>} />
-        ) : null}
+        <GroupRow
+          icon="block"
+          title="Blocked people"
+          subtitle={blocked.length ? `${blocked.length} blocked · tap to unblock` : "Nobody blocked"}
+          trailing={<Icon name="chevron_right" className="text-muted" />}
+          onClick={() => void openBlockedPeople()}
+        />
         <GroupRow icon="support_agent" title="Help and safety" trailing={<Icon name="chevron_right" className="text-muted" />} onClick={() => toast("The help centre opens here soon")} />
       </GroupCard>
     </MeSection>
