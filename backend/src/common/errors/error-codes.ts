@@ -11,6 +11,8 @@ export enum ErrorCode {
   SMTP_LOGIN_FAILED = 'SMTP_LOGIN_FAILED',
   /** E-mail sending isn't set up. */
   MAIL_NOT_CONFIGURED = 'MAIL_NOT_CONFIGURED',
+  /** The Firebase key was refused (Admin → Configuration → Push notifications). */
+  PUSH_KEY_INVALID = 'PUSH_KEY_INVALID',
   FORBIDDEN = 'FORBIDDEN',
   /** A feature is switched off in admin (403). */
   FEATURE_DISABLED = 'FEATURE_DISABLED',
