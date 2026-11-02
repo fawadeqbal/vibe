@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 import { P } from '../core/permissions';
 import { RequirePermissions, StaffApi } from '../core/staff-api.decorator';
@@ -29,6 +29,43 @@ class DaysQuery {
   @IsOptional()
   @IsIn(['all', 'app', 'web'])
   client: 'all' | 'app' | 'web' = 'all';
+}
+
+class VisitsQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(180)
+  days: number = 7;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10_000)
+  page: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsIn([10, 20, 50, 100])
+  pageSize: number = 20;
+
+  /** signed_up | clicked | reading | left */
+  @IsOptional()
+  @IsIn(['signed_up', 'clicked', 'reading', 'left'])
+  did?: 'signed_up' | 'clicked' | 'reading' | 'left';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  source?: string;
+
+  /** City, region, country code or page. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  q?: string;
 }
 
 @StaffApi('dashboard')
@@ -68,6 +105,12 @@ export class DashboardController {
   @ApiOperation({ summary: 'Marketing site: visitors, clicks to the app, sign-ups; by source, country/region, page, button, campaign and device; live (cached 60 s)' })
   marketing(@Query() q: DaysQuery) {
     return this.dashboard.marketing(q.days ?? 7);
+  }
+
+  @Get('marketing/visits')
+  @ApiOperation({ summary: 'Marketing site: every visit in the window, newest first, a page at a time (filter by outcome, channel, place or page)' })
+  marketingVisits(@Query() q: VisitsQuery) {
+    return this.dashboard.marketingVisits(q);
   }
 
   @Get('series')

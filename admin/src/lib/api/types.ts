@@ -856,6 +856,8 @@ export interface MarketingTotals {
   signups: number;
   firstCalls: number;
   medianSeconds: number;
+  /** "Download for Android" presses. */
+  downloads: number;
 }
 export interface MarketingNamed {
   name: string;
@@ -879,4 +881,30 @@ export interface MarketingReport {
     now: number;
     recent: { at: string; country: string | null; region: string | null; city: string | null; source: string; path: string; did: "reading" | "clicked" | "signed_up" | "left"; button: string | null }[];
   };
+}
+export interface MarketingVisit {
+  at: string;
+  startedAt: string;
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  source: string;
+  medium: string;
+  campaign: string | null;
+  path: string;
+  device: string;
+  os: string;
+  browser: string;
+  pages: number;
+  seconds: number;
+  did: "reading" | "clicked" | "signed_up" | "left";
+  button: string | null;
+}
+export interface MarketingVisitsPage {
+  items: MarketingVisit[];
+  total: number;
+  page: number;
+  pageSize: number;
+  counts: Record<"all" | "reading" | "clicked" | "signed_up" | "left", number>;
+  sources: string[];
 }
