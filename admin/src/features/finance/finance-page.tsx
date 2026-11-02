@@ -14,6 +14,8 @@ import type { FinanceDay, FinanceSummary } from "@/lib/api/types";
 import { format } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+import { MoneyInsights } from "@/features/insights/money-insights";
+
 import { useFinanceSummary } from "./api";
 import { productLabel } from "./columns";
 
@@ -38,6 +40,8 @@ export function FinancePage() {
         description="Money in, what the stores keep, what we pay creators and partners, and whether we are in profit. Business days (Pakistan time), cached for 5 minutes."
         actions={<Segmented value={days} onChange={setDays} options={[{ value: 7, label: "7 days" }, { value: 30, label: "30 days" }, { value: 90, label: "90 days" }, { value: 365, label: "1 year" }]} />}
       />
+
+      <MoneyInsights days={days} />
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard label="Gross sales" icon={DollarSign} tone="money" loading={q.isLoading} value={format.usd(s?.grossUsd)} hint={s && `${format.number(s.salesCount)} payments`} href="/finance/purchases" />

@@ -641,6 +641,23 @@ model Match {
   @@index([startedAt])
 }
 
+/// One "find me someone" (join → matched or gave up): wait times, people who
+/// gave up, busy hours (admin → Matching).
+model MatchSearch {
+  id          String    @id @default(cuid())
+  userId      String
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  /// matched | gave_up | friend_call | banned | failed | restarted
+  outcome     String?   @db.VarChar(16)
+  waitMs      Int?
+  /// Only their last partner was there ("just you two").
+  rematchSoon Boolean   @default(false)
+
+  @@index([startedAt])
+  @@index([userId, endedAt])
+}
+
 model MatchLike {
   matchId   String
   fromId    String

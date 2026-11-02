@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Eye, Globe, MousePointerClick, UserPlus, Video } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 
 import { Time } from "@/components/common/bits";
@@ -142,6 +143,10 @@ export function MarketingPage() {
           r ? (
             <>
               Visitors to {r.siteUrl.replace(/^https?:\/\//, "")} · last {days === 1 ? "24 hours" : `${days} days`} · updated <Time iso={r.generatedAt} />
+              {" · "}
+              <Link href="/growth" className="text-primary hover:underline">
+                What happens after sign-up →
+              </Link>
             </>
           ) : (
             "Who visits the landing page, where they come from, and how many go on to the app."

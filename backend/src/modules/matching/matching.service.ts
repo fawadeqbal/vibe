@@ -27,6 +27,7 @@ import { SettingsService } from '../settings/settings.service';
 import { rematchSoon } from './compatibility';
 import { MatchGamesService } from './match-games.service';
 import { MatchQueueService } from './match-queue.service';
+import { MatchSearchLog } from './match-search-log.service';
 import { WavesService } from '../waves/waves.service';
 import { MatchWaitlistService } from './match-waitlist.service';
 import { callSignal, freeReconnectUntil, GOOD_CALL_SECONDS, isFreeReconnect, isNightCall, VIBE_SCORE_ALPHA } from './match-rules';
@@ -117,6 +118,7 @@ export class MatchingService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly queue: MatchQueueService,
+    private readonly searches: MatchSearchLog,
     private readonly sessions: MatchSessionStore,
     private readonly cooldown: SkipCooldownService,
     private readonly wallet: WalletService,
@@ -177,6 +179,7 @@ export class MatchingService {
     };
     await this.sessions.savePrefs(userId, prefs);
     await this.queue.enqueue(ticket);
+    if (!user.isBot) await this.searches.start(userId);
     this.realtime.toUser(userId, ServerEvent.MatchSearching, { cost, boosted: ticket.boosted });
     // You're here now: no need to be told when someone else is.
     await this.waitlist.remove(userId);
@@ -192,6 +195,7 @@ export class MatchingService {
 
   async leave(userId: string): Promise<void> {
     await this.queue.remove(userId);
+    await this.searches.close(userId, 'gave_up');
   }
 
   /** Tries to pair one waiting user. Safe to call from anywhere, any time. */
@@ -219,6 +223,7 @@ export class MatchingService {
         charged.push(t.userId);
       } catch (e) {
         await this.abortPairing(match.id, t, t === a ? b : a, e);
+        await this.searches.close(t.userId, 'failed');
         if (charged.length) this.wallet.changed(charged);
         return null;
       }
@@ -226,6 +231,7 @@ export class MatchingService {
     await this.prisma.match.update({ where: { id: match.id }, data: { coinsSpentA: a.cost, coinsSpentB: b.cost } });
     await this.prisma.user.updateMany({ where: { id: { in: [a.userId, b.userId] } }, data: { matchesCount: { increment: 1 } } });
     await this.sessions.start({ id: match.id, a: a.userId, b: b.userId, startedAt: Date.now(), ...(friend ? { friend: true } : {}), ...(voice ? { voice: true } : {}) });
+    for (const t of [a, b]) await this.searches.close(t.userId, friend ? 'friend_call' : 'matched');
     if (charged.length) this.wallet.changed(charged);
 
     const users = await this.prisma.user.findMany({ where: { id: { in: [a.userId, b.userId] } }, include: PROFILE_INCLUDE });
@@ -310,6 +316,7 @@ export class MatchingService {
     if (!soon) return;
     const fresh = await this.redis.client.set(`mrsoon:${userId}:${soon.partnerId}:${me.enqueuedAt}`, '1', 'EX', 15 * 60, 'NX');
     if (!fresh) return;
+    await this.searches.markRematchSoon(userId);
     const p = await this.prisma.user.findUnique({ where: { id: soon.partnerId }, select: { id: true, name: true, avatarUrl: true } });
     if (!p) return;
     this.realtime.toUser(userId, ServerEvent.MatchRematchSoon, { partner: p, at: soon.at === null ? null : new Date(soon.at).toISOString() });
@@ -342,7 +349,7 @@ export class MatchingService {
   }
 
   async end(userId: string): Promise<void> {
-    await this.queue.remove(userId);
+    if (await this.queue.remove(userId)) await this.searches.close(userId, 'gave_up');
     const m = await this.sessions.forUser(userId);
     if (m) await this.endMatch(m, userId, 'stopped');
   }
@@ -548,7 +555,7 @@ export class MatchingService {
   async onDisconnect(e: SocketLifecycleEvent): Promise<void> {
     if (!e.lastSocket) return;
     try {
-      await this.queue.remove(e.userId);
+      if (await this.queue.remove(e.userId)) await this.searches.close(e.userId, 'gave_up');
       const m = await this.sessions.forUser(e.userId);
       if (m) await this.endMatch(m, e.userId, 'disconnected');
     } catch (err) {
@@ -558,7 +565,7 @@ export class MatchingService {
 
   @OnEvent(USER_BANNED, { async: true })
   async onBanned(e: UserBannedEvent): Promise<void> {
-    await this.queue.remove(e.userId);
+    if (await this.queue.remove(e.userId)) await this.searches.close(e.userId, 'banned');
     const m = await this.sessions.forUser(e.userId);
     if (m) await this.endMatch(m, e.userId, 'banned');
   }

@@ -1,15 +1,6 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { RequirePermission } from "@/features/auth/gate";
-import { PlatformsPage } from "@/features/dashboard/platforms-page";
-import { P } from "@/lib/permissions";
-
-export const metadata: Metadata = { title: "App vs web" };
-
+/** Moved: this page is now part of /growth. */
 export default function Page() {
-  return (
-    <RequirePermission permission={P.DashboardView}>
-      <PlatformsPage />
-    </RequirePermission>
-  );
+  redirect("/growth");
 }

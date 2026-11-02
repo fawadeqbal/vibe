@@ -1,15 +1,6 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { RequirePermission } from "@/features/auth/gate";
-import { LivePage } from "@/features/ops/live-page";
-import { P } from "@/lib/permissions";
-
-export const metadata: Metadata = { title: "Live" };
-
+/** Moved: this page is now part of /matching. */
 export default function Page() {
-  return (
-    <RequirePermission permission={P.OpsLive}>
-      <LivePage />
-    </RequirePermission>
-  );
+  redirect("/matching");
 }
