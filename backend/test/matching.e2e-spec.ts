@@ -164,7 +164,8 @@ describe('matching over sockets', () => {
     const sw = await online(woman);
     const sm = await online(man);
     await emit(sa, 'match:join', { gender: 'MEN' });
-    await emit(sw, 'match:join', {});
+    // She only wants women, so the man can only be paired with Ayesha (never a coin flip with her).
+    await emit(sw, 'match:join', { gender: 'WOMEN' });
     await sleep(300);
     expect((await t.http.get('/v1/wallet').set(a.auth)).body.coins).toBe(30); // nobody suitable yet: no charge
     const found = next(sa, 'match:found');
