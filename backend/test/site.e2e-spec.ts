@@ -60,5 +60,30 @@ describe('site traffic', () => {
     expect(r.live.now).toBe(1);
     expect(r.live.recent[0]).toMatchObject({ did: 'signed_up', source: 'google' });
     expect(r.siteUrl).toMatch(/^https?:\/\//);
+    expect(r.totals.downloads).toBe(0);
+  });
+
+  it('All visits: newest first, a page at a time, filtered by outcome, channel and place', async () => {
+    await beacon({ k: 'view', v: 'visit_v1111111', u: 'visitor_a1', p: '/', r: 'https://www.google.com/' }, phone, { 'cf-ipcountry': 'PK', 'cf-region': 'Punjab', 'cf-ipcity': 'Lahore' });
+    await beacon({ k: 'view', v: 'visit_v2222222', u: 'visitor_a2', p: '/azar-alternative/', r: 'https://www.tiktok.com/' }, phone, { 'cf-ipcountry': 'AE', 'cf-ipcity': 'Dubai' });
+    await beacon({ k: 'click', v: 'visit_v2222222', u: 'visitor_a2', p: '/azar-alternative/', b: 'hero_start', t: '/match' });
+    await beacon({ k: 'view', v: 'visit_v3333333', u: 'visitor_a3', p: '/', r: 'https://www.tiktok.com/' }, phone, { 'cf-ipcountry': 'PK', 'cf-ipcity': 'Karachi' });
+    await t.prisma.siteVisit.update({ where: { id: 'visit_v3333333' }, data: { lastAt: new Date(Date.now() - 60 * 60_000) } });
+
+    const staff = await staffLogin(t);
+    const get = async (q: string) => (await t.http.get(`/v1/admin/dashboard/marketing/visits?${q}`).set(staff.auth).expect(200)).body;
+    const all = await get('days=7&pageSize=10');
+    expect(all).toMatchObject({ total: 3, page: 1, pageSize: 10, counts: { all: 3, signed_up: 0, clicked: 1, reading: 1, left: 1 } });
+    expect(all.items.map((v: { city: string }) => v.city)).toEqual(['Dubai', 'Lahore', 'Karachi']);
+    expect(all.items[0]).toMatchObject({ source: 'tiktok', path: '/azar-alternative/', did: 'clicked', device: 'phone' });
+    expect(all.sources.sort()).toEqual(['google', 'tiktok']);
+
+    expect((await get('pageSize=10&did=left')).items.map((v: { city: string }) => v.city)).toEqual(['Karachi']);
+    expect((await get('pageSize=10&source=tiktok')).total).toBe(2);
+    expect((await get('pageSize=10&q=lahore')).total).toBe(1);
+    expect((await get('pageSize=10&q=azar')).total).toBe(1);
+    const p2 = await get('pageSize=10&page=2');
+    expect(p2).toMatchObject({ total: 3, page: 2, items: [] });
+    await t.http.get('/v1/admin/dashboard/marketing/visits?pageSize=7').set(staff.auth).expect(400);
   });
 });

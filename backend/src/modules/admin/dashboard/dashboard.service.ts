@@ -8,7 +8,7 @@ import { RedisService } from '../../../infra/redis/redis.service';
 import { EconomyService } from '../../catalog/economy.service';
 import { MatchingService } from '../../matching/matching.service';
 import { discoverCallsReport, type DiscoverCallsReport } from './discover-stats';
-import { type MarketingReport, marketingReport } from './marketing-stats';
+import { type MarketingReport, marketingReport, marketingVisits, type MarketingVisitsPage, type VisitOutcome } from './marketing-stats';
 import { buildFunnel, CohortCounts, FunnelReport } from './funnel';
 
 export type SeriesPoint = { day: string; signups: number; revenueUsd: number; purchases: number; matches: number; matchers: number; gifts: number; payoutsUsd: number; reports: number };
@@ -51,6 +51,11 @@ export class DashboardService {
     return this.redis.remember(`admin:dash:marketing:${days}`, 60, () =>
       marketingReport(this.prisma, days, this.clock.now(), this.config.get('BUSINESS_TZ_OFFSET_MINUTES'), new URL(this.config.get('INVITE_LINK_BASE')).origin),
     );
+  }
+
+  /** Admin → Marketing site → All visits (not cached: it's paged and filtered). */
+  marketingVisits(q: { days: number; page: number; pageSize: number; did?: VisitOutcome; source?: string; q?: string }): Promise<MarketingVisitsPage> {
+    return marketingVisits(this.prisma, q, this.clock.now());
   }
 
   /** New-user funnel for people who signed up in the last `days` business days (cached 5 min). */

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { RequirePermission } from "@/features/auth/gate";
-import { MarketingPage } from "@/features/dashboard/marketing-page";
+import { MarketingPage } from "@/features/marketing/marketing-page";
 import { P } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Marketing site" };
