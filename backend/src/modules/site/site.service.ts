@@ -156,7 +156,7 @@ export class SiteService {
    * minutes; bots never), crediting the site visit when the link carried it.
    * The caller then sends the browser on to the APK.
    */
-  async download(q: { vid?: string; b?: string }, req: RequestInfo, platform = 'android'): Promise<boolean> {
+  async download(q: { vid?: string; b?: string; ref?: string }, req: RequestInfo, platform = 'android'): Promise<boolean> {
     if (isBot(req.userAgent)) return false;
     const ip = clientIp(req.headers, req.remoteAddress) ?? 'unknown';
     const who = createHash('sha256').update(`${ip}|${req.userAgent ?? ''}`).digest('hex').slice(0, 32);
@@ -169,7 +169,7 @@ export class SiteService {
         platform,
         visitId: visit?.id ?? null,
         button: q.b ? q.b.slice(0, 40) : null,
-        source: visit?.source ?? 'direct',
+        source: visit?.source ?? (q.ref ? 'invite' : 'direct'),
         country: (visit?.country ?? loc?.country ?? null)?.slice(0, 2) ?? null,
         device: visit?.device ?? parseDevice(req.userAgent).device,
       },

@@ -35,3 +35,9 @@ export const config = {
   /** Every call through TURN (testing the relay). */
   forceRelay: ["true", "yes", "1"].includes((process.env.NEXT_PUBLIC_FORCE_RELAY ?? "").toLowerCase()),
 } as const;
+
+/**
+ * "Get the Android app": the API counts the download (admin → App vs web),
+ * then sends the browser to the latest APK. [button] names where it was pressed.
+ */
+export const androidDownloadUrl = (button: string) => `${config.restBase}/site/download/android?b=${encodeURIComponent(button)}`;

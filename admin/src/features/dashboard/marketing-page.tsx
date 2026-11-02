@@ -315,7 +315,7 @@ export function MarketingPage() {
                       <span className="block">{BUTTON_LABELS[b.button] ?? b.button}</span>
                       <span className="block font-mono text-[11px] text-muted">{b.button}</span>
                     </Td>
-                    <Td className="text-text-2">{b.target === "store" ? "App store" : (b.target ?? "—")}</Td>
+                    <Td className="text-text-2">{b.target === "store" ? "App store" : b.target === "apk" ? "Android download" : (b.target ?? "—")}</Td>
                     <Td className="text-right tabular">{format.number(b.clicks)}</Td>
                     <Td className="text-right tabular">{format.number(b.signups)}</Td>
                   </Tr>

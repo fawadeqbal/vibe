@@ -7,7 +7,7 @@ import { Cta } from "@/components/cta";
 import { Icon } from "@/components/icon";
 import { Logo, LogoMark } from "@/components/logo";
 import type { IconName } from "@/lib/icons";
-import { appDeepLink, fetchPreview, type InvitePreview, parseInvite, playStoreUrl, webAppUrl } from "@/lib/invite";
+import { androidDownloadUrl, appDeepLink, fetchPreview, type InvitePreview, parseInvite, webAppUrl } from "@/lib/invite";
 import { site } from "@/lib/site";
 
 const TRUST: { icon: IconName; label: string }[] = [
@@ -22,8 +22,9 @@ const useLocation = () => useSyncExternalStore(noop, () => `${window.location.pa
 
 /**
  * "Ali invited you to Vibe · get 50 free coins": who invited you (first name
- * and photo, or the creator partner's name), then the Play Store (with the
- * install referrer), the web app (with ?ref=) and "open the app". An unknown
+ * and photo, or the creator partner's name), then the Android download (the
+ * latest APK, counted), the web app (with ?ref=) and "Open the app", which
+ * hands the invite to the installed app (vibe://invite). An unknown
  * code shows the same page without a name or coins.
  */
 export function InviteCard() {
@@ -90,17 +91,22 @@ export function InviteCard() {
         </p>
 
         <div className="mt-8 flex w-full max-w-[380px] flex-col gap-3">
-          <Cta href={playStoreUrl(keep)} size="xl" className="w-full">
+          <Cta href={androidDownloadUrl(keep)} track="invite_android" size="xl" className="w-full">
             <Icon name="android" size={20} />
-            Get it on Google Play
+            Download for Android
           </Cta>
           <Cta href={webAppUrl(keep)} track="invite_web" variant="outline" size="lg" className="w-full">
             <Icon name="videocam" size={19} />
             Use {site.name} on the web
           </Cta>
         </div>
-        <a href={appDeepLink(keep)} className="mt-4 text-[13.5px] text-text2 underline-offset-4 transition-colors hover:text-pink-soft hover:underline">
-          Already have the app? Open it
+        {keep ? (
+          <p className="mt-4 max-w-[380px] text-[13px] leading-[1.55] text-text2">
+            After installing, come back here and tap <strong className="text-text">Open the app</strong> — your invite is added by itself.
+          </p>
+        ) : null}
+        <a href={appDeepLink(keep)} className="mt-3 text-[13.5px] text-text2 underline-offset-4 transition-colors hover:text-pink-soft hover:underline">
+          {keep ? "Open the app" : "Already have the app? Open it"}
         </a>
 
         {keep ? (

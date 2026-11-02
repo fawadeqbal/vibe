@@ -22,15 +22,15 @@ export class SiteController {
   /**
    * "Download for Android" on the marketing site: counts the download, then
    * sends the browser straight to the latest APK (the download starts).
-   * `?vid=` (the site visit) and `?b=` (the button) credit where it came from.
+   * `?vid=` (the site visit), `?b=` (the button) and `?ref=` (an invite link) credit where it came from.
    */
   @Public()
   @SkipMaintenance()
   @Get('download/android')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'Count an Android download and redirect (302) to the latest APK' })
-  async downloadAndroid(@Query('vid') vid: string | undefined, @Query('b') b: string | undefined, @Req() req: Request, @Res() res: Response): Promise<void> {
-    await this.site.download({ vid, b }, { headers: req.headers, userAgent: req.get('user-agent') ?? null, remoteAddress: req.socket?.remoteAddress ?? null }).catch(() => false);
+  async downloadAndroid(@Query('vid') vid: string | undefined, @Query('b') b: string | undefined, @Query('ref') ref: string | undefined, @Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.site.download({ vid, b, ref }, { headers: req.headers, userAgent: req.get('user-agent') ?? null, remoteAddress: req.socket?.remoteAddress ?? null }).catch(() => false);
     res.setHeader('Cache-Control', 'no-store');
     res.redirect(302, this.config.get('APK_DOWNLOAD_URL'));
   }
