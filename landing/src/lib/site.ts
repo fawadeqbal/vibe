@@ -55,7 +55,7 @@ export const site = {
   /** Official profiles (Instagram, TikTok, X, Facebook, YouTube, Play Store…): schema.org sameAs. */
   sameAs: list(process.env.NEXT_PUBLIC_SOCIAL_LINKS),
 
-  /** Android application id: invite pages build the Play Store link (with the install referrer) from it. */
+  /** Android application id (for a future Play Store listing). */
   androidPackage: env(process.env.NEXT_PUBLIC_ANDROID_PACKAGE, "com.pingcrood.vibe_app"),
   /** The API origin ("" = none configured). */
   api,
@@ -96,7 +96,8 @@ export const site = {
 export const abs = (path = "/") => `${site.url}${path.startsWith("/") ? path : `/${path}`}`;
 
 /** External links open in a new tab; in-page anchors don't. */
-export const isExternal = (href: string) => /^https?:\/\//.test(href);
-
 /** The "count it, then download the APK" link on the API. */
 export const isApkDownload = (href: string) => /\/v1\/site\/download\/android(\?|$)/.test(href);
+
+/** Outside links open in a new tab, except the APK download (it downloads in place, no empty tab). */
+export const isExternal = (href: string) => /^https?:\/\//.test(href) && !isApkDownload(href);

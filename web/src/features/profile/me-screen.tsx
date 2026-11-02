@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 import { Screen } from "@/components/layout/screen";
 import { CircleIconButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { PageHeader } from "@/components/ui/page-header";
 import { GroupCard, GroupRow } from "@/components/ui/panel";
+import { androidDownloadUrl } from "@/lib/config";
 import { useNow } from "@/hooks/use-now";
 import { type AffiliateStatus } from "@/lib/affiliate";
 import { alpha } from "@/lib/colors";
@@ -33,6 +34,7 @@ import { ProfileCard, ProfileProgress, StatsCard, VerificationCard } from "./me-
  */
 export function MeScreen() {
   const router = useRouter();
+  const androidApp = useShowAndroidApp();
   const session = useSession();
   const me = session.me;
   const wallet = useWallet((s) => s.wallet);
@@ -93,6 +95,22 @@ export function MeScreen() {
       </GroupCard>
       <InviteCodeField className="mt-2.5" />
 
+      {androidApp ? (
+        <GroupCard className="mt-2.5">
+          <GroupRow
+            icon="android"
+            iconColor="trust"
+            iconBg={alpha("trust", 0.12)}
+            title="Get the Android app"
+            subtitle="Free download · no Play Store needed"
+            trailing={<Icon name="download" className="text-muted" />}
+            onClick={() => {
+              window.location.href = androidDownloadUrl("web_me");
+            }}
+          />
+        </GroupCard>
+      ) : null}
+
       <GroupCard className="mt-2.5">
         <MenuRow icon="notifications_none" title="Notifications & wellbeing" subtitle="Quiet hours and break reminders" href="/me/wellbeing" />
         <MenuRow icon="manage_accounts" iconVariant="outlined" title="Account" subtitle="Sign-in methods, e-mail, terms, sign out" href="/me/account" />
@@ -101,6 +119,14 @@ export function MeScreen() {
     </Screen>
   );
 }
+
+/** Not on iPhone/iPad (an APK can't be installed there). Server render: shown. */
+const useShowAndroidApp = () =>
+  useSyncExternalStore(
+    () => () => {},
+    () => !/iPhone|iPad|iPod/i.test(navigator.userAgent),
+    () => true,
+  );
 
 const partnerSubtitle = (s: AffiliateStatus | undefined) =>
   s === "ACTIVE"

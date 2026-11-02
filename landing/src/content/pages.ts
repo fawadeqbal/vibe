@@ -8,6 +8,7 @@ import { site } from "@/lib/site";
  */
 const n = site.name;
 const app = site.links.webApp;
+const apk = site.links.android;
 
 export const PAGES: KeywordPage[] = [
   // ── 1 ────────────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ export const PAGES: KeywordPage[] = [
       { h2: "How to start your first video chat" },
       {
         ol: [
-          `Open [${n} in your browser](${app}) or install the Android app — no download is needed on a computer.`,
+          `Open [${n} in your browser](${app}) or install the [Android app](${apk}) — no download is needed on a computer.`,
           "Sign in and add a profile photo. Take the quick selfie check to get your verified badge (it also unlocks matching with verified people only).",
           "Allow camera and microphone, tap **Start**, and say hi. Tap **Next** any time to meet someone else.",
         ],
@@ -151,7 +152,7 @@ export const PAGES: KeywordPage[] = [
       { h2: "How to talk to strangers on " + n },
       {
         ol: [
-          `Open [${n}](${app}) in your browser or the Android app and sign in.`,
+          `Open [${n}](${app}) in your browser or the [Android app](${apk}) and sign in.`,
           "Set your filters if you want — a country, a gender, or verified people only.",
           "Tap **Start**. Say hello while the video sharpens. If the vibe's off, tap **Next**.",
           "Had a great chat? Tap **Add friend** so the conversation doesn't end with the call.",

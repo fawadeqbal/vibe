@@ -39,6 +39,10 @@ describe('platforms', () => {
     await t.http.get('/v1/site/download/android').set('User-Agent', ua).expect(302);
     await t.http.get('/v1/site/download/android').set('User-Agent', 'Googlebot/2.1').expect(302); // bots aren't counted
     expect(await t.prisma.appDownload.count()).toBe(1);
+    // From an invite page, on another phone: credited to "invite".
+    await t.http.get('/v1/site/download/android?b=invite_android&ref=ABC1234').set('User-Agent', 'Mozilla/5.0 (Linux; Android 13; SM-A54) Mobile Chrome/129').expect(302);
+    expect(await t.prisma.appDownload.findFirst({ where: { button: 'invite_android' } })).toMatchObject({ source: 'invite' });
+    await t.prisma.appDownload.deleteMany({ where: { button: 'invite_android' } });
     expect(await t.prisma.appDownload.findFirst()).toMatchObject({ platform: 'android', button: 'hero_android', source: 'direct', device: 'phone' });
 
     const viewer = await staffLogin(t, 'viewer');

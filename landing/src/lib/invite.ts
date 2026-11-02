@@ -1,4 +1,4 @@
-import { site } from "@/lib/site";
+import { isApkDownload, site } from "@/lib/site";
 
 /**
  * Invite links (`/i/<CODE>?s=<channel>`): reading them, and where the page's
@@ -35,12 +35,17 @@ export function parseInvite(pathname: string, search: string): InviteRef | null 
   return { code: raw.toUpperCase(), source: SOURCE.test(s) ? s : null };
 }
 
-/** Play Store listing with the install referrer the app reads on first launch. */
-export function playStoreUrl(ref: InviteRef | null): string {
-  const base = `https://play.google.com/store/apps/details?id=${encodeURIComponent(site.androidPackage)}`;
-  if (!ref) return base;
-  const referrer = `vibe_ref=${ref.code}${ref.source ? `&utm_source=${ref.source}` : ""}`;
-  return `${base}&referrer=${encodeURIComponent(referrer)}`;
+/**
+ * The Android app download (counted by the API, then the latest APK). The
+ * invite rides along so the download is credited to it; the app itself gets
+ * the code from "Open the app" (vibe://invite) or "Have an invite code?".
+ */
+export function androidDownloadUrl(ref: InviteRef | null): string {
+  if (!ref || !isApkDownload(site.links.android)) return site.links.android;
+  const u = new URL(site.links.android);
+  u.searchParams.set("ref", ref.code);
+  if (ref.source) u.searchParams.set("s", ref.source);
+  return u.toString();
 }
 
 /** The web app, carrying the invite (`?ref=&s=`), which it keeps until sign-up. */
