@@ -117,7 +117,7 @@ export function GrowthPage() {
           description={client === "all" ? "Where each new account was made: the Android app or the web." : `Only accounts made on the ${client === "app" ? "app" : "web"}.`}
         />
         <CardBody>
-          <TimeSeriesChart kind="bar" data={r?.daily} loading={q.isLoading} height={220} series={signupSeries(client, r)} />
+          <TimeSeriesChart data={r?.daily} loading={q.isLoading} height={220} series={signupSeries(client, r)} />
         </CardBody>
       </Card>
 
