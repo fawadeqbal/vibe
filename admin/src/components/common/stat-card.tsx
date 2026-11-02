@@ -47,8 +47,8 @@ export function StatCard({
           </span>
         )}
       </div>
-      {loading ? <Skeleton className="mt-2 h-7 w-24" /> : <p className="mt-1.5 text-2xl font-semibold tracking-tight text-text tabular">{value}</p>}
-      {hint && !loading && <p className="mt-1 truncate text-xs text-muted">{hint}</p>}
+      {loading ? <Skeleton className="mt-2 h-7 w-24" /> : <p className="mt-1.5 text-xl font-semibold tracking-tight break-words text-text tabular sm:text-2xl">{value}</p>}
+      {hint && !loading && <p className="mt-1 line-clamp-2 text-xs text-muted">{hint}</p>}
     </div>
   );
   return href ? (
