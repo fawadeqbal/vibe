@@ -56,8 +56,9 @@ export function NotificationSettings() {
             if (!types.length) return null;
             return (
               <div key={g.key}>
-                <div className="mb-1.5 grid grid-cols-[1fr_repeat(3,72px)] items-end gap-2 px-1 text-xs font-medium text-muted">
-                  <span className="text-sm font-semibold">{g.label}</span>
+                {/* Phones: the name gets its own line, the three switches sit under the channel names. */}
+                <div className="mb-1.5 grid grid-cols-3 items-end gap-x-2 gap-y-1 px-1 text-xs font-medium text-muted sm:grid-cols-[1fr_repeat(3,72px)]">
+                  <span className="col-span-3 text-sm font-semibold sm:col-span-1">{g.label}</span>
                   {CHANNELS.map((c) => (
                     <Tooltip key={c.key} content={c.hint}>
                       <span className="flex items-center justify-center gap-1">
@@ -69,9 +70,9 @@ export function NotificationSettings() {
                 </div>
                 <div className="divide-y divide-line rounded-lg border border-line">
                   {types.map((t) => (
-                    <div key={t.key} className="grid grid-cols-[1fr_repeat(3,72px)] items-center gap-2 px-3 py-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 truncate text-sm">
+                    <div key={t.key} className="grid grid-cols-3 items-center gap-x-2 gap-y-2 px-3 py-2.5 sm:grid-cols-[1fr_repeat(3,72px)] sm:py-2">
+                      <div className="col-span-3 min-w-0 sm:col-span-1">
+                        <div className="flex items-center gap-1.5 text-sm sm:truncate">
                           {t.label}
                           {t.auto ? (
                             <Tooltip content="Sent by itself when it happens">

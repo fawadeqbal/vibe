@@ -101,6 +101,8 @@ export interface GrowthReport {
   days: number;
   sources: SourceRow[];
   total: SourceRow;
+  /** Sign-ups per day by where the account was made (other = before that was recorded). */
+  daily: { day: string; app: number; web: number; other: number; total: number }[];
   cohorts: {
     week: string;
     signups: number;
@@ -233,8 +235,8 @@ export function KpiCard({
       title={help}
     >
       <p className="text-xs font-medium text-muted">{label}</p>
-      {loading ? <Skeleton className="mt-2 h-8 w-24" /> : <p className="mt-1 text-[28px] leading-tight font-semibold tracking-tight text-text tabular-nums">{value}</p>}
-      {!loading && sub ? <p className="mt-0.5 truncate text-xs text-text-2">{sub}</p> : null}
+      {loading ? <Skeleton className="mt-2 h-8 w-24" /> : <p className="mt-1 text-2xl leading-tight font-semibold tracking-tight break-words text-text tabular-nums sm:text-[28px]">{value}</p>}
+      {!loading && sub ? <p className="mt-0.5 line-clamp-2 text-xs text-text-2">{sub}</p> : null}
       {!loading && delta ? <p className="mt-1.5">{delta}</p> : null}
     </div>
   );
