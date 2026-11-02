@@ -6,6 +6,7 @@ import { EconomyService } from '../src/modules/catalog/economy.service';
 import { EngagementNotifier } from '../src/modules/engagement/engagement-notifier.service';
 import { boardKey, ProgressService } from '../src/modules/engagement/progress.service';
 import { RecapService } from '../src/modules/engagement/recap.service';
+import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { DevPushSender } from '../src/modules/push/push-sender';
 import { PushService } from '../src/modules/push/push.service';
 import { connect, createTestApp, emit, next, requestFriend, resetState, signUp, sleep, TestApp, TestUser } from './helpers';
@@ -53,6 +54,8 @@ describe('engagement', () => {
     await t.prisma.match.create({ data: { userAId: a.id, userBId: b.id } });
     await requestFriend(t, a, b);
     await t.http.post(`/v1/friends/${a.id}/accept`).set(b.auth).expect(200);
+    // "You're friends now" goes out in the background: let it finish before the test looks at pushes.
+    await t.app.get(NotificationsService).settled();
   }
 
   const say = (from: TestUser, to: TestUser, text = 'hey') => t.http.post(`/v1/friends/${to.id}/messages`).set(from.auth).send({ text }).expect(201);

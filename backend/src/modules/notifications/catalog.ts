@@ -181,7 +181,8 @@ export const CATALOG: NotificationType[] = [
     event: ServerEvent.FriendAccepted,
     channels: PUSH,
     build: (p) => {
-      const f = who(p.friend);
+      const raw = (p.friend ?? {}) as { profile?: { id?: string; name?: string } };
+      const f = who(raw.profile ?? raw);
       return { title: "You're friends now", body: `${f.name || 'Your friend'} accepted your request`, data: { route: 'chat', friendId: String(f.id ?? '') } };
     },
   },

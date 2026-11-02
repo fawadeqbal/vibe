@@ -51,6 +51,7 @@ const NOTHING: NotifyResult = { push: 0, inApp: false, email: false };
 export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger('Notifications');
   private cached: { o: Overrides; at: number } | null = null;
+  private readonly inFlight = new Set<Promise<NotifyResult>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -76,12 +77,18 @@ export class NotificationsService implements OnModuleInit {
       this.logger.warn(`unknown notification type "${key}"`);
       return NOTHING;
     }
-    try {
-      return await this.deliver(userId, type, data, opts);
-    } catch (e) {
-      this.logger.warn(`${key} to ${userId} failed: ${(e as Error).message}`);
+    const job = this.deliver(userId, type, data, opts).catch((e: Error) => {
+      this.logger.warn(`${key} to ${userId} failed: ${e.message}`);
       return NOTHING;
-    }
+    });
+    this.inFlight.add(job);
+    void job.finally(() => this.inFlight.delete(job));
+    return job;
+  }
+
+  /** Waits until every notification started so far has gone out (tests, shutdown). */
+  async settled(): Promise<void> {
+    while (this.inFlight.size) await Promise.all([...this.inFlight]);
   }
 
   private async deliver(userId: string, type: NotificationType, data: Record<string, unknown>, opts: { online?: boolean }): Promise<NotifyResult> {

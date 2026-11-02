@@ -8,7 +8,7 @@ import { CATALOG } from '../src/modules/notifications/catalog';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { DevPushSender } from '../src/modules/push/push-sender';
 import { PushService } from '../src/modules/push/push.service';
-import { createTestApp, resetState, signUp, sleep, staffLogin, TestApp, TestUser } from './helpers';
+import { createTestApp, resetState, signUp, staffLogin, TestApp, TestUser } from './helpers';
 
 /** One notification center: push, in-app inbox and e-mail, with staff and personal switches. */
 describe('notifications', () => {
@@ -58,7 +58,7 @@ describe('notifications', () => {
     expect(mails[0].subject).toBe('A note from the Vibe team');
     expect(mails[0].headers?.['List-Unsubscribe']).toBeUndefined();
     // The inbox message it made does not push a second time.
-    await sleep(150);
+    await center().settled();
     expect(pushes()).toHaveLength(1);
   });
 
@@ -76,7 +76,7 @@ describe('notifications', () => {
     await t.http.put('/v1/me/notifications').set(b.auth).send({ group: 'nope', channel: 'push', on: false }).expect(400);
 
     t.app.get(RealtimeService).toUser(b.id, ServerEvent.FriendRequest, { from: { id: a.id, name: 'Ali' } });
-    await sleep(200);
+    await center().settled();
     expect(pushes()).toHaveLength(0);
     expect((await center().notify(b.id, 'account.warning', { message: 'x' })).push).toBe(1);
 
@@ -89,14 +89,14 @@ describe('notifications', () => {
     const b = await signUp(t, { name: 'Bina' });
     const token = await withPhone(b);
     t.app.get(RealtimeService).toUser(b.id, ServerEvent.FriendRequest, { from: { id: a.id, name: 'Ali Khan' } });
-    await sleep(200);
+    await center().settled();
     expect(pushes().map((p) => p.msg.title)).toEqual(['New friend request']);
     expect(pushes()[0]).toMatchObject({ token, msg: { body: 'Ali Khan wants to be friends', category: 'social' } });
 
     pushes().splice(0);
     jest.spyOn(t.app.get(RealtimeService), 'isOnline').mockResolvedValueOnce(true);
     t.app.get(RealtimeService).toUser(b.id, ServerEvent.FollowAccepted, { by: { id: a.id, name: 'Ali' } });
-    await sleep(200);
+    await center().settled();
     expect(pushes()).toHaveLength(0);
   });
 
@@ -157,7 +157,7 @@ describe('notifications', () => {
     await withPhone(u);
     const req = await t.prisma.verificationRequest.create({ data: { userId: u.id, status: VerificationStatus.PENDING, provider: 'manual' } });
     await t.http.post(`/v1/admin/verifications/${req.id}/reject`).set(owner.auth).send({ reason: 'The photo was too dark.' }).expect(200);
-    await sleep(200);
+    await center().settled();
     expect(pushes()[0].msg).toMatchObject({ title: "We couldn't verify your selfie", body: 'The photo was too dark. You can try again with a new selfie.' });
     expect((await inbox(u))[0].title).toBe("We couldn't verify your selfie");
   });
