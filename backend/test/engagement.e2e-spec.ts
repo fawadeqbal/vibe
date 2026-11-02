@@ -6,6 +6,7 @@ import { EconomyService } from '../src/modules/catalog/economy.service';
 import { EngagementNotifier } from '../src/modules/engagement/engagement-notifier.service';
 import { boardKey, ProgressService } from '../src/modules/engagement/progress.service';
 import { RecapService } from '../src/modules/engagement/recap.service';
+import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { DevPushSender } from '../src/modules/push/push-sender';
 import { PushService } from '../src/modules/push/push.service';
 import { connect, createTestApp, emit, next, requestFriend, resetState, signUp, sleep, TestApp, TestUser } from './helpers';
@@ -53,6 +54,8 @@ describe('engagement', () => {
     await t.prisma.match.create({ data: { userAId: a.id, userBId: b.id } });
     await requestFriend(t, a, b);
     await t.http.post(`/v1/friends/${a.id}/accept`).set(b.auth).expect(200);
+    // "You're friends now" goes out in the background: let it finish before the test looks at pushes.
+    await t.app.get(NotificationsService).settled();
   }
 
   const say = (from: TestUser, to: TestUser, text = 'hey') => t.http.post(`/v1/friends/${to.id}/messages`).set(from.auth).send({ text }).expect(201);
@@ -561,7 +564,7 @@ describe('engagement', () => {
       expect(await t.app.get(EngagementNotifier).weeklyRecap()).toBe(1); // b and idle received nothing last week
       expect(await t.app.get(EngagementNotifier).weeklyRecap()).toBe(0);
       const inbox = (await t.http.get('/v1/inbox').set(a.auth).expect(200)).body;
-      expect(inbox.items[0]).toMatchObject({ title: 'Your week on Vibe', read: false });
+      expect(inbox.items[0]).toMatchObject({ title: 'Your week on Vibe ✨', read: false });
       expect(inbox.items[0].body).toContain('💖 1 like');
       expect(pushesTo(token)).toEqual([expect.objectContaining({ title: 'Your week on Vibe ✨', category: 'engagement' })]);
     });

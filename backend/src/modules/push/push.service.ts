@@ -14,7 +14,7 @@ import { inQuietHours, QUIET_CATEGORIES } from './quiet-hours';
 
 const MAX_TOKENS_PER_USER = 10;
 
-/** Device tokens and sending. Which events become notifications lives in PushBridge. */
+/** Device tokens and sending. What gets sent, and when, lives in NotificationsService (notifications/catalog.ts). */
 @Integration()
 @Injectable()
 export class PushService implements IntegrationReporter, OnModuleInit {
@@ -123,7 +123,7 @@ export class PushService implements IntegrationReporter, OnModuleInit {
   }
 
   private async allowed(userId: string, msg: PushMessage): Promise<boolean> {
-    if (QUIET_CATEGORIES.has(msg.category)) {
+    if (!msg.urgent && QUIET_CATEGORIES.has(msg.category)) {
       const q = await this.prisma.user.findUnique({ where: { id: userId }, select: { quietHoursStart: true, quietHoursEnd: true, tzOffsetMinutes: true } });
       if (!q || inQuietHours(this.clock.now().getTime(), q)) return false;
     }

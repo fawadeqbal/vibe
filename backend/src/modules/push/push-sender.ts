@@ -20,6 +20,8 @@ export interface PushMessage {
   category: PushCategory;
   /** Replaces an earlier notification with the same key (Android tag / iOS thread). */
   collapseKey?: string;
+  /** Account and safety alerts, calls: go out even in quiet hours. */
+  urgent?: boolean;
 }
 
 /** ok = delivered to FCM; invalid = drop this token; retry = transient. */

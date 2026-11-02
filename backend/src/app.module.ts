@@ -33,6 +33,7 @@ import { MatchingModule } from './modules/matching/matching.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { MomentsModule } from './modules/moments/moments.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PushModule } from './modules/push/push.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { MailTemplatesModule } from './modules/messaging/mail-templates.module';
@@ -105,6 +106,7 @@ function canPrettyPrint(): boolean {
     WalletModule,
     PaymentsModule,
     PushModule,
+    NotificationsModule,
     SocialModule,
     WavesModule,
     DiscoverModule,
