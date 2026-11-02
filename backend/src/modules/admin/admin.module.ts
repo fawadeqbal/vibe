@@ -20,7 +20,9 @@ import { DashboardController } from './dashboard/dashboard.controller';
 import { DashboardService } from './dashboard/dashboard.service';
 import { FinanceController } from './finance/finance.controller';
 import { FinanceService } from './finance/finance.service';
+import { PushModule } from '../push/push.module';
 import { AdminMailController } from './ops/admin-mail.controller';
+import { AdminPushController } from './ops/admin-push.controller';
 import { InsightsController } from './insights/insights.controller';
 import { InsightsService } from './insights/insights.service';
 import { AdminAppealsController } from './moderation/admin-appeals.controller';
@@ -41,8 +43,8 @@ import { AdminGrowthController } from './growth/admin-growth.controller';
  * same domain services the app uses — no second copy of business rules.
  */
 @Module({
-  imports: [AdminCoreModule, UsersModule, WalletModule, PaymentsModule, ModerationModule, MatchingModule, AnnouncementsModule, MessagingModule, ReferralsModule],
-  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, AdminAppealsController, InsightsController, FinanceController, OpsController, AdminMailController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController, AdminGrowthController],
+  imports: [AdminCoreModule, UsersModule, WalletModule, PaymentsModule, ModerationModule, MatchingModule, AnnouncementsModule, MessagingModule, ReferralsModule, PushModule],
+  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, AdminAppealsController, InsightsController, FinanceController, OpsController, AdminMailController, AdminPushController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController, AdminGrowthController],
   providers: [StaffTokenService, StaffAuthService, TeamService, DashboardService, InsightsService, AdminUsersService, AdminReportsService, FinanceService],
 })
 export class AdminModule {}
