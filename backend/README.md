@@ -26,7 +26,7 @@ Create the first admin-panel owner: set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.
 ### Sign-in e-mails with Gmail
 
 1. Turn on 2-Step Verification for the Google account, then create an App Password (Google Account → Security → App passwords).
-2. In `.env`: `MAIL_PROVIDER=smtp`, `SMTP_USER=you@gmail.com`, `SMTP_PASS=<the 16 characters>` (spaces are fine), `MAIL_FROM=Vibe <you@gmail.com>`.
+2. In the admin panel: **Settings → E-mail sending** — server `smtp.gmail.com`, port 465, SSL on, your address and the App Password (spaces are fine). It is checked with Gmail, stored encrypted and never shown again. (For a local run without the panel you can put `SMTP_*` in your own `.env`, which is never committed.)
 3. Restart the API. The log says `SMTP ready` — or `SMTP login failed …` if the password is wrong.
 
 Remove `OTP_FIXED_CODE` from `.env` if you want real random codes in development too.
@@ -216,7 +216,7 @@ Connect to the server root with `auth: { token: <access token> }` over WebSocket
 
 1. Set `NODE_ENV=production`, a long random `JWT_ACCESS_SECRET` and a different `JWT_STAFF_SECRET`. The app refuses to boot with dev providers, `OTP_FIXED_CODE`, or a missing staff secret. Turn on **Require 2FA for staff** in the panel's Settings once your owners have 2FA.
 2. Switch on the real providers:
-   - **E-mail:** `MAIL_PROVIDER=smtp`. Gmail works to start with (`SMTP_USER` + App Password), but a personal Gmail sends at most about 500 e-mails a day. Past that, point `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS` at Amazon SES, SendGrid or Mailgun (all speak SMTP), with no code changes.
+   - **E-mail:** `MAIL_PROVIDER=smtp`. Gmail works to start with (`SMTP_USER` + App Password), but a personal Gmail sends at most about 500 e-mails a day. Past that, point Admin → Settings → E-mail sending at Amazon SES, SendGrid or Mailgun (all speak SMTP), with no code changes.
    - **Sign-in:** `SOCIAL_VERIFIER=jwks` with your Google/Apple client ids.
    - **Payments:** `PAYMENTS_PROVIDER=live` with the Play service account and the App Store key. JazzCash/Easypaisa/card adapters plug into `LivePaymentProvider` once the merchant accounts exist.
    - **Ads:** `ADS_VERIFIER=admob`, and point AdMob SSV at `/v1/webhooks/admob/ssv`.

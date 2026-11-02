@@ -7,6 +7,10 @@ export enum ErrorCode {
   VALIDATION_FAILED = 'VALIDATION_FAILED',
   NOT_FOUND = 'NOT_FOUND',
   CONFLICT = 'CONFLICT',
+  /** The SMTP server refused the login (Admin → Settings → E-mail sending). */
+  SMTP_LOGIN_FAILED = 'SMTP_LOGIN_FAILED',
+  /** E-mail sending isn't set up. */
+  MAIL_NOT_CONFIGURED = 'MAIL_NOT_CONFIGURED',
   FORBIDDEN = 'FORBIDDEN',
   /** A feature is switched off in admin (403). */
   FEATURE_DISABLED = 'FEATURE_DISABLED',

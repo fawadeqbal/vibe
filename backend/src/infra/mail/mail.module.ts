@@ -1,11 +1,16 @@
 import { Global, Module } from '@nestjs/common';
 
-import { AppConfig } from '../../config/app-config.service';
-import { ConsoleMailProvider, MailProvider, SmtpMailProvider } from './mail.provider';
+import { MailProvider, SmtpMailProvider } from './mail.provider';
+import { SmtpSettingsService } from './smtp-settings.service';
 
+/**
+ * E-mail: SMTP with the settings saved in Admin → Settings → E-mail sending
+ * (the SMTP_* environment is a fallback); printed to the log in development
+ * when neither is set.
+ */
 @Global()
 @Module({
-  providers: [{ provide: MailProvider, inject: [AppConfig], useFactory: (c: AppConfig) => (c.get('MAIL_PROVIDER') === 'smtp' ? new SmtpMailProvider(c) : new ConsoleMailProvider()) }],
-  exports: [MailProvider],
+  providers: [SmtpSettingsService, SmtpMailProvider, { provide: MailProvider, useExisting: SmtpMailProvider }],
+  exports: [MailProvider, SmtpSettingsService],
 })
 export class MailModule {}

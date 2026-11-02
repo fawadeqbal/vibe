@@ -18,6 +18,8 @@ import { api } from "@/lib/api/client";
 import type { Setting } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
+import { SmtpSettings } from "./smtp-settings";
+
 const key = ["ops", "settings"] as const;
 
 /** Settings that change risky behaviour ask for confirmation first. */
@@ -58,6 +60,7 @@ export function SettingsPage() {
         <Skeleton className="h-96" />
       ) : (
         <div className="space-y-5">
+          <SmtpSettings />
           {groups.map(([group, items]) => (
             <Card key={group}>
               <CardHeader title={group} />

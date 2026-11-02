@@ -8,3 +8,7 @@ turn/.env
 turn/certs/
 # private uploads (selfies awaiting review) — never commit
 uploads-private/
+
+# Local secrets — never commit
+.env.local
+.env.turn_test

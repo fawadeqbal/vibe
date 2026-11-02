@@ -62,7 +62,10 @@ export const envSchema = z.object({
   /** true for port 465 (TLS from the start); false for 587 (STARTTLS). */
   SMTP_SECURE: bool.default(true),
   SMTP_USER: z.string().default(''),
-  /** Gmail: a 16-character App Password (Google Account → Security → App passwords), not your normal password. */
+  /**
+   * Fallback only — set the password in Admin → Settings → E-mail sending
+   * (stored encrypted). Never put a real one in a committed file.
+   */
   SMTP_PASS: z.string().default(''),
   /** Sender shown to people, e.g. "Vibe <you@gmail.com>". Defaults to SMTP_USER. */
   MAIL_FROM: z.string().default(''),
@@ -242,9 +245,6 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   const env = parsed.data;
   const turnProblems = checkIceConfig(env);
   if (turnProblems.length) throw new Error(`Invalid environment configuration:\n  • ${turnProblems.join('\n  • ')}`);
-  if (env.MAIL_PROVIDER === 'smtp' && (!env.SMTP_USER || !env.SMTP_PASS)) {
-    throw new Error('Invalid environment configuration:\n  • MAIL_PROVIDER=smtp needs SMTP_USER and SMTP_PASS (for Gmail: your address and an App Password)');
-  }
   if (env.NODE_ENV === 'production') {
     const problems: string[] = [];
     if (env.OTP_FIXED_CODE) problems.push('OTP_FIXED_CODE must not be set in production');
