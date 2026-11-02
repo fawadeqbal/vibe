@@ -86,6 +86,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     return false;
   }
 
+  /// The filters sheet, then what it asked for: VIP, or coins for a pass.
+  Future<void> _editFilters() async {
+    final r = await showDiscoverFilters(context);
+    if (!mounted) return;
+    if (r == 'vip') await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen()));
+    if (r == 'coins') {
+      final cost = context.read<DiscoverProvider>().status?.filters.passCost ?? 25;
+      await _needCoins('A filter pass costs $cost coins. VIP gets every filter free.');
+    }
+  }
+
   Future<void> _outOfLikes() async {
     final d = context.read<DiscoverProvider>();
     final pick = await showOutOfLikes(context);
@@ -164,6 +175,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final expired = context.select<DiscoverProvider, bool>((d) => d.filtersExpired);
+    if (expired) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<DiscoverProvider>().clearFiltersExpired();
+        toast(context, 'Your filter pass ended, so only age is on now');
+      });
+    }
     final d = context.watch<DiscoverProvider>();
     final status = d.status;
     final top = d.top;
@@ -218,7 +237,25 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     ]),
                   ),
                 const SizedBox(width: 8),
-                CircleIconButton(icon: SolarIconsOutline.tuning, tooltip: 'Filters', onTap: () => showDiscoverFilters(context)),
+                // A dot when any filter is on.
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleIconButton(icon: SolarIconsOutline.tuning, tooltip: d.filters.anyOn ? 'Filters (on)' : 'Filters', onTap: _editFilters),
+                    if (d.filters.anyOn)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: IgnorePointer(
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: V.pink, border: Border.all(color: V.bg, width: 2)),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ]),
             ),
             if (status != null && status.likedYouCount > 0) _LikedYouStrip(status: status, likedYou: d.likedYou),
@@ -275,7 +312,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             : DeckEmpty(
                                 filters: d.filters,
                                 onSetFilters: d.setFilters,
-                                onEditFilters: () => showDiscoverFilters(context),
+                                onEditFilters: _editFilters,
                                 onMeetLive: widget.onOpenMatch,
                                 notifyOn: d.notifyNew,
                                 onNotify: (on) => unawaited(_setNotify(d, on)),
@@ -283,7 +320,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ),
             ),
             Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, media.padding.bottom + V.dockHeight + V.dockInset + 6),
+              // Same as the web: 14px above the page's bottom edge, which is the
+              // tab bar's top (its hairline is 1px of padding.bottom).
+              padding: EdgeInsets.fromLTRB(16, 16, 16, media.padding.bottom + 13),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

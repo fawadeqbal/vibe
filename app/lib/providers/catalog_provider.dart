@@ -52,6 +52,9 @@ class CatalogProvider extends ChangeNotifier {
     Economy.discoverSuperLikeCost = i('discoverSuperLikeCost', Economy.discoverSuperLikeCost);
     Economy.discoverVipFreeSuperLikes = i('discoverVipFreeSuperLikes', Economy.discoverVipFreeSuperLikes);
     Economy.discoverUndoCost = i('discoverUndoCost', Economy.discoverUndoCost);
+    Economy.discoverPremiumFilters = i('discoverPremiumFilters', Economy.discoverPremiumFilters);
+    Economy.discoverFilterPassCost = i('discoverFilterPassCost', Economy.discoverFilterPassCost);
+    Economy.discoverFilterPassHours = i('discoverFilterPassHours', Economy.discoverFilterPassHours);
     Economy.friendCallsEnabled = i('friendCallsEnabled', Economy.friendCallsEnabled ? 1 : 0) != 0;
     Economy.callRingSeconds = i('callRingSeconds', Economy.callRingSeconds);
     Economy.chatPhotosEnabled = i('chatPhotosEnabled', Economy.chatPhotosEnabled ? 1 : 0) != 0;

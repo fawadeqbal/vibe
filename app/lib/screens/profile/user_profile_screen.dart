@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../core/theme/intent_icons.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
@@ -257,9 +258,20 @@ class _UserProfileBodyState extends State<UserProfileBody> {
           const SectionTitle('Badges', top: 22, bottom: 10),
           BadgesRow(ids: v.badges),
         ],
-        if (p.bio.trim().isNotEmpty) ...[
+        if (p.bio.trim().isNotEmpty || p.intent != null) ...[
           const SectionTitle('About', top: 22, bottom: 8),
-          Text(p.bio, style: VT.body(14.5, color: V.text)),
+          if (p.bio.trim().isNotEmpty) Text(p.bio, style: VT.body(14.5, color: V.text)),
+          if (p.intent != null)
+            Padding(
+              padding: EdgeInsets.only(top: p.bio.trim().isNotEmpty ? 8 : 0),
+              child: Row(
+                children: [
+                  Icon(intentIcon(p.intent!), size: 16, color: V.pinkSoft),
+                  const SizedBox(width: 6),
+                  Text('Here for: ${p.intent!.label}', style: VT.label(13, color: V.text2)),
+                ],
+              ),
+            ),
         ],
         if (p.interests.isNotEmpty) ...[
           const SectionTitle('Interests', top: 22, bottom: 10),

@@ -37,6 +37,7 @@ class ApiMap {
     matches: i(m['matches']),
     likes: i(m['likes']),
     level: i(m['level']),
+    intent: ProfileIntent.parse(m['intent']),
   );
 
   /// The server's wallet view, folded back into the app's [Wallet] so the
@@ -265,6 +266,18 @@ class ApiMap {
       hasPhoto: m['hasPhoto'] == true,
       likedYouCount: i(liked['count']),
       likedYouUnseen: i(liked['unseen']),
+      filters: filterAccess(m['filters'] is Map ? Map<String, dynamic>.from(m['filters'] as Map) : const {}),
+    );
+  }
+
+  static FilterAccess filterAccess(Map<String, dynamic> m) {
+    final r = m['reason'];
+    return FilterAccess(
+      unlocked: m['unlocked'] != false,
+      reason: const {'free', 'vip', 'vibe_hour', 'pass'}.contains(r) ? r as String : null,
+      passUntil: date(m['passUntil']),
+      passCost: (m['passCost'] as num?)?.toInt() ?? 25,
+      passHours: (m['passHours'] as num?)?.toInt() ?? 24,
     );
   }
 

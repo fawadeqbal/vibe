@@ -18,6 +18,10 @@ class LocalEngagementProvider extends EngagementProvider {
     notifyListeners();
   }
 
+  /// Offline: the choice lives in memory (there's no one to send the push).
+  @override
+  Future<void> saveVibeHourReminder(bool on) async {}
+
   @override
   Future<ProgressView> loadProgress() async {
     ProgressBadge b(String id, int progress) {

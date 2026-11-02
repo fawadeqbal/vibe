@@ -33,6 +33,7 @@ class RemoteEngagementProvider extends EngagementProvider {
       if (r['vibeHour'] is Map) setVibeHour(VibeHour.fromJson(Map<String, dynamic>.from(r['vibeHour'] as Map)));
       if (r['progress'] is Map) setLevel(LevelProgress.fromJson(Map<String, dynamic>.from(r['progress'] as Map)));
       _streaksAtRisk = ApiMap.i(r['streaksAtRisk']);
+      _vibeHourReminder = r['vibeHourReminder'] == true;
       _loaded = true;
       notifyListeners();
     } on ApiException catch (_) {
@@ -40,6 +41,9 @@ class RemoteEngagementProvider extends EngagementProvider {
       if (_vibeHour.startsAt == null) setVibeHour(VibeHour.window(_clock()));
     }
   }
+
+  @override
+  Future<void> saveVibeHourReminder(bool on) => _api.put('/engagement/vibe-hour/reminder', {'on': on});
 
   @override
   Future<ProgressView> loadProgress() async {

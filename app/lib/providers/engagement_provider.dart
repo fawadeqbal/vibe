@@ -30,6 +30,7 @@ abstract class EngagementProvider extends ChangeNotifier {
   ProgressView? _progress;
   int _streaksAtRisk = 0;
   WeeklyRecap? _recap;
+  bool _vibeHourReminder = false;
   bool _loaded = false;
   Timer? _flip;
   final _levelUps = StreamController<int>.broadcast();
@@ -44,6 +45,28 @@ abstract class EngagementProvider extends ChangeNotifier {
 
   /// `GET /me/progress` once loaded (badges, this week's XP).
   ProgressView? get progress => _progress;
+
+  /// You asked to be reminded before Vibe Hour (a push before it starts).
+  bool get vibeHourReminder => _vibeHourReminder;
+
+  /// "Remind me" before Vibe Hour, on or off. Shows the change at once and
+  /// puts it back if it couldn't be saved; false then.
+  Future<bool> setVibeHourReminder(bool on) async {
+    final before = _vibeHourReminder;
+    _vibeHourReminder = on;
+    notifyListeners();
+    try {
+      await saveVibeHourReminder(on);
+      return true;
+    } catch (_) {
+      _vibeHourReminder = before;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  @protected
+  Future<void> saveVibeHourReminder(bool on);
 
   /// Friend streaks that end tonight unless you talk.
   int get streaksAtRisk => _streaksAtRisk;
@@ -80,6 +103,7 @@ abstract class EngagementProvider extends ChangeNotifier {
     _progress = null;
     _streaksAtRisk = 0;
     _recap = null;
+    _vibeHourReminder = false;
     _loaded = false;
     notifyListeners();
   }
