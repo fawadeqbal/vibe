@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { UserStatus } from '@prisma/client';
+import { SwipeKind, UserStatus } from '@prisma/client';
 
 import { Clock, MS } from '../../common/utils/clock';
 import { AppConfig } from '../../config/app-config.service';
@@ -12,7 +12,8 @@ import { EconomyService } from '../catalog/economy.service';
 import { MailProvider } from '../../infra/mail/mail.provider';
 import { MailTemplatesService } from '../messaging/mail-templates.service';
 import { unsubscribeUrl } from '../messaging/unsubscribe';
-import { PushService } from '../push/push.service';
+import { DiscoverService } from '../discover/discover.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { StreakService } from '../social/streak.service';
 import { EngagementService } from './engagement.service';
 import { RecapService, recapText, recapWorthSending } from './recap.service';
@@ -22,6 +23,9 @@ import { lastVibeHourEnded } from './vibe-hour';
 export const STREAK_RISK_AT = 20 * 60;
 export const WINBACK_AT = 12 * 60;
 export const RECAP_AT = 10 * 60;
+export const LIKES_WAITING_AT = 18 * 60;
+/** At most one "people like you" reminder per person in this many days. */
+export const LIKES_WAITING_EVERY_DAYS = 3;
 /** "Remind me" goes out this long before Vibe Hour starts. */
 export const VIBE_HOUR_REMIND_BEFORE = 15 * MS.minute;
 /** Reminders stop for people who haven't opened Vibe in this long (they can turn it back on). */
@@ -42,7 +46,7 @@ export class EngagementNotifier {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly realtime: RealtimeService,
-    private readonly push: PushService,
+    private readonly notifications: NotificationsService,
     private readonly clock: Clock,
     private readonly economy: EconomyService,
     private readonly engagement: EngagementService,
@@ -51,6 +55,7 @@ export class EngagementNotifier {
     private readonly config: AppConfig,
     private readonly mail: MailProvider,
     private readonly templates: MailTemplatesService,
+    private readonly discover: DiscoverService,
   ) {}
 
   /** Tests call the jobs directly (with a controlled clock) instead of racing the wall clock. */
@@ -67,6 +72,7 @@ export class EngagementNotifier {
         const day = this.clock.dayIndex();
         if (minute >= STREAK_RISK_AT) await this.once(`eng:job:streak-risk:${day}`, () => this.streakRisk());
         if (minute >= WINBACK_AT) await this.once(`eng:job:winback:${day}`, () => this.winback());
+        if (minute >= LIKES_WAITING_AT) await this.once(`eng:job:likes-waiting:${day}`, () => this.likesWaiting());
         if (this.clock.weekday() === 0 && minute >= RECAP_AT) await this.once(`eng:job:recap:${this.clock.weekIndex()}`, () => this.weeklyRecap());
       } catch (e) {
         this.logger.error(`engagement tick failed: ${(e as Error).message}`);
@@ -111,7 +117,7 @@ export class EngagementNotifier {
     await this.eachUser({ lastSeenAt: { gte: since } }, async (ids) => {
       const online = await this.realtime.onlineMap(ids);
       for (const id of ids.filter((x) => !online[x])) {
-        sent += await this.push.sendToUser(id, { title: 'Vibe Hour is live 🔥', body: `Free filters and double XP for the next ${minutes} min`, data: { route: 'match' }, category: 'engagement', collapseKey: 'vibe-hour' });
+        sent += (await this.notifications.notify(id, 'reminder.vibeHourLive', { minutes }, { online: false })).push;
       }
     });
     return sent;
@@ -135,7 +141,7 @@ export class EngagementNotifier {
       const withApp = new Set((await this.prisma.pushToken.findMany({ where: { userId: { in: away } }, select: { userId: true }, distinct: ['userId'] })).map((t) => t.userId));
       const people = await this.prisma.user.findMany({ where: { id: { in: away.filter((x) => !withApp.has(x)) } }, select: { id: true, name: true, email: true, marketingEmails: true } });
       for (const id of withApp) {
-        sent += Math.min(1, await this.push.sendToUser(id, { title: `Vibe Hour starts at ${time} 🔥`, body: `You asked us to remind you. Free filters and double XP for ${minutes} min.`, data: { route: 'match' }, category: 'engagement', collapseKey: 'vibe-hour' }));
+        sent += Math.min(1, (await this.notifications.notify(id, 'reminder.vibeHourSoon', { time, minutes }, { online: false })).push);
       }
       for (const u of people) {
         if (!u.email || !u.marketingEmails) continue;
@@ -173,7 +179,7 @@ export class EngagementNotifier {
           const u = byId.get(me);
           if (myDay === today || !u || u.isBot || u.status !== UserStatus.ACTIVE) continue;
           const name = byId.get(other)?.name || 'your friend';
-          sent += await this.push.sendToUser(me, { title: `🔥 ${f.streakCount}-day streak`, body: `Your ${f.streakCount}-day streak with ${name} ends at midnight`, data: { route: 'chat', friendId: other }, category: 'engagement', collapseKey: `streak:${other}` });
+          sent += (await this.notifications.notify(me, 'reminder.streak', { count: f.streakCount, name, friendId: other })).push;
         }
       }
       if (pairs.length < BATCH) break;
@@ -206,10 +212,34 @@ export class EngagementNotifier {
         });
         if (!won) continue;
         given++;
-        await this.push.sendToUser(id, { title: 'We miss you 👋', body: `A free ${this.economy.rules.boostMinutes}-min boost is waiting for you`, data: { route: 'wallet' }, category: 'engagement', collapseKey: 'winback' });
+        await this.notifications.notify(id, 'reminder.winback', { minutes: this.economy.rules.boostMinutes });
       }
     });
     return given;
+  }
+
+  // ── likes waiting ────────────────────────────────────────────────────────
+
+  /**
+   * 18:00: people with likes they haven't looked at (last 7 days) hear
+   * "3 people like you" — at most every 3 days, only when not in the app.
+   */
+  async likesWaiting(): Promise<number> {
+    const since = new Date(this.clock.now().getTime() - 7 * MS.day);
+    const rows = await this.prisma.discoverSwipe.groupBy({ by: ['toId'], where: { kind: { in: [SwipeKind.LIKE, SwipeKind.SUPER] }, seenAt: null, createdAt: { gte: since } } });
+    let sent = 0;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const ids = rows.slice(i, i + BATCH).map((r) => r.toId);
+      const online = await this.realtime.onlineMap(ids);
+      for (const id of ids.filter((x) => !online[x])) {
+        const { unseen } = await this.discover.likedYouCounts(id);
+        if (!unseen) continue;
+        if ((await this.redis.client.set(`eng:likes-waiting:${id}`, '1', 'EX', LIKES_WAITING_EVERY_DAYS * 86_400, 'NX')) !== 'OK') continue;
+        const r = await this.notifications.notify(id, 'reminder.likesWaiting', { count: unseen }, { online: false });
+        if (r.push || r.email) sent++;
+      }
+    }
+    return sent;
   }
 
   // ── weekly recap ─────────────────────────────────────────────────────────
@@ -224,10 +254,8 @@ export class EngagementNotifier {
       for (const id of ids) {
         const r = recaps.get(id)!;
         if (!recapWorthSending(r) || !(await this.firstForPair(`eng:recap:${week}:${id}`))) continue;
-        const msg = await this.prisma.userMessage.create({ data: { userId: id, title: 'Your week on Vibe', body: recapText(r) } });
-        sent++;
-        if (online[id]) this.realtime.toUsers([id], ServerEvent.InboxMessage, { id: msg.id, campaignId: null, title: msg.title, body: msg.body, buttonLabel: null, buttonUrl: null });
-        else await this.push.sendToUser(id, { title: 'Your week on Vibe ✨', body: `${r.likesReceived} likes, ${r.giftsReceived} gifts, ${r.gemsEarned} gems — see your recap`, data: { route: 'inbox' }, category: 'engagement', collapseKey: 'recap' });
+        const res = await this.notifications.notify(id, 'reminder.recap', { likes: r.likesReceived, gifts: r.giftsReceived, gems: r.gemsEarned, detail: recapText(r) }, { online: !!online[id] });
+        if (res.inApp || res.push) sent++;
       }
     });
     return sent;

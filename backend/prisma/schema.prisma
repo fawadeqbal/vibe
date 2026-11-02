@@ -59,6 +59,8 @@ model User {
   marketingEmails      Boolean    @default(true)
   /// Asked to be reminded before Vibe Hour (push, or e-mail without the app). Stops after a week away.
   vibeHourReminder     Boolean    @default(false)
+  /// Me → Notifications: channels turned off per group, e.g. {"reminders":{"push":false}}. Missing = on.
+  notifyPrefs          Json?
   onboardedAt          DateTime?
   bannedUntil          DateTime?
   /// Last time Discover was opened (for "welcome back").

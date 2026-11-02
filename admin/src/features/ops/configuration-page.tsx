@@ -3,10 +3,11 @@
 import { PageHeader } from "@/components/common/page";
 
 import { DownloadSettings } from "./download-settings";
+import { NotificationSettings } from "./notification-settings";
 import { PushSettings } from "./push-settings";
 import { SmtpSettings } from "./smtp-settings";
 
-/** Connections to outside services: e-mail, push and the Android download. Keys are write-only and stored encrypted. */
+/** Connections to outside services (e-mail, push, the Android download) and which notifications go out. Keys are write-only and stored encrypted. */
 export function ConfigurationPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -14,6 +15,7 @@ export function ConfigurationPage() {
       <SmtpSettings />
       <PushSettings />
       <DownloadSettings />
+      <NotificationSettings />
     </div>
   );
 }

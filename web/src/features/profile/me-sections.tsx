@@ -25,6 +25,7 @@ import { useSocial } from "@/stores/social";
 import { toast } from "@/stores/ui";
 
 import { openBlockedPeople } from "./blocked-people";
+import { NotifyChoices } from "@/features/engagement/notify-choices";
 import { ProgressCard } from "@/features/engagement/progress-card";
 import { WellbeingSection } from "@/features/engagement/wellbeing-section";
 
@@ -114,6 +115,7 @@ export function SafetyPage() {
 export function WellbeingPage() {
   return (
     <MeSection title="Notifications & wellbeing">
+      <NotifyChoices />
       <WellbeingSection title={false} />
     </MeSection>
   );

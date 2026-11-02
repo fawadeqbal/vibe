@@ -18,6 +18,7 @@ import { FaceServiceVerificationProvider } from './face.provider';
 import { LivenessStep, newChallengeSteps } from './liveness';
 import { RekognitionVerificationProvider } from './rekognition.provider';
 import { DevVerificationProvider, ManualVerificationProvider, VerificationProvider } from './verification.provider';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 const REKOGNITION_KEYS = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'];
 /** A pose challenge must be answered within this many seconds, once. */
@@ -50,6 +51,7 @@ export class VerificationService implements IntegrationReporter {
     private readonly config: AppConfig,
     private readonly redis: RedisService,
     private readonly events: EventEmitter2,
+    private readonly notifications: NotificationsService,
   ) {
     const kind = config.get('VERIFICATION_PROVIDER');
     if (kind === 'face') {
@@ -150,6 +152,8 @@ export class VerificationService implements IntegrationReporter {
     // The selfie is only kept while someone needs to look at it.
     if (r.selfieKey) await this.storage.delete(r.selfieKey, { private: true }).catch(() => undefined);
     if (approve) this.events.emit(USER_VERIFIED, { userId: r.userId } satisfies UserVerifiedEvent);
+    // A person looked at it later: tell them (instant automatic results are shown in the app).
+    void this.notifications.notify(r.userId, 'account.verification', { approved: approve, reason: approve ? null : (reason ?? null), userId: r.userId });
     return done;
   }
 

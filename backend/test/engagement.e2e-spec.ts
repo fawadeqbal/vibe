@@ -561,7 +561,7 @@ describe('engagement', () => {
       expect(await t.app.get(EngagementNotifier).weeklyRecap()).toBe(1); // b and idle received nothing last week
       expect(await t.app.get(EngagementNotifier).weeklyRecap()).toBe(0);
       const inbox = (await t.http.get('/v1/inbox').set(a.auth).expect(200)).body;
-      expect(inbox.items[0]).toMatchObject({ title: 'Your week on Vibe', read: false });
+      expect(inbox.items[0]).toMatchObject({ title: 'Your week on Vibe ✨', read: false });
       expect(inbox.items[0].body).toContain('💖 1 like');
       expect(pushesTo(token)).toEqual([expect.objectContaining({ title: 'Your week on Vibe ✨', category: 'engagement' })]);
     });

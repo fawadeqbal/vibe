@@ -16,7 +16,7 @@ export const NOTIFY_BATCH = 25;
  * "Tell me when someone's looking." For quiet hours: instead of waiting
  * alone on a spinner, people leave a one-shot request. The next person who
  * starts searching and isn't matched straight away wakes them up:
- * `match:someone-looking` in the open app/tab, or a push (via PushBridge)
+ * `match:someone-looking` in the open app/tab, or a push (via NotificationsService)
  * when they're not connected. Each request fires once, then it's gone.
  */
 @Injectable()
@@ -55,7 +55,7 @@ export class MatchWaitlistService {
     const popped = await this.redis.client.zpopmin(KEY, NOTIFY_BATCH);
     const ids: string[] = [];
     for (let i = 0; i < popped.length; i += 2) ids.push(popped[i]);
-    // toUser (not toUsers) so PushBridge sees each one and pushes to whoever isn't connected.
+    // toUser (not toUsers) so NotificationsService sees each one and pushes to whoever isn't connected.
     for (const id of ids) this.realtime.toUser(id, ServerEvent.MatchSomeoneLooking, { at: new Date(now).toISOString() });
     return ids;
   }

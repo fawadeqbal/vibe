@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { hashPassword } from '../src/common/utils/password';
 import { SystemRolesSync } from '../src/modules/admin/core/admin-core.module';
 import { EconomyService } from '../src/modules/catalog/economy.service';
+import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { SettingsService } from '../src/modules/settings/settings.service';
 import { FriendsService } from '../src/modules/social/friends.service';
 import { PrismaService } from '../src/infra/prisma/prisma.service';
@@ -48,6 +49,7 @@ export async function resetState(t: TestApp): Promise<void> {
   await t.redis.client.flushdb();
   await t.app.get(SystemRolesSync).sync();
   t.app.get(SettingsService).invalidate();
+  t.app.get(NotificationsService).invalidate();
   // Vibe Hour depends on the wall clock (free filters, double XP); keep it off
   // so results don't change with the time of day. Tests that need it turn it on.
   await t.prisma.appSetting.create({ data: { key: 'economy.rules', value: { vibeHourMinutes: 0 } } });

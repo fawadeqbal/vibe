@@ -14,6 +14,7 @@ import '../../providers/wallet_provider.dart';
 import '../match/safety_sheet.dart' show VerifyPill;
 import 'blocked_people_screen.dart';
 import 'follow_lists_screen.dart';
+import 'notify_choices.dart';
 import 'progress.dart';
 import 'sign_in_methods.dart';
 import 'user_profile_screen.dart';
@@ -175,7 +176,7 @@ class WellbeingSectionScreen extends StatelessWidget {
   const WellbeingSectionScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const MeSectionScaffold(title: 'Notifications & wellbeing', children: [WellbeingSection()]);
+  Widget build(BuildContext context) => const MeSectionScaffold(title: 'Notifications & wellbeing', children: [NotifyChoices(), WellbeingSection()]);
 }
 
 /// Me → Account: sign-in methods, e-mail updates, terms, sign out.
