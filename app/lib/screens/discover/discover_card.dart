@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/theme/intent_icons.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../models/discover.dart';
 
@@ -106,9 +107,28 @@ class DiscoverCardView extends StatelessWidget {
                     const SizedBox(height: 10),
                     Text(p.bio, maxLines: 3, overflow: TextOverflow.ellipsis, style: VT.body(14.5, color: Colors.white.withValues(alpha: 0.95), height: 1.45)),
                   ],
-                  if (interests.isNotEmpty) ...[
+                  if (p.intent != null || interests.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Wrap(spacing: 6, runSpacing: 6, children: [
+                      // "Here for" leads, in the brand pink.
+                      if (p.intent != null)
+                        Container(
+                          height: 28,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: V.pink.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: V.pink.withValues(alpha: 0.5)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(intentIcon(p.intent!), size: 14, color: Colors.white),
+                              const SizedBox(width: 4),
+                              Text(p.intent!.label, style: VT.label(12, color: Colors.white)),
+                            ],
+                          ),
+                        ),
                       for (final i in interests.take(5))
                         Container(
                           height: 28,

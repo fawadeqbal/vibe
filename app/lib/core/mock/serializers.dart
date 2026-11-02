@@ -21,6 +21,7 @@ class Json {
         'matches': p.matches,
         'likes': p.likes,
         'level': p.level,
+        'intent': p.intent?.name,
       };
 
   static Profile toProfile(Map<String, dynamic> m) => Profile(
@@ -38,6 +39,7 @@ class Json {
         matches: (m['matches'] as num?)?.toInt() ?? 0,
         likes: (m['likes'] as num?)?.toInt() ?? 0,
         level: (m['level'] as num?)?.toInt() ?? 0,
+        intent: ProfileIntent.parse(m['intent']),
       );
 
   static Map<String, dynamic> wallet(Wallet w) => {

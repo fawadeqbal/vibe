@@ -4,6 +4,7 @@ import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/mock/mock_data.dart';
+import '../../core/theme/intent_icons.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/models.dart';
@@ -30,6 +31,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   late Gender _gender;
   late Country _country;
   late Set<String> _interests;
+  ProfileIntent? _intent;
   late String _avatar;
   int _avatarSeed = 0;
   String? _error;
@@ -45,6 +47,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     _gender = me?.gender ?? Gender.other;
     _country = me?.country ?? MockData.country('PK');
     _interests = {...?me?.interests};
+    _intent = me?.intent;
     _avatar = me?.avatarUrl ?? '';
   }
 
@@ -72,7 +75,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     final session = context.read<SessionProvider>();
     final me = session.me!;
     try {
-      await session.saveProfile(me.copyWith(name: name, age: _age, gender: _gender, country: _country, bio: _bio.text.trim(), interests: _interests.toList(), avatarUrl: _avatar));
+      await session.saveProfile(me.copyWith(name: name, age: _age, gender: _gender, country: _country, bio: _bio.text.trim(), interests: _interests.toList(), avatarUrl: _avatar, intent: _intent, clearIntent: _intent == null));
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     }
@@ -210,8 +213,32 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ),
             const SizedBox(height: 18),
             _label('About you'),
-            TextField(controller: _bio, maxLines: 2, maxLength: 120, decoration: const InputDecoration(hintText: 'One line. What are you here for?')),
+            TextField(
+              controller: _bio,
+              maxLines: 2,
+              maxLength: 120,
+              decoration: const InputDecoration(hintText: 'One line people see before the call. e.g. Cricket fan, bad at cooking, good at listening.'),
+            ),
             const SizedBox(height: 8),
+            _label('Here for (optional)'),
+            LayoutBuilder(
+              builder: (context, box) {
+                final w = (box.maxWidth - 8) / 2;
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final i in ProfileIntent.values) SizedBox(width: w, child: _intentTile(i)),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 2),
+              child: Text("Shown on your profile. It doesn't change who you're matched with.", style: VT.body(11.5, color: V.muted)),
+            ),
+            const SizedBox(height: 18),
             _label('Interests (pick 3 or more)'),
             Wrap(
               spacing: 8,
@@ -230,6 +257,43 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             const SizedBox(height: 28),
             GradientButton(label: widget.editing ? 'Save' : 'Continue', onTap: _save, busy: _saving),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// One "Here for" choice: icon and label over a short line. Tap again to clear.
+  Widget _intentTile(ProfileIntent i) {
+    final on = _intent == i;
+    return Semantics(
+      button: true,
+      selected: on,
+      child: GestureDetector(
+        onTap: () => setState(() => _intent = on ? null : i),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          constraints: const BoxConstraints(minHeight: 64),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: on ? V.surfaceSel : V.surface2,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: on ? V.pink : V.lineSoft, width: on ? 1.5 : 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Icon(intentIcon(i), size: 18, color: on ? V.pinkSoft : V.text2),
+                  const SizedBox(width: 8),
+                  Flexible(child: Text(i.label, style: VT.title(14, weight: FontWeight.w600, color: on ? V.text : V.text2))),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(i.blurb, style: VT.body(11.5, color: V.muted, height: 1.3)),
+            ],
+          ),
         ),
       ),
     );

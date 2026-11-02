@@ -283,7 +283,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               ),
             ),
             Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, media.padding.bottom + V.dockHeight + V.dockInset + 6),
+              // Same as the web: 14px above the page's bottom edge, which is the
+              // tab bar's top (its hairline is 1px of padding.bottom).
+              padding: EdgeInsets.fromLTRB(16, 16, 16, media.padding.bottom + 13),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

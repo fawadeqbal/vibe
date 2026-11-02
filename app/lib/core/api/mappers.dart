@@ -37,6 +37,7 @@ class ApiMap {
     matches: i(m['matches']),
     likes: i(m['likes']),
     level: i(m['level']),
+    intent: ProfileIntent.parse(m['intent']),
   );
 
   /// The server's wallet view, folded back into the app's [Wallet] so the

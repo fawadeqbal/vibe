@@ -495,14 +495,14 @@ class _PreviewPrompt extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 72,
-              height: 72,
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withValues(alpha: 0.08),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
               ),
-              child: const Icon(SolarIconsBold.videocamera, size: 30, color: Colors.white),
+              child: const Icon(SolarIconsBold.videocamera, size: 28, color: Colors.white),
             ),
             const SizedBox(height: 12),
             Text(
@@ -511,7 +511,7 @@ class _PreviewPrompt extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'It stays off until you need it — saves battery.',
+              'Only you see this. It stays off until you need it.',
               textAlign: TextAlign.center,
               style: VT.body(12, color: Colors.white.withValues(alpha: 0.62)),
             ),
@@ -592,58 +592,47 @@ class _Lobby extends StatelessWidget {
                     if (m.previewOn)
                       Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: CircleIconButton(icon: Icons.videocam_off_rounded, iconSize: 20, onTap: m.stopPreview, tooltip: 'Turn off preview', background: Colors.black.withValues(alpha: 0.35)),
+                        child: RoundControl(icon: Icons.videocam_off_rounded, size: 40, onTap: m.stopPreview, label: null),
                       ),
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: CircleIconButton(
-                        icon: SolarIconsBold.cupStar,
-                        iconSize: 20,
-                        color: V.level,
-                        tooltip: "This week's top",
-                        background: Colors.black.withValues(alpha: 0.35),
-                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LeaderboardScreen())),
+                      child: Semantics(
+                        label: "This week's top",
+                        child: RoundControl(
+                          icon: SolarIconsBold.cupStar,
+                          size: 40,
+                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LeaderboardScreen())),
+                        ),
                       ),
                     ),
                     CoinChip(coins: wallet.coins, onTap: onOpenStore, glass: true),
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
-              const VibeHourBanner(),
-              // Shrinks on short phones (Vibe Hour banner + friends row take room).
+              // Vibe Hour (live, or when it starts) and friends who are on;
+              // nothing at all when there's none of that.
+              const _LobbyBanners(),
+              // Takes what's left; on short screens the camera prompt shrinks
+              // rather than overlapping the banners.
               Expanded(
-                child: Center(
-                  child: camLive
-                      ? const SizedBox.shrink()
-                      : (m.previewOn && m.cameraActive
-                            ? const _CameraStarting()
-                            : FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4),
-                                  child: _PreviewPrompt(m: m),
-                                ),
-                              )),
-                ),
-              ),
-              const FriendsOnlineRow(),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const OnlineDot(),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${Fmt.thousands(_online())} people online now',
-                      style: VT.label(13, color: Colors.white.withValues(alpha: 0.82), weight: FontWeight.w500),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 88),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    child: Center(
+                      child: camLive
+                          ? const SizedBox.shrink()
+                          : (m.previewOn && m.cameraActive
+                                ? const _CameraStarting()
+                                : FittedBox(fit: BoxFit.scaleDown, child: _PreviewPrompt(m: m))),
                     ),
-                  ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const _AvailabilityPoller(),
+              _AvailabilityLine(availability: m.availability),
+              _WaitlistStrip(m: m, onStart: onStart),
+              const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Wrap(
@@ -660,7 +649,7 @@ class _Lobby extends StatelessWidget {
                         _ => SolarIconsBold.usersGroupRounded,
                       },
                       label: _genderLabel(f.gender),
-                      trailing: vibeHour ? const _FreeTag() : const Icon(SolarIconsOutline.altArrowDown, size: 16, color: V.text2),
+                      trailing: _PillTrailing(free: vibeHour && !wallet.isVip && f.gender != GenderFilter.anyone),
                       onTap: () => showFiltersSheet(context),
                     ),
                     GlassPill(
@@ -668,7 +657,7 @@ class _Lobby extends StatelessWidget {
                       fontSize: 13,
                       icon: SolarIconsBold.global,
                       label: _countryLabel(f.countryCode),
-                      trailing: vibeHour ? const _FreeTag() : const Icon(SolarIconsOutline.altArrowDown, size: 16, color: V.text2),
+                      trailing: _PillTrailing(free: vibeHour && !wallet.isVip && f.countryCode != null),
                       onTap: () => showFiltersSheet(context),
                     ),
                     GlassPill(
@@ -686,7 +675,16 @@ class _Lobby extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              // The pills as a sentence, so "Anyone · Anywhere · Verified only" reads as a choice.
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(filterSummary(f), textAlign: TextAlign.center, style: VT.body(12, color: Colors.white.withValues(alpha: 0.7))),
+                ),
+              ),
+              const SizedBox(height: 16),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 38),
                 child: Row(
@@ -715,14 +713,14 @@ class _Lobby extends StatelessWidget {
                                 ],
                               ),
                             ),
-                      semantics: wallet.isBoosted ? 'Boosted' : (wallet.freeBoosts > 0 ? 'Use a free boost' : 'Boost for ${Economy.boostCost} coins'),
+                      semantics: wallet.isBoosted ? 'Boosted' : (wallet.freeBoosts > 0 ? 'Free boost' : 'Boost for ${Economy.boostCost} coins'),
                       onTap: () => confirmBoost(context),
                     ),
                     _Shutter(onTap: onStart, cost: cost),
                     _SideAction(
                       icon: SolarIconsBold.shield,
                       iconColor: V.trust,
-                      label: Text('Safety', style: VT.label(11.5, color: Colors.white.withValues(alpha: 0.85))),
+                      label: Text('Safety', style: VT.label(11.5, color: Colors.white.withValues(alpha: 0.7))),
                       semantics: 'Safety settings',
                       onTap: () => showSafetySheet(context),
                     ),
@@ -747,33 +745,314 @@ class _Lobby extends StatelessWidget {
                   ),
                 ),
               ],
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
             ],
           ),
         ),
       ],
     );
   }
+}
 
-  static int _online() {
-    final h = DateTime.now().hour;
-    final base = h >= 20 || h < 2
-        ? 2400
-        : h >= 12
-        ? 1500
-        : 700;
-    return base + DateTime.now().minute * 7;
+/// The pills as a sentence: "You'll meet verified women in Türkiye."
+String filterSummary(MatchFilters f) {
+  final who = switch (f.gender) {
+    GenderFilter.anyone => 'anyone',
+    GenderFilter.women => 'women',
+    GenderFilter.men => 'men',
+  };
+  final where = f.countryCode != null ? 'in ${MockData.country(f.countryCode!).name}' : 'from anywhere';
+  return "You'll meet ${f.safeMode ? 'verified ${who == 'anyone' ? 'people' : who}' : who} $where.";
+}
+
+/// A filter pill's end: "Free" while Vibe Hour makes a paid filter free, then the chevron.
+class _PillTrailing extends StatelessWidget {
+  const _PillTrailing({required this.free});
+  final bool free;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (free)
+        Container(
+          margin: const EdgeInsets.only(left: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(color: V.ok.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(8)),
+          child: Text('Free', style: VT.label(10.5, color: V.ok)),
+        ),
+      const Icon(SolarIconsOutline.altArrowDown, size: 16, color: V.text2),
+    ],
+  );
+}
+
+/// Vibe Hour (live, or when it starts, with "Remind me") and friends who are
+/// on, stacked under the header. Takes no room when there's none of that.
+class _LobbyBanners extends StatelessWidget {
+  const _LobbyBanners();
+
+  @override
+  Widget build(BuildContext context) {
+    final e = context.watch<EngagementProvider>();
+    final v = e.vibeHour;
+    final live = v.activeAt(e.now);
+    final friends = context.select<SocialProvider, bool>((s) => s.onlineFriends.isNotEmpty);
+    final items = <Widget>[
+      if (live) const VibeHourBanner(),
+      if (!live && v.startsAt != null) const VibeHourInvite(),
+      if (friends) const FriendsOnlineRow(),
+    ];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[if (i > 0) const SizedBox(height: 8), items[i]],
+        ],
+      ),
+    );
   }
 }
 
-/// "Free" on a filter chip while Vibe Hour runs.
-class _FreeTag extends StatelessWidget {
-  const _FreeTag();
+/// Asks the server who's around while the lobby is open (every 20 s).
+class _AvailabilityPoller extends StatefulWidget {
+  const _AvailabilityPoller();
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(left: 4),
-    child: Text('Free', style: VT.label(11.5, color: V.ok)),
-  );
+  State<_AvailabilityPoller> createState() => _AvailabilityPollerState();
+}
+
+class _AvailabilityPollerState extends State<_AvailabilityPoller> {
+  Timer? _timer;
+  DateTime? _looking;
+
+  @override
+  void initState() {
+    super.initState();
+    final m = context.read<MatchProvider>();
+    unawaited(m.refreshAvailability());
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => unawaited(m.refreshAvailability()));
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // "Someone's looking" just arrived: ask again right away.
+    final looking = context.select<MatchProvider, DateTime?>((m) => m.someoneLookingAt);
+    if (looking != null && looking != _looking) {
+      final m = context.read<MatchProvider>();
+      WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(m.refreshAvailability()));
+    }
+    _looking = looking;
+    return const SizedBox.shrink();
+  }
+}
+
+/// Who's around, from the server — never a made-up number. Quiet hours say
+/// so up front, so an empty queue isn't a surprise after pressing Start.
+class _AvailabilityLine extends StatelessWidget {
+  const _AvailabilityLine({required this.availability});
+  final MatchAvailability? availability;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = availability;
+    if (a == null) return const SizedBox(height: 20);
+    final style = VT.label(13, color: Colors.white.withValues(alpha: 0.82), weight: FontWeight.w500);
+    return Semantics(
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            OnlineDot(color: a.online == 0 ? V.warn : V.ok),
+            const SizedBox(width: 8),
+            Flexible(
+              child: a.online == 0
+                  ? Text("Quiet right now — you'll be first in line", style: style)
+                  : Text.rich(
+                      TextSpan(
+                        style: style,
+                        children: [
+                          TextSpan(text: '${Fmt.thousands(a.online)} online'),
+                          if (a.searching > 0)
+                            TextSpan(text: ' · ${Fmt.thousands(a.searching)} looking for a match', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Under the "who's online" line, one of three things: someone is looking
+/// right now (after you asked) → Start; you've asked → "we'll tell you",
+/// with Cancel; nobody is searching → offer to be told.
+class _WaitlistStrip extends StatelessWidget {
+  const _WaitlistStrip({required this.m, required this.onStart});
+  final MatchProvider m;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget strip;
+    if (m.someoneLookingAt != null) {
+      strip = ClipRRect(
+        borderRadius: BorderRadius.circular(100),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+            decoration: BoxDecoration(
+              color: V.pink.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(color: V.pink.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _PingDot(),
+                const SizedBox(width: 8),
+                Flexible(child: Text("Someone's looking right now", maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(13, color: Colors.white))),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    m.dismissLooking();
+                    onStart();
+                  },
+                  child: Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                    child: Text('Start', style: VT.label(13, color: V.bg, weight: FontWeight.w600)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Semantics(
+                  button: true,
+                  label: 'Dismiss',
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: m.dismissLooking,
+                    child: SizedBox.square(dimension: 32, child: Icon(Icons.close_rounded, size: 16, color: Colors.white.withValues(alpha: 0.7))),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else if (m.notifyUntil != null) {
+      strip = Glass(
+        radius: 18,
+        height: 36,
+        padding: const EdgeInsets.only(left: 12, right: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(SolarIconsBold.bellBing, size: 16, color: V.pinkSoft),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text("We'll tell you when someone's looking", maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(12.5, color: Colors.white.withValues(alpha: 0.9))),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => unawaited(m.cancelNotify()),
+              child: Container(
+                height: 28,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                alignment: Alignment.center,
+                child: Text('Cancel', style: VT.label(12, color: Colors.white.withValues(alpha: 0.7))),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      final a = m.availability;
+      if (a == null || a.searching > 0) return const SizedBox.shrink();
+      strip = GestureDetector(
+        onTap: () async {
+          final ok = await m.notifyMe();
+          if (context.mounted) toast(context, ok ? "We'll tell you when someone starts looking" : "Couldn't set that up. Try again.", error: !ok);
+        },
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(SolarIconsOutline.bell, size: 16, color: V.pinkSoft),
+              const SizedBox(width: 6),
+              Text("Nobody's searching · notify me", style: VT.label(12.5, color: Colors.white.withValues(alpha: 0.9))),
+            ],
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Center(child: strip),
+    );
+  }
+}
+
+/// A pink dot with a ring that keeps pinging outwards.
+class _PingDot extends StatefulWidget {
+  const _PingDot();
+
+  @override
+  State<_PingDot> createState() => _PingDotState();
+}
+
+class _PingDotState extends State<_PingDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final still = MediaQuery.of(context).disableAnimations;
+    return SizedBox.square(
+      dimension: 10,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (!still)
+            AnimatedBuilder(
+              animation: _c,
+              builder: (_, _) {
+                final t = Curves.easeOut.transform(_c.value);
+                return Transform.scale(
+                  scale: 1 + t,
+                  child: Container(decoration: BoxDecoration(shape: BoxShape.circle, color: V.pinkSoft.withValues(alpha: 0.7 * (1 - t)))),
+                );
+              },
+            ),
+          Container(decoration: const BoxDecoration(shape: BoxShape.circle, color: V.pink)),
+        ],
+      ),
+    );
+  }
 }
 
 /// The big round "shutter" Start button in the thumb zone.
@@ -786,7 +1065,7 @@ class _Shutter extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: cost > 0 ? 'Start matching, $cost coins' : 'Start matching',
+      label: cost > 0 ? 'Start a video chat with someone new, $cost coins' : 'Start a video chat with someone new',
       child: GestureDetector(
         onTap: () {
           HapticFeedback.mediumImpact();
@@ -796,8 +1075,8 @@ class _Shutter extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 108,
-              height: 108,
+              width: 100,
+              height: 100,
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -809,17 +1088,19 @@ class _Shutter extends StatelessWidget {
                   gradient: V.brand,
                   boxShadow: [BoxShadow(color: V.pink.withValues(alpha: 0.45), blurRadius: 36, offset: const Offset(0, 14))],
                 ),
-                child: const Icon(SolarIconsBold.videocamera, size: 40, color: Colors.white),
+                child: const Icon(SolarIconsBold.videocamera, size: 38, color: Colors.white),
               ),
             ),
             const SizedBox(height: 10),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Start', style: VT.title(15)),
+                Text('Start video chat', style: VT.title(15)),
                 if (cost > 0) ...[Text(' · ', style: VT.title(15, color: V.text2)), CoinAmount(cost, size: 13)],
               ],
             ),
+            const SizedBox(height: 2),
+            Text('1-on-1 with someone random', maxLines: 1, softWrap: false, style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.62))),
           ],
         ),
       ),
@@ -842,12 +1123,13 @@ class _SideAction extends StatelessWidget {
       button: true,
       label: semantics,
       excludeSemantics: true,
-      child: SizedBox(
+      child: Container(
         width: 72,
+        padding: const EdgeInsets.only(bottom: 18),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            RoundControl(icon: icon, color: iconColor, size: 56, tint: tint, onTap: onTap),
+            RoundControl(icon: icon, color: iconColor, size: 52, tint: tint, onTap: onTap),
             const SizedBox(height: 8),
             label,
           ],

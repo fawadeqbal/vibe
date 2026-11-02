@@ -11,6 +11,7 @@ class RemoteMatchProvider extends MatchProvider {
     : super.base(wallet, social, session, cameraEnabled: cameraEnabled) {
     _subs = [
       _rt.on(Ev.matchSearching).listen((_) => _setState(MatchState.searching)),
+      _rt.on(Ev.matchSomeoneLooking).listen((_) => someoneLooking()),
       _rt.on(Ev.matchFound).listen(_onFound),
       _rt.on(Ev.matchChat).listen(_onChat),
       _rt.on(Ev.matchLiked).listen(_onLiked),
@@ -170,9 +171,33 @@ class RemoteMatchProvider extends MatchProvider {
 
   // ── history ───────────────────────────────────────────────────────────
 
+  // ── who's around · notify me ──────────────────────────────────────────
+
+  @override
+  Future<(int, int)?> fetchOnline() async {
+    final m = Map<String, dynamic>.from(await _api.get('/match/online') as Map);
+    return (ApiMap.i(m['online']), ApiMap.i(m['searching']));
+  }
+
+  static DateTime? _untilOf(Object? v) {
+    final s = v is Map ? v['until'] : null;
+    final d = s is String ? DateTime.tryParse(s) : null;
+    return d != null && d.isAfter(DateTime.now()) ? d : null;
+  }
+
+  @override
+  Future<DateTime?> fetchNotify() async => _untilOf(await _api.get('/match/notify-me'));
+
+  @override
+  Future<DateTime?> requestNotify() async => _untilOf(await _api.post('/match/notify-me'));
+
+  @override
+  Future<void> withdrawNotify() => _api.delete('/match/notify-me');
+
   @override
   Future<void> load() async {
     if (!_api.hasSession) return;
+    unawaited(loadNotify());
     try {
       final page = await _api.get('/me/matches', query: {'limit': '50'}) as Map;
       // The base keeps history oldest-first (it reverses for display).

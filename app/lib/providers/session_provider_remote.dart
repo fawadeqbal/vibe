@@ -128,6 +128,7 @@ class RemoteSessionProvider extends SessionProvider {
       'countryCode': p.country.code,
       'bio': p.bio,
       'interests': p.interests,
+      'intent': p.intent?.name,
       if (p.avatarUrl.isNotEmpty) 'avatarUrl': p.avatarUrl,
     });
     _applyMe(Map<String, dynamic>.from(res as Map));

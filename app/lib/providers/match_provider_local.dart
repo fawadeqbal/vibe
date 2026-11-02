@@ -17,6 +17,37 @@ class LocalMatchProvider extends MatchProvider {
     notifyListeners();
   }
 
+  // ── who's around · notify me (believable numbers on the device) ───────
+
+  Timer? _lookTimer;
+
+  @override
+  Future<(int, int)?> fetchOnline() async {
+    final now = DateTime.now();
+    final h = now.hour;
+    final base = h >= 20 || h < 2
+        ? 2400
+        : h >= 12
+        ? 1500
+        : 700;
+    final online = base + now.minute * 7;
+    return (online + 1, online ~/ 30);
+  }
+
+  @override
+  Future<DateTime?> fetchNotify() async => _lookTimer?.isActive == true ? notifyUntil : null;
+
+  @override
+  Future<DateTime?> requestNotify() async {
+    _lookTimer?.cancel();
+    // Someone "starts looking" a little later, like a real quiet evening.
+    _lookTimer = Timer(const Duration(seconds: 20), someoneLooking);
+    return DateTime.now().add(const Duration(hours: 3));
+  }
+
+  @override
+  Future<void> withdrawNotify() async => _lookTimer?.cancel();
+
   /// Starts searching. Charges the filter cost up front (a real service
   /// charges per match too); returns false — and stays idle — when the
   /// user cannot afford the filters they picked.
@@ -404,6 +435,7 @@ class LocalMatchProvider extends MatchProvider {
     for (final t in _timers) {
       t.cancel();
     }
+    _lookTimer?.cancel();
     super.dispose();
   }
 }

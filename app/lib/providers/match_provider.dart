@@ -48,6 +48,17 @@ class RematchSoon {
   final DateTime? at;
 }
 
+/// Other people on Vibe right now, yourself left out (`GET /match/online`).
+class MatchAvailability {
+  const MatchAvailability({required this.online, required this.searching});
+
+  /// Signed in with the app open.
+  final int online;
+
+  /// In the match queue.
+  final int searching;
+}
+
 abstract class MatchProvider extends ChangeNotifier {
   MatchProvider.base(this._wallet, this._social, this._session, {bool cameraEnabled = true}) : _cameraEnabled = cameraEnabled;
 
@@ -163,6 +174,86 @@ abstract class MatchProvider extends ChangeNotifier {
 
   /// Sends the appeal. Throws ApiException on failure.
   Future<void> sendAppeal(String message) async {}
+
+  // ── Who's around · "tell me when someone's looking" ────────────────────
+  // The lobby's line under the camera and the strip under it (web:
+  // use-availability.ts, stores/waitlist.ts).
+
+  MatchAvailability? _availability;
+  DateTime? _notifyUntil;
+  DateTime? _someoneLookingAt;
+
+  /// Live counts from the server; null until the first answer (the lobby
+  /// keeps the line empty rather than invent a number).
+  MatchAvailability? get availability => _availability;
+
+  /// You asked to be told when someone starts looking; until then (3 h).
+  DateTime? get notifyUntil => _notifyUntil != null && _notifyUntil!.isAfter(DateTime.now()) ? _notifyUntil : null;
+
+  /// Someone started looking after you asked (cleared when you start or dismiss).
+  DateTime? get someoneLookingAt => _someoneLookingAt;
+
+  /// `(online, searching)`, both including you while you're counted.
+  @protected
+  Future<(int, int)?> fetchOnline();
+  @protected
+  Future<DateTime?> fetchNotify();
+  @protected
+  Future<DateTime?> requestNotify();
+  @protected
+  Future<void> withdrawNotify();
+
+  /// Asks again; a blip keeps the last answer.
+  Future<void> refreshAvailability() async {
+    try {
+      final c = await fetchOnline();
+      if (c == null) return;
+      // The online count includes you (you're connected).
+      _availability = MatchAvailability(online: math.max(0, c.$1 - 1), searching: math.max(0, c.$2));
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> loadNotify() async {
+    try {
+      _notifyUntil = await fetchNotify();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// "Nobody's searching · notify me". False if it couldn't be set up.
+  Future<bool> notifyMe() async {
+    try {
+      _notifyUntil = await requestNotify();
+      _someoneLookingAt = null;
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> cancelNotify() async {
+    _notifyUntil = null;
+    notifyListeners();
+    try {
+      await withdrawNotify();
+    } catch (_) {}
+  }
+
+  void dismissLooking() {
+    if (_someoneLookingAt == null) return;
+    _someoneLookingAt = null;
+    notifyListeners();
+  }
+
+  /// The one-shot "someone's looking" arrived.
+  @protected
+  void someoneLooking() {
+    _notifyUntil = null;
+    _someoneLookingAt = DateTime.now();
+    notifyListeners();
+  }
 
   /// Tell the partner our camera / mic changed (server mode).
   @protected

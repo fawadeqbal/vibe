@@ -16,6 +16,9 @@ class Ev {
   static const accountWarning = 'account:warning';
   static const announcement = 'system:announcement';
   static const matchSearching = 'match:searching';
+
+  /// You asked to be told when someone's looking (POST /match/notify-me), and someone is. One-shot.
+  static const matchSomeoneLooking = 'match:someone-looking';
   static const matchFound = 'match:found';
   static const matchEnded = 'match:ended';
   static const matchChat = 'match:chat';
