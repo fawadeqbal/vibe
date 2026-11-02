@@ -286,7 +286,7 @@ class _FillGap extends StatelessWidget {
             children: [
               Icon(icon, size: chip ? 14 : 16, color: V.pinkSoft),
               const SizedBox(width: 4),
-              Text(label, style: VT.label(chip ? 12 : 12.5, color: Colors.white.withValues(alpha: 0.8))),
+              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(chip ? 12 : 12.5, color: Colors.white.withValues(alpha: 0.8)))),
             ],
           ),
         ),
@@ -690,16 +690,26 @@ class StatsCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: Row(
               children: [
-                Expanded(child: Text('YOUR NUMBERS', style: VT.overline())),
-                GestureDetector(
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FollowersSectionScreen())),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(hideStats ? SolarIconsBold.eyeClosed : SolarIconsBold.eye, size: 13, color: V.muted),
-                      const SizedBox(width: 4),
-                      Text(hideStats ? 'Only you see these' : 'Matches & likes are on your profile', style: VT.body(11.5, color: V.muted)),
-                    ],
+                Text('YOUR NUMBERS', style: VT.overline()),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FollowersSectionScreen())),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Icon(hideStats ? SolarIconsBold.eyeClosed : SolarIconsBold.eye, size: 13, color: V.muted),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            hideStats ? 'Only you see these' : 'Matches & likes are on your profile',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: VT.body(11.5, color: V.muted),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

@@ -520,6 +520,11 @@ class Economy {
   static int discoverVipFreeSuperLikes = 1;
   static int discoverUndoCost = 5;
 
+  /// 1: gender/country/online/verified filters in Discover need VIP, Vibe Hour or a pass.
+  static int discoverPremiumFilters = 1;
+  static int discoverFilterPassCost = 25;
+  static int discoverFilterPassHours = 24;
+
   // Video calls in chat (admin group "calls")
   static bool friendCallsEnabled = true;
   static int callRingSeconds = 30;

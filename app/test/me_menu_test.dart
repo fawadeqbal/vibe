@@ -153,6 +153,7 @@ void main() {
     expect(find.text('Me'), findsOneWidget);
     expect(find.text('Sana Malik, 23'), findsOneWidget);
     expect(find.text('How others see you'), findsOneWidget);
+    await scrollToRow(t, 'Matches');
     expect(find.text('Matches'), findsOneWidget);
     for (final title in [
       'Progress & badges',

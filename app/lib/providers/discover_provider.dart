@@ -61,6 +61,24 @@ abstract class DiscoverProvider extends ChangeNotifier {
   DiscoverStatus? get status => _status;
   DiscoverFilters get filters => _filters;
 
+  /// The filter pass ran out while extra filters were on: they were turned
+  /// off (the screen says so once).
+  bool get filtersExpired => _filtersExpired;
+  bool _filtersExpired = false;
+  void clearFiltersExpired() => _filtersExpired = false;
+
+  /// Opens the extra filters for a while: 'ok', or 'coins' when short.
+  Future<String> buyFilterPass();
+
+  /// The pass ran out (or VIP ended): keep age, drop the rest, tell the screen.
+  @protected
+  Future<void> filtersLocked() async {
+    _filters = _filters.freeOnly();
+    _filtersExpired = true;
+    await _saveFilters();
+    await loadStatus();
+  }
+
   /// A pass that can still be undone.
   DiscoverCard? get lastPassed => _lastPassed;
   LikedYou? get likedYou => _likedYou;
@@ -116,29 +134,39 @@ abstract class DiscoverProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  Future<void> _saveFilters() async {
+    final f = _filters;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setStringList(_filtersKey, [f.gender.name, '${f.minAge}', '${f.maxAge}', f.countryCode, f.onlineOnly ? '1' : '0', f.verifiedOnly ? '1' : '0']);
+    } catch (_) {}
+  }
+
   Future<void> _readFilters() async {
     try {
       final p = await SharedPreferences.getInstance();
       final raw = p.getStringList(_filtersKey);
-      if (raw == null || raw.length != 3) return;
+      if (raw == null || raw.length < 3) return;
+      final cc = raw.length > 3 ? raw[3] : '';
       _filters = DiscoverFilters(
         gender: WantedGender.values.firstWhere((g) => g.name == raw[0], orElse: () => WantedGender.anyone),
         minAge: (int.tryParse(raw[1]) ?? 18).clamp(18, 99),
         maxAge: (int.tryParse(raw[2]) ?? 60).clamp(18, 99),
+        countryCode: RegExp(r'^[A-Z]{2}$').hasMatch(cc) ? cc : '',
+        onlineOnly: raw.length > 4 && raw[4] == '1',
+        verifiedOnly: raw.length > 5 && raw[5] == '1',
       );
     } catch (_) {}
   }
 
   Future<void> setFilters(DiscoverFilters f) async {
-    _filters = DiscoverFilters(gender: f.gender, minAge: f.minAge, maxAge: f.maxAge < f.minAge ? f.minAge : f.maxAge);
+    _filters = f.copyWith(maxAge: f.maxAge < f.minAge ? f.minAge : f.maxAge);
+    _filtersExpired = false;
     _deck = [];
     _lastPassed = null;
     _loading = true;
     notifyListeners();
-    try {
-      final p = await SharedPreferences.getInstance();
-      await p.setStringList(_filtersKey, [_filters.gender.name, '${_filters.minAge}', '${_filters.maxAge}']);
-    } catch (_) {}
+    await _saveFilters();
     try {
       await fetchDeck(replace: true);
       _failed = false;

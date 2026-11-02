@@ -85,17 +85,19 @@ class _VibeHourBannerState extends State<VibeHourBanner> with _Ticking {
               children: [
                 const Icon(SolarIconsBold.fire, size: 16, color: V.pinkSoft),
                 const SizedBox(width: 6),
-                Text.rich(
-                  TextSpan(
-                    style: white,
-                    children: [
-                      const TextSpan(text: 'Vibe Hour · free filters · '),
-                      TextSpan(text: countdown(left), style: VT.number(12.5, color: Colors.white)),
-                      const TextSpan(text: ' left'),
-                    ],
+                Flexible(
+                  child: Text.rich(
+                    TextSpan(
+                      style: white,
+                      children: [
+                        const TextSpan(text: 'Vibe Hour · free filters · '),
+                        TextSpan(text: countdown(left), style: VT.number(12.5, color: Colors.white)),
+                        const TextSpan(text: ' left'),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  softWrap: false,
                 ),
               ],
             ),

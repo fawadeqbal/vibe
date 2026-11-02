@@ -203,13 +203,14 @@ abstract class MatchProvider extends ChangeNotifier {
   @protected
   Future<void> withdrawNotify();
 
-  /// Asks again; a blip keeps the last answer.
-  Future<void> refreshAvailability() async {
+  /// Asks again; a blip keeps the last answer. [inQueue]: you're searching,
+  /// so the queue count includes you too.
+  Future<void> refreshAvailability({bool inQueue = false}) async {
     try {
       final c = await fetchOnline();
       if (c == null) return;
       // The online count includes you (you're connected).
-      _availability = MatchAvailability(online: math.max(0, c.$1 - 1), searching: math.max(0, c.$2));
+      _availability = MatchAvailability(online: math.max(0, c.$1 - 1), searching: math.max(0, c.$2 - (inQueue ? 1 : 0)));
       notifyListeners();
     } catch (_) {}
   }
