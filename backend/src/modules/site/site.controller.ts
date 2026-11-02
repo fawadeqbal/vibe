@@ -3,12 +3,12 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
-import { AppConfig } from '../../config/app-config.service';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { SkipMaintenance } from '../settings/maintenance.guard';
 import { AttributionDto } from './site.dto';
+import { AppDownloadService } from './app-download.service';
 import { SiteService } from './site.service';
 
 @ApiTags('site')
@@ -16,7 +16,7 @@ import { SiteService } from './site.service';
 export class SiteController {
   constructor(
     private readonly site: SiteService,
-    private readonly config: AppConfig,
+    private readonly downloads: AppDownloadService,
   ) {}
 
   /**
@@ -32,7 +32,7 @@ export class SiteController {
   async downloadAndroid(@Query('vid') vid: string | undefined, @Query('b') b: string | undefined, @Query('ref') ref: string | undefined, @Req() req: Request, @Res() res: Response): Promise<void> {
     await this.site.download({ vid, b, ref }, { headers: req.headers, userAgent: req.get('user-agent') ?? null, remoteAddress: req.socket?.remoteAddress ?? null }).catch(() => false);
     res.setHeader('Cache-Control', 'no-store');
-    res.redirect(302, this.config.get('APK_DOWNLOAD_URL'));
+    res.redirect(302, await this.downloads.androidUrl());
   }
 
   /**

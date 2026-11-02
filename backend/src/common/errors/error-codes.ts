@@ -13,6 +13,8 @@ export enum ErrorCode {
   MAIL_NOT_CONFIGURED = 'MAIL_NOT_CONFIGURED',
   /** The Firebase key was refused (Admin → Configuration → Push notifications). */
   PUSH_KEY_INVALID = 'PUSH_KEY_INVALID',
+  /** The Android download link doesn't lead to an APK (Admin → Configuration). */
+  DOWNLOAD_LINK_BROKEN = 'DOWNLOAD_LINK_BROKEN',
   FORBIDDEN = 'FORBIDDEN',
   /** A feature is switched off in admin (403). */
   FEATURE_DISABLED = 'FEATURE_DISABLED',
