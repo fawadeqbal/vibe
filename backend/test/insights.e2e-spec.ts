@@ -72,6 +72,9 @@ describe('insights', () => {
     expect(bySource.direct).toMatchObject({ signups: 2, firstCall: 2, goodFirstCall: 2, paid: 1 });
     expect(g.total).toMatchObject({ signups: 3, paid: 1 });
     expect(g.cohorts[0]).toMatchObject({ signups: 3, d7: null });
+    expect(g.daily).toHaveLength(7);
+    expect(g.daily.reduce((n: number, d: { total: number }) => n + d.total, 0)).toBe(3);
+    expect(g.daily.every((d: { app: number; web: number; other: number; total: number }) => d.app + d.web + d.other === d.total)).toBe(true);
 
     const money = await get('money?days=30');
     expect(money).toMatchObject({ revenueUsd: 6.98, purchases: 2, payers: 1, repeatPayers: 1, firstTimePayers: 1, arppuUsd: 6.98 });

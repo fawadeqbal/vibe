@@ -101,6 +101,8 @@ export interface GrowthReport {
   days: number;
   sources: SourceRow[];
   total: SourceRow;
+  /** Sign-ups per day by where the account was made (other = before that was recorded). */
+  daily: { day: string; app: number; web: number; other: number; total: number }[];
   cohorts: {
     week: string;
     signups: number;

@@ -78,6 +78,8 @@ export interface GrowthReport {
   client: ClientFilter;
   sources: SourceRow[];
   total: SourceRow;
+  /** Sign-ups per business day in the window, by where the account was made (other = before this was recorded). */
+  daily: { day: string; app: number; web: number; other: number; total: number }[];
   /** Sign-up weeks, newest first: share still active on day 1, 7 and 30 (null = too new). */
   cohorts: { week: string; signups: number; d1: number | null; d7: number | null; d30: number | null }[];
 }
@@ -367,7 +369,7 @@ export class InsightsService {
     const today = this.clock.startOfDay(now);
     const good = Prisma.sql`m."endedAt" - m."startedAt" >= make_interval(secs => ${GOOD_CALL_SECONDS})`;
     const cohortFrom = new Date(today.getTime() - 8 * 7 * MS.day);
-    const [people, visitors, downloads, cohorts] = await Promise.all([
+    const [people, visitors, downloads, cohorts, perDay] = await Promise.all([
       this.prisma.$queryRaw<
         { source: string; signups: bigint; set_up: bigint; first_call: bigint; good_first: bigint; came_back: bigint; d1_eligible: bigint; week: bigint; week_eligible: bigint; paid: bigint }[]
       >`
@@ -405,7 +407,22 @@ export class InsightsService {
                count(*) FILTER (WHERE EXISTS (SELECT 1 FROM act WHERE act.uid = s.id AND act.day >= s.sday + interval '30 days' AND act.day < s.sday + interval '37 days')) AS d30,
                count(*) FILTER (WHERE s.sday + interval '30 days' <= ${today}) AS d30e
           FROM s GROUP BY 1 ORDER BY 1 DESC`,
+      this.prisma.$queryRaw<{ day: string; app: bigint; web: bigint; total: bigint }[]>`
+        SELECT to_char(u."createdAt" + make_interval(mins => ${this.off}::int), 'YYYY-MM-DD') AS day,
+               count(*) FILTER (WHERE u."signupClient" IN ('android', 'ios')) AS app,
+               count(*) FILTER (WHERE u."signupClient" = 'web') AS web,
+               count(*) AS total
+          FROM "User" u
+         WHERE NOT u."isBot" AND u."createdAt" >= ${w.from} AND u."createdAt" < ${w.to} AND ${this.joined(client)} GROUP BY 1`,
     ]);
+
+    const daily: GrowthReport['daily'] = [];
+    for (let i = 0; i < days; i++) {
+      const day = new Date(w.from.getTime() + i * MS.day + this.off * MS.minute).toISOString().slice(0, 10);
+      const r = perDay.find((x) => x.day === day);
+      const [app, web, total] = [n(r?.app), n(r?.web), n(r?.total)];
+      daily.push({ day, app, web, other: total - app - web, total });
+    }
 
     const empty = (source: string): SourceRow => ({ source, visitors: 0, downloads: 0, signups: 0, setUp: 0, firstCall: 0, goodFirstCall: 0, cameBack: 0, cameBackEligible: 0, week: 0, weekEligible: 0, paid: 0 });
     const rows = new Map<string, SourceRow>();
@@ -437,6 +454,7 @@ export class InsightsService {
       client,
       sources,
       total,
+      daily,
       cohorts: cohorts.map((c) => ({ week: c.week, signups: n(c.signups), d1: ratio(c.d1, c.d1e), d7: ratio(c.d7, c.d7e), d30: ratio(c.d30, c.d30e) })),
     };
   }
