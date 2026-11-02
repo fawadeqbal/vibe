@@ -42,8 +42,8 @@ export class DashboardService {
   }
 
   /** Discover and chat-call numbers (cached 2 min). */
-  async discover(days: number): Promise<DiscoverCallsReport> {
-    return this.redis.remember(`admin:dash:discover:${days}`, 120, () => discoverCallsReport(this.prisma, this.economy.rules, days, this.clock.now()));
+  async discover(days: number, client: 'all' | 'app' | 'web' = 'all'): Promise<DiscoverCallsReport> {
+    return this.redis.remember(`admin:dash:discover:${days}:${client}`, 120, () => discoverCallsReport(this.prisma, this.economy.rules, days, this.clock.now(), client));
   }
 
   /** Marketing-site traffic for the last `days` days (cached 60 s). */

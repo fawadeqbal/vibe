@@ -49,13 +49,16 @@ export async function discoverCallsReport(
   rules: EconomyRules,
   days: number,
   now: Date,
+  client: 'all' | 'app' | 'web' = 'all',
 ): Promise<DiscoverCallsReport> {
   const since = new Date(now.getTime() - days * 86_400_000);
+  // App / web: swipes by people who joined there.
+  const by = client === 'all' ? {} : { from: { signupClient: client === 'app' ? { in: ['android', 'ios'] } : 'web' } };
   const activeSince = new Date(now.getTime() - rules.discoverActiveDays * 86_400_000);
   const [swipes, swipers, events, visibleNow, pendingLikes, callsOn, calls, recent, spend] = await Promise.all([
-    prisma.discoverSwipe.groupBy({ by: ['kind'], where: { createdAt: { gte: since } }, _count: { _all: true } }),
+    prisma.discoverSwipe.groupBy({ by: ['kind'], where: { createdAt: { gte: since }, ...by }, _count: { _all: true } }),
     prisma.discoverSwipe.findMany({
-      where: { createdAt: { gte: since } },
+      where: { createdAt: { gte: since }, ...by },
       distinct: ['fromId'],
       select: { fromId: true },
     }),

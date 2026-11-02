@@ -15,9 +15,10 @@ import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { api } from "@/lib/api/client";
 import type { DiscoverCallsReport } from "@/lib/api/types";
 import { format } from "@/lib/format";
+import { ClientSwitch, type ClientFilter } from "@/features/insights/shared";
 
 export const discoverKeys = {
-  report: (days: number) => ["dashboard", "discover", days] as const,
+  report: (days: number, client: ClientFilter = "all") => ["dashboard", "discover", days, client] as const,
 };
 
 const share = (n: number, of: number) => (of > 0 ? format.percent(n / of) : "—");
@@ -29,9 +30,10 @@ const share = (n: number, of: number) => (of > 0 ? format.percent(n / of) : "—
  */
 export function DiscoverPage() {
   const [days, setDays] = React.useState(7);
+  const [client, setClient] = React.useState<ClientFilter>("all");
   const q = useQuery({
-    queryKey: discoverKeys.report(days),
-    queryFn: ({ signal }) => api.get<DiscoverCallsReport>("admin/dashboard/discover", { days }, signal),
+    queryKey: discoverKeys.report(days, client),
+    queryFn: ({ signal }) => api.get<DiscoverCallsReport>("admin/dashboard/discover", { days, client }, signal),
   });
   const r = q.data;
   if (q.error) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
@@ -53,7 +55,10 @@ export function DiscoverPage() {
           )
         }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span title="Swipes by people who joined in the app / on the web">
+              <ClientSwitch value={client} onChange={setClient} />
+            </span>
             <Link href="/economy" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-xs font-medium text-text-2 hover:text-text">
               <Settings2 className="size-3.5" aria-hidden /> Prices and limits
             </Link>

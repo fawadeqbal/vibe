@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 import { P } from '../core/permissions';
 import { RequirePermissions, StaffApi } from '../core/staff-api.decorator';
@@ -24,6 +24,11 @@ class DaysQuery {
   @Min(1)
   @Max(180)
   days: number = 7;
+
+  /** all | app | web (people who joined there). */
+  @IsOptional()
+  @IsIn(['all', 'app', 'web'])
+  client: 'all' | 'app' | 'web' = 'all';
 }
 
 @StaffApi('dashboard')
@@ -56,7 +61,7 @@ export class DashboardController {
   @Get('discover')
   @ApiOperation({ summary: 'Discover (swipes, matches) and video calls in chat (asks, allowed, calls, missed) for the last N days' })
   discover(@Query() q: DaysQuery) {
-    return this.dashboard.discover(q.days);
+    return this.dashboard.discover(q.days, q.client);
   }
 
   @Get('marketing')

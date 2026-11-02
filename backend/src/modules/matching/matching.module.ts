@@ -7,6 +7,7 @@ import { DevBotsService } from './dev-bots.service';
 import { MatchGamesService } from './match-games.service';
 import { MatchGateway } from './match.gateway';
 import { MatchQueueService } from './match-queue.service';
+import { MatchSearchLog } from './match-search-log.service';
 import { MatchSessionStore } from './match-session.store';
 import { WavesModule } from '../waves/waves.module';
 import { MatchWaitlistService } from './match-waitlist.service';
@@ -17,7 +18,7 @@ import { SkipCooldownService } from './skip-cooldown.service';
 @Module({
   imports: [WalletModule, SocialModule, ModerationModule, WavesModule],
   controllers: [RtcController],
-  providers: [MatchingService, MatchQueueService, MatchSessionStore, SkipCooldownService, MatchGateway, DevBotsService, MatchGamesService, MatchWaitlistService],
+  providers: [MatchingService, MatchQueueService, MatchSessionStore, SkipCooldownService, MatchGateway, DevBotsService, MatchGamesService, MatchWaitlistService, MatchSearchLog],
   exports: [MatchingService],
 })
 export class MatchingModule {}

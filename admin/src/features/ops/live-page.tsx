@@ -22,6 +22,11 @@ const key = ["ops", "live"] as const;
 
 /** Right now: who is online, who is waiting, and every live call. Polls every 5 s. */
 export function LivePage() {
+  return <LiveNow />;
+}
+
+/** The live numbers and calls; `embedded` drops the page title (admin → Matching). */
+export function LiveNow({ embedded = false }: { embedded?: boolean }) {
   const can = useCan();
   const confirm = useConfirm();
   const qc = useQueryClient();
@@ -66,23 +71,29 @@ export function LivePage() {
       : []),
   ];
 
+  const toggle = (
+    <label className="flex items-center gap-2 text-sm text-text-2">
+      <Switch checked={auto} onCheckedChange={setAuto} aria-label="Auto-refresh" />
+      Auto-refresh
+      {auto && (
+        <Badge tone="ok" dot>
+          Live
+        </Badge>
+      )}
+    </label>
+  );
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Live"
-        description={s ? <>As of {format.time(s.at)}</> : "Real-time activity"}
-        actions={
-          <label className="flex items-center gap-2 text-sm text-text-2">
-            <Switch checked={auto} onCheckedChange={setAuto} aria-label="Auto-refresh" />
-            Auto-refresh
-            {auto && (
-              <Badge tone="ok" dot>
-                Live
-              </Badge>
-            )}
-          </label>
-        }
-      />
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-text">
+            Right now {s ? <span className="ml-1 text-xs font-normal text-muted">as of {format.time(s.at)}</span> : null}
+          </h2>
+          {toggle}
+        </div>
+      ) : (
+        <PageHeader title="Live" description={s ? <>As of {format.time(s.at)}</> : "Real-time activity"} actions={toggle} />
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="Online" icon={Users} tone="trust" loading={q.isLoading} value={format.number(s?.online)} hint="Apps connected right now" />
         <StatCard label="Searching" icon={Search} tone="primary" loading={q.isLoading} value={format.number(s?.searching)} hint="In the match queue" />
