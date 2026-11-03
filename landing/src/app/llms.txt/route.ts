@@ -9,6 +9,8 @@ export const dynamic = "force-static";
  * /llms.txt — a plain-text map of the site for AI assistants and answer
  * engines (ChatGPT, Perplexity, Gemini, Claude), per llmstxt.org.
  */
+const line = (p: (typeof PAGES)[number]) => `- [${p.navLabel}](${abs(`/${p.slug}/`)}): ${p.description}`;
+
 export function GET() {
   const body = [
     `# ${site.name}`,
@@ -27,7 +29,14 @@ export function GET() {
     "",
     "## Pages",
     `- [Home](${abs("/")}): overview, how it works, Discover, safety, Vibe Hour, VIP, FAQ`,
-    ...PAGES.map((p) => `- [${p.navLabel}](${abs(`/${p.slug}/`)}): ${p.description}`),
+    ...PAGES.filter((p) => !p.group || p.group === "topic").map(line),
+    "",
+    "## Video chat by country",
+    "Matching is worldwide by default; a country filter limits matches to one country. Most people on the app today are in Pakistan, so Pakistani evenings (PKT, UTC+5) are the busiest time. Coin purchases and cash-outs use PKR, JazzCash, Easypaisa and Pakistani bank accounts. Internet video calling is restricted on networks in the UAE, Qatar and Oman, so calls may not connect there.",
+    ...PAGES.filter((p) => p.group === "country").map(line),
+    "",
+    "## Cities in Pakistan",
+    ...PAGES.filter((p) => p.group === "city").map(line),
     "",
     "## Guides",
     ...POSTS.map((p) => `- [${p.title}](${abs(`/blog/${p.slug}/`)}): ${p.description}`),
