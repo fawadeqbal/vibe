@@ -1,3 +1,4 @@
+import { CITY_PAGES, COUNTRY_PAGES, countryHub } from "@/content/places";
 import type { KeywordPage } from "@/content/types";
 import { site } from "@/lib/site";
 
@@ -10,7 +11,7 @@ const n = site.name;
 const app = site.links.webApp;
 const apk = site.links.android;
 
-export const PAGES: KeywordPage[] = [
+const TOPIC_PAGES: KeywordPage[] = [
   // ── 1 ────────────────────────────────────────────────────────────────────
   {
     slug: "omegle-alternative",
@@ -241,6 +242,7 @@ export const PAGES: KeywordPage[] = [
   // ── 5 ────────────────────────────────────────────────────────────────────
   {
     slug: "video-chat-pakistan",
+    group: "country",
     navLabel: "Video chat in Pakistan",
     title: "Video Chat in Pakistan — Meet New People Live",
     description: `Free live video chat for Pakistan: meet people in Lahore, Karachi, Islamabad or worldwide. Pay in PKR with JazzCash or Easypaisa and cash out your gifts. 18+.`,
@@ -576,6 +578,135 @@ export const PAGES: KeywordPage[] = [
     related: ["/omegle-alternative/", "/chatroulette-alternative/", "/meet-new-people/", "/random-video-chat/"],
     updated: "2026-10-29",
   },
+  // ── 12 ───────────────────────────────────────────────────────────────────
+  {
+    slug: "ometv-alternative",
+    navLabel: "OmeTV alternative",
+    title: "OmeTV Alternative: Free Random Video Chat",
+    description: `Looking for an OmeTV alternative? ${n} is free one-tap random video chat with selfie-verified people, calls that start blurred and 24/7 moderation. 18+.`,
+    keywords: ["ometv alternative", "apps like ometv", "sites like ometv", "ome tv alternative", "ometv free", "chatrandom alternative", "chathub alternative"],
+    kicker: "OmeTV alternative",
+    h1: "An OmeTV alternative where real people come first",
+    lede: `If you like OmeTV's quick, random video chat but want more control over who you meet, ${n} keeps the one-tap matching and adds selfie-verified badges, calls that start blurred, and a way to stay friends after a good call. Free in your browser or on Android, 18+.`,
+    blocks: [
+      { h2: "Same quick start, more safety" },
+      {
+        p: `Tap **Start** and you're talking to someone new within seconds; tap **Next** to move on. What's different is what happens around the call: people can prove they're real with a quick selfie check, every random call starts blurred for a few seconds, and the report button never leaves the screen.`,
+      },
+      {
+        table: {
+          head: ["", "Typical random cam site", n],
+          rows: [
+            ["One-tap random video", "Yes", "Yes"],
+            ["Real people", "Anyone", "Selfie-verified badge; verified-only mode"],
+            ["First seconds of a call", "Full video at once", "Both videos start blurred"],
+            ["Reporting", "Varies", "Two taps, reviewed 24/7"],
+            ["After a good call", "Usually gone", "Add each other, keep chatting"],
+            ["Swipe profiles first", "Rarely", "Yes: Discover"],
+          ],
+          caption: "General comparison; other services change their features often.",
+        },
+      },
+      { h2: "Filters without the paywall maze" },
+      {
+        p: "Choose gender and country when you want to. Filters are free during the daily Vibe Hour and with VIP, and cost a few coins otherwise. Pure random is always free.",
+      },
+      { cta: { title: "Try the OmeTV alternative", body: "One tap, a real person. Free to match, 18+." } },
+      { h2: "More than a cam roulette" },
+      {
+        p: `${n} also has Discover: look at real, active people first, like the ones you'd talk to, and chat when it's a match. Gifts you receive turn into gems you can [cash out](/earn-money-video-chat/) in Pakistan. And it's strictly 18+.`,
+      },
+    ],
+    faqs: [
+      { q: `Is ${n} like OmeTV?`, a: `Yes: one tap starts a random video chat and Next moves on. ${n} adds selfie verification, blurred call starts and friends you can keep.` },
+      { q: `Is ${n} free?`, a: "Yes. Matching and chatting are free. Coins and VIP are optional." },
+      { q: "Do I need to download an app?", a: `No. ${n} works in any modern browser. There's also an Android app.` },
+    ],
+    related: ["/omegle-alternative/", "/chatroulette-alternative/", "/azar-alternative/", "/random-video-chat/"],
+    updated: "2026-11-04",
+  },
+
+  // ── 13 ───────────────────────────────────────────────────────────────────
+  {
+    slug: "monkey-app-alternative",
+    navLabel: "Monkey app alternative",
+    title: "Monkey App Alternative for Adults: Video Chat",
+    description: `A Monkey app alternative for adults: one-tap random video chat on ${n} with selfie-verified people, blurred call starts and 24/7 moderation. Free, 18+ only.`,
+    keywords: ["monkey app alternative", "apps like monkey", "monkey video chat", "monkey app replacement", "holla alternative", "random video chat app"],
+    kicker: "Monkey app alternative",
+    h1: "A Monkey app alternative built for adults",
+    lede: `Want quick, random video chats like Monkey, but only with adults and with real safety? ${n} matches you face to face in one tap, is strictly 18+, and starts every random call blurred. Free in your browser or on Android.`,
+    blocks: [
+      { h2: "Why adults look for an alternative" },
+      {
+        p: `Short random video chats are fun, but on apps full of teenagers adults feel out of place, and parents worry. On ${n} everyone is 18+, accounts that break the age rule are removed, and you can choose to meet selfie-verified people only.`,
+      },
+      { h2: "What you get" },
+      {
+        ul: [
+          "**One-tap random video chat**, with Next always one tap away.",
+          "**Blurred call starts**, so nobody is caught off guard.",
+          "**Selfie-verified badges**, plus a verified-only mode.",
+          "**Friends and chat** after a good call, and video calls only when you both allow them.",
+          "**Discover**, to swipe real people first if you'd rather look before you talk.",
+        ],
+      },
+      { cta: { title: "Try the Monkey app alternative", body: "Adults only. One tap to someone new. Free." } },
+      { h2: "Short calls that can turn into friendships" },
+      {
+        p: `Random calls are quick by design: no spark, tap Next. But when a call goes well, you don't have to lose the person. Add each other as friends and the conversation carries on in chat, with friend streaks and gifts if you want to say thanks. Read [how to choose a random video chat app](/blog/how-to-choose-a-random-video-chat-app/) for what else to look for.`,
+      },
+    ],
+    faqs: [
+      { q: `Is ${n} like Monkey?`, a: `Both are quick random video chat, but ${n} is 18+ only and adds selfie verification, blurred call starts and 24/7 moderation.` },
+      { q: `Is ${n} free?`, a: "Yes. Matching and chatting are free. Coins and VIP are optional." },
+    ],
+    related: ["/azar-alternative/", "/ometv-alternative/", "/safe-video-chat/", "/random-video-chat/"],
+    updated: "2026-11-04",
+  },
+
+  // ── 14 ───────────────────────────────────────────────────────────────────
+  {
+    slug: "practice-english-speaking",
+    navLabel: "Practise English speaking",
+    title: "Practise English Speaking With Real People Free",
+    description: `Practise English speaking with real people on free random video chat. Meet people from many countries, build confidence and get past the fear. ${n}, 18+.`,
+    keywords: ["practice english speaking", "practice english with strangers", "english speaking practice online free", "talk to foreigners online", "english conversation practice", "improve spoken english"],
+    kicker: "Practise English",
+    h1: "Practise English speaking with real people, for free",
+    lede: `The fastest way to get comfortable speaking English is to speak it, with real people, about real things. ${n} puts you on a live video chat with someone new in one tap. Leave the country filter off and every call can be a different accent and a different country.`,
+    blocks: [
+      { h2: "Why video chat works for speaking practice" },
+      {
+        p: "Apps and grammar books help with reading and writing, but speaking needs listening, thinking and answering in real time. A short video call with a stranger is low-stakes practice: if it goes badly, tap Next and try again.",
+      },
+      { h2: "Tips for your first calls" },
+      {
+        ol: [
+          "**Start with an easy question.** Where are you from? What time is it there? People love talking about home.",
+          "**Say you're practising.** Most people are kind about it, and some will help.",
+          "**Keep a few lines ready.** Our [40 conversation starters](/blog/conversation-starters-for-video-chat/) are a good list.",
+          "**Make friends with good partners.** Add each other after a good call and practise again tomorrow.",
+          "**Do a little every day.** Ten short calls a week beat one long one.",
+        ],
+      },
+      { cta: { title: "Start practising English now", body: "One tap, a real conversation. Free, 18+." } },
+      { h2: "Stay safe while you practise" },
+      {
+        p: "Keep personal details like your phone number, address and workplace to yourself until you really know someone. Every random call starts blurred, and you can report anyone in two taps. More in our [safety tips](/blog/video-chat-safety-tips/).",
+      },
+    ],
+    faqs: [
+      { q: "Can I practise English with strangers for free?", a: `Yes. On ${n}, matching and video chat are free. Leave the country filter off to meet people from many countries.` },
+      { q: "What if my English isn't good yet?", a: "That's the point of practice. Say you're learning: most people are patient, and you can always tap Next." },
+    ],
+    related: ["/talk-to-strangers/", "/blog/conversation-starters-for-video-chat/", "/video-chat-by-country/", "/random-video-chat/"],
+    updated: "2026-11-04",
+  },
 ];
+
+const pakistan = TOPIC_PAGES.find((p) => p.slug === "video-chat-pakistan")!;
+
+export const PAGES: KeywordPage[] = [...TOPIC_PAGES, countryHub(pakistan), ...COUNTRY_PAGES, ...CITY_PAGES];
 
 export const pageBySlug = (slug: string) => PAGES.find((p) => p.slug === slug);

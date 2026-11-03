@@ -24,9 +24,15 @@ export function SiteFooter() {
     { href: site.links.support, label: "Support" },
   ];
   const cols = [
-    { title: "Video chat", links: PAGES.map((p) => ({ href: `/${p.slug}/`, label: p.navLabel })) },
+    { title: "Video chat", links: PAGES.filter((p) => (!p.group || p.group === "topic") && p.slug !== "video-chat-by-country").map((p) => ({ href: `/${p.slug}/`, label: p.navLabel })) },
     { title: "Guides", links: [...POSTS.slice(0, 5).map((p) => ({ href: `/blog/${p.slug}/`, label: shortTitle(p.metaTitle ?? p.title) })), { href: "/blog/", label: "All articles →" }] },
     { title: site.name, links: product },
+  ];
+  // Country and city pages in wrapped rows, so every one stays one hop from anywhere.
+  const link = (p: (typeof PAGES)[number]) => ({ href: `/${p.slug}/`, label: p.navLabel.replace(/^Video chat in /, "") });
+  const places = [
+    { title: "Video chat by country", links: [...PAGES.filter((p) => p.group === "country").map(link), { href: "/video-chat-by-country/", label: "All countries →" }] },
+    { title: "Cities in Pakistan", links: PAGES.filter((p) => p.group === "city").map(link) },
   ];
   return (
     <footer className="border-t border-line-soft">
@@ -55,6 +61,20 @@ export function SiteFooter() {
             </nav>
           ))}
         </div>
+        {places.map((row) => (
+          <nav key={row.title} aria-label={row.title} className="mt-10 first-of-type:mt-12">
+            <p className="eyebrow text-muted">{row.title}</p>
+            <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2.5">
+              {row.links.map((l) => (
+                <li key={l.href}>
+                  <a href={l.href} className="text-[13.5px] text-text2 underline-offset-4 transition-colors hover:text-pink-soft hover:underline">
+                    {l.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
         <div className="mt-12 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-line-soft pt-6">
           <p className="flex-1 text-[12.5px] text-muted">
             © {new Date().getFullYear()} {site.legalName}. {site.tagline}.
