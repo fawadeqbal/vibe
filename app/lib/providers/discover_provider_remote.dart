@@ -96,13 +96,17 @@ class RemoteDiscoverProvider extends DiscoverProvider {
           },
         }),
       );
-      if (r['status'] is Map) _status = ApiMap.discoverStatus(_map(r['status']));
+      // The counters go back with the outcome: the base applies them only if
+      // this is still the newest swipe, so a late answer can't move them back.
+      final status = r['status'] is Map ? ApiMap.discoverStatus(_map(r['status'])) : null;
       final friend = r['matched'] == true && r['friend'] is Map ? ApiMap.friend(_map(r['friend'])) : null;
-      return SwipeOutcome.ok(friend);
+      return SwipeOutcome.ok(friend, status);
     } on ApiException catch (e) {
       if (e.code == 'OUT_OF_LIKES') return const SwipeOutcome.failed(SwipeFailure.outOfLikes);
       if (e.isInsufficientCoins) return const SwipeOutcome.failed(SwipeFailure.coins);
       return SwipeOutcome.failed(SwipeFailure.error, e.message);
+    } catch (_) {
+      return const SwipeOutcome.failed(SwipeFailure.error);
     }
   }
 

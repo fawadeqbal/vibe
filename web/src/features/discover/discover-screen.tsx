@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { useNeedCoins } from "@/components/shared/dialogs";
 import { FaceStack } from "@/components/ui/avatar";
@@ -24,6 +24,11 @@ import { DeckEmpty, DeckOffline, DeckSkeleton, NoPhotoPanel, OutOfLikesBanner, o
 const SWIPE_X = 110;
 const SWIPE_UP = 120;
 const FLY_MS = 240;
+/** The cards behind the top one: the next peeks out, the one after waits unseen (its photo loads early). */
+const BEHIND: Record<number, CSSProperties> = {
+  1: { transform: "scale(0.96) translateY(10px)", opacity: 0.85, transition: "transform 260ms var(--ease-spring, ease-out), opacity 260ms ease-out" },
+  2: { transform: "scale(0.92) translateY(20px)", opacity: 0, transition: "transform 260ms var(--ease-spring, ease-out), opacity 260ms ease-out" },
+};
 
 type Fly = { id: string; kind: SwipeKind } | null;
 
@@ -59,6 +64,8 @@ export function DiscoverScreen() {
   const [offline, setOffline] = useState(false);
   const status = useDiscover((s) => s.status);
   const lastPassed = useDiscover((s) => s.lastPassed);
+  const returnedId = useDiscover((s) => s.returnedId);
+  const refilling = useDiscover((s) => s.refilling);
   const [fly, setFly] = useState<Fly>(null);
   const [notifyOn, setNotifyOn] = useState<boolean | null>(null);
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
@@ -145,17 +152,24 @@ export function DiscoverScreen() {
       const st = useDiscover.getState().status;
       // Out of likes: say so before the card flies.
       if (kind === "like" && st && st.likesLeft === 0) {
+        start.current = null;
         setDrag({ x: 0, y: 0, active: false });
         await moreLikes();
         return;
       }
       busy.current = true;
+      start.current = null;
       setFly({ id: c.profile.id, kind });
       await new Promise((r) => setTimeout(r, FLY_MS));
-      const r = await useDiscover.getState().swipe(c, kind);
-      setFly(null);
+      // The card has flown. In this order, so no frame ever shows a card out of place:
+      // 1) forget the drag (the flying card ignores it), 2) take the card off the deck —
+      // the next one, already mounted behind it, eases up to the centre — 3) stop flying.
+      // The server answers in the background; you can swipe the next card right away.
       setDrag({ x: 0, y: 0, active: false });
+      const answer = useDiscover.getState().swipe(c, kind);
+      setFly(null);
       busy.current = false;
+      const r = await answer;
       if (r.ok) return;
       if (r.reason === "out-of-likes") {
         await moreLikes();
@@ -209,23 +223,32 @@ export function DiscoverScreen() {
     if (!start.current || start.current.id !== e.pointerId) return;
     setDrag({ x: e.clientX - start.current.x, y: e.clientY - start.current.y, active: true });
   };
-  const onUp = () => {
-    if (!start.current || !top) return;
+  const onUp = (e: ReactPointerEvent) => {
+    if (!start.current || start.current.id !== e.pointerId || !top) return;
+    // From the pointer itself, not the last render: a fast flick can end before React catches up.
+    const x = e.clientX - start.current.x;
+    const y = e.clientY - start.current.y;
     start.current = null;
-    if (drag.x > SWIPE_X) void doSwipe(top, "like");
-    else if (drag.x < -SWIPE_X) void doSwipe(top, "pass");
-    else if (drag.y < -SWIPE_UP) void doSwipe(top, "super");
+    if (x > SWIPE_X) void doSwipe(top, "like");
+    else if (x < -SWIPE_X) void doSwipe(top, "pass");
+    else if (y < -SWIPE_UP) void doSwipe(top, "super");
     else setDrag({ x: 0, y: 0, active: false });
+  };
+  /** The browser took the pointer (a scroll, a system gesture): never a swipe, just settle back. */
+  const onCancel = () => {
+    start.current = null;
+    setDrag({ x: 0, y: 0, active: false });
   };
 
   const flyTransform = (k: SwipeKind) =>
     k === "like" ? "translate(140%, 6%) rotate(22deg)" : k === "pass" ? "translate(-140%, 6%) rotate(-22deg)" : "translate(0, -130%) rotate(0deg)";
   const topStyle =
     fly && top && fly.id === top.profile.id
-      ? { transform: flyTransform(fly.kind), transition: `transform ${FLY_MS}ms ease-in, opacity ${FLY_MS}ms ease-in`, opacity: 0.2 }
+      ? { transform: flyTransform(fly.kind), transition: `transform ${FLY_MS}ms ease-in, opacity ${FLY_MS}ms ease-in`, opacity: 0 }
       : {
-          transform: `translate(${drag.x}px, ${Math.min(drag.y, 40)}px) rotate(${drag.x / 18}deg)`,
-          transition: drag.active ? "none" : "transform 220ms var(--ease-spring, ease-out)",
+          transform: `translate(${drag.x}px, ${Math.min(drag.y, 40)}px) rotate(${drag.x / 18}deg) scale(1)`,
+          opacity: 1,
+          transition: drag.active ? "none" : "transform 260ms var(--ease-spring, ease-out), opacity 200ms ease-out",
         };
   const dragX = fly?.kind === "like" ? 1 : fly?.kind === "pass" ? -1 : Math.max(-1, Math.min(1, drag.x / SWIPE_X));
   const dragUp = fly?.kind === "super" ? 1 : Math.max(0, Math.min(1, -drag.y / SWIPE_UP));
@@ -315,21 +338,31 @@ export function DiscoverScreen() {
           {status && !status.hasPhoto && !lookAround ? (
             <NoPhotoPanel hasName onLookAround={() => setLookAround(true)} />
           ) : top ? (
-            <>
-              {deck[1] ? <DiscoverCardView key={deck[1].profile.id} c={deck[1]} className="absolute inset-0 scale-[0.96] opacity-80" /> : null}
-              <div
-                key={top.profile.id}
-                className="absolute inset-0 touch-none cursor-grab active:cursor-grabbing"
-                style={topStyle}
-                onPointerDown={onDown}
-                onPointerMove={onMove}
-                onPointerUp={onUp}
-                onPointerCancel={onUp}
-              >
-                <DiscoverCardView c={top} drag={dragX} up={dragUp} className="shadow-[0_20px_60px_rgb(0_0_0/0.45)]" />
-              </div>
-            </>
-          ) : loading ? (
+            // The top three, each keyed by person: when the top card leaves, the one behind
+            // it is the same element moving up (no remount, no photo reload); the third is
+            // already loaded, invisibly, so its photo is ready too.
+            deck
+              .slice(0, 3)
+              .map((c, i) => (
+                <div
+                  key={c.profile.id}
+                  aria-hidden={i > 0 || undefined}
+                  className={cn("absolute inset-0", i === 0 ? "touch-none cursor-grab active:cursor-grabbing" : "pointer-events-none")}
+                  style={i === 0 ? { ...topStyle, zIndex: 3 } : { ...BEHIND[i], zIndex: 3 - i }}
+                  {...(i === 0 ? { onPointerDown: onDown, onPointerMove: onMove, onPointerUp: onUp, onPointerCancel: onCancel } : {})}
+                >
+                  <DiscoverCardView
+                    c={c}
+                    drag={i === 0 ? dragX : 0}
+                    up={i === 0 ? dragUp : 0}
+                    className={i === 0 ? "shadow-[0_20px_60px_rgb(0_0_0/0.45)]" : undefined}
+                    style={i === 0 && returnedId === c.profile.id ? { animation: "vibe-dialog-in 260ms var(--ease-spring, ease-out)" } : undefined}
+                    onAnimationEnd={i === 0 && returnedId === c.profile.id ? () => useDiscover.getState().clearReturned() : undefined}
+                  />
+                </div>
+              ))
+              .reverse()
+          ) : loading || refilling ? (
             <DeckSkeleton />
           ) : failed || offline ? (
             <DeckOffline offline={offline} onRetry={() => void useDiscover.getState().load()} />
