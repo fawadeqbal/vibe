@@ -24,6 +24,9 @@ const double _swipeUp = 120;
 const Duration _flyTime = Duration(milliseconds: 240);
 const Duration _settleTime = Duration(milliseconds: 260);
 
+/// Loading longer than this says "taking longer than usual" with a retry.
+const Duration _slowAfter = Duration(seconds: 8);
+
 /// Discover: real people, one card at a time. Drag or tap — left passes,
 /// right likes, up (or the star) Super Likes. Two likes make a match (the
 /// dialog opens wherever you are, see HomeShell). Same as the web.
@@ -43,6 +46,32 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   (String, SwipeKind)? _fly;
   bool _busy = false;
   bool _lookAround = false;
+
+  /// Loading that drags on says so (and offers a retry) instead of looking stuck.
+  bool _slow = false;
+  Timer? _slowTimer;
+  bool _waitingSeen = false;
+
+  void _watchSlow(bool waiting) {
+    if (waiting == _waitingSeen) return;
+    _waitingSeen = waiting;
+    _slowTimer?.cancel();
+    if (waiting) {
+      _slowTimer = Timer(_slowAfter, () {
+        if (mounted) setState(() => _slow = true);
+      });
+    } else if (_slow) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _slow = false);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _slowTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -258,19 +287,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final vip = status?.vip ?? false;
     final media = MediaQuery.of(context);
 
-    if (status != null && !status.enabled) {
-      return Scaffold(
-        body: Center(
-          child: EmptyState(
-            icon: SolarIconsBold.cardholder,
-            title: 'Discover is ',
-            accent: 'resting',
-            body: "It's switched off for a little while. Your matches and chats are all still here.",
-            action: widget.onOpenMatch == null ? null : GhostButton(label: 'Go to Match', onTap: widget.onOpenMatch),
-          ),
-        ),
-      );
-    }
+    // What the deck area shows — one of these, and the buttons follow it:
+    // resting (switched off), the "add a photo" gate, the cards, a skeleton
+    // while people load, or a state (empty, offline). The buttons only act on
+    // a card you can see, and only appear when there's a card (or one coming).
+    final resting = status != null && !status.enabled;
+    final photoGate = !resting && status != null && !status.hasPhoto && !_lookAround;
+    final showCards = !resting && !photoGate && top != null;
+    final waiting = !resting && !photoGate && top == null && (d.loading || d.refilling);
+    final showActions = showCards || waiting;
+    _watchSlow(waiting);
 
     final likesChip = status == null ? null : (status.likesLeft == null ? 'Unlimited likes' : '${status.likesLeft} like${status.likesLeft == 1 ? '' : 's'} left');
     final flyKind = _fly != null && top != null && _fly!.$1 == top.profile.id ? _fly!.$2 : null;
@@ -294,7 +320,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: Row(children: [
                 Expanded(child: Text('Discover', style: VT.display(28))),
-                if (likesChip != null)
+                if (likesChip != null && !resting)
                   Container(
                     height: 32,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -305,8 +331,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       Text(likesChip, style: VT.label(12.5, color: vip ? V.gold : V.pinkSoft)),
                     ]),
                   ),
-                const SizedBox(width: 8),
+                if (!resting) const SizedBox(width: 8),
                 // A dot when any filter is on.
+                if (!resting)
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -327,9 +354,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 ),
               ]),
             ),
-            if (status != null && status.likedYouCount > 0) _LikedYouStrip(status: status, likedYou: d.likedYou),
-            if (status != null && status.likesLeft == 0 && top != null) OutOfLikesBanner(resetsAt: status.resetsAt, onMore: _outOfLikes),
-            if (status != null && !status.visible && (status.hasPhoto || _lookAround))
+            if (status != null && !resting && status.likedYouCount > 0) _LikedYouStrip(status: status, likedYou: d.likedYou),
+            if (status != null && status.likesLeft == 0 && showCards) OutOfLikesBanner(resetsAt: status.resetsAt, onMore: _outOfLikes),
+            if (status != null && !resting && !status.visible && (status.hasPhoto || _lookAround))
               Container(
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -348,12 +375,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: status != null && !status.hasPhoto && !_lookAround
+                child: resting
+                    ? DeckResting(onMeetLive: widget.onOpenMatch)
+                    : photoGate
                     ? NoPhotoPanel(
                         onAddPhoto: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileSetupScreen(editing: true))).then((_) => d.loadStatus()),
                         onLookAround: () => setState(() => _lookAround = true),
                       )
-                    : top != null
+                    : showCards
                     // The top three, each keyed by person and built the same way at
                     // every depth: when the top card leaves, the one behind is the same
                     // widget moving up (no rebuild, no photo reload); the third is built
@@ -365,8 +394,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             _deckCard(d, d.deck[i], i, offset: offset, angle: angle, flyKind: flyKind, dragX: dragX, dragUp: dragUp),
                         ],
                       )
-                    : d.loading || d.refilling
-                        ? const DeckSkeleton()
+                    : waiting
+                        ? DeckSkeleton(
+                            label: d.refilling && !d.loading ? 'Looking for more people…' : 'Finding people for you…',
+                            slow: _slow,
+                            onRetry: () {
+                              setState(() => _slow = false);
+                              unawaited(d.load());
+                            },
+                          )
                         : d.failed
                             ? DeckOffline(offline: d.offline, onRetry: d.load)
                             : DeckEmpty(
@@ -379,6 +415,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               ),
               ),
             ),
+            if (!showActions)
+              SizedBox(height: media.padding.bottom + 13)
+            else
             Padding(
               // Same as the web: 14px above the page's bottom edge, which is the
               // tab bar's top (its hairline is 1px of padding.bottom).
@@ -393,10 +432,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     fill: V.gold.withValues(alpha: 0.12),
                     border: V.gold.withValues(alpha: 0.4),
                     label: status != null && status.undoCost > 0 ? 'Undo (${status.undoCost} coins)' : 'Undo',
-                    onTap: d.lastPassed == null || _fly != null ? null : _undo,
+                    onTap: d.lastPassed == null || _fly != null || (!showCards && !d.refilling) ? null : _undo,
                   ),
                   const SizedBox(width: 16),
-                  _RoundAction(icon: Icons.close_rounded, size: 64, iconSize: 30, color: V.text, fill: V.surface, border: Colors.white.withValues(alpha: 0.16), label: 'Pass', onTap: top == null || _fly != null ? null : () => _swipe(top, SwipeKind.pass)),
+                  _RoundAction(icon: Icons.close_rounded, size: 64, iconSize: 30, color: V.text, fill: V.surface, border: Colors.white.withValues(alpha: 0.16), label: 'Pass', onTap: !showCards || _fly != null ? null : () => _swipe(top, SwipeKind.pass)),
                   const SizedBox(width: 16),
                   _RoundAction(
                     icon: Icons.star_rounded,
@@ -405,10 +444,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     fill: V.violet.withValues(alpha: 0.18),
                     border: V.lavender.withValues(alpha: 0.45),
                     label: status != null && status.freeSuperLikesLeft > 0 ? 'Super Like (free)' : 'Super Like (${status?.superLikeCost ?? 10} coins)',
-                    onTap: top == null || _fly != null ? null : () => _swipe(top, SwipeKind.superLike),
+                    onTap: !showCards || _fly != null ? null : () => _swipe(top, SwipeKind.superLike),
                   ),
                   const SizedBox(width: 16),
-                  _RoundAction(icon: SolarIconsBold.heart, size: 64, iconSize: 30, color: Colors.white, gradient: V.brand, glow: true, label: status?.likesLeft == 0 ? 'Like (no likes left today)' : 'Like', onTap: top == null || _fly != null ? null : () => _swipe(top, SwipeKind.like)),
+                  _RoundAction(icon: SolarIconsBold.heart, size: 64, iconSize: 30, color: Colors.white, gradient: V.brand, glow: true, label: status?.likesLeft == 0 ? 'Like (no likes left today)' : 'Like', onTap: !showCards || _fly != null ? null : () => _swipe(top, SwipeKind.like)),
                 ],
               ),
             ),
@@ -441,8 +480,10 @@ class _RoundAction extends StatelessWidget {
       excludeSemantics: true,
       child: Tooltip(
         message: label,
-        child: Opacity(
-          opacity: onTap == null ? 0.4 : 1,
+        // Disabled looks the same for every button: dimmed, grey, no glow.
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: onTap == null ? 0.35 : 1,
           child: GestureDetector(
             onTap: onTap,
             child: Container(
@@ -450,10 +491,10 @@ class _RoundAction extends StatelessWidget {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: gradient == null ? fill : null,
-                gradient: gradient,
+                color: gradient == null || onTap == null ? (fill ?? V.surface) : null,
+                gradient: onTap == null ? null : gradient,
                 border: border == null ? null : Border.all(color: border!),
-                boxShadow: glow ? [BoxShadow(color: V.pink.withValues(alpha: 0.4), blurRadius: 30, offset: const Offset(0, 10))] : null,
+                boxShadow: glow && onTap != null ? [BoxShadow(color: V.pink.withValues(alpha: 0.4), blurRadius: 30, offset: const Offset(0, 10))] : null,
               ),
               child: Icon(icon, size: iconSize, color: color),
             ),
