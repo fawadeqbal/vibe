@@ -847,17 +847,22 @@ export interface DiscoverCallsReport {
 }
 
 // ── Marketing site (admin/dashboard/marketing) ──────────────────────────────
+/** Admin → Marketing site. Steps count visits; `visitors` (browsers) never divides them. Definitions: features/marketing/definitions.ts. */
 export interface MarketingTotals {
   visitors: number;
   visits: number;
   pageViews: number;
+  engagedVisits: number;
   clickedVisits: number;
   clicks: number;
+  downloadedVisits: number;
+  /** Every counted Android download, from the site or not. */
+  downloads: number;
   signups: number;
   firstCalls: number;
+  goodFirstCall: number;
+  paid: number;
   medianSeconds: number;
-  /** "Download for Android" presses. */
-  downloads: number;
 }
 export interface MarketingNamed {
   name: string;
@@ -869,13 +874,13 @@ export interface MarketingReport {
   siteUrl: string;
   totals: MarketingTotals;
   previous: MarketingTotals;
-  daily: { day: string; visitors: number; clicked: number; signups: number }[];
-  sources: { source: string; medium: string; visitors: number; clicked: number; signups: number }[];
+  daily: { day: string; visitors: number; visits: number; clicked: number; signups: number }[];
+  sources: { source: string; medium: string; visitors: number; visits: number; clicked: number; signups: number; paid: number }[];
   countries: { country: string; visitors: number; regions: MarketingNamed[] }[];
   cities: { city: string; country: string | null; visitors: number }[];
   buttons: { button: string; target: string | null; clicks: number; signups: number }[];
-  pages: { path: string; visits: number; clicked: number }[];
-  campaigns: { campaign: string; source: string; medium: string; visitors: number; signups: number }[];
+  pages: { path: string; visits: number; clicked: number; signups: number }[];
+  campaigns: { campaign: string; source: string; medium: string; visitors: number; visits: number; clicked: number; signups: number }[];
   devices: { device: MarketingNamed[]; os: MarketingNamed[]; browser: MarketingNamed[]; lang: MarketingNamed[] };
   live: {
     now: number;

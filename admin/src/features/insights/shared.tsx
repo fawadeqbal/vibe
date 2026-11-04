@@ -150,7 +150,8 @@ export const hourLabel = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ?
 const SOURCES: Record<string, string> = {
   invite: "Invites",
   partner: "Creator partners",
-  direct: "Direct",
+  direct: "Typed the site address",
+  no_site_visit: "No site visit (app or shared APK)",
   tiktok: "TikTok",
   google: "Google",
   instagram: "Instagram",

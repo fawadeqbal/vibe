@@ -1,4 +1,5 @@
 import { CallTimer } from "@/components/call-timer";
+import { AppCta } from "@/components/app-cta";
 import { Cta } from "@/components/cta";
 import { Icon } from "@/components/icon";
 import { OnlineNow } from "@/components/online-now";
@@ -30,10 +31,18 @@ export function Hero() {
               <Icon name="videocam" size={20} />
               Start matching — it&apos;s free
             </Cta>
-            <Cta href={site.links.android} track="hero_android" variant="outline" className="px-[22px] text-[15px]">
-              <Icon name="android" size={18} />
-              Android
-            </Cta>
+            <AppCta
+              track="hero_android"
+              variant="outline"
+              className="px-[22px] text-[15px]"
+              android={
+                <>
+                  <Icon name="android" size={18} />
+                  Android
+                </>
+              }
+              other={null}
+            />
           </div>
           <ul className="mt-[26px] flex flex-wrap gap-x-5 gap-y-3">
             {TRUST.map((t) => (

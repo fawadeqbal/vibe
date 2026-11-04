@@ -54,7 +54,7 @@ describe('site traffic', () => {
     const staff = await staffLogin(t);
     const r = (await t.http.get('/v1/admin/dashboard/marketing?days=7').set(staff.auth).expect(200)).body;
     expect(r.totals).toMatchObject({ visitors: 1, visits: 1, clickedVisits: 1, clicks: 1, signups: 1 });
-    expect(r.sources[0]).toMatchObject({ source: 'google', medium: 'search', visitors: 1, signups: 1 });
+    expect(r.sources[0]).toMatchObject({ source: 'google', medium: 'search', visitors: 1, visits: 1, clicked: 1, signups: 1 });
     expect(r.countries[0]).toMatchObject({ country: 'AE', visitors: 1, regions: [{ name: 'Dubai', visitors: 1 }] });
     expect(r.buttons[0]).toMatchObject({ button: 'discover_open', target: '/discover', clicks: 1, signups: 1 });
     expect(r.live.now).toBe(1);
@@ -85,5 +85,51 @@ describe('site traffic', () => {
     const p2 = await get('pageSize=10&page=2');
     expect(p2).toMatchObject({ total: 3, page: 2, items: [] });
     await t.http.get('/v1/admin/dashboard/marketing/visits?pageSize=7').set(staff.auth).expect(400);
+  });
+
+  it('one definition: steps count visits (never above 100%), only real calls and real money count', async () => {
+    const google = { r: 'https://www.google.com/' };
+    // Same browser, two visits: 1 visitor, 2 visits, 2 clicked — the old page showed this as 200%.
+    await beacon({ k: 'view', v: 'visit_r1111111', u: 'visitor_r1', p: '/', ...google });
+    await beacon({ k: 'click', v: 'visit_r1111111', u: 'visitor_r1', p: '/', b: 'hero_start', t: '/match' });
+    await beacon({ k: 'view', v: 'visit_r2222222', u: 'visitor_r1', p: '/random-video-chat/', ...google });
+    await beacon({ k: 'click', v: 'visit_r2222222', u: 'visitor_r1', p: '/random-video-chat/', b: 'page_hero', t: '/match' });
+    await beacon({ k: 'view', v: 'visit_r3333333', u: 'visitor_r2', p: '/' });
+    await beacon({ k: 'leave', v: 'visit_r3333333', u: 'visitor_r2', p: '/', s: 4 });
+
+    const u = await signUp(t, { name: 'Ali' });
+    await t.http.post('/v1/site/attribution').set(u.auth).send({ visitId: 'visit_r2222222' }).expect(200);
+    const friend = await signUp(t, { name: 'Real' });
+    const bot = await t.prisma.user.create({ data: { name: 'Bot', isBot: true, inviteCode: `BOT${Date.now()}` } });
+    const at = (sec: number) => new Date(Date.now() + sec * 1000);
+    // A long call with a bot doesn't count; a 70 s call with a real person does.
+    await t.prisma.match.create({ data: { userAId: u.id, userBId: bot.id, startedAt: at(1), endedAt: at(300) } });
+    // Test-gateway money doesn't count; JazzCash does.
+    const buy = (method: 'CARD' | 'JAZZCASH', provider: string, key: string) =>
+      t.prisma.purchase.create({
+        data: { userId: u.id, productType: 'COIN_PACK', productId: 'p1', method, usdCents: 499, status: 'SUCCEEDED', idempotencyKey: key, completedAt: new Date(), events: { create: { provider, type: 'charge.started' } } },
+      });
+    await buy('CARD', 'card-dev', 'k-test');
+
+    const staff = await staffLogin(t);
+    const get = async () => (await t.http.get('/v1/admin/dashboard/marketing?days=7').set(staff.auth).expect(200)).body;
+    let r = await get();
+    expect(r.totals).toMatchObject({ visitors: 2, visits: 3, engagedVisits: 2, clickedVisits: 2, signups: 1, firstCalls: 0, goodFirstCall: 0, paid: 0 });
+    expect(r.totals.clickedVisits).toBeLessThanOrEqual(r.totals.visits);
+    const g = r.sources.find((x: { source: string }) => x.source === 'google');
+    expect(g).toMatchObject({ visitors: 1, visits: 2, clicked: 2, signups: 1, paid: 0 });
+    expect(r.pages.find((x: { path: string }) => x.path === '/random-video-chat/')).toMatchObject({ visits: 1, clicked: 1, signups: 1 });
+
+    await t.prisma.match.create({ data: { userAId: friend.id, userBId: u.id, startedAt: at(400), endedAt: at(470) } });
+    await buy('JAZZCASH', 'jazzcash', 'k-real');
+    await t.redis.client.del('admin:dash:marketing:7'); // the report is cached 60 s
+    r = await get();
+    expect(r.totals).toMatchObject({ signups: 1, firstCalls: 1, goodFirstCall: 1, paid: 1 });
+
+    // The views agree with the report.
+    const [paid] = await t.prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM "vw_real_payment" WHERE user_id = ${u.id}`;
+    expect(Number(paid.n)).toBe(1);
+    const [calls] = await t.prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM "vw_real_call" WHERE user_id = ${u.id}`;
+    expect(Number(calls.n)).toBe(1);
   });
 });

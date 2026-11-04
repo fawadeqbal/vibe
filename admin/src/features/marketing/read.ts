@@ -1,5 +1,6 @@
 import type { MarketingReport, MarketingTotals } from "@/lib/api/types";
 
+import { DEFINITIONS } from "./definitions";
 import { BUTTON_LABELS, buttonLabel, sourceLabel } from "./labels";
 
 /**
@@ -11,14 +12,16 @@ import { BUTTON_LABELS, buttonLabel, sourceLabel } from "./labels";
 const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : "—");
 
 export interface Step {
-  key: "visitors" | "clicked" | "downloads" | "signups" | "firstCalls";
+  key: "visits" | "clicked" | "signups" | "firstCall" | "goodFirstCall" | "paid";
   label: string;
   value: number;
-  /** "78% of visits" */
+  /** "78% of visits" — always the same unit as the value. */
   rate: string;
+  /** What the step counts (shown on hover). */
+  hint: string;
   /** vs the period before: "new", "▲ 20%", "▼ 5%", "same", or "" when both are 0. */
   delta: { text: string; tone: "ok" | "bad" | "muted" };
-  /** People lost before the next step ("−4"); null after the last one or a side step. */
+  /** Lost before the next step ("−4"); null after the last one. */
   lostAfter: number | null;
   /** The biggest loss of the journey. */
   worst: boolean;
@@ -31,29 +34,45 @@ export function delta(now: number, before: number): Step["delta"] {
   return { text: `${d > 0 ? "▲" : "▼"} ${Math.round(Math.abs(d) * 100)}% vs before`, tone: d > 0 ? "ok" : "bad" };
 }
 
-/** Visitors → clicked → (Android download) → signed up → first call. The download is a side step: web sign-ups skip it. */
+/**
+ * Visits → clicked → signed up (nested, all counted in visits), then what
+ * those sign-ups did: a call, a good first call (60 s+), paying — each a share
+ * of the sign-ups, not of the step before (someone can pay without a good
+ * call). Every rate divides like by like, so none can pass 100%.
+ */
 export function journey(t: MarketingTotals, p: MarketingTotals): Step[] {
-  const lost = { visitors: Math.max(0, t.visits - t.clickedVisits), clicked: Math.max(0, t.clickedVisits - t.signups), signups: Math.max(0, t.signups - t.firstCalls) };
-  const worstKey = (Object.entries(lost) as [keyof typeof lost, number][]).sort((a, b) => b[1] - a[1])[0];
-  const steps: Omit<Step, "worst">[] = [
-    { key: "visitors", label: "Visitors", value: t.visitors, rate: `${t.pageViews} page views`, delta: delta(t.visitors, p.visitors), lostAfter: lost.visitors },
-    { key: "clicked", label: "Clicked to the app", value: t.clickedVisits, rate: `${pct(t.clickedVisits, t.visits)} of visits`, delta: delta(t.clickedVisits, p.clickedVisits), lostAfter: null },
-    { key: "downloads", label: "Downloaded Android", value: t.downloads, rate: `${pct(t.downloads, t.clickedVisits)} of clicks`, delta: delta(t.downloads, p.downloads), lostAfter: lost.clicked },
-    { key: "signups", label: "Signed up", value: t.signups, rate: `${pct(t.signups, t.clickedVisits)} of clicks`, delta: delta(t.signups, p.signups), lostAfter: lost.signups },
-    { key: "firstCalls", label: "Had a first call", value: t.firstCalls, rate: `${pct(t.firstCalls, t.signups)} of sign-ups`, delta: delta(t.firstCalls, p.firstCalls), lostAfter: null },
+  const raw: Omit<Step, "worst" | "lostAfter">[] = [
+    { key: "visits", label: "Visits", value: t.visits, rate: `${format(t.visitors)} ${t.visitors === 1 ? "browser" : "browsers"}`, hint: DEFINITIONS.visits, delta: delta(t.visits, p.visits) },
+    { key: "clicked", label: "Clicked to the app", value: t.clickedVisits, rate: `${pct(t.clickedVisits, t.visits)} of visits`, hint: DEFINITIONS.clicked, delta: delta(t.clickedVisits, p.clickedVisits) },
+    { key: "signups", label: "Signed up", value: t.signups, rate: `${pct(t.signups, t.visits)} of visits`, hint: DEFINITIONS.signups, delta: delta(t.signups, p.signups) },
+    { key: "firstCall", label: "Had a call", value: t.firstCalls, rate: `${pct(t.firstCalls, t.signups)} of sign-ups`, hint: DEFINITIONS.firstCall, delta: delta(t.firstCalls, p.firstCalls) },
+    { key: "goodFirstCall", label: "Good first call", value: t.goodFirstCall, rate: `${pct(t.goodFirstCall, t.signups)} of sign-ups`, hint: DEFINITIONS.goodFirstCall, delta: delta(t.goodFirstCall, p.goodFirstCall) },
+    { key: "paid", label: "Paid", value: t.paid, rate: `${pct(t.paid, t.signups)} of sign-ups`, hint: DEFINITIONS.paid, delta: delta(t.paid, p.paid) },
   ];
-  // The loss shown after "Downloaded" is the click → sign-up loss; highlight the step people didn't reach.
-  const worstStep = worstKey && worstKey[1] > 0 ? ({ visitors: "clicked", clicked: "signups", signups: "firstCalls" } as const)[worstKey[0]] : null;
-  return steps.map((s) => ({ ...s, worst: s.key === worstStep }));
+  const steps = raw.map((s, i) => ({ ...s, lostAfter: i < raw.length - 1 ? Math.max(0, s.value - raw[i + 1].value) : null }));
+  // The step people didn't reach after the biggest loss. "Paid" is left out:
+  // most people never pay, so it would always win and say nothing new.
+  let worst: Step["key"] | null = null;
+  let most = 0;
+  for (let i = 0; i < steps.length - 2; i++) {
+    const lost = steps[i].lostAfter ?? 0;
+    if (lost > most) {
+      most = lost;
+      worst = steps[i + 1].key;
+    }
+  }
+  return steps.map((s) => ({ ...s, worst: s.key === worst }));
 }
+
+const format = (n: number) => n.toLocaleString("en-US");
 
 export type Verdict = { label: string; tone: "ok" | "warn" | "bad" | "neutral" };
 
-/** A channel against the site average. Needs 5+ visitors to call it better or worse. */
-export function verdict(s: { visitors: number; clicked: number; signups: number }, avg: { clickRate: number; signupRate: number }): Verdict {
-  const click = s.visitors ? s.clicked / s.visitors : 0;
-  const signup = s.visitors ? s.signups / s.visitors : 0;
-  if (s.visitors >= 5) {
+/** A channel against the site average, in visits. Needs 5+ visits to call it better or worse. */
+export function verdict(s: { visits: number; clicked: number; signups: number }, avg: { clickRate: number; signupRate: number }): Verdict {
+  const click = s.visits ? s.clicked / s.visits : 0;
+  const signup = s.visits ? s.signups / s.visits : 0;
+  if (s.visits >= 5) {
     if (avg.signupRate > 0 && signup >= avg.signupRate * 1.2) return { label: "Best", tone: "ok" };
     if (avg.clickRate > 0 && click >= avg.clickRate * 1.2) return { label: "Clicks well", tone: "ok" };
     if (s.clicked === 0) return { label: "Nobody clicked", tone: "bad" };
@@ -66,7 +85,7 @@ export function verdict(s: { visitors: number; clicked: number; signups: number 
 }
 
 export function averages(t: MarketingTotals) {
-  return { clickRate: t.visits ? t.clickedVisits / t.visits : 0, signupRate: t.visitors ? t.signups / t.visitors : 0 };
+  return { clickRate: t.visits ? t.clickedVisits / t.visits : 0, signupRate: t.visits ? t.signups / t.visits : 0 };
 }
 
 /** Buttons on the site that nobody pressed in the period. */
@@ -94,7 +113,7 @@ export function notes(r: MarketingReport): Note[] {
   if (t.clickedVisits >= 3 && lostClick / t.clickedVisits >= 0.5) {
     out.push({
       tone: "bad",
-      title: `${lostClick} of ${t.clickedVisits} people who clicked never signed up`,
+      title: `${lostClick} of ${t.clickedVisits} visits that clicked to the app never signed up`,
       text: "The site gets them to the app; the next step loses them. Check the web app's first screen and the Android install for someone new.",
     });
   } else if (t.visits >= 10 && t.clickedVisits / t.visits < 0.2) {
@@ -105,14 +124,24 @@ export function notes(r: MarketingReport): Note[] {
     });
   }
 
+  // Signed up but never met a real person: the app, not the site, is losing them.
+  const noCall = t.signups - t.firstCalls;
+  if (out.length < 2 && t.signups >= 3 && noCall / t.signups >= 0.5) {
+    out.push({
+      tone: "bad",
+      title: `${noCall} of ${t.signups} people who signed up from the site never had a call with a real person`,
+      text: "They arrive when nobody is online. Point posts and the site at the busy evening hours and Vibe Hour, so new people meet someone in their first minutes.",
+    });
+  }
+
   // Best channel: most sign-ups, then most clicks.
-  const best = [...r.sources].filter((s) => s.visitors > 0).sort((a, b) => b.signups - a.signups || b.clicked - a.clicked || b.visitors - a.visitors)[0];
+  const best = [...r.sources].filter((s) => s.visits > 0).sort((a, b) => b.signups - a.signups || b.clicked - a.clicked || b.visits - a.visits)[0];
   if (best && (best.signups > 0 || best.clicked > 0)) {
     const campaign = r.campaigns.find((c) => c.source === best.source && c.signups > 0);
     out.push({
       tone: "good",
       title: `${sourceLabel(best.source)} is your best channel${r.sources.length > 1 ? "" : " so far"}`,
-      text: `${best.visitors} ${best.visitors === 1 ? "visitor" : "visitors"}, ${best.clicked} clicked, ${best.signups} signed up${campaign ? ` — your “${campaign.campaign}” link did it` : ""}.`,
+      text: `${best.visits} ${best.visits === 1 ? "visit" : "visits"}: ${best.clicked} clicked to the app, ${best.signups} signed up${best.paid ? `, ${best.paid} paid` : ""}${campaign ? ` — your “${campaign.campaign}” link did it` : ""}.`,
     });
   }
 
@@ -127,7 +156,7 @@ export function notes(r: MarketingReport): Note[] {
   }
 
   // Channels that send people who never click.
-  const dead = r.sources.filter((s) => s.visitors >= 3 && s.clicked === 0);
+  const dead = r.sources.filter((s) => s.visits >= 3 && s.clicked === 0);
   if (out.length < 3 && dead.length) {
     out.push({
       tone: "info",

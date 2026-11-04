@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { Cta } from "@/components/cta";
+import { AppCta } from "@/components/app-cta";
 import { Icon } from "@/components/icon";
 import { Logo } from "@/components/logo";
 import { site } from "@/lib/site";
@@ -50,9 +50,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2 md:ml-0">
-          <Cta href={site.links.android} track="header_app" size="sm" className="shadow-[0_8px_24px_rgb(255_61_143/0.28)]">
-            Get the app
-          </Cta>
+          <AppCta track="header_app" size="sm" className="shadow-[0_8px_24px_rgb(255_61_143/0.28)]" android="Get the app" other={`Open ${site.name}`} />
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}

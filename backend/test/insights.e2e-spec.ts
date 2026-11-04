@@ -36,6 +36,10 @@ describe('insights', () => {
     await call(a, c, 5); // a quick skip
     await pay(a, 499);
     await pay(a, 199, 'coins_50');
+    // Money through a test gateway (the dev card page) is not revenue.
+    await t.prisma.purchase.create({
+      data: { userId: b.id, productType: 'COIN_PACK', productId: 'coins_100', method: 'CARD', usdCents: 999, status: 'SUCCEEDED', idempotencyKey: `test-${Math.random()}`, completedAt: new Date(), events: { create: { provider: 'card-dev', type: 'charge.started' } } },
+    });
 
     // A search that finds nobody and is given up.
     const s = await connect(t, b);
@@ -69,7 +73,9 @@ describe('insights', () => {
     const g = await get('growth?days=7');
     const bySource = Object.fromEntries(g.sources.map((r: { source: string }) => [r.source, r]));
     expect(bySource.invite).toMatchObject({ signups: 1, firstCall: 1, goodFirstCall: 0 });
-    expect(bySource.direct).toMatchObject({ signups: 2, firstCall: 2, goodFirstCall: 2, paid: 1 });
+    // Never visited the site and not invited: their own row, not "direct" (typed-in site visits).
+    expect(bySource.no_site_visit).toMatchObject({ signups: 2, firstCall: 2, goodFirstCall: 2, paid: 1 });
+    expect(bySource.direct).toBeUndefined();
     expect(g.total).toMatchObject({ signups: 3, paid: 1 });
     expect(g.cohorts[0]).toMatchObject({ signups: 3, d7: null });
     expect(g.daily).toHaveLength(7);

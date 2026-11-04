@@ -76,9 +76,7 @@ export class DashboardService {
          WHERE u."isBot" = false AND u."createdAt" >= $1
       ), first AS (
         SELECT DISTINCT ON (x.id) x.id, x.s, x.e FROM (
-          SELECT c.id, m."startedAt" AS s, m."endedAt" AS e FROM c JOIN "Match" m ON m."userAId" = c.id
-          UNION ALL
-          SELECT c.id, m."startedAt", m."endedAt" FROM c JOIN "Match" m ON m."userBId" = c.id
+          SELECT c.id, rc.started_at AS s, rc.ended_at AS e FROM c JOIN "vw_real_call" rc ON rc.user_id = c.id
         ) x ORDER BY x.id, x.s
       )`;
     type Row = { day: string; signups: bigint; set_up: bigint; first_call: bigint; came_back: bigint; paid: bigint; complete: bigint; verified: bigint; within_hour: bigint; quick: bigint };
@@ -90,7 +88,7 @@ export class DashboardService {
                COUNT(*) FILTER (WHERE c."onboardedAt" IS NOT NULL) AS set_up,
                COUNT(first.id) AS first_call,
                COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "UserActiveDay" a WHERE a."userId" = c.id AND a.day = c.d + 1)) AS came_back,
-               COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Purchase" p WHERE p."userId" = c.id AND p.status = 'SUCCEEDED')) AS paid,
+               COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "vw_real_payment" p WHERE p.user_id = c.id)) AS paid,
                COUNT(*) FILTER (WHERE c."avatarUrl" <> '' AND btrim(c.bio) <> '' AND cardinality(c.interests) >= 3) AS complete,
                COUNT(*) FILTER (WHERE c.verified) AS verified,
                COUNT(first.id) FILTER (WHERE first.s - c."createdAt" <= interval '1 hour') AS within_hour,
@@ -137,7 +135,14 @@ export class DashboardService {
     const d7 = new Date(now.getTime() - 7 * MS.day);
     const d30 = new Date(now.getTime() - 30 * MS.day);
     const realUser = { status: UserStatus.ACTIVE, isBot: false };
-    const succeeded = (since: Date) => ({ status: PurchaseStatus.SUCCEEDED, completedAt: { gte: since } });
+    // Real money only (analytics view): no refunds, no test gateways, no bots.
+    const realRevenue = (since: Date) =>
+      this.prisma.$queryRaw<{ cents: bigint | null; n: bigint; payers: bigint }[]>`
+        SELECT sum(usd_cents) AS cents, count(*) AS n, count(DISTINCT user_id) AS payers FROM "vw_real_payment" WHERE completed_at >= ${since}`.then(([r]) => ({
+        _sum: { usdCents: r?.cents == null ? null : Number(r.cents) },
+        _count: Number(r?.n ?? 0),
+        payers: Number(r?.payers ?? 0),
+      }));
 
     const [
       totalUsers,
@@ -174,9 +179,9 @@ export class DashboardService {
       this.prisma.user.count({ where: { ...realUser, lastSeenAt: { gte: d7 } } }),
       this.prisma.user.count({ where: { ...realUser, verified: true } }),
       this.prisma.user.count({ where: { ...realUser, bannedUntil: { gt: now } } }),
-      this.prisma.purchase.aggregate({ where: succeeded(today), _sum: { usdCents: true }, _count: true }),
-      this.prisma.purchase.aggregate({ where: succeeded(d30), _sum: { usdCents: true }, _count: true }),
-      this.prisma.purchase.groupBy({ by: ['userId'], where: succeeded(d30) }).then((r) => r.length),
+      realRevenue(today),
+      realRevenue(d30),
+      realRevenue(d30).then((r) => r.payers),
       this.prisma.wallet.count({ where: { vipUntil: { gt: now }, user: { isBot: false } } }),
       this.prisma.giftTransfer.aggregate({ where: { createdAt: { gte: d30 } }, _sum: { coins: true, gems: true }, _count: true }),
       this.prisma.cashout.aggregate({ where: { status: CashoutStatus.PAID, processedAt: { gte: d30 } }, _sum: { usdCents: true }, _count: true }),
@@ -243,7 +248,7 @@ export class DashboardService {
 
     const [signups, revenue, matches, gifts, payouts, reports] = await Promise.all([
       q<{ day: string; n: bigint }>(`SELECT ${dayExpr('createdAt')} AS day, COUNT(*) AS n FROM "User" WHERE "createdAt" >= $1 AND "isBot" = false GROUP BY 1`),
-      q<{ day: string; cents: bigint; n: bigint }>(`SELECT ${dayExpr('completedAt')} AS day, SUM("usdCents") AS cents, COUNT(*) AS n FROM "Purchase" WHERE status = 'SUCCEEDED' AND "completedAt" >= $1 GROUP BY 1`),
+      q<{ day: string; cents: bigint; n: bigint }>(`SELECT ${dayExpr('completed_at')} AS day, SUM(usd_cents) AS cents, COUNT(*) AS n FROM "vw_real_payment" WHERE completed_at >= $1 GROUP BY 1`),
       q<{ day: string; n: bigint; people: bigint }>(
         `SELECT day, COUNT(DISTINCT id) AS n, COUNT(DISTINCT u) AS people FROM (
            SELECT ${dayExpr('startedAt')} AS day, id, unnest(ARRAY["userAId","userBId"]) AS u FROM "Match" WHERE "startedAt" >= $1
