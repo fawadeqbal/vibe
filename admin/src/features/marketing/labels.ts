@@ -33,8 +33,7 @@ export const mediumLabel = (m: string) => MEDIUM_LABELS[m] ?? m;
 export const BUTTON_LABELS: Record<string, string> = {
   hero_start: "Home hero · Start",
   hero_android: "Home hero · Android",
-  header_app: "Header · Get the app (Android)",
-  header_app_web: "Header · Open Vibe (iPhone, computer)",
+  header_app: "Header · Get the app",
   discover_open: "Discover · Open Discover",
   vip_trial: "VIP · Start free trial",
   final_cta: "Home bottom · Get the app (Android)",
