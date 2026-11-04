@@ -6,9 +6,7 @@ import { type CSSProperties, type PointerEvent as ReactPointerEvent, useCallback
 
 import { useNeedCoins } from "@/components/shared/dialogs";
 import { FaceStack } from "@/components/ui/avatar";
-import { GhostButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { EmptyState } from "@/components/ui/misc";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { DEFAULT_DISCOVER_FILTERS, type DiscoverCard, type SwipeKind, useDiscover, usesExtraFilters } from "@/stores/discover";
@@ -18,12 +16,14 @@ import { toast } from "@/stores/ui";
 
 import { DiscoverCardView } from "./discover-card";
 import { openDiscoverFilters, openOutOfLikes } from "./discover-sheets";
-import { DeckEmpty, DeckOffline, DeckSkeleton, NoPhotoPanel, OutOfLikesBanner, openWelcomeBack } from "./discover-states";
+import { DeckEmpty, DeckOffline, DeckResting, DeckSkeleton, NoPhotoPanel, OutOfLikesBanner, openWelcomeBack } from "./discover-states";
 
 /** How far a card must be dragged to count (px). */
 const SWIPE_X = 110;
 const SWIPE_UP = 120;
 const FLY_MS = 240;
+/** Loading longer than this says "taking longer than usual" with a retry. */
+const SLOW_MS = 8_000;
 /** The cards behind the top one: the next peeks out, the one after waits unseen (its photo loads early). */
 const BEHIND: Record<number, CSSProperties> = {
   1: { transform: "scale(0.96) translateY(10px)", opacity: 0.85, transition: "transform 260ms var(--ease-spring, ease-out), opacity 260ms ease-out" },
@@ -44,7 +44,9 @@ let welcomeShown = false;
 export function DiscoverScreen() {
   const router = useRouter();
   const needCoins = useNeedCoins();
-  const filtersOn = useDiscover((x) => usesExtraFilters(x.filters) || x.filters.minAge !== DEFAULT_DISCOVER_FILTERS.minAge || x.filters.maxAge !== DEFAULT_DISCOVER_FILTERS.maxAge);
+  const filtersOn = useDiscover(
+    (x) => usesExtraFilters(x.filters) || x.filters.minAge !== DEFAULT_DISCOVER_FILTERS.minAge || x.filters.maxAge !== DEFAULT_DISCOVER_FILTERS.maxAge,
+  );
   const filtersExpired = useDiscover((x) => x.filtersExpired);
   useEffect(() => {
     if (!filtersExpired) return;
@@ -88,7 +90,12 @@ export function DiscoverScreen() {
         if (!live || w.show !== true || welcomeShown) return;
         welcomeShown = true;
         const st = useDiscover.getState().status;
-        const pick = await openWelcomeBack({ awayDays: Number(w.awayDays) || 0, likesSince: Number(w.likesSince) || 0, newPeople: Number(w.newPeople) || 0, freeLikes: st && st.likesLeft != null ? st.likesLeft : null });
+        const pick = await openWelcomeBack({
+          awayDays: Number(w.awayDays) || 0,
+          likesSince: Number(w.likesSince) || 0,
+          newPeople: Number(w.newPeople) || 0,
+          freeLikes: st && st.likesLeft != null ? st.likesLeft : null,
+        });
         if (pick === "liked") router.push("/discover/liked-you");
       })
       .catch(() => {});
@@ -130,6 +137,27 @@ export function DiscoverScreen() {
 
   const top = deck[0];
   const vip = status?.vip ?? false;
+  // What the deck area shows — one of these, and the buttons follow it:
+  // the cards; the "add a photo" gate; a skeleton while people load; or a
+  // state (empty, offline). Buttons only act on a card you can see.
+  const photoGate = !!status && status.enabled && !status.hasPhoto && !lookAround;
+  const showCards = status?.enabled !== false && !photoGate && !!top;
+  const waiting = status?.enabled !== false && !photoGate && !top && (loading || refilling);
+  const showActions = showCards || waiting;
+  const cardsOn = useRef(showCards);
+  useEffect(() => {
+    cardsOn.current = showCards;
+  }, [showCards]);
+  // Loading that drags on says so (and offers a retry) instead of looking stuck.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setTimeout(() => setSlow(true), SLOW_MS);
+    return () => {
+      clearTimeout(t);
+      setSlow(false);
+    };
+  }, [waiting]);
 
   /** No likes left: VIP, or buy a pack of likes. */
   const moreLikes = useCallback(async () => {
@@ -199,7 +227,7 @@ export function DiscoverScreen() {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       if (document.querySelector("[aria-modal='true']")) return;
-      const c = useDiscover.getState().deck[0];
+      const c = cardsOn.current ? useDiscover.getState().deck[0] : undefined;
       if (e.key === "ArrowLeft" && c) void doSwipe(c, "pass");
       else if (e.key === "ArrowRight" && c) void doSwipe(c, "like");
       else if (e.key === "ArrowUp" && c) {
@@ -214,7 +242,7 @@ export function DiscoverScreen() {
 
   // Dragging the top card.
   const onDown = (e: ReactPointerEvent) => {
-    if (busy.current || !top) return;
+    if (busy.current || !top || !cardsOn.current) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     start.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
     setDrag({ x: 0, y: 0, active: true });
@@ -256,26 +284,14 @@ export function DiscoverScreen() {
   const likesChip = status ? (status.likesLeft == null ? "Unlimited likes" : `${status.likesLeft} like${status.likesLeft === 1 ? "" : "s"} left`) : null;
   const likedYou = status?.likedYou;
 
-  if (status && !status.enabled) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-        <EmptyState
-          icon="style"
-          title="Discover is "
-          accent="resting"
-          body="It's switched off for a little while. Your matches and chats are all still here."
-          action={<GhostButton label="Go to Match" onClick={() => router.push("/match")} />}
-        />
-      </div>
-    );
-  }
+  const resting = !!status && !status.enabled;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)] lg:flex-row lg:items-stretch">
       <div className="flex min-h-0 flex-1 flex-col lg:mx-auto lg:w-full lg:max-w-[460px]">
         <header className="flex items-center gap-2 px-4 pt-4 pb-2.5">
           <h1 className="type-display flex-1 text-[28px]">Discover</h1>
-          {likesChip ? (
+          {likesChip && !resting ? (
             <span
               className={cn(
                 "type-label inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold",
@@ -285,18 +301,20 @@ export function DiscoverScreen() {
               <Icon name={vip ? "all_inclusive" : "favorite"} variant="filled" size={15} /> {likesChip}
             </span>
           ) : null}
-          <button
-            type="button"
-            onClick={() => void editFilters()}
-            aria-label={filtersOn ? "Filters (on)" : "Filters"}
-            className="relative flex size-10 items-center justify-center rounded-full bg-white/8 text-text hover:bg-white/12"
-          >
-            <Icon name="tune" size={20} />
-            {filtersOn ? <span aria-hidden className="absolute top-1.5 right-1.5 size-2 rounded-full bg-pink ring-2 ring-bg" /> : null}
-          </button>
+          {resting ? null : (
+            <button
+              type="button"
+              onClick={() => void editFilters()}
+              aria-label={filtersOn ? "Filters (on)" : "Filters"}
+              className="relative flex size-10 items-center justify-center rounded-full bg-white/8 text-text hover:bg-white/12"
+            >
+              <Icon name="tune" size={20} />
+              {filtersOn ? <span aria-hidden className="absolute top-1.5 right-1.5 size-2 rounded-full bg-pink ring-2 ring-bg" /> : null}
+            </button>
+          )}
         </header>
 
-        {likedYou && likedYou.count > 0 ? (
+        {likedYou && likedYou.count > 0 && !resting ? (
           <Link
             href="/discover/liked-you"
             className="mx-4 mb-2.5 flex items-center gap-3 rounded-[18px] border border-gold/30 bg-surface px-3.5 py-2.5 hover:bg-surface2 lg:hidden"
@@ -315,9 +333,9 @@ export function DiscoverScreen() {
           </Link>
         ) : null}
 
-        {status && status.likesLeft === 0 && top ? <OutOfLikesBanner resetsAt={status.resetsAt} onMore={() => void moreLikes()} /> : null}
+        {status && status.likesLeft === 0 && showCards ? <OutOfLikesBanner resetsAt={status.resetsAt} onMore={() => void moreLikes()} /> : null}
 
-        {status && !status.visible && (status.hasPhoto || lookAround) ? (
+        {status && !resting && !status.visible && (status.hasPhoto || lookAround) ? (
           <p className="type-body mx-4 mb-2.5 flex items-center gap-2 rounded-[14px] bg-warn/10 px-3 py-2 text-[12.5px] text-warn">
             <Icon name="visibility_off" size={16} />
             {!status.hasPhoto ? (
@@ -335,7 +353,9 @@ export function DiscoverScreen() {
         ) : null}
 
         <div className="relative mx-4 min-h-[380px] flex-1">
-          {status && !status.hasPhoto && !lookAround ? (
+          {resting ? (
+            <DeckResting onMeetLive={() => router.push("/match")} />
+          ) : photoGate ? (
             <NoPhotoPanel hasName onLookAround={() => setLookAround(true)} />
           ) : top ? (
             // The top three, each keyed by person: when the top card leaves, the one behind
@@ -362,8 +382,15 @@ export function DiscoverScreen() {
                 </div>
               ))
               .reverse()
-          ) : loading || refilling ? (
-            <DeckSkeleton />
+          ) : waiting ? (
+            <DeckSkeleton
+              label={refilling && !loading ? "Looking for more people…" : "Finding people for you…"}
+              slow={slow}
+              onRetry={() => {
+                setSlow(false);
+                void useDiscover.getState().load();
+              }}
+            />
           ) : failed || offline ? (
             <DeckOffline offline={offline} onRetry={() => void useDiscover.getState().load()} />
           ) : (
@@ -378,45 +405,51 @@ export function DiscoverScreen() {
           )}
         </div>
 
-        <div className="flex items-center justify-center gap-4 px-4 pt-4 pb-[calc(14px+env(safe-area-inset-bottom))] lg:pb-6">
-          <RoundAction
-            label={status?.undoCost ? `Undo (${status.undoCost} coins)` : "Undo"}
-            icon="undo"
-            size={48}
-            className="border-gold/40 bg-gold/12 text-gold"
-            disabled={!lastPassed || !!fly}
-            onClick={() => void undo()}
-          />
-          <RoundAction
-            label="Pass"
-            icon="close"
-            size={64}
-            iconSize={30}
-            className="border-white/16 bg-surface text-text"
-            disabled={!top || !!fly}
-            onClick={() => top && void doSwipe(top, "pass")}
-          />
-          <RoundAction
-            label={status && status.freeSuperLikesLeft > 0 ? "Super Like (free)" : `Super Like (${status?.superLikeCost ?? 10} coins)`}
-            icon="star"
-            filled
-            size={48}
-            className="border-lavender/45 bg-violet/18 text-lavender"
-            disabled={!top || !!fly}
-            onClick={() => top && void doSwipe(top, "super")}
-          />
-          <RoundAction
-            label={status?.likesLeft === 0 ? "Like (no likes left today)" : "Like"}
-            icon={status?.likesLeft === 0 ? "lock" : "favorite"}
-            filled
-            size={64}
-            iconSize={30}
-            className="bg-brand border-transparent text-white shadow-[0_10px_30px_rgb(255_61_143/0.4)]"
-            disabled={!top || !!fly}
-            onClick={() => top && void doSwipe(top, "like")}
-          />
-        </div>
-        <p className="type-body hidden pb-5 text-center text-[12px] text-muted lg:block">← pass · → like · ↑ Super Like · Backspace undo</p>
+        {showActions ? (
+          <div className="flex items-center justify-center gap-4 px-4 pt-4 pb-[calc(14px+env(safe-area-inset-bottom))] lg:pb-6">
+            <RoundAction
+              label={status?.undoCost ? `Undo (${status.undoCost} coins)` : "Undo"}
+              icon="undo"
+              size={48}
+              className="border-gold/40 bg-gold/12 text-gold"
+              disabled={!lastPassed || !!fly || (!showCards && !refilling)}
+              onClick={() => void undo()}
+            />
+            <RoundAction
+              label="Pass"
+              icon="close"
+              size={64}
+              iconSize={30}
+              className="border-white/16 bg-surface text-text"
+              disabled={!showCards || !!fly}
+              onClick={() => top && void doSwipe(top, "pass")}
+            />
+            <RoundAction
+              label={status && status.freeSuperLikesLeft > 0 ? "Super Like (free)" : `Super Like (${status?.superLikeCost ?? 10} coins)`}
+              icon="star"
+              filled
+              size={48}
+              className="border-lavender/45 bg-violet/18 text-lavender"
+              disabled={!showCards || !!fly}
+              onClick={() => top && void doSwipe(top, "super")}
+            />
+            <RoundAction
+              label={status?.likesLeft === 0 ? "Like (no likes left today)" : "Like"}
+              icon={status?.likesLeft === 0 ? "lock" : "favorite"}
+              filled
+              size={64}
+              iconSize={30}
+              className="bg-brand border-transparent text-white shadow-[0_10px_30px_rgb(255_61_143/0.4)]"
+              disabled={!showCards || !!fly}
+              onClick={() => top && void doSwipe(top, "like")}
+            />
+          </div>
+        ) : (
+          <div aria-hidden className="pb-[calc(14px+env(safe-area-inset-bottom))] lg:pb-6" />
+        )}
+        {showCards ? (
+          <p className="type-body hidden pb-5 text-center text-[12px] text-muted lg:block">← pass · → like · ↑ Super Like · Backspace undo</p>
+        ) : null}
       </div>
 
       <LikedYouPanel />
@@ -451,7 +484,7 @@ function RoundAction({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full border transition-[filter,transform,opacity] hover:brightness-115 active:scale-95 disabled:opacity-40",
+        "flex shrink-0 items-center justify-center rounded-full border transition-[filter,transform,opacity,box-shadow] hover:brightness-115 active:scale-95 disabled:pointer-events-none disabled:opacity-35 disabled:shadow-none disabled:grayscale",
         className,
       )}
       style={{ width: size, height: size }}
