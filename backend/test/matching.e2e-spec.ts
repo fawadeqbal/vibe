@@ -66,6 +66,24 @@ describe('matching over sockets', () => {
     expect(await sig).toMatchObject({ type: 'offer', data: { sdp: 'v=0…' } });
   });
 
+  it('hides contact details and links in call chat; the sender gets back what was sent', async () => {
+    const { a, sa, sb } = await pair();
+    const chat = next(sb, 'match:chat');
+    const mine = await emit<{ text: string; hidden: boolean }>(sa, 'match:chat', { text: 'my number is 0300 1234567, insta ali.khan22' });
+    expect(mine).toMatchObject({ text: 'my number is ****, insta ****', hidden: true });
+    expect((await chat).text).toBe('my number is ****, insta ****');
+    // Strangers: any link is hidden too.
+    expect((await emit<{ text: string }>(sa, 'match:chat', { text: 'see example.com/x' })).text).toBe('see ****');
+    // Ordinary chat goes through untouched.
+    expect(await emit(sa, 'match:chat', { text: 'I am 23, from Lahore' })).toMatchObject({ text: 'I am 23, from Lahore', hidden: false });
+    const flags = await t.prisma.contactFlag.findMany({ where: { userId: a.id }, orderBy: { createdAt: 'asc' } });
+    expect(flags.map((f) => [f.place, f.kinds.sort()])).toEqual([
+      ['match', ['phone', 'social']],
+      ['match', ['link']],
+    ]);
+    expect(flags[0].original).toContain('0300 1234567');
+  });
+
   it('gifts move coins to gems between the two wallets', async () => {
     const { a, b, sa, sb } = await pair();
     await expect(emit(sa, 'match:gift', { giftId: 'fireworks' })).rejects.toMatchObject({ code: 'INSUFFICIENT_COINS' });

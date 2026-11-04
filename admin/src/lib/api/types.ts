@@ -136,7 +136,7 @@ export interface UserDetail extends UserSummary {
     profileBonusClaimed: boolean;
   } | null;
   subscription: { planId: string; status: SubscriptionStatus; currentPeriodEnd: string; trialEndsAt: string | null } | null;
-  counts: { matches: number; friends: number; reportsGot: number; openReports: number; reportsMade: number; blockedBy: number; invitees: number; purchases: number; likes: number };
+  counts: { matches: number; friends: number; reportsGot: number; openReports: number; reportsMade: number; blockedBy: number; invitees: number; purchases: number; likes: number; hiddenMessages?: number };
   money: { spentUsd: number; giftsSent: number; giftsSentCoins: number; giftsReceived: number; giftsReceivedGems: number; cashedOutUsd: number };
   sessions: { id: string; userAgent: string | null; ip: string | null; createdAt: string; expiresAt: string }[];
 }
@@ -358,6 +358,20 @@ export interface FinanceSummary {
 
 export type ReportReason = "NUDITY" | "HARASSMENT" | "UNDERAGE" | "SPAM" | "SCAM" | "OTHER";
 export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED";
+
+/** A chat message whose contact details were hidden (chat safety; kept 30 days). */
+export interface HiddenMessage {
+  id: string;
+  /** match = in-call chat on a random call; chat = a friend chat. */
+  place: "match" | "chat";
+  refId: string;
+  /** What they typed, and what was sent. */
+  original: string;
+  sent: string;
+  /** phone, social, email, link */
+  kinds: string[];
+  createdAt: string;
+}
 
 export interface Report {
   id: string;

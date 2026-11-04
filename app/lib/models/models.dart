@@ -406,6 +406,9 @@ class ChatMessage {
   final Uint8List? localBytes;
 
   bool get isSystem => kind == MessageKind.system;
+
+  /// Contact details were hidden ("****"): your own messages say so underneath.
+  bool get hidden => kind == MessageKind.text && meta?['hidden'] == true;
   String? get event => meta?['event'] as String?;
   String? get mediaUrl => meta?['url'] as String?;
 

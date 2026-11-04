@@ -12,6 +12,7 @@ import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { StorageProvider } from '../../infra/storage/storage.provider';
 import { EconomyService } from '../catalog/economy.service';
+import { ChatSafetyService } from '../chat-safety/chat-safety.service';
 import { WalletService } from '../wallet/wallet.service';
 import { FriendsService } from './friends.service';
 import { StreakService } from './streak.service';
@@ -91,6 +92,7 @@ export class MessagesService {
     private readonly streaks: StreakService,
     private readonly storage: StorageProvider,
     private readonly redis: RedisService,
+    private readonly safety: ChatSafetyService,
   ) {}
 
   private get rules() {
@@ -149,8 +151,10 @@ export class MessagesService {
     if (!clean) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Message is empty');
     const f = await this.friends.requireFriends(me, friendId);
     const reply = await this.replyTarget(f.id, replyToId);
+    // New friends: phone numbers, handles and e-mails become "****" (the sender sees a note under it).
+    const safe = this.safety.screensFriends(f.acceptedAt ?? f.createdAt) ? await this.safety.screen({ userId: me, place: 'chat', refId: f.id, text: clean }) : { text: clean, hidden: false };
     const m = await this.prisma.$transaction(async (tx) => {
-      const msg = await tx.message.create({ data: { friendshipId: f.id, senderId: me, text: clean, replyToId: reply } });
+      const msg = await tx.message.create({ data: { friendshipId: f.id, senderId: me, text: safe.text, replyToId: reply, ...(safe.hidden ? { meta: { hidden: true } } : {}) } });
       await tx.friendship.update({ where: { id: f.id }, data: { lastMessageAt: msg.createdAt } });
       return msg;
     });

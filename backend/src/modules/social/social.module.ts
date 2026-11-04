@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ChatSafetyModule } from '../chat-safety/chat-safety.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { BlocksService } from './blocks.service';
 import { FollowsController, MyFollowsController } from './follows.controller';
@@ -13,7 +14,7 @@ import { BlocksController, FriendsController, LikesController } from './social.c
 import { StreakService } from './streak.service';
 
 @Module({
-  imports: [WalletModule],
+  imports: [WalletModule, ChatSafetyModule],
   controllers: [FriendsController, BlocksController, LikesController, FollowsController, MyFollowsController, ProfilesController],
   providers: [BlocksService, FriendsService, MessagesService, LikesService, FollowsService, ProfilesService, StreakService],
   exports: [BlocksService, FriendsService, MessagesService, FollowsService, StreakService],

@@ -292,9 +292,21 @@ class RemoteMatchProvider extends MatchProvider {
   void sendMessage(String text) {
     final t = text.trim();
     if (_state != MatchState.connected || t.isEmpty) return;
-    _chat.add(ChatMessage(id: 'mm${DateTime.now().microsecondsSinceEpoch}', fromMe: true, text: t, at: DateTime.now()));
+    final id = 'mm${DateTime.now().microsecondsSinceEpoch}';
+    final at = DateTime.now();
+    _chat.add(ChatMessage(id: id, fromMe: true, text: t, at: at));
     notifyListeners();
-    _rt.request('match:chat', {'text': t}).catchError((_) => null);
+    // The server hides contact details ("****"): show what was actually sent.
+    _rt.request('match:chat', {'text': t}).then((r) {
+      if (r is! Map) return;
+      final sent = r['text'];
+      final hidden = r['hidden'] == true;
+      if (sent is! String || (sent == t && !hidden)) return;
+      final i = _chat.indexWhere((c) => c.id == id);
+      if (i < 0) return;
+      _chat[i] = ChatMessage(id: id, fromMe: true, text: sent, at: at, meta: hidden ? const {'hidden': true} : null);
+      notifyListeners();
+    }).catchError((_) => null);
   }
 
   @override

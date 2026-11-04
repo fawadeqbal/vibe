@@ -2501,7 +2501,12 @@ class _ChatOverlay extends StatelessWidget {
                   );
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: Align(alignment: mine ? Alignment.centerRight : Alignment.centerLeft, child: bubble),
+              child: Align(
+                alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                child: mine && c.hidden
+                    ? Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [bubble, HiddenNote(color: Colors.white.withValues(alpha: 0.8), shadow: true)])
+                    : bubble,
+              ),
             );
           },
         ),
