@@ -1,3 +1,4 @@
+import { AppCta } from "@/components/app-cta";
 import { Cta } from "@/components/cta";
 import { FaqList } from "@/components/faq-list";
 import { Icon } from "@/components/icon";
@@ -69,11 +70,24 @@ export function FinalCta() {
         <h2 id="download-title" className="mt-[26px] max-w-[640px] text-[clamp(32px,4.4vw,52px)] leading-[1.05] font-bold tracking-[-0.035em]">
           Someone&apos;s waiting to meet <span className="serif text-pink-soft">you</span>
         </h2>
-        <p className="mt-4 text-base text-text2">Free to download. Free to match. 18+ only.</p>
-        <Cta href={site.links.android} track="final_cta" size="xl" className="mt-[30px] shadow-[0_12px_34px_rgb(255_61_143/0.35)]">
-          <Icon name="download" size={20} />
-          Get {site.name} for Android
-        </Cta>
+        <p className="mt-4 text-base text-text2">Free to match. Nothing to install on iPhone or a computer. 18+ only.</p>
+        <AppCta
+          track="final_cta"
+          size="xl"
+          className="mt-[30px] shadow-[0_12px_34px_rgb(255_61_143/0.35)]"
+          android={
+            <>
+              <Icon name="download" size={20} />
+              Get {site.name} for Android
+            </>
+          }
+          other={
+            <>
+              <Icon name="videocam" size={20} />
+              Start video chat — free
+            </>
+          }
+        />
       </div>
     </section>
   );

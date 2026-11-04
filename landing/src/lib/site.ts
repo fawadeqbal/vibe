@@ -80,15 +80,20 @@ export const site = {
 
   /** Live count for the hero pill: GET <api>/v1/stats/online → { online }. */
   onlineUrl: api ? `${api}/v1/stats/online` : null,
-  /** Shown before the first answer, and whenever the API can't be reached. */
-  onlineFallback: Number(env(process.env.NEXT_PUBLIC_ONLINE_FALLBACK, "2743")) || 0,
+  /** The live count only shows from this many people up; below it the pill shows the busy hours instead. */
+  onlineMinToShow: Number(env(process.env.NEXT_PUBLIC_ONLINE_MIN, "10")) || 10,
+  /**
+   * When most people are on (24h clock, business time zone). Read it from
+   * admin → Matching ("When people search") and update it here when it moves.
+   */
+  busyHours: { from: 21, to: 24, offsetMinutes: 300, zone: "Pakistan time" },
 
-  /** Stats band. Placeholders from the design: replace with real figures before launch. */
+  /** Stats band: only things that are true today. Swap in real counts once they're worth showing. */
   stats: [
-    { value: "1M+", label: "matches made" },
-    { value: "150+", label: "countries online" },
-    { value: "4.6★", label: "average store rating" },
-    { value: "24/7", label: "moderation coverage" },
+    { value: "Free", label: "to match and chat" },
+    { value: "18+", label: "adults only, always" },
+    { value: "2 taps", label: "to report anyone" },
+    { value: "24/7", label: "report review" },
   ],
 } as const;
 

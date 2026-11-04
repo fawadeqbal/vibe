@@ -8,12 +8,16 @@ const totals = (x: Partial<MarketingTotals> = {}): MarketingTotals => ({
   visitors: 0,
   visits: 0,
   pageViews: 0,
+  engagedVisits: 0,
   clickedVisits: 0,
   clicks: 0,
+  downloadedVisits: 0,
+  downloads: 0,
   signups: 0,
   firstCalls: 0,
+  goodFirstCall: 0,
+  paid: 0,
   medianSeconds: 0,
-  downloads: 0,
   ...x,
 });
 const report = (x: Partial<MarketingReport>): MarketingReport =>
@@ -43,23 +47,28 @@ describe("marketing reading", () => {
     expect(delta(9, 10).tone).toBe("bad");
   });
 
-  it("journey: rates, losses and the worst step", () => {
-    const s = journey(totals({ visitors: 9, visits: 9, pageViews: 12, clickedVisits: 7, signups: 1, downloads: 3 }), totals());
-    expect(s.map((x) => x.value)).toEqual([9, 7, 3, 1, 0]);
-    expect(s[1].rate).toBe("78% of visits");
-    expect(s[3].rate).toBe("14% of clicks");
-    expect(s.map((x) => x.lostAfter)).toEqual([2, null, 6, 1, null]);
+  it("journey: one unit per step, nothing above 100%, the worst loss", () => {
+    // The old page showed 54 clicked of 50 "visitors" (= browsers): 108%.
+    const s = journey(totals({ visitors: 50, visits: 77, clickedVisits: 54, signups: 17, firstCalls: 4, goodFirstCall: 2, paid: 1 }), totals());
+    expect(s.map((x) => x.key)).toEqual(["visits", "clicked", "signups", "firstCall", "goodFirstCall", "paid"]);
+    expect(s.map((x) => x.value)).toEqual([77, 54, 17, 4, 2, 1]);
+    expect(s[0].rate).toBe("50 browsers");
+    expect(s[1].rate).toBe("70% of visits");
+    expect(s[2].rate).toBe("22% of visits");
+    expect(s[3].rate).toBe("24% of sign-ups");
+    expect(s.map((x) => x.lostAfter)).toEqual([23, 37, 13, 2, 1, null]);
     expect(s.find((x) => x.worst)?.key).toBe("signups");
+    expect(s.every((x) => x.hint.length > 20)).toBe(true);
   });
 
   it("verdicts need 5 visitors to compare", () => {
     const avg = { clickRate: 0.5, signupRate: 0.1 };
-    expect(verdict({ visitors: 3, clicked: 3, signups: 1 }, avg).label).toBe("Brings sign-ups");
-    expect(verdict({ visitors: 1, clicked: 0, signups: 0 }, avg).label).toBe("Nobody clicked");
-    expect(verdict({ visitors: 1, clicked: 1, signups: 0 }, avg).label).toBe("Too few to tell");
-    expect(verdict({ visitors: 10, clicked: 5, signups: 3 }, avg).label).toBe("Best");
-    expect(verdict({ visitors: 10, clicked: 1, signups: 0 }, avg).label).toBe("Below average");
-    expect(averages(totals({ visits: 10, clickedVisits: 5, visitors: 8, signups: 2 }))).toEqual({ clickRate: 0.5, signupRate: 0.25 });
+    expect(verdict({ visits: 3, clicked: 3, signups: 1 }, avg).label).toBe("Brings sign-ups");
+    expect(verdict({ visits: 1, clicked: 0, signups: 0 }, avg).label).toBe("Nobody clicked");
+    expect(verdict({ visits: 1, clicked: 1, signups: 0 }, avg).label).toBe("Too few to tell");
+    expect(verdict({ visits: 10, clicked: 5, signups: 3 }, avg).label).toBe("Best");
+    expect(verdict({ visits: 10, clicked: 1, signups: 0 }, avg).label).toBe("Below average");
+    expect(averages(totals({ visits: 10, clickedVisits: 5, visitors: 8, signups: 2 }))).toEqual({ clickRate: 0.5, signupRate: 0.2 });
   });
 
   it("buttons nobody pressed", () => {
@@ -73,17 +82,21 @@ describe("marketing reading", () => {
       report({
         totals: totals({ visitors: 9, visits: 9, clickedVisits: 7, signups: 1 }),
         sources: [
-          { source: "tiktok", medium: "social", visitors: 3, clicked: 3, signups: 1 },
-          { source: "chatgpt", medium: "ai", visitors: 1, clicked: 0, signups: 0 },
+          { source: "tiktok", medium: "social", visitors: 3, visits: 3, clicked: 3, signups: 1, paid: 0 },
+          { source: "chatgpt", medium: "ai", visitors: 1, visits: 1, clicked: 0, signups: 0, paid: 0 },
         ],
-        campaigns: [{ campaign: "launch", source: "tiktok", medium: "social", visitors: 3, signups: 1 }],
-        pages: [{ path: "/omegle-alternative/", visits: 3, clicked: 3 }],
+        campaigns: [{ campaign: "launch", source: "tiktok", medium: "social", visitors: 3, visits: 3, clicked: 3, signups: 1 }],
+        pages: [{ path: "/omegle-alternative/", visits: 3, clicked: 3, signups: 1 }],
       }),
     );
     expect(n.map((x) => x.tone)).toEqual(["bad", "good", "info"]);
-    expect(n[0].title).toBe("6 of 7 people who clicked never signed up");
+    expect(n[0].title).toBe("6 of 7 visits that clicked to the app never signed up");
     expect(n[1].text).toContain("“launch”");
     expect(n[2].title).toContain("/omegle-alternative/");
     expect(notes(report({}))).toEqual([]);
+
+    // Signed up but never met a real person: said plainly.
+    const lonely = notes(report({ totals: totals({ visitors: 20, visits: 20, clickedVisits: 6, signups: 5, firstCalls: 1 }) }));
+    expect(lonely.some((x) => x.title === "4 of 5 people who signed up from the site never had a call with a real person")).toBe(true);
   });
 });

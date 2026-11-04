@@ -56,9 +56,10 @@ export function MarketingListPage({ kind }: { kind: ListKind }) {
             <Tr>
               <Th>Campaign</Th>
               <Th>Channel</Th>
-              <Th className="text-right">Visitors</Th>
+              <Th className="text-right">Visits</Th>
+              <Th className="text-right">Clicked to the app</Th>
               <Th className="text-right">Sign-ups</Th>
-              <Th className="text-right">Became users</Th>
+              <Th className="text-right">Of visits</Th>
             </Tr>
           </thead>
           <tbody>
@@ -68,9 +69,10 @@ export function MarketingListPage({ kind }: { kind: ListKind }) {
                 <Td className="text-text-2">
                   {sourceLabel(c.source)} · {mediumLabel(c.medium)}
                 </Td>
-                <Td className="text-right tabular-nums">{format.number(c.visitors)}</Td>
+                <Td className="text-right tabular-nums">{format.number(c.visits)}</Td>
+                <Td className="text-right tabular-nums">{format.number(c.clicked)}</Td>
                 <Td className="text-right font-semibold tabular-nums">{format.number(c.signups)}</Td>
-                <Td className="text-right tabular-nums">{share(c.signups, c.visitors)}</Td>
+                <Td className="text-right tabular-nums">{share(c.signups, c.visits)}</Td>
               </Tr>
             ))}
           </tbody>

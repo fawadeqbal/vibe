@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 
+import { AppCta } from "@/components/app-cta";
 import { Cta } from "@/components/cta";
 import { Icon } from "@/components/icon";
 import type { Block } from "@/content/types";
@@ -96,10 +97,18 @@ function renderBlock(b: Block) {
           <Icon name="videocam" size={18} />
           Start video chat — free
         </Cta>
-        <Cta href={site.links.android} track="page_android" variant="outline" size="md">
-          <Icon name="android" size={17} />
-          Get the Android app
-        </Cta>
+        <AppCta
+          track="page_android"
+          variant="outline"
+          size="md"
+          android={
+            <>
+              <Icon name="android" size={17} />
+              Get the Android app
+            </>
+          }
+          other={null}
+        />
       </div>
     </aside>
   );

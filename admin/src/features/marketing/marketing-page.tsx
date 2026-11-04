@@ -19,6 +19,7 @@ import { format } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { buttonLabel, countryName, DID_LABELS, mediumLabel, placeLabel, SOURCE_LABELS, sourceLabel } from "./labels";
+import { DEFINITIONS } from "./definitions";
 import { averages, journey, neverPressed, notes, type Note, type Step, verdict } from "./read";
 import { DaysSwitch, Meter, periodLabel, SeeAll, share, useDays, useMarketing } from "./shared";
 
@@ -106,7 +107,7 @@ export function MarketingPage() {
             loading={q.isLoading}
             height={220}
             series={[
-              { key: "visitors", label: "Visitors", color: 5 },
+              { key: "visits", label: "Visits", color: 5 },
               { key: "clicked", label: "Clicked to the app", color: 1 },
               { key: "signups", label: "Signed up", color: 3 },
             ]}
@@ -140,12 +141,12 @@ function Journey({ r, loading }: { r?: MarketingReport; loading: boolean }) {
   const steps = r ? journey(r.totals, r.previous) : null;
   return (
     <Card>
-      <CardHeader title="From visit to first call" description="Each step counts people. The red step is where most people are lost." />
+      <CardHeader title="From visit to paying" description="The first three steps count visits; the rest count what those sign-ups did next. Hover a step for exactly what it counts. The red step is where most are lost." />
       <CardBody>
         {loading || !steps ? (
           <Skeleton className="h-28" />
         ) : (
-          <ol className="grid grid-cols-2 gap-2 lg:grid-cols-5 lg:gap-0">
+          <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 lg:gap-0">
             {steps.map((s, i) => (
               <JourneyStep key={s.key} s={s} last={i === steps.length - 1} />
             ))}
@@ -154,6 +155,12 @@ function Journey({ r, loading }: { r?: MarketingReport; loading: boolean }) {
       </CardBody>
       {r ? (
         <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-line bg-surface-2/40 px-4 py-2.5 text-xs text-text-2">
+          <span title={DEFINITIONS.engaged}>
+            Engaged: <b className="font-semibold text-text tabular-nums">{format.number(r.totals.engagedVisits)}</b> ({share(r.totals.engagedVisits, r.totals.visits)} of visits)
+          </span>
+          <span title={DEFINITIONS.downloaded}>
+            Android downloads: <b className="font-semibold text-text tabular-nums">{format.number(r.totals.downloadedVisits)}</b> from visits · {format.number(r.totals.downloads)} in all
+          </span>
           <span>
             Pages read: <b className="font-semibold text-text tabular-nums">{format.number(r.totals.pageViews)}</b>
           </span>
@@ -172,8 +179,12 @@ function Journey({ r, loading }: { r?: MarketingReport; loading: boolean }) {
 function JourneyStep({ s, last }: { s: Step; last: boolean }) {
   return (
     <li className="flex min-w-0 items-stretch">
-      <div className={cn("min-w-0 flex-1 rounded-xl border p-3", s.worst ? "border-bad/30 bg-bad-soft" : "border-line bg-surface-2/40")}>
-        <p className="text-xs font-medium text-text-2">{s.label}</p>
+      <div title={s.hint} className={cn("min-w-0 flex-1 cursor-help rounded-xl border p-3", s.worst ? "border-bad/30 bg-bad-soft" : "border-line bg-surface-2/40")}>
+        <p className="flex items-center gap-1 text-xs font-medium text-text-2">
+          {s.label}
+          <Info className="size-3 text-muted" aria-hidden />
+        </p>
+        <span className="sr-only">{s.hint}</span>
         <p className="mt-0.5 text-2xl font-semibold tracking-tight tabular-nums sm:text-[28px]">{format.number(s.value)}</p>
         <p className="text-xs text-text-2">{s.rate}</p>
         {s.delta.text ? <p className={cn("mt-1.5 text-[11.5px] font-medium", s.delta.tone === "ok" ? "text-ok" : s.delta.tone === "bad" ? "text-bad" : "text-muted")}>{s.delta.text}</p> : null}
@@ -237,14 +248,19 @@ export function ChannelRows({ rows, r }: { rows: MarketingReport["sources"]; r: 
               <div className="font-medium">{sourceLabel(s.source)}</div>
               <div className="text-xs text-muted">{mediumLabel(s.medium)}</div>
             </Td>
-            <Td className="text-right tabular-nums">{format.number(s.visitors)}</Td>
+            <Td className="text-right tabular-nums" title={`${format.number(s.visitors)} ${s.visitors === 1 ? "browser" : "browsers"}`}>
+              {format.number(s.visits)}
+            </Td>
             <Td className="min-w-36">
               <div className="flex items-center gap-2">
-                <Meter value={s.visitors ? s.clicked / s.visitors : 0} className="flex-1" />
-                <span className="w-9 text-right text-text-2 tabular-nums">{share(s.clicked, s.visitors)}</span>
+                <Meter value={s.visits ? s.clicked / s.visits : 0} className="flex-1" />
+                <span className="w-9 text-right text-text-2 tabular-nums">{share(s.clicked, s.visits)}</span>
               </div>
             </Td>
-            <Td className="text-right font-semibold tabular-nums">{format.number(s.signups)}</Td>
+            <Td className="text-right font-semibold tabular-nums">
+              {format.number(s.signups)} <span className="text-xs font-normal text-muted">{share(s.signups, s.visits)}</span>
+            </Td>
+            <Td className="text-right tabular-nums">{format.number(s.paid)}</Td>
             <Td>
               <Badge tone={v.tone}>{v.label}</Badge>
             </Td>
@@ -260,9 +276,16 @@ export function ChannelHead() {
     <thead>
       <Tr>
         <Th>Channel</Th>
-        <Th className="text-right">Visitors</Th>
-        <Th>Clicked to the app</Th>
-        <Th className="text-right">Sign-ups</Th>
+        <Th className="text-right" title={DEFINITIONS.visits}>
+          Visits
+        </Th>
+        <Th title={DEFINITIONS.clicked}>Clicked to the app</Th>
+        <Th className="text-right" title={DEFINITIONS.signups}>
+          Sign-ups
+        </Th>
+        <Th className="text-right" title={DEFINITIONS.paid}>
+          Paid
+        </Th>
         <Th>Verdict</Th>
       </Tr>
     </thead>
@@ -270,13 +293,13 @@ export function ChannelHead() {
 }
 
 /** Sign-ups first, then clicks, then visitors. */
-export const byResult = (a: MarketingReport["sources"][number], b: MarketingReport["sources"][number]) => b.signups - a.signups || b.clicked - a.clicked || b.visitors - a.visitors;
+export const byResult = (a: MarketingReport["sources"][number], b: MarketingReport["sources"][number]) => b.signups - a.signups || b.clicked - a.clicked || b.visits - a.visits;
 
 function Channels({ r, href }: { r?: MarketingReport; href: string }) {
   const rows = r ? [...r.sources].sort(byResult) : [];
   return (
     <Card className="overflow-hidden">
-      <CardHeader title="Which channels work" description="Sorted by sign-ups. The verdict compares each channel with the site average; it needs 5+ visitors to call it better or worse." />
+      <CardHeader title="Which channels work" description="Sorted by sign-ups. Every % is out of that channel's visits. The verdict compares it with the site average and needs 5+ visits to call it better or worse." />
       {!r ? (
         <CardBody>
           <Skeleton className="h-48" />
@@ -325,13 +348,13 @@ function Campaigns({ r, href }: { r?: MarketingReport; href: string }) {
             </div>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-text-2">
               <span>
-                <b className="text-[15px] font-semibold text-text tabular-nums">{format.number(c.visitors)}</b> {c.visitors === 1 ? "visitor" : "visitors"}
+                <b className="text-[15px] font-semibold text-text tabular-nums">{format.number(c.visits)}</b> {c.visits === 1 ? "visit" : "visits"}
               </span>
               <span>
                 <b className="text-[15px] font-semibold text-text tabular-nums">{format.number(c.signups)}</b> {c.signups === 1 ? "sign-up" : "sign-ups"}
               </span>
               <span>
-                <b className="text-[15px] font-semibold text-text">{share(c.signups, c.visitors)}</b> became users
+                <b className="text-[15px] font-semibold text-text">{share(c.signups, c.visits)}</b> of visits signed up
               </span>
             </div>
           </div>
@@ -376,6 +399,7 @@ export function PageRow({ p }: { p: MarketingReport["pages"][number] }) {
         </span>
         <span className="shrink-0 text-text-2 tabular-nums">
           {format.number(p.visits)} {p.visits === 1 ? "visit" : "visits"} · <b className={cn("font-semibold", text)}>{share(p.clicked, p.visits)}</b> to app
+          {p.signups ? ` · ${format.number(p.signups)} signed up` : ""}
         </span>
       </div>
       <Meter value={rate} className="mt-1.5" barClassName={tone} />
