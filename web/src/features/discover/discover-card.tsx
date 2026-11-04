@@ -27,12 +27,14 @@ export function DiscoverCardView({
   up = 0,
   className,
   style,
+  onAnimationEnd,
 }: {
   c: Card;
   drag?: number;
   up?: number;
   className?: string;
   style?: CSSProperties;
+  onAnimationEnd?: () => void;
 }) {
   const p = c.profile;
   const [failed, setFailed] = useState(false);
@@ -44,10 +46,11 @@ export function DiscoverCardView({
       aria-label={`${p.name}${p.age ? `, ${p.age}` : ""}`}
       className={cn("relative isolate h-full w-full overflow-hidden rounded-[28px] border border-line bg-surface select-none", className)}
       style={style}
+      onAnimationEnd={onAnimationEnd}
     >
       {p.avatarUrl && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={p.avatarUrl} alt="" draggable={false} onError={() => setFailed(true)} className="absolute inset-0 -z-10 size-full object-cover" />
+        <img src={p.avatarUrl} alt="" draggable={false} decoding="async" onError={() => setFailed(true)} className="absolute inset-0 -z-10 size-full object-cover" />
       ) : (
         <span aria-hidden className="bg-brand type-display absolute inset-0 -z-10 flex items-center justify-center text-[120px] text-white/35">
           {p.name.trim()[0]?.toUpperCase() ?? "?"}

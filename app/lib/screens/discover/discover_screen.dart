@@ -22,6 +22,7 @@ import 'liked_you_screen.dart';
 const double _swipeX = 110;
 const double _swipeUp = 120;
 const Duration _flyTime = Duration(milliseconds: 240);
+const Duration _settleTime = Duration(milliseconds: 260);
 
 /// Discover: real people, one card at a time. Drag or tap — left passes,
 /// right likes, up (or the star) Super Likes. Two likes make a match (the
@@ -121,21 +122,30 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final d = context.read<DiscoverProvider>();
     final st = d.status;
     if (kind == SwipeKind.like && st != null && st.likesLeft == 0) {
-      setState(() => _drag = Offset.zero);
+      setState(() {
+        _drag = Offset.zero;
+        _dragging = false;
+      });
       return _outOfLikes();
     }
     _busy = true;
     setState(() => _fly = (c.profile.id, kind));
     await Future<void>.delayed(_flyTime);
-    final r = await d.swipe(c, kind);
     if (!mounted) return;
+    // The card has flown. Forget the drag, take the card off the deck and stop
+    // flying — all before the next frame, so no frame ever shows the next card
+    // at the old drag position. The one behind is already built (same key), so
+    // it just eases up to the centre. The server answers in the background:
+    // the next card can be swiped right away.
     setState(() {
-      _fly = null;
       _drag = Offset.zero;
       _dragging = false;
+      _fly = null;
     });
+    final answer = d.swipe(c, kind); // removes the card synchronously
     _busy = false;
-    if (r.ok) return;
+    final r = await answer;
+    if (!mounted || r.ok) return;
     switch (r.failure!) {
       case SwipeFailure.outOfLikes:
         await _outOfLikes();
@@ -172,6 +182,65 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       });
     }
   }
+
+  /// One card in the stack. Depth 0 is the top (dragged, flies); 1 peeks out
+  /// behind it; 2 waits unseen. Same widgets at every depth, so a card keeps
+  /// its state (and loaded photo) as it moves up.
+  Widget _deckCard(
+    DiscoverProvider d,
+    DiscoverCard c,
+    int depth, {
+    required Offset offset,
+    required double angle,
+    required SwipeKind? flyKind,
+    required double dragX,
+    required double dragUp,
+  }) {
+    final top = depth == 0;
+    final Matrix4 transform = top
+        ? (Matrix4.translationValues(offset.dx, offset.dy, 0)..rotateZ(angle))
+        : (Matrix4.translationValues(0, depth * 10.0, 0)..scaleByDouble(1 - depth * 0.04, 1 - depth * 0.04, 1, 1));
+    final Duration duration = top && _dragging && flyKind == null ? Duration.zero : (top && flyKind != null ? _flyTime : _settleTime);
+    final returned = top && d.returnedId == c.profile.id;
+    return KeyedSubtree(
+      key: ValueKey(c.profile.id),
+      child: IgnorePointer(
+        ignoring: !top,
+        child: GestureDetector(
+          onPanStart: top ? (_) => setState(() => _dragging = true) : null,
+          onPanUpdate: top ? (e) => setState(() => _drag += e.delta) : null,
+          onPanEnd: top ? (_) => _onPanEnd(c) : null,
+          onPanCancel: top ? _settle : null,
+          child: AnimatedOpacity(
+            duration: top && flyKind != null ? _flyTime : _settleTime,
+            opacity: top ? (flyKind != null ? 0 : 1) : (depth == 1 ? 0.85 : 0),
+            child: AnimatedContainer(
+              duration: duration,
+              curve: top && flyKind != null ? Curves.easeIn : VMotion.out,
+              transform: transform,
+              transformAlignment: Alignment.center,
+              // A card that came back (the server said no, or undo) eases in instead of popping.
+              // The tween's start only counts when the card first appears.
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: returned ? 0.0 : 1.0, end: 1.0),
+                duration: _settleTime,
+                curve: VMotion.out,
+                onEnd: returned ? d.clearReturned : null,
+                builder: (_, t, child) => Opacity(opacity: t, child: Transform.scale(scale: 0.92 + 0.08 * t, child: child)),
+                child: DiscoverCardView(card: c, drag: top ? dragX : 0, up: top ? dragUp : 0, shadow: top),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The gesture was taken away (a scroll, a system gesture): never a swipe, just settle back.
+  void _settle() => setState(() {
+        _drag = Offset.zero;
+        _dragging = false;
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -285,27 +354,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         onLookAround: () => setState(() => _lookAround = true),
                       )
                     : top != null
+                    // The top three, each keyed by person and built the same way at
+                    // every depth: when the top card leaves, the one behind is the same
+                    // widget moving up (no rebuild, no photo reload); the third is built
+                    // unseen, so its photo is loaded before it's needed.
                     ? Stack(
                         fit: StackFit.expand,
                         children: [
-                          if (d.deck.length > 1)
-                            Transform.scale(scale: 0.96, child: Opacity(opacity: 0.8, child: DiscoverCardView(key: ValueKey('next-${d.deck[1].profile.id}'), card: d.deck[1], shadow: false))),
-                          GestureDetector(
-                            key: ValueKey('top-${top.profile.id}'),
-                            onPanStart: (_) => setState(() => _dragging = true),
-                            onPanUpdate: (e) => setState(() => _drag += e.delta),
-                            onPanEnd: (_) => _onPanEnd(top),
-                            child: AnimatedContainer(
-                              duration: _dragging && flyKind == null ? Duration.zero : (flyKind != null ? _flyTime : const Duration(milliseconds: 220)),
-                              curve: flyKind != null ? Curves.easeIn : VMotion.out,
-                              transform: Matrix4.translationValues(offset.dx, offset.dy, 0)..rotateZ(angle),
-                              transformAlignment: Alignment.center,
-                              child: DiscoverCardView(card: top, drag: dragX, up: dragUp),
-                            ),
-                          ),
+                          for (var i = math.min(3, d.deck.length) - 1; i >= 0; i--)
+                            _deckCard(d, d.deck[i], i, offset: offset, angle: angle, flyKind: flyKind, dragX: dragX, dragUp: dragUp),
                         ],
                       )
-                    : d.loading
+                    : d.loading || d.refilling
                         ? const DeckSkeleton()
                         : d.failed
                             ? DeckOffline(offline: d.offline, onRetry: d.load)
