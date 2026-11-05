@@ -1146,6 +1146,26 @@ model AuditLog {
   @@index([action, createdAt])
 }
 
+/// A chat message whose contact details were hidden (chat-safety). For
+/// moderators: who keeps trying to move people off Vibe. Kept 30 days.
+model ContactFlag {
+  id        String   @id @default(cuid())
+  userId    String
+  /// match = in-call chat on a random call; chat = a friend chat.
+  place     String   @db.VarChar(8)
+  /// The match or friendship it was sent in.
+  refId     String
+  /// What they typed, and what was sent.
+  original  String   @db.VarChar(1000)
+  sent      String   @db.VarChar(1000)
+  /// phone, social, email, link
+  kinds     String[]
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
 model StaffNote {
   id        String   @id @default(cuid())
   userId    String

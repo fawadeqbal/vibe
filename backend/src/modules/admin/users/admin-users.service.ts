@@ -88,6 +88,7 @@ export class AdminUsersService {
         this.prisma.block.count({ where: { blockedId: id } }),
         this.prisma.user.count({ where: { invitedById: id } }),
         this.prisma.purchase.count({ where: { userId: id } }),
+        this.prisma.contactFlag.count({ where: { userId: id } }),
       ]),
       this.prisma.purchase.aggregate({ where: { userId: id, status: PurchaseStatus.SUCCEEDED }, _sum: { usdCents: true } }),
       this.prisma.giftTransfer.aggregate({ where: { fromId: id }, _sum: { coins: true }, _count: true }),
@@ -96,7 +97,7 @@ export class AdminUsersService {
       this.prisma.session.findMany({ where: { userId: id, revokedAt: null, expiresAt: { gt: this.clock.now() } }, orderBy: { createdAt: 'desc' }, take: 20 }),
       this.prisma.subscription.findFirst({ where: { userId: id }, orderBy: { createdAt: 'desc' } }),
     ]);
-    const [matches, friends, reportsGot, openReports, reportsMade, blockedBy, invitees, purchases] = counts;
+    const [matches, friends, reportsGot, openReports, reportsMade, blockedBy, invitees, purchases, hiddenMessages] = counts;
     return {
       ...this.summary(staff, { ...u, _count: { reportsGot: openReports } }),
       online,
@@ -119,7 +120,7 @@ export class AdminUsersService {
         profileBonusClaimed: u.wallet.profileBonusClaimed,
       },
       subscription: sub && { planId: sub.planId, status: sub.status, currentPeriodEnd: sub.currentPeriodEnd.toISOString(), trialEndsAt: sub.trialEndsAt?.toISOString() ?? null },
-      counts: { matches, friends, reportsGot, openReports, reportsMade, blockedBy, invitees, purchases, likes: u.likesCount },
+      counts: { matches, friends, reportsGot, openReports, reportsMade, blockedBy, invitees, purchases, likes: u.likesCount, hiddenMessages },
       money: {
         spentUsd: (spent._sum.usdCents ?? 0) / 100,
         giftsSent: giftsSent._count,
@@ -167,6 +168,12 @@ export class AdminUsersService {
       ...pageArgs(q),
     });
     return toAdminPage(rows, q.limit, (r) => ({ ...r, createdAt: r.createdAt.toISOString(), reviewedAt: r.reviewedAt?.toISOString() ?? null }));
+  }
+
+  /** Chat messages whose contact details were hidden (last 30 days), newest first: who keeps trying to move people off Vibe. */
+  async contactFlagsFor(userId: string, q: CursorQueryDto) {
+    const rows = await this.prisma.contactFlag.findMany({ where: { userId }, ...pageArgs(q) });
+    return toAdminPage(rows, q.limit, (r) => ({ id: r.id, place: r.place, refId: r.refId, original: r.original, sent: r.sent, kinds: r.kinds, createdAt: r.createdAt.toISOString() }));
   }
 
   async notesFor(userId: string) {

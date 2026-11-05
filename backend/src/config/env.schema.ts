@@ -54,6 +54,12 @@ export const envSchema = z.object({
   /** Business day boundary for daily rewards/limits (minutes east of UTC; PKT = 300). */
   BUSINESS_TZ_OFFSET_MINUTES: z.coerce.number().int().min(-720).max(840).default(300),
 
+  // Chat safety: contact details (phone numbers, handles, e-mails) in chat text.
+  /** mask = replace them with ****; log = only record them (to check for false alarms first); off. */
+  CONTACT_FILTER: z.enum(['mask', 'log', 'off']).default('mask'),
+  /** Friend chats are filtered for this many days after becoming friends (0 = never; random calls always). */
+  CONTACT_FILTER_FRIEND_DAYS: z.coerce.number().int().min(0).max(3650).default(7),
+
   // Sign-in codes by e-mail
   /** console = print codes to the log (dev); smtp = send real e-mail (Gmail, SES, SendGrid… any SMTP). */
   MAIL_PROVIDER: z.enum(['console', 'smtp']).default('console'),

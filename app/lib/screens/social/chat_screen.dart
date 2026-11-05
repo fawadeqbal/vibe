@@ -689,6 +689,7 @@ class _Bubble extends StatelessWidget {
               ],
             ),
           ),
+          if (mine && m.hidden && !m.unsent) Padding(padding: EdgeInsets.only(top: reactions.isNotEmpty ? 12 : 0), child: const HiddenNote()),
           if (seen)
             Padding(
               padding: const EdgeInsets.only(top: 2, right: 4),

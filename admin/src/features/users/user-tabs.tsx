@@ -16,10 +16,10 @@ import { CashoutSheet } from "@/features/finance/cashout-sheet";
 import { cashoutColumns, ledgerColumns, purchaseColumns } from "@/features/finance/columns";
 import { useAction } from "@/hooks/use-action";
 import { api } from "@/lib/api/client";
-import type { Cashout, MatchRow, Report } from "@/lib/api/types";
+import type { Cashout, HiddenMessage, MatchRow, Report } from "@/lib/api/types";
 import { format } from "@/lib/format";
 
-import { useUserAudit, useUserCashouts, useUserLedger, useUserMatches, useUserNotes, useUserPurchases, useUserReports, userKeys } from "./api";
+import { useUserAudit, useUserCashouts, useUserHiddenMessages, useUserLedger, useUserMatches, useUserNotes, useUserPurchases, useUserReports, userKeys } from "./api";
 
 type Paged = { rows: unknown[]; isLoading: boolean; error: unknown; refetch: () => void; hasNextPage: boolean; isFetchingNextPage: boolean; fetchNextPage: () => void };
 const paging = (q: Paged) => ({ loading: q.isLoading, error: q.error, onRetry: q.refetch, hasMore: q.hasNextPage, loadingMore: q.isFetchingNextPage, onLoadMore: q.fetchNextPage });
@@ -74,6 +74,34 @@ export function ReportsTab({ userId }: { userId: string }) {
     <div className="space-y-3">
       <Segmented value={direction} onChange={setDirection} options={[{ value: "received", label: "About them" }, { value: "made", label: "By them" }]} />
       <DataTable columns={columns} rows={q.rows} getRowId={(r) => r.id} {...paging(q)} onRowClick={(r) => router.push(`/moderation/${r.id}`)} empty={{ title: direction === "received" ? "Nobody has reported them" : "They haven't reported anyone" }} />
+    </div>
+  );
+}
+
+const KIND_LABEL: Record<string, string> = { phone: "Phone number", social: "Handle or app link", email: "E-mail", link: "Link" };
+
+/** Messages where Vibe hid phone numbers, handles or e-mails — who keeps trying to take people off Vibe. Kept 30 days. */
+export function HiddenMessagesTab({ userId }: { userId: string }) {
+  const q = useUserHiddenMessages(userId);
+  const columns: Column<HiddenMessage>[] = [
+    { id: "where", header: "Where", cell: (m) => <Badge tone="neutral">{m.place === "match" ? "Random call" : "Friend chat"}</Badge> },
+    {
+      id: "typed",
+      header: "What they typed",
+      cell: (m) => (
+        <div className="max-w-96 min-w-48">
+          <p className="text-sm break-words text-text">{m.original}</p>
+          <p className="mt-0.5 text-xs break-words text-muted">Sent as: {m.sent}</p>
+        </div>
+      ),
+    },
+    { id: "kinds", header: "Hidden", cell: (m) => <span className="text-text-2">{m.kinds.map((k) => KIND_LABEL[k] ?? k).join(", ")}</span>, className: "hidden lg:table-cell" },
+    { id: "at", header: "When", cell: (m) => <Time iso={m.createdAt} className="text-text-2" /> },
+  ];
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-text-2">Phone numbers, handles, chat-app links and e-mails are replaced with **** in random calls and in a friendship&apos;s first week. Kept 30 days.</p>
+      <DataTable columns={columns} rows={q.rows} getRowId={(m) => m.id} {...paging(q)} empty={{ title: "Nothing hidden", description: "They haven't tried to share contact details in chat." }} />
     </div>
   );
 }
