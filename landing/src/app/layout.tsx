@@ -76,6 +76,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </Script>
           </>
         )}
+        {/* Monetag OnClick */}
+        <Script id="monetag-onclick" strategy="afterInteractive">
+          {`(function(s){s.dataset.zone='12201125',s.src='https://al5sm.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`}
+        </Script>
       </body>
     </html>
   );
