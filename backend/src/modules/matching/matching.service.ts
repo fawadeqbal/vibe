@@ -34,6 +34,7 @@ import { callSignal, freeReconnectUntil, GOOD_CALL_SECONDS, isFreeReconnect, isN
 import { MatchSessionStore } from './match-session.store';
 import { ActiveMatch, EndedReason, MatchPrefs, Ticket } from './matching.types';
 import { SkipCooldownService } from './skip-cooldown.service';
+import { ChatSafetyService } from '../chat-safety/chat-safety.service';
 
 export interface MatchFoundPayload {
   matchId: string;
@@ -137,6 +138,7 @@ export class MatchingService {
     private readonly games: MatchGamesService,
     private readonly waitlist: MatchWaitlistService,
     private readonly waves: WavesService,
+    private readonly safety: ChatSafetyService,
   ) {}
 
   // ── queue ─────────────────────────────────────────────────────────────
@@ -377,14 +379,18 @@ export class MatchingService {
     this.realtime.toUser(partnerId, ServerEvent.MatchMedia, { matchId: m.id, camOn, micOn });
   }
 
-  async chat(userId: string, text: string): Promise<{ at: string }> {
+  /**
+   * In-call chat: relayed, not stored. Contact details and links become
+   * "****" (strangers), and the sender gets back what was actually sent.
+   */
+  async chat(userId: string, text: string): Promise<{ at: string; text: string; hidden: boolean }> {
     const { m, partnerId } = await this.requireMatch(userId);
     if ((await this.redis.incrWithTtl(`mchat:${userId}`, 10)) > 15) throw new AppError(ErrorCode.RATE_LIMITED, 'Slow down a little', HttpStatus.TOO_MANY_REQUESTS);
     const at = this.clock.now().toISOString();
-    // In-call chat is relayed, not stored.
-    this.realtime.toUser(partnerId, ServerEvent.MatchChat, { matchId: m.id, text: text.trim().slice(0, 500), at });
-    this.events.emit(MATCH_ACTION, { matchId: m.id, from: userId, to: partnerId, action: 'chat', text } satisfies MatchActionEvent);
-    return { at };
+    const safe = await this.safety.screen({ userId, place: 'match', refId: m.id, text: text.trim().slice(0, 500) });
+    this.realtime.toUser(partnerId, ServerEvent.MatchChat, { matchId: m.id, text: safe.text, at });
+    this.events.emit(MATCH_ACTION, { matchId: m.id, from: userId, to: partnerId, action: 'chat', text: safe.text } satisfies MatchActionEvent);
+    return { at, text: safe.text, hidden: safe.hidden };
   }
 
   async gift(userId: string, giftId: string, idempotencyKey?: string) {

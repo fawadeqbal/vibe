@@ -180,6 +180,7 @@ export function message(m: Json, giftById: (id: unknown) => Gift | null): ChatMe
     reactions: { mine: typeof re.mine === "string" ? re.mine : null, theirs: typeof re.theirs === "string" ? re.theirs : null },
     unsent: bool(m.unsent),
     readAt: date(m.readAt),
+    hidden: meta?.hidden === true,
   };
 }
 

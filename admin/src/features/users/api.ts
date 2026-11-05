@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCursorQuery } from "@/hooks/use-cursor-query";
 import { api, type Query } from "@/lib/api/client";
 import type { CountryCount } from "@/lib/countries";
-import type { AuditEntry, Cashout, LedgerEntry, MatchRow, Page, Purchase, Report, StaffNote, UserDetail, UserSummary, Verification } from "@/lib/api/types";
+import type { AuditEntry, Cashout, HiddenMessage, LedgerEntry, MatchRow, Page, Purchase, Report, StaffNote, UserDetail, UserSummary, Verification } from "@/lib/api/types";
 
 /** Query keys for users. Invalidate `userKeys.all` after any user write. */
 export const userKeys = {
@@ -37,6 +37,7 @@ const sub =
 export const useUserLedger = sub<LedgerEntry>("ledger");
 export const useUserMatches = sub<MatchRow>("matches");
 export const useUserReports = sub<Report>("reports");
+export const useUserHiddenMessages = sub<HiddenMessage>("hidden-messages");
 export const useUserPurchases = sub<Purchase>("purchases");
 export const useUserCashouts = sub<Cashout>("cashouts");
 export const useUserAudit = sub<AuditEntry>("audit");

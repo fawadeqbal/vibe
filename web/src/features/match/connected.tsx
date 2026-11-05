@@ -7,6 +7,7 @@ import { VideoView } from "@/components/shared/video-view";
 import { Avatar } from "@/components/ui/avatar";
 import { VideoScrims } from "@/components/ui/brand";
 import { Glass, GlassPill, RoundControl } from "@/components/ui/glass";
+import { HiddenNote } from "@/components/shared/hidden-note";
 import { Icon } from "@/components/ui/icon";
 import { CoinAmount } from "@/components/ui/money";
 import { GroupCard, GroupRow } from "@/components/ui/panel";
@@ -321,13 +322,14 @@ function ChatOverlay({ partnerName, compact = false }: { partnerName: string; co
       {chat.map((c) => {
         const text = c.gift ? `${c.gift.emoji}  ${c.text}` : c.text;
         return c.fromMe ? (
-          <div key={c.id} className="flex justify-end">
+          <div key={c.id} className="flex flex-col items-end">
             <p
               className="type-body max-w-[72%] rounded-[18px] rounded-br-[6px] px-3 py-2 text-[14px] leading-[1.35] text-white"
               style={{ backgroundColor: c.gift ? alpha("gold", 0.28) : alpha("violet", 0.6) }}
             >
               {text}
             </p>
+            {c.hidden ? <HiddenNote className="text-white/80 [text-shadow:0_1px_3px_rgb(0_0_0/0.6)]" /> : null}
           </div>
         ) : (
           <div key={c.id} className="flex justify-start">

@@ -23,7 +23,7 @@ import { P } from "@/lib/permissions";
 
 import { useUser, userKeys } from "./api";
 import { BanDialog, EditProfileDialog, VipDialog, WalletDialog } from "./user-dialogs";
-import { AuditTab, CashoutsTab, LedgerTab, MatchesTab, NotesTab, PurchasesTab, ReportsTab } from "./user-tabs";
+import { AuditTab, CashoutsTab, HiddenMessagesTab, LedgerTab, MatchesTab, NotesTab, PurchasesTab, ReportsTab } from "./user-tabs";
 
 export function UserPage({ id }: { id: string }) {
   const q = useUser(id);
@@ -39,6 +39,7 @@ function UserView({ user }: { user: UserDetail }) {
     { id: "matches", label: "Matches", count: user.counts.matches, show: true },
     { id: "wallet", label: "Wallet", show: can(P.WalletView) },
     { id: "reports", label: "Reports", count: user.counts.reportsGot, show: can(P.ModerationView) },
+    { id: "hidden", label: "Hidden messages", count: user.counts.hiddenMessages || undefined, show: can(P.ModerationView) },
     { id: "purchases", label: "Purchases", count: user.counts.purchases, show: can(P.FinanceView) },
     { id: "cashouts", label: "Cash-outs", show: can(P.FinanceView) },
     { id: "referrals", label: "Referrals", count: user.counts.invitees || undefined, show: true },
@@ -109,6 +110,9 @@ function UserView({ user }: { user: UserDetail }) {
               </TabsContent>
               <TabsContent value="reports">
                 <ReportsTab userId={user.id} />
+              </TabsContent>
+              <TabsContent value="hidden">
+                <HiddenMessagesTab userId={user.id} />
               </TabsContent>
               <TabsContent value="purchases">
                 <PurchasesTab userId={user.id} />

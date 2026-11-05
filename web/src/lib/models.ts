@@ -213,6 +213,8 @@ export interface ChatMessage {
   readAt?: Date | null;
   /** Still uploading (photo/voice note), shown faded. */
   pending?: boolean;
+  /** Contact details were hidden ("****"): your own messages say so underneath. */
+  hidden?: boolean;
 }
 
 /** A quoted message in a reply. */

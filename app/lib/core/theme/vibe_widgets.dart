@@ -691,6 +691,28 @@ class CircleIconButton extends StatelessWidget {
 }
 
 /// A headline with an Instrument Serif italic accent:
+/// Under your own message when contact details were hidden ("****").
+class HiddenNote extends StatelessWidget {
+  const HiddenNote({super.key, this.color = V.muted, this.shadow = false});
+  final Color color;
+
+  /// Over video: a soft shadow keeps it readable.
+  final bool shadow;
+
+  @override
+  Widget build(BuildContext context) {
+    final shadows = shadow ? const [Shadow(color: Colors.black54, blurRadius: 3, offset: Offset(0, 1))] : null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 3, right: 4),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(SolarIconsBold.shieldCheck, size: 13, color: color, shadows: shadows),
+        const SizedBox(width: 4),
+        Flexible(child: Text('Contact details are hidden to keep chats safe', style: VT.body(11.5, color: color).copyWith(shadows: shadows))),
+      ]),
+    );
+  }
+}
+
 /// `Headline('Meet someone new, ', accent: 'right now.')`.
 class Headline extends StatelessWidget {
   const Headline(this.text, {super.key, this.accent, this.size = 30, this.accentColor, this.textAlign = TextAlign.start, this.accentFirst = false});

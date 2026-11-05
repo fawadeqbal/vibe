@@ -67,6 +67,13 @@ export class AdminUsersController {
     return this.users.reportsFor(id, q);
   }
 
+  @Get(':id/hidden-messages')
+  @RequirePermissions(P.ModerationView)
+  @ApiOperation({ summary: 'Chat messages whose phone numbers, handles or e-mails were hidden (last 30 days)' })
+  hiddenMessages(@Param('id') id: string, @Query() q: CursorQueryDto) {
+    return this.users.contactFlagsFor(id, q);
+  }
+
   @Get(':id/purchases')
   @RequirePermissions(P.FinanceView)
   async purchases(@Param('id') id: string, @Query() q: CursorQueryDto) {

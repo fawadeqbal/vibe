@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ModerationModule } from '../moderation/moderation.module';
 import { SocialModule } from '../social/social.module';
+import { ChatSafetyModule } from '../chat-safety/chat-safety.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { DevBotsService } from './dev-bots.service';
 import { MatchGamesService } from './match-games.service';
@@ -16,7 +17,7 @@ import { RtcController } from './rtc.controller';
 import { SkipCooldownService } from './skip-cooldown.service';
 
 @Module({
-  imports: [WalletModule, SocialModule, ModerationModule, WavesModule],
+  imports: [WalletModule, SocialModule, ModerationModule, WavesModule, ChatSafetyModule],
   controllers: [RtcController],
   providers: [MatchingService, MatchQueueService, MatchSessionStore, SkipCooldownService, MatchGateway, DevBotsService, MatchGamesService, MatchWaitlistService, MatchSearchLog],
   exports: [MatchingService],

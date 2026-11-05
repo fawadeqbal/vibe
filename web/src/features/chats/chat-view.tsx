@@ -8,6 +8,7 @@ import { pickGift } from "@/components/shared/gift-sheet";
 import { pickReport } from "@/components/shared/report-sheet";
 import { Avatar } from "@/components/ui/avatar";
 import { CircleIconButton } from "@/components/ui/button";
+import { HiddenNote } from "@/components/shared/hidden-note";
 import { Icon } from "@/components/ui/icon";
 import { MenuButton } from "@/components/ui/menu";
 import { EmptyState } from "@/components/ui/misc";
@@ -390,6 +391,7 @@ function Bubble({ m, f, onHold, onCallBack }: { m: ChatMessage; f: Friend; onHol
           </button>
         ) : null}
       </div>
+      {mine && m.hidden && !m.unsent ? <HiddenNote className={cn(reactions.length && "mt-3.5")} /> : null}
     </div>
   );
 }

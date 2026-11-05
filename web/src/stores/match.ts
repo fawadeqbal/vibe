@@ -507,8 +507,17 @@ export const useMatch = create<MatchState>()((set, get) => {
     sendMessage(text) {
       const t = text.trim();
       if (get().status !== "connected" || !t) return;
-      set((s) => ({ chat: [...s.chat, { id: `mm${Date.now()}`, fromMe: true, text: t, at: new Date() }] }));
-      realtime.request("match:chat", { text: t }).catch(() => {});
+      const id = `mm${Date.now()}`;
+      set((s) => ({ chat: [...s.chat, { id, fromMe: true, text: t, at: new Date() }] }));
+      // The server hides contact details ("****"): show what was actually sent.
+      realtime
+        .request("match:chat", { text: t })
+        .then((r) => {
+          const sent = asMap(r);
+          if (typeof sent.text !== "string" || (sent.text === t && sent.hidden !== true)) return;
+          set((s) => ({ chat: s.chat.map((c) => (c.id === id ? { ...c, text: sent.text as string, hidden: sent.hidden === true } : c)) }));
+        })
+        .catch(() => {});
     },
 
     async sendGift(g) {
