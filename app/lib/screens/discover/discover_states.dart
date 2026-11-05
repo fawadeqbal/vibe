@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/discover.dart';
@@ -13,25 +14,112 @@ class ActiveFilter {
   final DiscoverFilters without;
 }
 
-/// The filters that narrow the deck, each removable on its own.
+/// The filters that narrow the deck, each removable on its own (same list as the web).
 List<ActiveFilter> activeFilters(DiscoverFilters f) {
   const d = DiscoverFilters();
+  String country(String code) {
+    for (final c in MockData.countries) {
+      if (c.code == code) return c.name;
+    }
+    return code;
+  }
+
   return [
-    if (f.gender != WantedGender.anyone)
-      ActiveFilter('gender', f.gender == WantedGender.women ? 'Women' : 'Men', DiscoverFilters(minAge: f.minAge, maxAge: f.maxAge)),
-    if (f.minAge != d.minAge || f.maxAge != d.maxAge) ActiveFilter('age', 'Ages ${f.minAge}–${f.maxAge}', DiscoverFilters(gender: f.gender)),
+    if (f.onlineOnly) ActiveFilter('online', 'Online now', f.copyWith(onlineOnly: false)),
+    if (f.countryCode.isNotEmpty) ActiveFilter('country', country(f.countryCode), f.copyWith(countryCode: '')),
+    if (f.gender != WantedGender.anyone) ActiveFilter('gender', f.gender == WantedGender.women ? 'Women' : 'Men', f.copyWith(gender: WantedGender.anyone)),
+    if (f.verifiedOnly) ActiveFilter('verified', 'Verified only', f.copyWith(verifiedOnly: false)),
+    if (f.minAge != d.minAge || f.maxAge != d.maxAge) ActiveFilter('age', 'Ages ${f.minAge}–${f.maxAge}', f.copyWith(minAge: d.minAge, maxAge: d.maxAge)),
   ];
 }
 
-BoxDecoration _frame({bool dashed = false}) => BoxDecoration(
-      color: dashed ? null : V.bg2,
-      borderRadius: BorderRadius.circular(28),
-      border: Border.all(color: dashed ? V.line : Colors.white.withValues(alpha: 0.08)),
-    );
+/// Every state that replaces the deck (empty, offline, no photo…) sits in
+/// the same frame, the size of a card: icon, headline, a line of text, then
+/// the buttons. Centred when it fits; scrolls when the screen is short.
+class _StateFrame extends StatelessWidget {
+  const _StateFrame({required this.label, required this.children});
+  final String label;
+  final List<Widget> children;
 
-/// While the deck loads: the shape of a card, not a spinner.
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: label,
+      child: Container(
+        decoration: BoxDecoration(
+          color: V.bg2,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: V.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: LayoutBuilder(
+          builder: (context, box) => SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: box.maxHeight - 48),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _Tone { pink, violet, muted }
+
+/// The round icon at the top of every state.
+class _StateIcon extends StatelessWidget {
+  const _StateIcon(this.icon, {this.tone = _Tone.muted});
+  final IconData icon;
+  final _Tone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg) = switch (tone) {
+      _Tone.pink => (V.pink.withValues(alpha: 0.14), V.pinkSoft),
+      _Tone.violet => (V.violet.withValues(alpha: 0.18), V.lavender),
+      _Tone.muted => (V.surface, V.text2),
+    };
+    return Center(
+      child: ExcludeSemantics(
+        child: Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+          child: Icon(icon, size: 30, color: fg),
+        ),
+      ),
+    );
+  }
+}
+
+/// Headline, then a line of text: the same in every state.
+List<Widget> _title(String text, String accent, Color color, String body) => [
+  const SizedBox(height: 16),
+  Headline(text, accent: accent, accentColor: color, size: 24, textAlign: TextAlign.center),
+  const SizedBox(height: 8),
+  Text(
+    body,
+    textAlign: TextAlign.center,
+    style: VT.body(14, color: V.text2, height: 1.5),
+  ),
+  const SizedBox(height: 20),
+];
+
+/// While the deck loads: the shape of a card, not a spinner. After a while it
+/// says so and offers a retry instead of looking stuck.
 class DeckSkeleton extends StatefulWidget {
-  const DeckSkeleton({super.key});
+  const DeckSkeleton({super.key, this.label = 'Finding people for you…', this.slow = false, this.onRetry});
+  final String label;
+  final bool slow;
+  final VoidCallback? onRetry;
 
   @override
   State<DeckSkeleton> createState() => _DeckSkeletonState();
@@ -48,28 +136,74 @@ class _DeckSkeletonState extends State<DeckSkeleton> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    Widget bar(double w, double h, [double r = 8]) => Container(width: w, height: h, decoration: BoxDecoration(color: V.surface3, borderRadius: BorderRadius.circular(r)));
+    Widget bar(double w, double h, [double r = 8]) => Container(
+      width: w,
+      height: h,
+      decoration: BoxDecoration(color: V.surface3, borderRadius: BorderRadius.circular(r)),
+    );
     final reduce = MediaQuery.of(context).disableAnimations;
+    final slow = widget.slow;
     return Semantics(
-      label: 'Finding people for you',
-      child: Stack(fit: StackFit.expand, children: [
-        Positioned(left: 14, right: 14, top: -8, bottom: 12, child: DecoratedBox(decoration: BoxDecoration(color: V.bg2, borderRadius: BorderRadius.circular(28)))),
-        FadeTransition(
-          opacity: reduce ? const AlwaysStoppedAnimation(1) : Tween(begin: 0.55, end: 1.0).animate(_c),
-          child: Container(
-            decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(28)),
-            padding: const EdgeInsets.all(20),
-            child: Column(mainAxisAlignment: MainAxisAlignment.end, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              bar(150, 22),
-              const SizedBox(height: 10),
-              bar(110, 14, 6),
-              const SizedBox(height: 14),
-              Row(children: [bar(72, 24, 12), const SizedBox(width: 6), bar(56, 24, 12), const SizedBox(width: 6), bar(64, 24, 12)]),
-            ]),
+      liveRegion: true,
+      label: slow ? 'Taking longer than usual' : widget.label,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned(
+            left: 14,
+            right: 14,
+            top: -8,
+            bottom: 12,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: V.bg2, borderRadius: BorderRadius.circular(28)),
+            ),
           ),
-        ),
-        Align(alignment: const Alignment(0, -0.15), child: Text('Finding people for you…', style: VT.body(14, color: V.text2, weight: FontWeight.w600))),
-      ]),
+          FadeTransition(
+            opacity: reduce ? const AlwaysStoppedAnimation(1) : Tween(begin: 0.55, end: 1.0).animate(_c),
+            child: Container(
+              decoration: BoxDecoration(
+                color: V.surface,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: V.line),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  bar(150, 22),
+                  const SizedBox(height: 10),
+                  bar(110, 14, 6),
+                  const SizedBox(height: 14),
+                  Row(children: [bar(72, 24, 12), const SizedBox(width: 6), bar(56, 24, 12), const SizedBox(width: 6), bar(64, 24, 12)]),
+                ],
+              ),
+            ),
+          ),
+          Align(
+            alignment: const Alignment(0, -0.2),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    slow ? 'Taking longer than usual…' : widget.label,
+                    textAlign: TextAlign.center,
+                    style: VT.body(14, color: V.text2, weight: FontWeight.w600),
+                  ),
+                  if (slow && widget.onRetry != null) ...[
+                    const SizedBox(height: 4),
+                    Text('The connection looks slow.', style: VT.body(12.5, color: V.muted)),
+                    const SizedBox(height: 12),
+                    GhostButton(label: 'Try again', icon: SolarIconsOutline.refresh, onTap: widget.onRetry),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -82,29 +216,24 @@ class DeckOffline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: _frame(dashed: true),
-      padding: const EdgeInsets.symmetric(horizontal: 22),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: const BoxDecoration(color: V.surface, shape: BoxShape.circle),
-          child: Icon(offline ? Icons.wifi_off_rounded : Icons.cloud_off_rounded, size: 32, color: V.text2),
+    return _StateFrame(
+      label: offline ? "You're offline" : "Can't reach Vibe",
+      children: [
+        _StateIcon(offline ? Icons.wifi_off_rounded : Icons.cloud_off_rounded),
+        ..._title(
+          offline ? "You're " : "Can't reach ",
+          offline ? 'offline' : 'Vibe',
+          V.pinkSoft,
+          offline ? "Discover needs the internet to show people. We'll load them as soon as you're back." : 'Something went wrong on our side. Give it a moment and try again.',
         ),
-        const SizedBox(height: 16),
-        Headline(offline ? "You're " : "Can't reach ", accent: offline ? 'offline' : 'Vibe', accentColor: V.pinkSoft, size: 24, textAlign: TextAlign.center),
-        const SizedBox(height: 8),
-        Text(
-          offline ? "Discover needs the internet to show people. Try again when you're back online." : 'Something went wrong on our side. Give it a moment and try again.',
-          textAlign: TextAlign.center,
-          style: VT.body(14, color: V.text2, height: 1.5),
-        ),
-        const SizedBox(height: 20),
-        SizedBox(width: 260, child: GhostButton(label: 'Try again', icon: SolarIconsOutline.refresh, expand: true, onTap: onRetry)),
+        GhostButton(label: 'Try again', icon: SolarIconsOutline.refresh, expand: true, onTap: onRetry),
         const SizedBox(height: 12),
-        Text('Your likes and matches are safe.', style: VT.body(12.5, color: V.text2)),
-      ]),
+        Text(
+          'Your likes and matches are safe.',
+          textAlign: TextAlign.center,
+          style: VT.body(12.5, color: V.muted),
+        ),
+      ],
     );
   }
 }
@@ -118,73 +247,98 @@ class NoPhotoPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget step(bool done, String label, {String? tag, bool needed = false}) => Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: V.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: needed ? Border.all(color: V.pink.withValues(alpha: 0.45)) : null,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: V.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: needed ? Border.all(color: V.pink.withValues(alpha: 0.45)) : null,
+      ),
+      child: Row(
+        children: [
+          if (done)
+            Container(
+              width: 24,
+              height: 24,
+              decoration: const BoxDecoration(color: V.ok, shape: BoxShape.circle),
+              child: const Icon(Icons.check_rounded, size: 15, color: V.bg),
+            )
+          else
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: needed ? V.pinkSoft : Colors.white24, width: 2),
+              ),
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: VT.body(14, color: done ? V.text2 : V.text, weight: done ? FontWeight.w400 : FontWeight.w600),
+            ),
           ),
-          child: Row(children: [
-            if (done)
-              Container(width: 24, height: 24, decoration: const BoxDecoration(color: V.ok, shape: BoxShape.circle), child: const Icon(Icons.check_rounded, size: 15, color: V.bg))
-            else
-              Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: needed ? V.pinkSoft : Colors.white24, width: 2))),
-            const SizedBox(width: 12),
-            Expanded(child: Text(label, style: VT.body(14, color: done ? V.text2 : V.text, weight: done ? FontWeight.w400 : FontWeight.w600))),
-            if (tag != null) Text(tag, style: VT.label(12, color: needed ? V.pinkSoft : V.text2)),
-          ]),
-        );
-    return Container(
-      decoration: _frame(),
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(children: [
-              Semantics(
-                button: true,
-                label: 'Add a photo',
-                excludeSemantics: true,
-                child: GestureDetector(
-                  onTap: onAddPhoto,
-                  child: SizedBox(
-                    width: 104,
-                    height: 104,
-                    child: Stack(children: [
-                      Container(
-                        decoration: BoxDecoration(color: V.pink.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: V.pinkSoft.withValues(alpha: 0.6), width: 2)),
-                        alignment: Alignment.center,
-                        child: const Icon(SolarIconsBold.user, size: 44, color: V.pinkSoft),
+          if (tag != null) Text(tag, style: VT.label(12, color: needed ? V.pinkSoft : V.text2)),
+        ],
+      ),
+    );
+    return _StateFrame(
+      label: 'Nobody can see you yet',
+      children: [
+        Center(
+          child: Semantics(
+            button: true,
+            label: 'Add a photo',
+            excludeSemantics: true,
+            child: GestureDetector(
+              onTap: onAddPhoto,
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: V.pink.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: V.pinkSoft.withValues(alpha: 0.6), width: 2),
                       ),
-                      Positioned(
-                        right: 2,
-                        bottom: 2,
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(color: V.pink, shape: BoxShape.circle, border: Border.all(color: V.bg2, width: 3)),
-                          child: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+                      alignment: Alignment.center,
+                      child: const Icon(SolarIconsBold.user, size: 30, color: V.pinkSoft),
+                    ),
+                    Positioned(
+                      right: -4,
+                      bottom: -4,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: V.pink,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: V.bg2, width: 3),
                         ),
+                        child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
                       ),
-                    ]),
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Headline('Nobody can see you ', accent: 'yet', accentColor: V.pinkSoft, size: 24, textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              Text('Discover only shows people with a photo. Add one and others can see you — and like you back.', textAlign: TextAlign.center, style: VT.body(14, color: V.text2, height: 1.5)),
-              const SizedBox(height: 16),
-              step(false, 'Add a clear photo of your face', tag: 'Needed', needed: true),
-              step(true, 'Name and age'),
-            ]),
+            ),
           ),
         ),
+        ..._title('Nobody can see you ', 'yet', V.pinkSoft, 'Discover only shows people with a photo. Add one and others can see you — and like you back.').take(4),
+        const SizedBox(height: 16),
+        step(false, 'Add a clear photo of your face', tag: 'Needed', needed: true),
+        step(true, 'Name and age'),
         const SizedBox(height: 12),
-        GradientButton(label: 'Add a photo', onTap: onAddPhoto),
-        TextButton(onPressed: onLookAround, child: Text('Just look around for now', style: VT.label(14, color: V.text2))),
-      ]),
+        GradientButton(label: 'Add a photo', icon: SolarIconsBold.galleryAdd, onTap: onAddPhoto),
+        TextButton(
+          onPressed: onLookAround,
+          child: Text('Just look around for now', style: VT.label(14, color: V.text2)),
+        ),
+      ],
     );
   }
 }
@@ -205,76 +359,110 @@ class DeckEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     final active = activeFilters(filters);
     if (active.isNotEmpty) {
-      return Container(
-        decoration: _frame(),
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(color: V.violet.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(18)),
-            child: const Icon(SolarIconsBold.filter, size: 26, color: V.lavender),
+      return _StateFrame(
+        label: 'No one fits these filters',
+        children: [
+          const _StateIcon(SolarIconsBold.filter, tone: _Tone.violet),
+          ..._title('No one fits ', 'all of these', V.lavender, 'Your filters are hiding everyone right now. Tap one to remove it.').take(4),
+          const SizedBox(height: 16),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final a in active)
+                Tooltip(
+                  message: 'Remove ${a.label}',
+                  excludeFromSemantics: true,
+                  child: Semantics(
+                  button: true,
+                  label: 'Remove ${a.label}',
+                  excludeSemantics: true,
+                  child: Material(
+                    color: V.surface,
+                    shape: const StadiumBorder(),
+                    child: InkWell(
+                      customBorder: const StadiumBorder(),
+                      onTap: () => onSetFilters(a.without),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 9, 10, 9),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(a.label, style: VT.label(13, weight: FontWeight.w600)),
+                            const SizedBox(width: 6),
+                            const Icon(Icons.close_rounded, size: 16, color: V.text2),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Headline('No one fits ', accent: 'all of these', accentColor: V.lavender, size: 24),
-          const SizedBox(height: 8),
-          Text('Your filters are hiding everyone right now. Remove one to see more people.', style: VT.body(14, color: V.text2, height: 1.5)),
-          const SizedBox(height: 16),
-          for (final a in active)
-            Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.only(left: 14, right: 4),
-              decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(16)),
-              child: Row(children: [
-                Expanded(child: Text(a.label, style: VT.body(14, weight: FontWeight.w600))),
-                IconButton(tooltip: 'Remove ${a.label}', onPressed: () => onSetFilters(a.without), icon: const Icon(Icons.close_rounded, size: 18, color: V.text2)),
-              ]),
-            ),
-          const Spacer(),
+          const SizedBox(height: 20),
           GradientButton(label: 'Show everyone', onTap: () => onSetFilters(const DiscoverFilters())),
           const SizedBox(height: 8),
           GhostButton(label: 'Edit filters', icon: SolarIconsOutline.tuning, expand: true, onTap: onEditFilters),
-        ]),
+        ],
       );
     }
-    return Container(
-      decoration: _frame(dashed: true),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(color: V.pink.withValues(alpha: 0.12), shape: BoxShape.circle),
-          child: const Icon(Icons.done_all_rounded, size: 30, color: V.pinkSoft),
-        ),
-        const SizedBox(height: 16),
-        Headline("You're all caught up ", accent: 'for now', accentColor: V.pinkSoft, size: 24, textAlign: TextAlign.center),
-        const SizedBox(height: 8),
-        Text("You've seen everyone here. New people join all day — come back later, or meet someone live right now.", textAlign: TextAlign.center, style: VT.body(14, color: V.text2, height: 1.5)),
-        const SizedBox(height: 20),
-        if (onMeetLive != null) GradientButton(label: 'Meet someone live', icon: SolarIconsBold.videocamera, onTap: onMeetLive),
-        const SizedBox(height: 8),
+    return _StateFrame(
+      label: "You're all caught up",
+      children: [
+        const _StateIcon(Icons.done_all_rounded, tone: _Tone.pink),
+        ..._title("You're all caught up ", 'for now', V.pinkSoft, "You've seen everyone here. New people join all day — come back later, or meet someone live right now."),
+        if (onMeetLive != null) ...[GradientButton(label: 'Meet someone live', icon: SolarIconsBold.videocamera, onTap: onMeetLive), const SizedBox(height: 8)],
         GhostButton(label: 'Change filters', icon: SolarIconsOutline.tuning, expand: true, onTap: onEditFilters),
         if (notifyOn != null && onNotify != null) ...[
           const SizedBox(height: 10),
           if (notifyOn!)
             Semantics(
               liveRegion: true,
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Icon(SolarIconsBold.bell, size: 16, color: V.ok),
-                const SizedBox(width: 6),
-                Flexible(child: Text("We'll tell you when new people join", style: VT.body(13, color: V.text2))),
-                TextButton(onPressed: () => onNotify!(false), child: Text('Turn off', style: VT.label(13, weight: FontWeight.w700))),
-              ]),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Icon(SolarIconsBold.bell, size: 16, color: V.ok),
+                  const SizedBox(width: 6),
+                  Text("We'll tell you when new people join", style: VT.body(13, color: V.text2)),
+                  TextButton(
+                    onPressed: () => onNotify!(false),
+                    child: Text('Turn off', style: VT.label(13, weight: FontWeight.w700)),
+                  ),
+                ],
+              ),
             )
           else
             TextButton.icon(
               onPressed: () => onNotify!(true),
               icon: const Icon(SolarIconsOutline.bell, size: 18, color: V.lavender),
-              label: Text('Tell me when new people join', style: VT.label(14, color: V.lavender, weight: FontWeight.w600)),
+              label: Text(
+                'Tell me when new people join',
+                style: VT.label(14, color: V.lavender, weight: FontWeight.w600),
+              ),
             ),
         ],
-      ]),
+      ],
+    );
+  }
+}
+
+/// Discover is switched off for a while (admin): the same frame as every other state.
+class DeckResting extends StatelessWidget {
+  const DeckResting({super.key, this.onMeetLive});
+  final VoidCallback? onMeetLive;
+
+  @override
+  Widget build(BuildContext context) {
+    return _StateFrame(
+      label: 'Discover is resting',
+      children: [
+        const _StateIcon(SolarIconsBold.moonSleep, tone: _Tone.violet),
+        ..._title('Discover is ', 'resting', V.lavender, "It's switched off for a little while. Your matches and chats are all still here."),
+        if (onMeetLive != null) GradientButton(label: 'Meet someone live', icon: SolarIconsBold.videocamera, onTap: onMeetLive),
+      ],
     );
   }
 }

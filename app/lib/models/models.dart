@@ -32,6 +32,21 @@ class Country {
   final String flag;
 }
 
+/// What someone is on Vibe for. Optional; shown on the profile, never used
+/// for matching (the web's `Intent`).
+enum ProfileIntent {
+  chat('Just chatting', 'Good conversation, no expectations'),
+  friends('New friends', 'People to talk to again'),
+  dating('Dating', 'Open to something more'),
+  open('Not sure yet', 'Seeing where it goes');
+
+  const ProfileIntent(this.label, this.blurb);
+  final String label;
+  final String blurb;
+
+  static ProfileIntent? parse(Object? v) => v is String ? values.asNameMap()[v] : null;
+}
+
 class Profile {
   const Profile({
     required this.id,
@@ -48,6 +63,7 @@ class Profile {
     this.matches = 0,
     this.likes = 0,
     this.level = 0,
+    this.intent,
   });
 
   final String id;
@@ -67,6 +83,9 @@ class Profile {
   /// From XP on the server ("Lv 7" chip); 0 = unknown (offline people).
   final int level;
 
+  /// "Here for" (null = not said).
+  final ProfileIntent? intent;
+
   Profile copyWith({
     String? name,
     int? age,
@@ -81,6 +100,8 @@ class Profile {
     int? matches,
     int? likes,
     int? level,
+    ProfileIntent? intent,
+    bool clearIntent = false,
   }) {
     return Profile(
       id: id,
@@ -97,6 +118,7 @@ class Profile {
       matches: matches ?? this.matches,
       likes: likes ?? this.likes,
       level: level ?? this.level,
+      intent: clearIntent ? null : intent ?? this.intent,
     );
   }
 
@@ -497,6 +519,11 @@ class Economy {
   static int discoverSuperLikeCost = 10;
   static int discoverVipFreeSuperLikes = 1;
   static int discoverUndoCost = 5;
+
+  /// 1: gender/country/online/verified filters in Discover need VIP, Vibe Hour or a pass.
+  static int discoverPremiumFilters = 1;
+  static int discoverFilterPassCost = 25;
+  static int discoverFilterPassHours = 24;
 
   // Video calls in chat (admin group "calls")
   static bool friendCallsEnabled = true;

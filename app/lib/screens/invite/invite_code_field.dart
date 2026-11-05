@@ -158,6 +158,22 @@ class _InviteCodeFieldState extends State<InviteCodeField> {
         ],
       );
     }
+    // Folded, it's a quiet text button (the web's TextButton), not a card.
+    if (!_open && _done == null && !widget.compact) {
+      return Center(
+        child: TextButton.icon(
+          onPressed: () => setState(() => _open = true),
+          icon: const Icon(SolarIconsBold.gift, size: 16),
+          label: Text('Have an invite code?', style: VT.label(13.5, color: V.text2)),
+          style: TextButton.styleFrom(
+            foregroundColor: V.text2,
+            minimumSize: const Size(0, 40),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            shape: const StadiumBorder(),
+          ),
+        ),
+      );
+    }
     final content = AnimatedSize(duration: const Duration(milliseconds: 180), alignment: Alignment.topCenter, child: body);
     if (widget.compact) return content;
     return Panel(radius: 20, padding: const EdgeInsets.fromLTRB(16, 14, 16, 14), child: content);

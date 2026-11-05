@@ -19,7 +19,7 @@ npm run build                # static site in out/
 | `NEXT_PUBLIC_ANDROID_URL` | "Get the app", "Android", "Get Vibe for Android". Leave empty to use the API's counted download (`<API>/v1/site/download/android` → latest GitHub release APK); set it for the Play Store |
 | `NEXT_PUBLIC_ANDROID_PACKAGE` | Android application id (default `com.pingcrood.vibe_app`): the invite page's Play Store link |
 | `NEXT_PUBLIC_VIBE_API` | Live online count: `GET <API>/v1/stats/online` → `{ "online": n }`, polled every 30 s while the tab is visible; invite pages: `GET <API>/v1/referrals/preview/<code>` |
-| `NEXT_PUBLIC_ONLINE_FALLBACK` | Number shown before the first answer and when the API can't be reached (default 2743) |
+| `NEXT_PUBLIC_ONLINE_MIN` | The hero pill shows the live count only from this many people online (default 10); below it, it shows the busy hours (`site.busyHours`) in the visitor's own time. It never shows a made-up number |
 | `NEXT_PUBLIC_BRAND_NAME` | Product name everywhere on the site (default Vibe) |
 | `NEXT_PUBLIC_SITE_URL` | Canonical / Open Graph URLs, sitemap, robots, RSS |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `_BING_…`, `_GA_ID`, `_SOCIAL_LINKS`, `_TWITTER_HANDLE` | Search Console / Bing verification, analytics, schema.org sameAs (see SEO.md) |
@@ -57,7 +57,7 @@ rename the product or move domains. Keyword pages live in `src/content/pages.ts`
 
 ## Content to check before launch
 
-- **Stats band** (`src/lib/site.ts` → `stats`): 1M+ matches, 150+ countries, 4.6★, 24/7 are the design's placeholders.
+- **Stats band** (`src/lib/site.ts` → `stats`): true product facts (free, 18+, 2-tap reports, 24/7 review). Swap in real counts only once they're real.
 - **Hero photos** (`public/img/`): stock faces from pravatar.cc used in the design. Replace with photos you have rights to.
 - Gift prices, VIP price, payout share and referral reward are written into the copy; if they change in admin → Economy, update the text.
 

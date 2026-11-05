@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ArticleShell } from "@/components/article-shell";
+import { AppCta } from "@/components/app-cta";
 import { Cta } from "@/components/cta";
 import { FaqStatic } from "@/components/faq-static";
 import { Icon } from "@/components/icon";
@@ -44,10 +45,18 @@ export default async function KeywordLandingPage({ params }: Props) {
               <Icon name="videocam" size={20} />
               Start video chat — free
             </Cta>
-            <Cta href={site.links.android} track="page_hero_android" variant="outline" className="px-[22px] text-[15px]">
-              <Icon name="android" size={18} />
-              Android app
-            </Cta>
+            <AppCta
+              track="page_hero_android"
+              variant="outline"
+              className="px-[22px] text-[15px]"
+              android={
+                <>
+                  <Icon name="android" size={18} />
+                  Android app
+                </>
+              }
+              other={null}
+            />
           </div>
           <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-3">
             {(

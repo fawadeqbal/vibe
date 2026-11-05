@@ -28,7 +28,8 @@ Tested: a build with `NEXT_PUBLIC_BRAND_NAME=Lumo NEXT_PUBLIC_SITE_URL=https://l
 | Area | Where |
 |---|---|
 | Titles, descriptions, keywords, canonical, Open Graph, Twitter cards per page | `src/lib/seo.ts` → `pageMetadata()` |
-| Search-intent landing pages (8): Omegle alternative, random video chat, talk to strangers, Chatroulette alternative, video chat Pakistan, earn money, safe video chat, video chat online | `src/content/pages.ts` → `/<slug>/` |
+| Search-intent landing pages (14): Omegle / Chatroulette / Azar / OmeTV / Monkey alternatives, random video chat, talk to strangers, earn money, safe video chat, video chat online, meet new people, make friends, practise English | `src/content/pages.ts` → `/<slug>/` |
+| Country pages (19 + Pakistan) and city pages (Karachi, Lahore, Islamabad), plus a hub at `/video-chat-by-country/`. Each has its own angle, cities, languages, a local-time table for Pakistani evenings and FAQs | `src/content/places.ts` → `/video-chat-<country>/` |
 | Blog (6 guides) + RSS | `src/content/posts.ts` → `/blog/`, `/blog/<slug>/`, `/blog/feed.xml` |
 | Structured data: Organization, WebSite, MobileApplication+WebApplication, WebPage, FAQPage, BreadcrumbList, Blog, BlogPosting | `src/lib/seo.ts`, rendered per page |
 | Share image per page (generated at build) | `src/lib/og.tsx`, `opengraph-image.tsx` files |
@@ -62,6 +63,9 @@ Technical SEO gets the site *eligible*; these get it *ranked*. "Random video cha
 6. **A dedicated domain** — a short brandable `.com`/`.app` reads as more trustworthy in results than a subdomain of a personal site; swap it in with the steps above when ready.
 
 ## Adding content
+
+- **New country**: add an entry to `COUNTRIES` in `src/content/places.ts` (slug, UTC offset, cities, languages, its own angle and FAQs). Footer row, hub table, sitemap, llms.txt and share image follow automatically. Write a real angle for each one — near-identical pages with only the name swapped get treated as spam.
+- **Left out on purpose**: UAE, Qatar and Oman restrict consumer internet video calling on local networks, so calls may not connect. Add them only after testing a real call from there.
 
 - **New landing page**: add an object to `PAGES` in `src/content/pages.ts` (slug, ≤ 52-char title, ≤ 160-char description, H1, lede, blocks, FAQs, related). It gets its page, share image, schema, sitemap entry and footer link automatically.
 - **New blog post**: add to the top of `POSTS` in `src/content/posts.ts`. Use `metaTitle` when the title is longer than ~52 characters.

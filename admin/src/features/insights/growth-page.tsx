@@ -3,6 +3,7 @@
 import Link from "next/link";
 import * as React from "react";
 
+import { TimeSeriesChart } from "@/components/charts/time-series";
 import { Time } from "@/components/common/bits";
 import { ErrorState, PageHeader } from "@/components/common/page";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -71,6 +72,15 @@ function RateCell({ v, avg, n }: { v: number | null; avg: number | null; n: numb
   return <Td className={cn("text-right tabular-nums", tone)}>{pct(v)}</Td>;
 }
 
+/** App and web side by side; accounts from before we recorded where they were made only when there are any. */
+function signupSeries(client: ClientFilter, r: GrowthReport | undefined) {
+  const app = { key: "app" as const, label: "App", color: 1 as const };
+  const web = { key: "web" as const, label: "Web", color: 3 as const };
+  if (client === "app") return [app];
+  if (client === "web") return [web];
+  return r?.daily.some((d) => d.other > 0) ? [app, web, { key: "other" as const, label: "Not recorded", color: 5 as const }] : [app, web];
+}
+
 /** Which sources bring people who stay and pay — per source, from visit to paying, and weekly retention. */
 export function GrowthPage() {
   const [days, setDays] = React.useState(30);
@@ -100,6 +110,16 @@ export function GrowthPage() {
           </div>
         }
       />
+
+      <Card>
+        <CardHeader
+          title={r ? `Sign-ups per day · ${format.number(r.total.signups)} in ${days} days` : "Sign-ups per day"}
+          description={client === "all" ? "Where each new account was made: the Android app or the web." : `Only accounts made on the ${client === "app" ? "app" : "web"}.`}
+        />
+        <CardBody>
+          <TimeSeriesChart data={r?.daily} loading={q.isLoading} height={220} series={signupSeries(client, r)} />
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader title="From sign-up to paying" description="Each step as a share of sign-ups. The biggest drop is where to work next." />

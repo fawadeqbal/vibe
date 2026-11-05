@@ -36,6 +36,8 @@ export type KeywordPage = {
   /** Short label for nav lists and the footer. */
   navLabel: string;
   updated: string;
+  /** Where the footer, sitemap and llms.txt list it. Default "topic". */
+  group?: "topic" | "country" | "city";
 };
 
 export type Post = {

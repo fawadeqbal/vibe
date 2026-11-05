@@ -847,14 +847,21 @@ export interface DiscoverCallsReport {
 }
 
 // ── Marketing site (admin/dashboard/marketing) ──────────────────────────────
+/** Admin → Marketing site. Steps count visits; `visitors` (browsers) never divides them. Definitions: features/marketing/definitions.ts. */
 export interface MarketingTotals {
   visitors: number;
   visits: number;
   pageViews: number;
+  engagedVisits: number;
   clickedVisits: number;
   clicks: number;
+  downloadedVisits: number;
+  /** Every counted Android download, from the site or not. */
+  downloads: number;
   signups: number;
   firstCalls: number;
+  goodFirstCall: number;
+  paid: number;
   medianSeconds: number;
 }
 export interface MarketingNamed {
@@ -867,16 +874,42 @@ export interface MarketingReport {
   siteUrl: string;
   totals: MarketingTotals;
   previous: MarketingTotals;
-  daily: { day: string; visitors: number; clicked: number; signups: number }[];
-  sources: { source: string; medium: string; visitors: number; clicked: number; signups: number }[];
+  daily: { day: string; visitors: number; visits: number; clicked: number; signups: number }[];
+  sources: { source: string; medium: string; visitors: number; visits: number; clicked: number; signups: number; paid: number }[];
   countries: { country: string; visitors: number; regions: MarketingNamed[] }[];
   cities: { city: string; country: string | null; visitors: number }[];
   buttons: { button: string; target: string | null; clicks: number; signups: number }[];
-  pages: { path: string; visits: number; clicked: number }[];
-  campaigns: { campaign: string; source: string; medium: string; visitors: number; signups: number }[];
+  pages: { path: string; visits: number; clicked: number; signups: number }[];
+  campaigns: { campaign: string; source: string; medium: string; visitors: number; visits: number; clicked: number; signups: number }[];
   devices: { device: MarketingNamed[]; os: MarketingNamed[]; browser: MarketingNamed[]; lang: MarketingNamed[] };
   live: {
     now: number;
     recent: { at: string; country: string | null; region: string | null; city: string | null; source: string; path: string; did: "reading" | "clicked" | "signed_up" | "left"; button: string | null }[];
   };
+}
+export interface MarketingVisit {
+  at: string;
+  startedAt: string;
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  source: string;
+  medium: string;
+  campaign: string | null;
+  path: string;
+  device: string;
+  os: string;
+  browser: string;
+  pages: number;
+  seconds: number;
+  did: "reading" | "clicked" | "signed_up" | "left";
+  button: string | null;
+}
+export interface MarketingVisitsPage {
+  items: MarketingVisit[];
+  total: number;
+  page: number;
+  pageSize: number;
+  counts: Record<"all" | "reading" | "clicked" | "signed_up" | "left", number>;
+  sources: string[];
 }

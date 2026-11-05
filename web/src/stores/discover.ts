@@ -160,6 +160,10 @@ interface DiscoverState {
   filtersExpired: boolean;
   /** The match to celebrate (from your swipe, or theirs over the socket). */
   matched: Friend | null;
+  /** A card that just came back on top (the server said no, or undo): the screen eases it in. */
+  returnedId: string | null;
+  /** Topping up a low deck: with nobody left on screen, show the skeleton, not "nobody left". */
+  refilling: boolean;
 
   load: () => Promise<void>;
   loadStatus: () => Promise<void>;
@@ -177,10 +181,30 @@ interface DiscoverState {
   markLikesSeen: () => void;
   setVisible: (visible: boolean) => Promise<void>;
   dismissMatch: () => void;
+  clearReturned: () => void;
   reset: () => void;
 }
 
 let loadingDeck: Promise<void> | null = null;
+
+/**
+ * Everyone swiped this visit, answered by the server or not. A deck refill
+ * can race a swipe that hasn't been saved yet and bring that person back;
+ * filtering them out here stops the "card comes back" flicker.
+ */
+const swiped = new Set<string>();
+/** Swipes still on their way to the server (undo waits for them). */
+const pending = new Set<Promise<unknown>>();
+/** Only the newest swipe's answer may update the counters, so they never jump back. */
+let swipeSeq = 0;
+
+/** The counters right after a swipe, before the server answers (it has the final word). */
+export function afterSwipe(st: DiscoverStatus | null, kind: SwipeKind): DiscoverStatus | null {
+  if (!st) return st;
+  if (kind === "like" && st.likesLeft != null) return { ...st, likesLeft: Math.max(0, st.likesLeft - 1) };
+  if (kind === "super" && st.freeSuperLikesLeft > 0) return { ...st, freeSuperLikesLeft: st.freeSuperLikesLeft - 1 };
+  return st;
+}
 
 export const useDiscover = create<DiscoverState>()((set, get) => {
   const fetchDeck = async (replace: boolean) => {
@@ -208,7 +232,9 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
       }
       throw e;
     }
-    const fresh = asList(r.items).map((e) => card(asMap(e)));
+    const fresh = asList(r.items)
+      .map((e) => card(asMap(e)))
+      .filter((c) => !swiped.has(c.profile.id));
     set((s) => {
       const have = new Set(replace ? [] : s.deck.map((c) => c.profile.id));
       const deck = replace ? fresh : [...s.deck, ...fresh.filter((c) => !have.has(c.profile.id))];
@@ -227,6 +253,8 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     likedYou: null,
     matched: null,
     filtersExpired: false,
+    returnedId: null,
+    refilling: false,
 
     async load() {
       if (!api.hasSession) return;
@@ -255,10 +283,14 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     },
 
     async refill() {
-      if (get().deck.length > 4 || get().loading) return;
+      if (get().deck.length > 4 || get().loading || get().refilling) return;
+      set({ refilling: true });
       try {
         await fetchDeck(false);
-      } catch {}
+      } catch {
+      } finally {
+        set({ refilling: false });
+      }
     },
 
     setFilters(f) {
@@ -272,32 +304,50 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     },
 
     async swipe(c, kind) {
-      // Off the deck at once; put back if the server says no.
-      const before = get().deck;
-      set({ deck: before.filter((x) => x.profile.id !== c.profile.id) });
+      // Off the deck and counted at once; the server's answer only corrects.
+      const id = c.profile.id;
+      const seq = ++swipeSeq;
+      const before = get().status;
+      swiped.add(id);
+      set((s) => ({ deck: s.deck.filter((x) => x.profile.id !== id), status: afterSwipe(s.status, kind), lastPassed: kind === "pass" ? c : null }));
+      void get().refill();
+      const request = api.post("/discover/swipes", { userId: id, kind });
+      pending.add(request);
       try {
-        const r = asMap(await api.post("/discover/swipes", { userId: c.profile.id, kind }));
+        const r = asMap(await request);
         const friend = r.matched === true && r.friend ? mapFriend(asMap(r.friend)) : null;
-        set({ status: status(asMap(r.status)), lastPassed: kind === "pass" ? c : null, ...(friend ? { matched: friend } : {}) });
+        set((s) => ({ ...(seq === swipeSeq ? { status: status(asMap(r.status)) } : {}), ...(friend ? { matched: s.matched ?? friend } : {}) }));
         if (friend) void useSocial.getState().refreshFriends();
-        void get().refill();
         return { ok: true, matched: friend };
       } catch (e) {
-        set((s) => ({ deck: [c, ...s.deck.filter((x) => x.profile.id !== c.profile.id)] }));
+        // Put them back on top, and undo the counters.
+        swiped.delete(id);
+        set((s) => ({
+          deck: [c, ...s.deck.filter((x) => x.profile.id !== id)],
+          returnedId: id,
+          lastPassed: s.lastPassed?.profile.id === id ? null : s.lastPassed,
+          ...(seq === swipeSeq ? { status: before } : {}),
+        }));
         if (e instanceof ApiError && e.code === "OUT_OF_LIKES") {
           set((s) => (s.status ? { status: { ...s.status, likesLeft: 0 } } : {}));
           return { ok: false, reason: "out-of-likes" };
         }
         if (e instanceof ApiError && e.isInsufficientCoins) return { ok: false, reason: "coins" };
         return { ok: false, reason: "error", message: e instanceof Error ? e.message : undefined };
+      } finally {
+        pending.delete(request);
       }
     },
 
     async undo() {
+      // The pass must reach the server before it can be undone.
+      if (pending.size) await Promise.allSettled([...pending]);
+      if (!get().lastPassed) return "nothing";
       try {
         const r = asMap(await api.post("/discover/undo"));
         const back = card(asMap(r.card));
-        set((s) => ({ deck: [back, ...s.deck.filter((x) => x.profile.id !== back.profile.id)], lastPassed: null, status: status(asMap(r.status)) }));
+        swiped.delete(back.profile.id);
+        set((s) => ({ deck: [back, ...s.deck.filter((x) => x.profile.id !== back.profile.id)], returnedId: back.profile.id, lastPassed: null, status: status(asMap(r.status)) }));
         return "ok";
       } catch (e) {
         if (e instanceof ApiError && e.isInsufficientCoins) return "coins";
@@ -360,8 +410,14 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
       set({ matched: null });
     },
 
+    clearReturned() {
+      set({ returnedId: null });
+    },
+
     reset() {
-      set({ deck: [], loading: false, exhausted: false, failed: false, status: null, lastPassed: null, likedYou: null, matched: null, filtersExpired: false });
+      swiped.clear();
+      pending.clear();
+      set({ deck: [], loading: false, exhausted: false, failed: false, status: null, lastPassed: null, likedYou: null, matched: null, filtersExpired: false, returnedId: null, refilling: false });
     },
   };
 });

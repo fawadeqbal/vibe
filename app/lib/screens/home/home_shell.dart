@@ -7,6 +7,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../../core/theme/vibe_dock.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
+import '../../core/theme/web_glyphs.dart';
 import '../../models/calls.dart';
 import '../../models/follows.dart';
 import '../../providers/calls_provider.dart';
@@ -53,6 +54,10 @@ class HomeShell extends StatefulWidget {
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
+
+/// A tab icon drawn exactly as the web's bar draws it.
+Widget Function(bool on, double size, Color color) _webGlyph(String name) =>
+    (on, size, color) => WebTabGlyph(name, filled: on, size: size, color: color);
 
 /// Tab positions.
 abstract final class Tabs {
@@ -423,11 +428,18 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
               overVideo: onVideo,
               onTap: (i) => _onDockTap(discoverOn || i < Tabs.discover ? i : i + 1),
               items: [
-                const VibeDockItem(icon: SolarIconsOutline.videocamera, activeIcon: SolarIconsBold.videocamera, label: 'Match'),
-                if (discoverOn) VibeDockItem(icon: SolarIconsOutline.userHeartRounded, activeIcon: SolarIconsBold.userHeartRounded, label: 'Discover', badge: likes),
-                VibeDockItem(icon: SolarIconsOutline.chatRoundDots, activeIcon: SolarIconsBold.chatRoundDots, label: 'Chats', badge: unread + teamUnread),
-                const VibeDockItem(icon: SolarIconsOutline.bagSmile, activeIcon: SolarIconsBold.bagSmile, label: 'Store'),
-                const VibeDockItem(icon: SolarIconsOutline.userRounded, activeIcon: SolarIconsBold.userRounded, label: 'Me'),
+                VibeDockItem(icon: SolarIconsOutline.videocamera, activeIcon: SolarIconsBold.videocamera, label: 'Match', glyph: _webGlyph('match')),
+                if (discoverOn)
+                  VibeDockItem(
+                    icon: SolarIconsOutline.userHeartRounded,
+                    activeIcon: SolarIconsBold.userHeartRounded,
+                    label: 'Discover',
+                    badge: likes,
+                    glyph: _webGlyph('discover'),
+                  ),
+                VibeDockItem(icon: SolarIconsOutline.chatRoundDots, activeIcon: SolarIconsBold.chatRoundDots, label: 'Chats', badge: unread + teamUnread, glyph: _webGlyph('chats')),
+                VibeDockItem(icon: SolarIconsOutline.bagSmile, activeIcon: SolarIconsBold.bagSmile, label: 'Store', glyph: _webGlyph('store')),
+                VibeDockItem(icon: SolarIconsOutline.userRounded, activeIcon: SolarIconsBold.userRounded, label: 'Me', glyph: _webGlyph('me')),
               ],
             ),
     );

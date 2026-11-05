@@ -49,6 +49,26 @@ abstract class DiscoverProvider extends ChangeNotifier {
   LikedYou? _likedYou;
   Friend? _matched;
 
+  /// Everyone swiped this visit, answered by the server or not. A refill can
+  /// race a swipe the server hasn't saved yet and bring that person back;
+  /// filtering them out stops the "card comes back" flicker.
+  final Set<String> _swipedIds = {};
+
+  /// Swipes still on their way (undo waits for them).
+  final Set<Future<SwipeOutcome>> _pendingSwipes = {};
+
+  /// Only the newest swipe's answer may update the counters.
+  int _swipeSeq = 0;
+
+  /// A card that just came back on top (the server said no, or undo): the screen eases it in.
+  String? get returnedId => _returnedId;
+  String? _returnedId;
+  void clearReturned() => _returnedId = null;
+
+  /// Topping up a low deck: with nobody on screen, show the skeleton, not "nobody left".
+  bool get refilling => _refilling;
+  bool _refilling = false;
+
   List<DiscoverCard> get deck => List.unmodifiable(_deck);
   DiscoverCard? get top => _deck.isEmpty ? null : _deck.first;
   bool get loading => _loading;
@@ -60,6 +80,24 @@ abstract class DiscoverProvider extends ChangeNotifier {
   bool get offline => _offline;
   DiscoverStatus? get status => _status;
   DiscoverFilters get filters => _filters;
+
+  /// The filter pass ran out while extra filters were on: they were turned
+  /// off (the screen says so once).
+  bool get filtersExpired => _filtersExpired;
+  bool _filtersExpired = false;
+  void clearFiltersExpired() => _filtersExpired = false;
+
+  /// Opens the extra filters for a while: 'ok', or 'coins' when short.
+  Future<String> buyFilterPass();
+
+  /// The pass ran out (or VIP ended): keep age, drop the rest, tell the screen.
+  @protected
+  Future<void> filtersLocked() async {
+    _filters = _filters.freeOnly();
+    _filtersExpired = true;
+    await _saveFilters();
+    await loadStatus();
+  }
 
   /// A pass that can still be undone.
   DiscoverCard? get lastPassed => _lastPassed;
@@ -101,7 +139,7 @@ abstract class DiscoverProvider extends ChangeNotifier {
 
   @protected
   Future<void> fetchDeck({required bool replace}) async {
-    final fresh = await fetchCards();
+    final fresh = (await fetchCards()).where((c) => !_swipedIds.contains(c.profile.id)).toList();
     final have = replace ? <String>{} : _deck.map((c) => c.profile.id).toSet();
     _deck = replace ? fresh : [..._deck, ...fresh.where((c) => !have.contains(c.profile.id))];
     _exhausted = fresh.isEmpty || _deck.isEmpty;
@@ -110,9 +148,22 @@ abstract class DiscoverProvider extends ChangeNotifier {
 
   /// Tops the deck up when it runs low.
   Future<void> refill() async {
-    if (_deck.length > 4 || _loading) return;
+    if (_deck.length > 4 || _loading || _refilling) return;
+    _refilling = true;
     try {
       await fetchDeck(replace: false);
+    } catch (_) {
+    } finally {
+      _refilling = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _saveFilters() async {
+    final f = _filters;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setStringList(_filtersKey, [f.gender.name, '${f.minAge}', '${f.maxAge}', f.countryCode, f.onlineOnly ? '1' : '0', f.verifiedOnly ? '1' : '0']);
     } catch (_) {}
   }
 
@@ -120,25 +171,27 @@ abstract class DiscoverProvider extends ChangeNotifier {
     try {
       final p = await SharedPreferences.getInstance();
       final raw = p.getStringList(_filtersKey);
-      if (raw == null || raw.length != 3) return;
+      if (raw == null || raw.length < 3) return;
+      final cc = raw.length > 3 ? raw[3] : '';
       _filters = DiscoverFilters(
         gender: WantedGender.values.firstWhere((g) => g.name == raw[0], orElse: () => WantedGender.anyone),
         minAge: (int.tryParse(raw[1]) ?? 18).clamp(18, 99),
         maxAge: (int.tryParse(raw[2]) ?? 60).clamp(18, 99),
+        countryCode: RegExp(r'^[A-Z]{2}$').hasMatch(cc) ? cc : '',
+        onlineOnly: raw.length > 4 && raw[4] == '1',
+        verifiedOnly: raw.length > 5 && raw[5] == '1',
       );
     } catch (_) {}
   }
 
   Future<void> setFilters(DiscoverFilters f) async {
-    _filters = DiscoverFilters(gender: f.gender, minAge: f.minAge, maxAge: f.maxAge < f.minAge ? f.minAge : f.maxAge);
+    _filters = f.copyWith(maxAge: f.maxAge < f.minAge ? f.minAge : f.maxAge);
+    _filtersExpired = false;
     _deck = [];
     _lastPassed = null;
     _loading = true;
     notifyListeners();
-    try {
-      final p = await SharedPreferences.getInstance();
-      await p.setStringList(_filtersKey, [_filters.gender.name, '${_filters.minAge}', '${_filters.maxAge}']);
-    } catch (_) {}
+    await _saveFilters();
     try {
       await fetchDeck(replace: true);
       _failed = false;
@@ -151,27 +204,46 @@ abstract class DiscoverProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Like, Super Like or pass. The card leaves the deck at once and comes
-  /// back if the server says no.
+  /// Like, Super Like or pass. The card leaves the deck and the counters
+  /// move at once (synchronously, before the first await — the screen relies
+  /// on that); the server's answer only corrects. If the server says no, the
+  /// card comes back on top and the counters go back.
   Future<SwipeOutcome> swipe(DiscoverCard c, SwipeKind kind) async {
-    final before = _deck;
-    _deck = _deck.where((x) => x.profile.id != c.profile.id).toList();
+    final id = c.profile.id;
+    final seq = ++_swipeSeq;
+    final before = _status;
+    _swipedIds.add(id);
+    _deck = _deck.where((x) => x.profile.id != id).toList();
+    _status = afterSwipe(_status, kind);
+    _lastPassed = kind == SwipeKind.pass ? c : null;
     notifyListeners();
-    final r = await doSwipe(c, kind);
+    unawaited(refill());
+
+    final pending = doSwipe(c, kind);
+    _pendingSwipes.add(pending);
+    final SwipeOutcome r;
+    try {
+      r = await pending;
+    } finally {
+      _pendingSwipes.remove(pending);
+    }
+
     if (!r.ok) {
-      _deck = [c, ..._deck.where((x) => x.profile.id != c.profile.id)];
+      _swipedIds.remove(id);
+      _deck = [c, ..._deck.where((x) => x.profile.id != id)];
+      _returnedId = id;
+      if (_lastPassed?.profile.id == id) _lastPassed = null;
+      if (seq == _swipeSeq) _status = before;
       if (r.failure == SwipeFailure.outOfLikes && _status != null) _status = _status!.copyWith(likesLeft: 0);
       notifyListeners();
       return r;
     }
-    _lastPassed = kind == SwipeKind.pass ? c : null;
+    if (r.status != null && seq == _swipeSeq) _status = r.status;
     if (r.matched != null) {
-      _matched = r.matched;
+      _matched ??= r.matched;
       unawaited(_social.addMatched(r.matched!));
     }
     notifyListeners();
-    unawaited(refill());
-    if (before.length == 1 && _deck.isEmpty) unawaited(refill());
     return r;
   }
 
@@ -180,10 +252,14 @@ abstract class DiscoverProvider extends ChangeNotifier {
 
   /// Brings back the last pass. "coins" when it can't be paid for.
   Future<String> undo() async {
+    // The pass must reach the server before it can be undone.
+    if (_pendingSwipes.isNotEmpty) await Future.wait(_pendingSwipes.toList());
     if (_lastPassed == null) return 'nothing';
     final r = await doUndo();
     if (r == null) return 'coins';
+    _swipedIds.remove(r.profile.id);
     _deck = [r, ..._deck.where((x) => x.profile.id != r.profile.id)];
+    _returnedId = r.profile.id;
     _lastPassed = null;
     notifyListeners();
     return 'ok';
@@ -238,6 +314,10 @@ abstract class DiscoverProvider extends ChangeNotifier {
   }
 
   void clear() {
+    _swipedIds.clear();
+    _pendingSwipes.clear();
+    _returnedId = null;
+    _refilling = false;
     _deck = [];
     _status = null;
     _lastPassed = null;

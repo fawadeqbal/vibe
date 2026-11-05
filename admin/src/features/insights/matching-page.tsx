@@ -121,20 +121,21 @@ export function MatchingPage() {
 function Heatmap({ r }: { r: MatchingReport }) {
   const max = Math.max(1, ...r.heatmap.map((x) => x.searches));
   const at = (dow: number, hour: number) => r.heatmap.find((x) => x.dow === dow && x.hour === hour);
-  const grid = "grid grid-cols-[36px_repeat(24,minmax(18px,1fr))] gap-[3px]";
+  const grid = "grid grid-cols-[30px_repeat(24,minmax(0,1fr))] gap-[2px] sm:grid-cols-[36px_repeat(24,minmax(0,1fr))] sm:gap-[3px]";
   return (
-    <div className="overflow-x-auto" role="img" aria-label="Searches by day of the week and hour">
-      <div className="min-w-[620px] text-[11px]">
+    <div role="img" aria-label="Searches by day of the week and hour">
+      <div className="text-[10px] sm:text-[11px]">
         <div className={grid} aria-hidden>
           <span />
           {Array.from({ length: 24 }, (_, h) => (
-            <span key={h} className="text-center text-muted">
+            // Every 6 hours on a phone, every 3 on wider screens.
+            <span key={h} className={cn("text-center whitespace-nowrap text-muted", h % 6 !== 0 && "max-sm:invisible")}>
               {h % 3 === 0 ? hourLabel(h) : ""}
             </span>
           ))}
         </div>
         {DAYS.map((d, i) => (
-          <div key={d} className={cn(grid, "mt-[3px]")}>
+          <div key={d} className={cn(grid, "mt-[2px] sm:mt-[3px]")}>
             <span className="self-center font-medium text-text-2">{d}</span>
             {Array.from({ length: 24 }, (_, h) => {
               const cell = at(i + 1, h);
@@ -147,10 +148,10 @@ function Heatmap({ r }: { r: MatchingReport }) {
                 <span
                   key={h}
                   title={title}
-                  className="relative h-6 rounded-[4px] bg-surface-2"
+                  className="relative h-5 rounded-[3px] bg-surface-2 sm:h-6 sm:rounded-[4px]"
                   style={n ? { background: `color-mix(in oklab, var(--chart-1) ${Math.round(15 + (n / max) * 85)}%, var(--surface-2))` } : undefined}
                 >
-                  {slow ? <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-bad" /> : null}
+                  {slow ? <span className="absolute top-0.5 right-0.5 size-1 rounded-full bg-bad sm:size-1.5" /> : null}
                 </span>
               );
             })}
@@ -164,14 +165,14 @@ function Heatmap({ r }: { r: MatchingReport }) {
 function Hours({ r }: { r: MatchingReport }) {
   const max = Math.max(1, ...r.byHour.map((h) => h.searches));
   return (
-    <div className="overflow-x-auto">
-      <div className="flex h-44 min-w-[640px] items-end gap-1">
+    <div>
+      <div className="flex h-44 items-end gap-0.5 sm:gap-1">
         {r.byHour.map((h) => {
           const slow = (h.avgWaitSec ?? 0) > 30 || (h.gaveUpRate ?? 0) > 0.3;
           const label = `${hourLabel(h.hour)}: ${h.searches} searches${h.avgWaitSec != null ? `, average wait ${Math.round(h.avgWaitSec)} s` : ""}${h.gaveUpRate ? `, ${pct(h.gaveUpRate)} gave up` : ""}`;
           return (
-            <div key={h.hour} className="flex h-full flex-1 flex-col items-center justify-end gap-1" title={label} aria-label={label}>
-              <span className="text-[10px] text-muted tabular-nums">{h.avgWaitSec != null ? `${Math.round(h.avgWaitSec)}s` : ""}</span>
+            <div key={h.hour} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1" title={label} aria-label={label}>
+              <span className="hidden text-[10px] text-muted tabular-nums sm:block">{h.avgWaitSec != null ? `${Math.round(h.avgWaitSec)}s` : ""}</span>
               <div
                 className={cn("w-full rounded-t-[3px]", slow ? "bg-bad/80" : "bg-[var(--chart-1)]")}
                 style={{
@@ -179,7 +180,7 @@ function Hours({ r }: { r: MatchingReport }) {
                   opacity: h.searches ? 1 : 0.25,
                 }}
               />
-              <span className="text-[10px] text-muted">{h.hour % 3 === 0 ? hourLabel(h.hour) : ""}</span>
+              <span className={cn("text-[10px] whitespace-nowrap text-muted", h.hour % 6 !== 0 && "max-sm:invisible")}>{h.hour % 3 === 0 ? hourLabel(h.hour) : ""}</span>
             </div>
           );
         })}

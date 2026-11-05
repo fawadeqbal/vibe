@@ -365,26 +365,28 @@ void main() {
     await finish(t, h);
   });
 
-  testWidgets('Vibe Hour banner counts down while it runs, and says when it starts', (t) async {
-    final h = await pump(t, (h) => const Scaffold(body: Center(child: VibeHourBanner())));
+  testWidgets('Vibe Hour: the banner counts down while it runs; before it, the invite says when and offers a reminder', (t) async {
+    final h = await pump(t, (h) => const Scaffold(body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [VibeHourBanner(), VibeHourInvite()]))));
     await h.engagement.load();
     await t.pump();
-    expect(find.text('Vibe Hour · free filters · '), findsOneWidget);
-    expect(find.text('40:00'), findsOneWidget); // 21:20 → ends 22:00
+    expect(find.textContaining('Vibe Hour · free filters · ', findRichText: true), findsOneWidget);
+    expect(find.textContaining('40:00', findRichText: true), findsOneWidget); // 21:20 → ends 22:00
+    expect(find.textContaining("Everyone's on at"), findsNothing);
     h.now = h.now.add(const Duration(seconds: 1));
     await t.pump(const Duration(seconds: 1));
-    expect(find.text('39:59'), findsOneWidget);
-    // An hour and a half before the next one.
+    expect(find.textContaining('39:59', findRichText: true), findsOneWidget);
+    // Before the next one: when, and "Remind me".
     h.now = DateTime.utc(2026, 10, 7, 14, 30);
     await h.engagement.load();
     await t.pump(const Duration(seconds: 1));
     final starts = h.engagement.vibeHour.startsAt!;
-    expect(find.text('Vibe Hour starts at ${clockLabel(starts.hour * 60 + starts.minute)} · free filters'), findsOneWidget);
-    // Far away: nothing.
-    h.now = DateTime.utc(2026, 10, 7, 5);
-    await h.engagement.load();
-    await t.pump(const Duration(seconds: 1));
-    expect(find.textContaining('Vibe Hour'), findsNothing);
+    expect(find.textContaining('free filters', findRichText: true), findsNothing);
+    expect(find.text("Everyone's on at ${clock12(starts)}"), findsOneWidget);
+    await t.tap(find.text('Remind me'));
+    await t.pump();
+    expect(h.engagement.vibeHourReminder, isTrue);
+    expect(find.text('Reminder on'), findsOneWidget);
+    await t.pump(const Duration(seconds: 3));
     await finish(t, h);
   });
 
@@ -412,18 +414,19 @@ void main() {
     final h = await pump(t, (h) => const Scaffold(body: GemGoalCard()));
     h.wallet.debugSet(h.wallet.wallet.copyWith(gems: 1250));
     await t.pump();
-    await t.tap(find.text('Set a goal'));
+    await t.tap(find.text('Set a gem goal'));
     await t.pumpAndSettle();
     await t.enterText(find.byType(TextField), '50');
-    await t.tap(find.text('Save'));
+    await t.tap(find.text('Save goal'));
     await t.pumpAndSettle();
-    expect(find.textContaining('Between 100'), findsOneWidget);
+    expect(find.text('At least 100 gems.'), findsOneWidget);
     await t.enterText(find.byType(TextField), '5000');
-    await t.tap(find.text('Save'));
+    await t.tap(find.text('Save goal'));
     await t.pumpAndSettle();
     expect(h.wallet.gemGoal, 5000);
-    expect(find.text('1,250 / 5,000'), findsOneWidget);
-    expect(find.text('3,750 to go'), findsOneWidget);
+    expect(find.text('1,250'), findsOneWidget);
+    expect(find.text('/ 5,000 gems'), findsOneWidget);
+    expect(find.text('3,750 gems to go'), findsOneWidget);
     await finish(t, h);
   });
 
@@ -441,7 +444,8 @@ void main() {
     h.wallet.debugSet(h.wallet.wallet.copyWith(freeBoosts: 1));
     await h.engagement.load();
     await t.pump();
-    expect(find.text('Free'), findsNWidgets(2));
+    // "Free" sits on the filter that would cost coins (women only), as on the web.
+    expect(find.text('Free'), findsOneWidget);
     expect(h.match.filterCost, 0);
     expect(find.text('Free boost'), findsOneWidget);
     await t.tap(find.byTooltip("This week's top"));

@@ -15,9 +15,16 @@ import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/mock/mock_data.dart';
 import 'package:vibe_app/core/theme/vibe_theme.dart';
 import 'package:vibe_app/models/models.dart';
+import 'package:vibe_app/providers/calls_provider.dart';
+import 'package:vibe_app/providers/catalog_provider.dart';
+import 'package:vibe_app/providers/discover_provider.dart';
+import 'package:vibe_app/providers/engagement_provider.dart';
 import 'package:vibe_app/providers/follows_provider.dart';
 import 'package:vibe_app/providers/inbox_provider.dart';
 import 'package:vibe_app/providers/match_provider.dart';
+import 'package:vibe_app/providers/moments_provider.dart';
+import 'package:vibe_app/providers/partner_provider.dart';
+import 'package:vibe_app/providers/referrals_provider.dart';
 import 'package:vibe_app/providers/session_provider.dart';
 import 'package:vibe_app/providers/social_provider.dart';
 import 'package:vibe_app/providers/wallet_provider.dart';
@@ -32,6 +39,8 @@ import 'package:vibe_app/screens/onboarding/welcome_screen.dart';
 import 'package:vibe_app/screens/social/chat_screen.dart';
 import 'package:vibe_app/screens/social/inbox_screen.dart';
 import 'package:vibe_app/screens/splash_screen.dart';
+import 'package:vibe_app/services/app_services.dart';
+import 'package:vibe_app/services/invite/invite_capture.dart';
 import 'package:vibe_app/screens/store/checkout_screen.dart';
 import 'package:vibe_app/screens/store/vip_screen.dart';
 import 'package:vibe_app/screens/store/wallet_screen.dart';
@@ -107,6 +116,8 @@ class H {
   late MatchProvider match;
   late InboxProvider inbox;
   late FollowsProvider follows;
+  late DiscoverProvider discover;
+  late CallsProvider calls;
 
   Future<void> init({bool slowMatch = false, bool vip = false, bool withFriends = true}) async {
     SharedPreferences.setMockInitialValues({});
@@ -141,6 +152,8 @@ class H {
     social = SocialProvider(backend, wallet);
     session = SessionProvider(backend);
     match = MatchProvider(slowMatch ? MockBackend(fast: false, random: Random(4)) : backend, wallet, social, session, cameraEnabled: false);
+    discover = DiscoverProvider(social, wallet);
+    calls = CallsProvider(social, match);
     await wallet.load();
     wallet.debugSet(wallet.wallet.copyWith(coins: 340, gems: 1280, streakDay: 2, vipUntil: vip ? DateTime.now().add(const Duration(days: 20)) : null));
     await social.load();
@@ -166,11 +179,20 @@ class H {
   Widget app(Widget home) => MultiProvider(
         providers: [
           Provider<MockBackend>.value(value: backend),
+          Provider<AppServices>.value(value: AppServices.none()),
           ChangeNotifierProvider.value(value: session),
           ChangeNotifierProvider.value(value: wallet),
           ChangeNotifierProvider.value(value: social),
           ChangeNotifierProvider.value(value: match),
+          ChangeNotifierProvider.value(value: discover),
+          ChangeNotifierProvider.value(value: calls),
           ChangeNotifierProvider.value(value: inbox),
+          ChangeNotifierProvider.value(value: CatalogProvider()),
+          ChangeNotifierProvider.value(value: EngagementProvider(backend)),
+          ChangeNotifierProvider.value(value: MomentsProvider(backend, session)),
+          ChangeNotifierProvider.value(value: ReferralsProvider(backend)),
+          ChangeNotifierProvider.value(value: PartnerProvider(verified: () => false)),
+          ChangeNotifierProvider.value(value: InviteCapture()),
           ChangeNotifierProvider<FollowsProvider>.value(value: follows),
         ],
         child: RepaintBoundary(key: const ValueKey('root'), child: MaterialApp(debugShowCheckedModeBanner: false, theme: V.theme(), home: home)),
@@ -190,6 +212,7 @@ Future<void> snap(WidgetTester t, String name) async {
 }
 
 Future<void> cleanup(WidgetTester t, H h) async {
+  h.calls.clear();
   h.match.stop();
   h.match.dismissEnded();
   await t.pumpWidget(const SizedBox());
@@ -220,6 +243,7 @@ void main() {
     await _font('GeistMono', ['$f/GeistMono-Medium.ttf', '$f/GeistMono-SemiBold.ttf']);
     await _font('InstrumentSerif', ['$f/InstrumentSerif-Regular.ttf', '$f/InstrumentSerif-Italic.ttf']);
     await _font('MaterialIcons', ['/root/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf']);
+    await _font('packages/solar_icons/SolarIcons', ['/root/.pub-cache/hosted/pub.dev/solar_icons-0.2.0/fonts/SolarIcons.ttf']);
     await _font('NotoColorEmoji', ['/root/fonts/NotoColorEmoji.ttf']);
   });
 

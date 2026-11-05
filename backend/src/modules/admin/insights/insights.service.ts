@@ -78,6 +78,8 @@ export interface GrowthReport {
   client: ClientFilter;
   sources: SourceRow[];
   total: SourceRow;
+  /** Sign-ups per business day in the window, by where the account was made (other = before this was recorded). */
+  daily: { day: string; app: number; web: number; other: number; total: number }[];
   /** Sign-up weeks, newest first: share still active on day 1, 7 and 30 (null = too new). */
   cohorts: { week: string; signups: number; d1: number | null; d7: number | null; d30: number | null }[];
 }
@@ -179,15 +181,15 @@ export class InsightsService {
         ), act AS ${this.activity(w.from, new Date(w.to.getTime() + MS.day), 'all')}
         SELECT count(*) AS signups,
                count(*) FILTER (WHERE EXISTS (
-                 SELECT 1 FROM "Match" m WHERE (m."userAId" = s.id OR m."userBId" = s.id) AND m."startedAt" < s."createdAt" + interval '48 hours'
-                   AND m."endedAt" IS NOT NULL AND ${good})) AS good_first,
+                 SELECT 1 FROM "vw_real_call" c WHERE c.user_id = s.id AND c.started_at < s."createdAt" + interval '48 hours'
+                   AND c.seconds >= ${GOOD_CALL_SECONDS})) AS good_first,
                count(*) FILTER (WHERE s.sday + interval '1 day' <= ${this.clock.startOfDay()} AND EXISTS (
                  SELECT 1 FROM act WHERE act.uid = s.id AND act.day = s.sday + interval '1 day')) AS came_back,
                count(*) FILTER (WHERE s.sday + interval '1 day' <= ${this.clock.startOfDay()}) AS eligible
           FROM s`,
       this.prisma.$queryRaw<{ cents: bigint | null }[]>`
-        SELECT sum(p."usdCents") AS cents FROM "Purchase" p JOIN "User" u ON u.id = p."userId"
-         WHERE p.status = 'SUCCEEDED' AND p."completedAt" >= ${w.from} AND p."completedAt" < ${w.to} AND ${this.joined(client)}`,
+        SELECT sum(p.usd_cents) AS cents FROM "vw_real_payment" p JOIN "User" u ON u.id = p.user_id
+         WHERE p.completed_at >= ${w.from} AND p.completed_at < ${w.to} AND ${this.joined(client)}`,
     ]);
     const s = signups[0];
     return {
@@ -228,9 +230,9 @@ export class InsightsService {
         SELECT to_char(u."createdAt" + make_interval(mins => ${this.off}::int), 'YYYY-MM-DD') AS day, count(*) AS n FROM "User" u
          WHERE NOT u."isBot" AND u."createdAt" >= ${sw.from} AND ${this.joined(client)} GROUP BY 1`,
       this.prisma.$queryRaw<{ day: string; n: bigint }[]>`
-        SELECT to_char(p."completedAt" + make_interval(mins => ${this.off}::int), 'YYYY-MM-DD') AS day, sum(p."usdCents") AS n
-          FROM "Purchase" p JOIN "User" u ON u.id = p."userId"
-         WHERE p.status = 'SUCCEEDED' AND p."completedAt" >= ${sw.from} AND ${this.joined(client)} GROUP BY 1`,
+        SELECT to_char(p.completed_at + make_interval(mins => ${this.off}::int), 'YYYY-MM-DD') AS day, sum(p.usd_cents) AS n
+          FROM "vw_real_payment" p JOIN "User" u ON u.id = p.user_id
+         WHERE p.completed_at >= ${sw.from} AND ${this.joined(client)} GROUP BY 1`,
     ]);
 
     const pick = (rows: { day: string; n: bigint }[], day: string) => n(rows.find((r) => r.day === day)?.n);
@@ -365,33 +367,34 @@ export class InsightsService {
     const w = this.window(days);
     const now = this.clock.now();
     const today = this.clock.startOfDay(now);
-    const good = Prisma.sql`m."endedAt" - m."startedAt" >= make_interval(secs => ${GOOD_CALL_SECONDS})`;
     const cohortFrom = new Date(today.getTime() - 8 * 7 * MS.day);
-    const [people, visitors, downloads, cohorts] = await Promise.all([
+    const [people, visitors, downloads, cohorts, perDay] = await Promise.all([
       this.prisma.$queryRaw<
         { source: string; signups: bigint; set_up: bigint; first_call: bigint; good_first: bigint; came_back: bigint; d1_eligible: bigint; week: bigint; week_eligible: bigint; paid: bigint }[]
       >`
         WITH s AS (
           SELECT u.id, u."createdAt", u."onboardedAt", ${this.dayOf('u."createdAt"')} AS sday,
-                 CASE WHEN r."affiliateId" IS NOT NULL THEN 'partner' WHEN r.id IS NOT NULL THEN 'invite' ELSE coalesce(v.source, 'direct') END AS source
+                 -- No site visit and no invite = installed the app another way (shared APK, store): not "direct".
+                 CASE WHEN r."affiliateId" IS NOT NULL THEN 'partner' WHEN r.id IS NOT NULL THEN 'invite' WHEN v.id IS NULL THEN 'no_site_visit' ELSE v.source END AS source
             FROM "User" u LEFT JOIN "Referral" r ON r."inviteeId" = u.id LEFT JOIN "SiteVisit" v ON v."userId" = u.id
            WHERE NOT u."isBot" AND u."createdAt" >= ${w.from} AND u."createdAt" < ${w.to} AND ${this.joined(client)}
         ), act AS ${this.activity(w.from, now, 'all')}
         SELECT s.source, count(*) AS signups,
                count(*) FILTER (WHERE s."onboardedAt" IS NOT NULL) AS set_up,
-               count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Match" m WHERE m."userAId" = s.id OR m."userBId" = s.id)) AS first_call,
-               count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Match" m WHERE (m."userAId" = s.id OR m."userBId" = s.id)
-                 AND m."startedAt" < s."createdAt" + interval '48 hours' AND m."endedAt" IS NOT NULL AND ${good})) AS good_first,
+               count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "vw_real_call" c WHERE c.user_id = s.id)) AS first_call,
+               count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "vw_real_call" c WHERE c.user_id = s.id
+                 AND c.started_at < s."createdAt" + interval '48 hours' AND c.seconds >= ${GOOD_CALL_SECONDS})) AS good_first,
                count(*) FILTER (WHERE s.sday + interval '1 day' <= ${today} AND EXISTS (SELECT 1 FROM act WHERE act.uid = s.id AND act.day = s.sday + interval '1 day')) AS came_back,
                count(*) FILTER (WHERE s.sday + interval '1 day' <= ${today}) AS d1_eligible,
                count(*) FILTER (WHERE s.sday + interval '7 days' <= ${today} AND EXISTS (SELECT 1 FROM act WHERE act.uid = s.id AND act.day >= s.sday + interval '7 days' AND act.day < s.sday + interval '14 days')) AS week,
                count(*) FILTER (WHERE s.sday + interval '7 days' <= ${today}) AS week_eligible,
-               count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Purchase" p WHERE p."userId" = s.id AND p.status = 'SUCCEEDED')) AS paid
+               count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "vw_real_payment" p WHERE p.user_id = s.id)) AS paid
           FROM s GROUP BY 1`,
       this.prisma.$queryRaw<{ source: string; n: bigint }[]>`
         SELECT v.source, count(DISTINCT v."visitorId") AS n FROM "SiteVisit" v WHERE v."startedAt" >= ${w.from} AND v."startedAt" < ${w.to} GROUP BY 1`,
       this.prisma.$queryRaw<{ source: string | null; n: bigint }[]>`
-        SELECT d.source, count(*) AS n FROM "AppDownload" d WHERE d.at >= ${w.from} AND d.at < ${w.to} GROUP BY 1`,
+        SELECT CASE WHEN d."visitId" IS NULL AND d.source = 'direct' THEN 'no_site_visit' ELSE d.source END AS source, count(*) AS n
+          FROM "AppDownload" d WHERE d.at >= ${w.from} AND d.at < ${w.to} GROUP BY 1`,
       this.prisma.$queryRaw<{ week: string; signups: bigint; d1: bigint; d1e: bigint; d7: bigint; d7e: bigint; d30: bigint; d30e: bigint }[]>`
         WITH s AS (
           SELECT u.id, ${this.dayOf('u."createdAt"')} AS sday FROM "User" u
@@ -405,7 +408,22 @@ export class InsightsService {
                count(*) FILTER (WHERE EXISTS (SELECT 1 FROM act WHERE act.uid = s.id AND act.day >= s.sday + interval '30 days' AND act.day < s.sday + interval '37 days')) AS d30,
                count(*) FILTER (WHERE s.sday + interval '30 days' <= ${today}) AS d30e
           FROM s GROUP BY 1 ORDER BY 1 DESC`,
+      this.prisma.$queryRaw<{ day: string; app: bigint; web: bigint; total: bigint }[]>`
+        SELECT to_char(u."createdAt" + make_interval(mins => ${this.off}::int), 'YYYY-MM-DD') AS day,
+               count(*) FILTER (WHERE u."signupClient" IN ('android', 'ios')) AS app,
+               count(*) FILTER (WHERE u."signupClient" = 'web') AS web,
+               count(*) AS total
+          FROM "User" u
+         WHERE NOT u."isBot" AND u."createdAt" >= ${w.from} AND u."createdAt" < ${w.to} AND ${this.joined(client)} GROUP BY 1`,
     ]);
+
+    const daily: GrowthReport['daily'] = [];
+    for (let i = 0; i < days; i++) {
+      const day = new Date(w.from.getTime() + i * MS.day + this.off * MS.minute).toISOString().slice(0, 10);
+      const r = perDay.find((x) => x.day === day);
+      const [app, web, total] = [n(r?.app), n(r?.web), n(r?.total)];
+      daily.push({ day, app, web, other: total - app - web, total });
+    }
 
     const empty = (source: string): SourceRow => ({ source, visitors: 0, downloads: 0, signups: 0, setUp: 0, firstCall: 0, goodFirstCall: 0, cameBack: 0, cameBackEligible: 0, week: 0, weekEligible: 0, paid: 0 });
     const rows = new Map<string, SourceRow>();
@@ -437,6 +455,7 @@ export class InsightsService {
       client,
       sources,
       total,
+      daily,
       cohorts: cohorts.map((c) => ({ week: c.week, signups: n(c.signups), d1: ratio(c.d1, c.d1e), d7: ratio(c.d7, c.d7e), d30: ratio(c.d30, c.d30e) })),
     };
   }
@@ -450,22 +469,22 @@ export class InsightsService {
   private async buildMoney(days: number, client: ClientFilter): Promise<MoneyReport> {
     const w = this.window(days);
     const p = this.window(days, 1);
-    const paidIn = (x: Window) => Prisma.sql`p.status = 'SUCCEEDED' AND p."completedAt" >= ${x.from} AND p."completedAt" < ${x.to} AND ${this.joined(client)}`;
+    const paidIn = (x: Window) => Prisma.sql`p.completed_at >= ${x.from} AND p.completed_at < ${x.to} AND ${this.joined(client)}`;
     const [totals, prev, active, firsts, products] = await Promise.all([
       this.prisma.$queryRaw<{ cents: bigint | null; purchases: bigint; payers: bigint; repeat: bigint }[]>`
         SELECT sum(x.cents) AS cents, sum(x.k) AS purchases, count(*) AS payers, count(*) FILTER (WHERE x.k >= 2) AS repeat
-          FROM (SELECT p."userId", sum(p."usdCents") AS cents, count(*) AS k FROM "Purchase" p JOIN "User" u ON u.id = p."userId" WHERE ${paidIn(w)} GROUP BY 1) x`,
-      this.prisma.$queryRaw<{ cents: bigint | null }[]>`SELECT sum(p."usdCents") AS cents FROM "Purchase" p JOIN "User" u ON u.id = p."userId" WHERE ${paidIn(p)}`,
+          FROM (SELECT p.user_id, sum(p.usd_cents) AS cents, count(*) AS k FROM "vw_real_payment" p JOIN "User" u ON u.id = p.user_id WHERE ${paidIn(w)} GROUP BY 1) x`,
+      this.prisma.$queryRaw<{ cents: bigint | null }[]>`SELECT sum(p.usd_cents) AS cents FROM "vw_real_payment" p JOIN "User" u ON u.id = p.user_id WHERE ${paidIn(p)}`,
       this.prisma.$queryRaw<{ n: bigint }[]>`
         SELECT count(DISTINCT act.uid) AS n FROM ${this.activity(w.from, w.to, 'all')} act JOIN "User" u ON u.id = act.uid WHERE NOT u."isBot" AND ${this.joined(client)}`,
       this.prisma.$queryRaw<{ n: bigint; median: number | null }[]>`
         SELECT count(*) AS n, percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM f.first - u."createdAt") / 86400) AS median
-          FROM (SELECT p."userId", min(p."completedAt") AS first FROM "Purchase" p WHERE p.status = 'SUCCEEDED' GROUP BY 1) f
+          FROM (SELECT p.user_id AS "userId", min(p.completed_at) AS first FROM "vw_real_payment" p GROUP BY 1) f
           JOIN "User" u ON u.id = f."userId"
          WHERE f.first >= ${w.from} AND f.first < ${w.to} AND ${this.joined(client)}`,
       this.prisma.$queryRaw<{ type: string; product: string; k: bigint; cents: bigint }[]>`
-        SELECT p."productType"::text AS type, p."productId" AS product, count(*) AS k, sum(p."usdCents") AS cents
-          FROM "Purchase" p JOIN "User" u ON u.id = p."userId" WHERE ${paidIn(w)} GROUP BY 1, 2 ORDER BY 4 DESC`,
+        SELECT p.product_type::text AS type, p.product_id AS product, count(*) AS k, sum(p.usd_cents) AS cents
+          FROM "vw_real_payment" p JOIN "User" u ON u.id = p.user_id WHERE ${paidIn(w)} GROUP BY 1, 2 ORDER BY 4 DESC`,
     ]);
     const t = totals[0];
     const cents = n(t?.cents);

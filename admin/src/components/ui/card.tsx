@@ -3,13 +3,14 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-xl border border-line bg-surface shadow-card", className)} {...props} />;
+  return <div className={cn("min-w-0 rounded-xl border border-line bg-surface shadow-card", className)} {...props} />;
 }
 
 export function CardHeader({ title, description, actions, className }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("flex items-start justify-between gap-3 border-b border-line px-4 py-3", className)}>
-      <div className="min-w-0">
+    // On a narrow screen the actions drop under the title instead of squeezing it.
+    <div className={cn("flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-line px-4 py-3", className)}>
+      <div className="min-w-0 flex-1 basis-56">
         <h2 className="text-sm font-semibold text-text">{title}</h2>
         {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
       </div>
