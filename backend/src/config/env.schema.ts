@@ -24,6 +24,10 @@ export const envSchema = z.object({
   INVITE_LINK_BASE: z.string().url().default('https://vibe.fawadiqbal.dev/i'),
   /** The web app, for links in e-mails ("Open Vibe"). */
   WEB_APP_URL: z.string().url().default('https://app.vibe.fawadiqbal.dev'),
+  /** The public website (landing). Legal pages live at <SITE_URL>/terms/ … Empty = WEB_APP_URL without "app.". */
+  SITE_URL: opt,
+  /** Contact address in the legal pages seeded on first start (admin → Legal pages can change it later). */
+  SUPPORT_EMAIL: opt,
   /** Where "Download for Android" sends people (the latest release's APK). */
   APK_DOWNLOAD_URL: z.string().url().default('https://github.com/fawadeqbal/vibe/releases/latest/download/vibe.apk'),
   /** owner/repo whose releases hold the APK (admin shows GitHub's download count); empty = off. */

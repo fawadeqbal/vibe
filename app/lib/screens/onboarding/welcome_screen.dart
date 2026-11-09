@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/config/legal_links.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../invite/invite_banner.dart';
@@ -179,7 +180,19 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(36, 0, 36, 12),
-                  child: Text("By continuing you confirm you're 18+, agree to the Terms and have read the Privacy Policy.", textAlign: TextAlign.center, style: VT.body(11, color: V.muted, height: 1.45)),
+                  child: Text.rich(
+                    TextSpan(
+                      style: VT.body(11, color: V.muted, height: 1.45),
+                      children: [
+                        const TextSpan(text: "By continuing you confirm you're 18+, agree to the "),
+                        WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: _LegalLink('Terms', LegalPage.terms)),
+                        const TextSpan(text: ' and have read the '),
+                        WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: _LegalLink('Privacy Policy', LegalPage.privacy)),
+                        const TextSpan(text: '.'),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ],
             ),
@@ -293,4 +306,20 @@ class _HeroCards extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A tappable link to a legal page, styled like the sentence it sits in.
+class _LegalLink extends StatelessWidget {
+  const _LegalLink(this.label, this.page);
+  final String label;
+  final LegalPage page;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        link: true,
+        child: GestureDetector(
+          onTap: () => openLegal(page),
+          child: Text(label, style: VT.body(11, color: V.text2, height: 1.45).copyWith(decoration: TextDecoration.underline, decorationColor: V.text2)),
+        ),
+      );
 }

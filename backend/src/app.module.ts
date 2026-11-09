@@ -39,6 +39,7 @@ import { ReferralsModule } from './modules/referrals/referrals.module';
 import { MailTemplatesModule } from './modules/messaging/mail-templates.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { MaintenanceGuard } from './modules/settings/maintenance.guard';
+import { LegalModule } from './modules/legal/legal.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SocialModule } from './modules/social/social.module';
 import { CallsModule } from './modules/calls/calls.module';
@@ -95,6 +96,7 @@ function canPrettyPrint(): boolean {
     IntegrationsModule,
     MailModule,
     SettingsModule,
+    LegalModule,
     MailTemplatesModule,
 
     // Features

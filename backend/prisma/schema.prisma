@@ -125,6 +125,9 @@ model User {
   invitees       User[]                @relation("Invites")
   wallet         Wallet?
   adViews        AdView[]
+  /// Version of the Terms the person agreed to at sign-up (LegalDocument 'terms').
+  termsVersion    Int?
+  termsAcceptedAt DateTime?
   sessions       Session[]
   ledger         LedgerEntry[]
   purchases      Purchase[]
@@ -1509,4 +1512,18 @@ model AdView {
 
   @@index([createdAt])
   @@index([userId, createdAt])
+}
+
+/// Terms, Privacy Policy, Community Guidelines, Child Safety: edited in admin → Legal pages,
+/// shown on the website (/terms/ …) and linked from sign-up and the app. Markdown.
+model LegalDocument {
+  slug        String   @id @db.VarChar(40)
+  title       String   @db.VarChar(120)
+  /// One line under the title on the page.
+  summary     String   @default("") @db.VarChar(300)
+  markdown    String
+  /// Goes up on every save; sign-ups record the Terms version they agreed to.
+  version     Int      @default(1)
+  updatedAt   DateTime @updatedAt
+  updatedById String?
 }

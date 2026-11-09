@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
@@ -11,6 +10,7 @@ import { Icon } from "@/components/ui/icon";
 import { Headline } from "@/components/ui/typography";
 import { useElementSize } from "@/hooks/use-element-size";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { config } from "@/lib/config";
 import { color, type Tone } from "@/lib/colors";
 import { cn } from "@/lib/cn";
 
@@ -135,13 +135,13 @@ export function WelcomeScreen() {
             </div>
             <p className="type-body px-9 pb-3 text-center text-[11px] leading-[1.45] text-muted lg:px-0">
               By continuing you confirm you&apos;re 18+, agree to the{" "}
-              <Link href="#" className="hover:text-text2">
+              <a href={`${config.siteUrl}/terms/`} target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-text2">
                 Terms
-              </Link>{" "}
+              </a>{" "}
               and have read the{" "}
-              <Link href="#" className="hover:text-text2">
+              <a href={`${config.siteUrl}/privacy/`} target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-text2">
                 Privacy Policy
-              </Link>
+              </a>
               .
             </p>
           </div>

@@ -164,6 +164,9 @@ abstract class SessionProvider extends ChangeNotifier {
 
   Future<void> signOut();
 
+  /// Deletes the account for good (`DELETE /me`), then signs out here.
+  Future<void> deleteAccount();
+
   Future<void> refreshPermissions() async {
     try {
       _cameraGranted = await Permission.camera.isGranted;

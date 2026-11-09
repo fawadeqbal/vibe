@@ -129,6 +129,10 @@ class LocalSessionProvider extends SessionProvider {
     notifyListeners();
   }
 
+  /// The offline demo has no server account: same as signing out (which resets the demo).
+  @override
+  Future<void> deleteAccount() => signOut();
+
   @override
   Future<void> signOut() async {
     await _runSignOutHooks();

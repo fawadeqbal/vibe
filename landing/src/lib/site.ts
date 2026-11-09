@@ -64,8 +64,8 @@ export const site = {
     webApp,
     /** Android: the API counts the download, then sends the browser to the latest APK (GitHub release). */
     android: env(process.env.NEXT_PUBLIC_ANDROID_URL, api ? `${api}/v1/site/download/android` : "#download"),
-    terms: env(process.env.NEXT_PUBLIC_TERMS_URL, "/#faq"),
-    privacy: env(process.env.NEXT_PUBLIC_PRIVACY_URL, "/#faq"),
+    terms: env(process.env.NEXT_PUBLIC_TERMS_URL, "/terms/"),
+    privacy: env(process.env.NEXT_PUBLIC_PRIVACY_URL, "/privacy/"),
     support: env(process.env.NEXT_PUBLIC_SUPPORT_URL, "/#faq"),
   },
 
@@ -78,6 +78,8 @@ export const site = {
   /** Google Analytics 4 measurement id (G-XXXX). Empty = no analytics script at all. */
   gaId: env(process.env.NEXT_PUBLIC_GA_ID, ""),
 
+  /** Legal pages (GET <api>/v1/legal/:slug), edited in admin → Legal pages. */
+  legalUrl: (slug: string) => (api ? `${api}/v1/legal/${slug}` : null),
   /** Startup config (GET <api>/v1/config): the landing Vignette is switched on/off there. */
   configUrl: api ? `${api}/v1/config` : null,
   /** Live count for the hero pill: GET <api>/v1/stats/online → { online }. */

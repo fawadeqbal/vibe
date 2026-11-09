@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/api/api_exception.dart';
+import '../../core/config/legal_links.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
@@ -209,13 +211,20 @@ class AccountSectionScreen extends StatelessWidget {
                 },
               ),
             ),
-            GroupRow(
-              bare: true,
-              icon: SolarIconsOutline.documentText,
-              title: 'Terms and privacy',
-              trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
-              onTap: () => toast(context, 'Opens the policy pages in the real app'),
-            ),
+            for (final (page, icon, label) in [
+              (LegalPage.terms, SolarIconsOutline.documentText, 'Terms of Use'),
+              (LegalPage.privacy, SolarIconsOutline.lockKeyhole, 'Privacy Policy'),
+              (LegalPage.guidelines, SolarIconsOutline.usersGroupRounded, 'Community guidelines'),
+            ])
+              GroupRow(
+                bare: true,
+                icon: icon,
+                title: label,
+                trailing: const Icon(SolarIconsOutline.squareShareLine, color: V.muted, size: 18),
+                onTap: () async {
+                  if (!await openLegal(page) && context.mounted) toast(context, "Couldn't open the page. Try again.", error: true);
+                },
+              ),
             GroupRow(
               bare: true,
               icon: SolarIconsBold.logout_2,
@@ -249,6 +258,15 @@ class AccountSectionScreen extends StatelessWidget {
                 }
               },
             ),
+            if (remote)
+              GroupRow(
+                bare: true,
+                icon: SolarIconsOutline.trashBinTrash,
+                iconColor: V.bad,
+                title: 'Delete account',
+                titleColor: V.bad,
+                onTap: () => _deleteAccount(context, session),
+              ),
           ],
         ),
       ],
@@ -302,5 +320,34 @@ class FollowSettingsCard extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Two confirmations, then `DELETE /me` and back to the welcome screen.
+Future<void> _deleteAccount(BuildContext context, SessionProvider session) async {
+  Future<bool> ask(String title, String body, String ok) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel', style: TextStyle(color: V.text2))),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(ok, style: const TextStyle(color: V.bad))),
+          ],
+        ),
+      ) ==
+      true;
+  if (!await ask('Delete your account?', "Your profile, photos and name are removed and you're signed out. Unused coins, gems and VIP time are lost — cash out gems first. This can't be undone.", 'Continue')) return;
+  if (!context.mounted || !await ask('Delete it for good?', 'Last check: your Vibe account will be deleted now.', 'Delete account')) return;
+  if (!context.mounted) return;
+  final match = context.read<MatchProvider>();
+  final nav = Navigator.of(context);
+  try {
+    await match.releaseCamera();
+    await session.deleteAccount();
+    nav.popUntil((r) => r.isFirst);
+  } on ApiException catch (e) {
+    if (context.mounted) toast(context, e.message, error: true);
   }
 }
