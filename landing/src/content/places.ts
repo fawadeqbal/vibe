@@ -15,7 +15,7 @@ import { site } from "@/lib/site";
  * through. Add them only once calls are confirmed to connect there.
  */
 const n = site.name;
-const UPDATED = "2026-11-04";
+const UPDATED = "2026-11-09";
 
 type Country = {
   slug: string;
@@ -607,6 +607,259 @@ const COUNTRIES: Country[] = [
     keywords: ["video chat cairo", "egypt video call app", "talk to strangers egypt", "شات فيديو"],
     related: ["/video-chat-saudi-arabia/", "/video-chat-kuwait/", "/random-video-chat/"],
   },
+
+  // Neighbours and near time zones — visitors already arrive from here.
+  {
+    slug: "video-chat-india",
+    name: "India",
+    utc: 5.5,
+    cities: ["Mumbai", "Delhi", "Bengaluru", "Hyderabad"],
+    languages: ["Hindi", "English", "Urdu", "Tamil"],
+    title: "Video Chat India: Random Video Chat, Verified People",
+    h1: "Random video chat in India, with real, verified people",
+    lede: `${n} is free random video chat that works in India. Tap Start and you're face to face with someone new, in Mumbai, in Lahore or anywhere in the world. Selfie-verified badges, calls that start blurred and 24/7 moderation, with nothing to install. 18+.`,
+    angle: {
+      h2: "Half an hour apart, and the same evening",
+      p: [
+        "India is only thirty minutes ahead of Pakistan, so the app's busiest hours are your evening too. Spoken Hindi and Urdu are close enough that a call rarely needs English, though English works everywhere: cricket, films, food and music give you plenty to start with.",
+        "Prefer people in India? Set the country filter to India and every match is at home. Leave it open and the next call could be Dhaka, Cairo or Toronto.",
+      ],
+    },
+    timing: "Pakistan is thirty minutes behind India, so its busiest hours are your evening and late night:",
+    faqs: [
+      { q: `Does ${n} work in India?`, a: `Yes. Open ${n} in Chrome or Safari on your phone, or install the Android app. It runs on Jio, Airtel and Vi data or Wi-Fi, and adapts video to your connection.` },
+      { q: "Can I meet only people from India?", a: "Yes. Set the country filter to India. Filters are free during the daily Vibe Hour and with VIP, and cost a few coins otherwise." },
+      { q: "Can I talk in Hindi?", a: "Of course. Talk in Hindi, Urdu, English or whatever you both like. The app itself is in English for now." },
+    ],
+    keywords: ["video chat mumbai", "video chat delhi", "india video call app", "talk to strangers india", "omegle alternative india", "hindi video chat"],
+    related: ["/video-chat-bangladesh/", "/video-chat-nepal/", "/omegle-alternative/"],
+  },
+  {
+    slug: "video-chat-afghanistan",
+    name: "Afghanistan",
+    utc: 4.5,
+    cities: ["Kabul", "Herat", "Kandahar", "Mazar-i-Sharif"],
+    languages: ["Pashto", "Dari", "Urdu", "English"],
+    h1: "Video chat in Afghanistan: Pashto, Dari and the world",
+    lede: `${n} is free random video chat that works from Afghanistan. One tap puts you on live video with someone new, in Kabul, across the border in Peshawar or anywhere else. Real, selfie-verified people and calls that start blurred. Runs in your browser or on Android, 18+.`,
+    angle: {
+      h2: "Pashto on both sides of the border",
+      p: [
+        "Pakistan is half an hour ahead, so its busy evenings are yours too. Pashto is spoken on both sides, and many people who grew up in Peshawar or Quetta speak Urdu as well, so a call with someone in Pakistan often needs no English at all.",
+        "Set the country filter to Afghanistan to meet people at home, or leave it open to practise English with people everywhere. If a call goes well, add each other as friends and keep talking in chat.",
+      ],
+    },
+    timing: "Pakistan is thirty minutes ahead of Afghanistan, so Pakistani prime time is your evening:",
+    faqs: [
+      { q: "Does video chat work on Afghan mobile data?", a: `${n} adapts video quality to your connection, so a call keeps going on slower 3G or 4G data. Wi-Fi gives the sharpest picture.` },
+      { q: "Can I talk in Pashto or Dari?", a: "Yes. Talk in any language you both like. Set the country filter to Afghanistan or Pakistan to find Pashto speakers more often." },
+    ],
+    keywords: ["video chat kabul", "pashto video chat", "dari video chat", "afghan video call app", "talk to strangers afghanistan"],
+    related: ["/video-chat-pakistan/", "/practice-english-speaking/", "/safe-video-chat/"],
+  },
+  {
+    slug: "video-chat-turkey",
+    name: "Turkey",
+    utc: 3,
+    cities: ["Istanbul", "Ankara", "Izmir", "Bursa"],
+    languages: ["Turkish", "English", "Arabic", "Urdu"],
+    h1: "Video chat in Turkey: meet someone new tonight",
+    lede: `${n} is free random video chat that works in Turkey. Tap Start and you're on camera with a real person in Istanbul, in Pakistan or anywhere in the world. Selfie verification, blurred call starts and 24/7 moderation are built in. No download, 18+.`,
+    angle: {
+      h2: "Two countries that already like each other",
+      p: [
+        "Turkish dramas are on every screen in Pakistan, and Pakistanis are among the friendliest visitors Turkey gets. Pakistan is only two hours ahead, so when your evening starts the app is at its busiest: a good moment to meet the people who know every episode of your favourite dizi.",
+        "Set the country filter to Turkey to keep it local, or leave it open for people from Pakistan, the Gulf and everywhere else. English is the common language on most calls; Turkish, Arabic and Urdu all turn up too.",
+      ],
+    },
+    timing: "Pakistan is two hours ahead of Turkey, so its busiest hours are your evening:",
+    faqs: [
+      { q: "Can I meet people from Turkey only?", a: "Yes. Set the country filter to Turkey." },
+      { q: "Is random video chat safe in Turkey?", a: `${n} starts every random call blurred, verifies people with a selfie check, reviews reports 24/7 and is 18+ only.` },
+    ],
+    keywords: ["video chat istanbul", "turkey video call app", "talk to strangers turkey", "görüntülü sohbet", "omegle alternative turkey"],
+    related: ["/video-chat-saudi-arabia/", "/video-chat-egypt/", "/random-video-chat/"],
+  },
+  {
+    slug: "video-chat-indonesia",
+    name: "Indonesia",
+    utc: 7,
+    zoneNote: "Jakarta time (WIB). Bali and Makassar are an hour later.",
+    pkHours: [18, 19, 20, 21, 22],
+    cities: ["Jakarta", "Surabaya", "Bandung", "Medan"],
+    languages: ["Indonesian", "English", "Javanese", "Arabic"],
+    h1: "Video chat in Indonesia: meet new people, live",
+    lede: `${n} is free random video chat that works in Indonesia. One tap connects you on live video with someone new, in Jakarta, in Pakistan or anywhere in the world. Real, selfie-verified people, calls that start blurred, and nothing to install. 18+.`,
+    angle: {
+      h2: "The biggest phone-first country in Asia",
+      p: [
+        `Indonesia lives on its phones, and ${n} is built for that: open it in Chrome, tap Start, and you're talking. English is the common language on most calls, which makes it an easy way to practise, and there are more Indonesian speakers joining every week.`,
+        "Indonesia is two hours ahead of Pakistan, so the app's busiest hours run late into your night. Set the country filter to Indonesia to meet people at home, or leave it open for Malaysia, Pakistan and the rest of the world.",
+      ],
+    },
+    timing: "Indonesia is two hours ahead of Pakistan, so Pakistani evenings land late in yours:",
+    faqs: [
+      { q: "Can I meet Indonesians only?", a: "Yes. Set the country filter to Indonesia." },
+      { q: "Does it work on Telkomsel, Indosat or XL data?", a: `Yes. ${n} runs on any mobile network or Wi-Fi and adapts video to your connection.` },
+    ],
+    keywords: ["video chat jakarta", "indonesia video call app", "talk to strangers indonesia", "video call random indonesia", "omegle alternative indonesia"],
+    related: ["/video-chat-malaysia/", "/video-chat-philippines/", "/practice-english-speaking/"],
+  },
+  {
+    slug: "video-chat-singapore",
+    name: "Singapore",
+    utc: 8,
+    diaspora: true,
+    cities: ["Jurong", "Tampines", "Woodlands", "Orchard"],
+    languages: ["English", "Mandarin", "Malay", "Tamil"],
+    h1: "Video chat in Singapore: one tap to someone new",
+    lede: `${n} is free random video chat that works from Singapore. Tap Start and you're face to face with a real person in Singapore, Pakistan, the region or anywhere else. Selfie-verified badges, calls that start blurred and 24/7 moderation. No download, 18+.`,
+    angle: {
+      h2: "A small island with the whole world on the line",
+      p: [
+        "Singapore is three hours ahead of Pakistan, so Pakistan's busy evenings fall late in your night, and your own evening is Pakistan's afternoon. Plenty of people from Pakistan and South Asia work and study in Singapore; the country filter set to Pakistan is a quick way to hear Urdu after a long day.",
+        "Leave the filter off and you'll meet Malaysia, Indonesia, the Philippines and everywhere beyond. English is the common language on almost every call.",
+      ],
+    },
+    timing: "Singapore is three hours ahead of Pakistan, so Pakistani evenings run late into your night:",
+    faqs: [
+      { q: "Does video chat work in Singapore?", a: `Yes. ${n} runs in your browser or the Android app on Singtel, StarHub, M1 or Wi-Fi.` },
+      { q: "Can I talk to people in Pakistan from Singapore?", a: "Yes. Set the country filter to Pakistan, or leave it open to meet anyone." },
+    ],
+    keywords: ["singapore video call app", "talk to strangers singapore", "pakistani in singapore", "random video chat singapore"],
+    related: ["/video-chat-malaysia/", "/video-chat-indonesia/", "/make-friends-app/"],
+  },
+  {
+    slug: "video-chat-new-zealand",
+    name: "New Zealand",
+    short: "New Zealand",
+    utc: 12,
+    dst: true,
+    pkHours: [12, 13, 14, 15, 16],
+    diaspora: true,
+    cities: ["Auckland", "Wellington", "Christchurch", "Hamilton"],
+    languages: ["English", "Urdu", "Hindi", "Punjabi"],
+    h1: "Video chat in New Zealand: meet someone new, anywhere",
+    lede: `${n} is free random video chat that works from New Zealand. Tap Start and you're on camera with a real person in Auckland, Pakistan or anywhere in the world. Selfie verification, blurred call starts and 24/7 moderation, with nothing to install. 18+.`,
+    angle: {
+      h2: "Your evening is Pakistan's afternoon",
+      p: [
+        "New Zealand is seven hours ahead of Pakistan, so Pakistan's late-night rush falls in your early morning. Your own evening is Pakistan's lunchtime and afternoon: quieter, but students and people home early are around, and it's the easiest time to catch family and friends back home.",
+        "Set the country filter to New Zealand to meet people nearby, or leave it open for Australia, the Philippines, Pakistan and everywhere else.",
+      ],
+    },
+    timing: "Pakistan is seven hours behind New Zealand (eight during NZ daylight saving). Pakistani afternoons are your evenings:",
+    faqs: [
+      { q: "When is the best time to video chat from New Zealand?", a: "Your evening is Pakistan's afternoon, which works well. The busiest Pakistani hours fall around 3 to 7 am in Auckland." },
+      { q: "Can I meet people in Pakistan from New Zealand?", a: "Yes. Set the country filter to Pakistan, or leave it open to meet anyone." },
+    ],
+    keywords: ["video chat auckland", "pakistani in new zealand", "random video chat nz", "make friends new zealand"],
+    related: ["/video-chat-australia/", "/video-chat-philippines/", "/random-video-chat/"],
+  },
+
+  // Pakistanis abroad — the rest of Europe.
+  {
+    slug: "video-chat-france",
+    name: "France",
+    utc: 1,
+    dst: true,
+    diaspora: true,
+    cities: ["Paris", "Marseille", "Lyon", "Lille"],
+    languages: ["French", "English", "Urdu", "Arabic"],
+    h1: "Video chat in France: meet new people, near or back home",
+    lede: `${n} is free random video chat that works from France. One tap connects you on live video with a real person in Paris, in Pakistan or anywhere else. Calls start blurred, people can be selfie-verified, and there's nothing to download. 18+.`,
+    angle: {
+      h2: "Paris evenings, Pakistani nights",
+      p: [
+        "Pakistan is four hours ahead of France (three in summer), so when you get home in the evening, Pakistan's busiest hours are already in full swing. The Pakistani community around Paris keeps growing; set the country filter to Pakistan and you're hearing Urdu in seconds.",
+        "New to France? A few friendly calls make a new city feel smaller, and you can practise your French or English with people who don't mind a mistake. Set the filter to France for people nearby, or leave it open for the world.",
+      ],
+    },
+    timing: "Pakistan is four hours ahead of Paris (three in summer), so its busiest hours are your evening:",
+    faqs: [
+      { q: "Can I meet people in Pakistan from France?", a: "Yes. Most people on the app are in Pakistan today. Set the country filter to Pakistan to meet only them." },
+      { q: "Is random video chat safe in France?", a: `${n} starts every random call blurred, gives real people a selfie-verified badge, keeps a report button on screen with 24/7 review, and is 18+ only.` },
+    ],
+    keywords: ["video chat paris", "pakistani in france", "chat vidéo aléatoire", "make friends france", "random video chat france"],
+    related: ["/video-chat-italy/", "/video-chat-germany/", "/video-chat-uk/"],
+  },
+  {
+    slug: "video-chat-spain",
+    name: "Spain",
+    utc: 1,
+    dst: true,
+    diaspora: true,
+    cities: ["Barcelona", "Madrid", "Valencia", "Zaragoza"],
+    languages: ["Spanish", "Catalan", "English", "Urdu"],
+    h1: "Video chat in Spain: Barcelona to Lahore in one tap",
+    lede: `${n} is free random video chat that works from Spain. Tap Start and you're face to face with someone new, in Barcelona, in Pakistan or anywhere in the world. Selfie-verified badges, calls that start blurred and 24/7 moderation. No download, 18+.`,
+    angle: {
+      h2: "One of Europe's biggest Pakistani communities",
+      p: [
+        "Barcelona has one of the largest Pakistani communities in Europe, with many families from Gujrat, Sialkot and Mandi Bahauddin. Pakistan is four hours ahead (three in summer), so your evening is Pakistan's busiest time: set the country filter to Pakistan and you're talking to home before dinner.",
+        "Want to practise Spanish or meet people in Spain? Set the filter to Spain, or leave it open and let the next call surprise you.",
+      ],
+    },
+    timing: "Pakistan is four hours ahead of Spain (three in summer), so its busiest hours are your evening:",
+    faqs: [
+      { q: "Can I talk to people in Pakistan from Spain?", a: "Yes. Set the country filter to Pakistan, or leave it open to meet anyone." },
+      { q: "Can I use Urdu or Punjabi on video chat?", a: "Yes. Talk in whatever language you both like. Most people on the app are in Pakistan, so Urdu and Punjabi are common." },
+    ],
+    keywords: ["video chat barcelona", "pakistani in spain", "videochat aleatorio", "make friends spain", "random video chat spain"],
+    related: ["/video-chat-italy/", "/video-chat-france/", "/video-chat-pakistan/"],
+  },
+  {
+    slug: "video-chat-netherlands",
+    name: "the Netherlands",
+    inName: "the Netherlands",
+    short: "Netherlands",
+    utc: 1,
+    dst: true,
+    diaspora: true,
+    cities: ["Amsterdam", "Rotterdam", "The Hague", "Utrecht"],
+    languages: ["Dutch", "English", "Urdu"],
+    h1: "Video chat in the Netherlands: meet someone new tonight",
+    lede: `${n} is free random video chat that works from the Netherlands. One tap puts you on live video with a real person in Amsterdam, Pakistan or anywhere else. Calls start blurred, people can be selfie-verified, and nothing needs installing. 18+.`,
+    angle: {
+      h2: "Where everyone already speaks English",
+      p: [
+        "The Netherlands is full of international students and people who moved for work, and nearly everyone speaks English, which makes random video chat with the rest of the world easy. Pakistan is four hours ahead (three in summer), so your evening is its busiest time.",
+        "Set the country filter to Pakistan for a conversation in Urdu after a long day, to the Netherlands for people nearby, or leave it open for the world.",
+      ],
+    },
+    timing: "Pakistan is four hours ahead of Amsterdam (three in summer), so its busiest hours are your evening:",
+    faqs: [
+      { q: "Can I meet people in Pakistan from the Netherlands?", a: "Yes. Set the country filter to Pakistan, or leave it open to meet anyone." },
+      { q: "Is random video chat safe in the Netherlands?", a: `${n} starts every random call blurred, verifies people with a selfie check, reviews reports 24/7 and is 18+ only.` },
+    ],
+    keywords: ["video chat amsterdam", "pakistani in netherlands", "make friends netherlands", "random video chat netherlands"],
+    related: ["/video-chat-germany/", "/video-chat-uk/", "/make-friends-app/"],
+  },
+  {
+    slug: "video-chat-sweden",
+    name: "Sweden",
+    utc: 1,
+    dst: true,
+    diaspora: true,
+    cities: ["Stockholm", "Gothenburg", "Malmö", "Uppsala"],
+    languages: ["Swedish", "English", "Urdu"],
+    h1: "Video chat in Sweden: long winters, warm conversations",
+    lede: `${n} is free random video chat that works from Sweden. Tap Start and you're face to face with someone new, in Stockholm, in Pakistan or anywhere in the world. Selfie verification, blurred call starts and 24/7 moderation are built in. No download, 18+.`,
+    angle: {
+      h2: "Dark at four, company at eight",
+      p: [
+        "Swedish winters are long and dark, and a video chat with someone far away is a good way to spend an evening. Pakistan is four hours ahead (three in summer), so when your evening starts the app is at its busiest; many Pakistani students and engineers in Sweden use the country filter to hear Urdu after work.",
+        "Set the filter to Sweden to meet people nearby, or leave it open for the world. English is the common language on nearly every call.",
+      ],
+    },
+    timing: "Pakistan is four hours ahead of Stockholm (three in summer), so its busiest hours are your evening:",
+    faqs: [
+      { q: "Can I meet people in Pakistan from Sweden?", a: "Yes. Set the country filter to Pakistan, or leave it open to meet anyone." },
+      { q: "Can I talk in Urdu or Punjabi?", a: "Yes. Talk in any language you both like. Most people on the app are in Pakistan, so Urdu and Punjabi are common." },
+    ],
+    keywords: ["video chat stockholm", "pakistani in sweden", "make friends sweden", "random video chat sweden"],
+    related: ["/video-chat-norway/", "/video-chat-germany/", "/video-chat-pakistan/"],
+  },
 ];
 
 export const COUNTRY_PAGES: KeywordPage[] = COUNTRIES.map(countryPage);
@@ -616,6 +869,8 @@ export const COUNTRY_PAGES: KeywordPage[] = COUNTRIES.map(countryPage);
 type City = {
   slug: string;
   name: string;
+  /** When the plain name is ambiguous in search results ("Hyderabad"). */
+  title?: string;
   h1: string;
   lede: string;
   angle: { h2: string; p: string[] };
@@ -630,7 +885,7 @@ function cityPage(c: City): KeywordPage {
     slug: c.slug,
     group: "city",
     navLabel: c.name,
-    title: `Video Chat ${c.name}: Meet New People Live`,
+    title: c.title ?? `Video Chat ${c.name}: Meet New People Live`,
     description: `Free live video chat in ${c.name}: meet real, selfie-verified people from ${c.name}, across Pakistan or worldwide. Cash out to JazzCash or Easypaisa. 18+.`,
     keywords: [`video chat ${lc}`, `random video chat ${lc}`, `make friends in ${lc}`, `meet new people ${lc}`, `online friends ${lc}`, `video call app ${lc}`, ...c.keywords],
     kicker: `Video chat in ${c.name}`,
@@ -724,6 +979,159 @@ const CITIES: City[] = [
     ],
     keywords: ["video chat rawalpindi", "islamabad video call", "online dost islamabad", "twin cities friends"],
     related: ["/video-chat-lahore/", "/video-chat-karachi/", "/practice-english-speaking/"],
+  },
+  {
+    slug: "video-chat-faisalabad",
+    name: "Faisalabad",
+    h1: "Video chat in Faisalabad: the funniest city on the app",
+    lede: `${n} is free random video chat for Faisalabad. Tap Start and you're face to face with someone new, from D Ground to Jaranwala Road, across Punjab or anywhere in the world. Real, selfie-verified people, calls that start blurred, and it works on any phone. 18+.`,
+    angle: {
+      h2: "Jugat ka shehar",
+      p: [
+        "Faisalabad is famous for two things: textiles and jugat, the quick Punjabi one-liner. Both travel well on a video call. Students from UAF and GCUF, mill workers finishing a shift and night owls from Peoples Colony make it one of the busiest cities in Punjab on the app.",
+        "Talk in Punjabi or Urdu with someone across the city, or leave the country filter off and try your jokes on the rest of the world.",
+      ],
+    },
+    faqs: [
+      { q: "Can I meet people from Faisalabad?", a: "Set the country filter to Pakistan. There's no city filter, but Faisalabad is one of the busiest cities in Punjab on the app." },
+      { q: "Does it work on slow data?", a: `Yes. ${n} adapts video to your connection, so a call keeps going on 3G or a weak 4G signal.` },
+    ],
+    keywords: ["faisalabad video call", "faisalabad friends online", "online dost faisalabad", "lyallpur video chat"],
+    related: ["/video-chat-lahore/", "/video-chat-multan/", "/blog/make-friends-online-pakistan/"],
+  },
+  {
+    slug: "video-chat-peshawar",
+    name: "Peshawar",
+    h1: "Video chat in Peshawar: Pashto, Urdu and the world",
+    lede: `${n} is free random video chat for Peshawar. One tap connects you on live video with someone new, in Peshawar, across Khyber Pakhtunkhwa or anywhere in the world. Selfie-verified badges, calls that start blurred, and nothing to install. 18+.`,
+    angle: {
+      h2: "The city of storytellers",
+      p: [
+        "Peshawar has been a city of conversation since the days of Qissa Khwani Bazaar. On the app that means Pashto and Urdu calls with people across KP, and plenty of people on the other side of the border who speak Pashto too.",
+        "Set the country filter to Pakistan to stay close to home, or leave it off to meet Afghanistan, the Gulf and the rest of the world. Many people from Peshawar use it to keep their English sharp before going abroad.",
+      ],
+    },
+    faqs: [
+      { q: "Can I meet people from Peshawar?", a: "Set the country filter to Pakistan. There's no city filter, but Peshawar is the busiest city in KP on the app." },
+      { q: "Can I talk in Pashto?", a: "Yes. Talk in whatever language you both like. Leave the country filter off to meet Pashto speakers in Afghanistan as well." },
+    ],
+    keywords: ["peshawar video call", "pashto video chat", "online dost peshawar", "kpk video chat"],
+    related: ["/video-chat-islamabad/", "/video-chat-afghanistan/", "/video-chat-quetta/"],
+  },
+  {
+    slug: "video-chat-multan",
+    name: "Multan",
+    h1: "Video chat in Multan: late nights, new faces",
+    lede: `${n} is free random video chat for Multan and South Punjab. Tap Start and you're on camera with someone new, in Multan, across Pakistan or anywhere in the world. Real, selfie-verified people and calls that start blurred. 18+.`,
+    angle: {
+      h2: "City of saints, and of very late evenings",
+      p: [
+        "Multan's summers push life late into the night, and that's exactly when the app is busiest. Students from BZU, people from Bahawalpur and DG Khan and the whole Saraiki belt are around after ten.",
+        "Talk in Saraiki, Punjabi or Urdu with someone nearby, or leave the country filter off and meet the world. Sohan halwa recommendations welcome.",
+      ],
+    },
+    faqs: [
+      { q: "Can I meet people from Multan?", a: "Set the country filter to Pakistan. There's no city filter, but South Punjab is well represented on the app." },
+      { q: "Can I talk in Saraiki?", a: "Of course. Talk in whatever language you both like." },
+    ],
+    keywords: ["multan video call", "saraiki video chat", "online dost multan", "south punjab video chat"],
+    related: ["/video-chat-bahawalpur/", "/video-chat-lahore/", "/earn-money-video-chat/"],
+  },
+  {
+    slug: "video-chat-bahawalpur",
+    name: "Bahawalpur",
+    h1: "Video chat in Bahawalpur: meet someone new tonight",
+    lede: `${n} is free random video chat for Bahawalpur. One tap puts you face to face with someone new, in Bahawalpur, across Pakistan or anywhere in the world. Selfie-verified people, calls that start blurred, and it works on any phone. 18+.`,
+    angle: {
+      h2: "Small city, big on the app",
+      p: [
+        `For its size, Bahawalpur is one of the most active cities on ${n}, thanks to thousands of students at the Islamia University and a lot of long, quiet evenings. If you're one of them, you're in good company.`,
+        "Talk in Saraiki, Punjabi or Urdu with people across South Punjab, or leave the country filter off to practise English with someone on the other side of the world.",
+      ],
+    },
+    faqs: [
+      { q: "Can I meet people from Bahawalpur?", a: "Set the country filter to Pakistan. There's no city filter, but Bahawalpur punches above its weight on the app." },
+      { q: "Does it work on Jazz or Zong data?", a: `Yes. ${n} works on any mobile network or Wi-Fi and adapts video to your connection.` },
+    ],
+    keywords: ["bahawalpur video call", "online dost bahawalpur", "iub friends online", "cholistan video chat"],
+    related: ["/video-chat-multan/", "/video-chat-lahore/", "/practice-english-speaking/"],
+  },
+  {
+    slug: "video-chat-hyderabad",
+    name: "Hyderabad",
+    title: "Video Chat Hyderabad, Sindh: Meet New People Live",
+    h1: "Video chat in Hyderabad, Sindh",
+    lede: `${n} is free random video chat for Hyderabad, Sindh. Tap Start and you're on live video with someone new, in Hyderabad, down the road in Karachi, across Pakistan or anywhere in the world. Real, selfie-verified people and calls that start blurred. 18+.`,
+    angle: {
+      h2: "Sindhi, Urdu and an hour from Karachi",
+      p: [
+        "Hyderabad sits close enough to Karachi to share its late nights, with its own mix of Sindhi and Urdu. Students from Jamshoro and people from Qasimabad, Latifabad and across interior Sindh are on the app most evenings.",
+        "Set the country filter to Pakistan to stay close to home, or leave it off and meet the world.",
+      ],
+    },
+    faqs: [
+      { q: "Can I meet people from Hyderabad, Sindh?", a: "Set the country filter to Pakistan. There's no city filter, but Hyderabad and Karachi together are the busiest part of Sindh on the app." },
+      { q: "Can I talk in Sindhi?", a: "Yes. Talk in whatever language you both like." },
+    ],
+    keywords: ["hyderabad sindh video chat", "sindhi video chat", "online dost hyderabad", "qasimabad video call", "jamshoro friends online"],
+    related: ["/video-chat-karachi/", "/video-chat-quetta/", "/blog/make-friends-online-pakistan/"],
+  },
+  {
+    slug: "video-chat-gujranwala",
+    name: "Gujranwala",
+    h1: "Video chat in Gujranwala: new people, one tap away",
+    lede: `${n} is free random video chat for Gujranwala. One tap connects you on live video with someone new, in Gujranwala, across Punjab or around the world. Selfie-verified badges, calls that start blurred, and nothing to install. 18+.`,
+    angle: {
+      h2: "The city that feeds half of Punjab",
+      p: [
+        "Gujranwala is known for its food and its wrestlers, and for the many families with someone working in Italy, Spain or the Gulf. On the app that means Punjabi calls with people in the city and Urdu calls with relatives' cities abroad.",
+        "Set the country filter to Pakistan for someone nearby, to Italy or Spain to hear from the diaspora, or leave it open for the world.",
+      ],
+    },
+    faqs: [
+      { q: "Can I meet people from Gujranwala?", a: "Set the country filter to Pakistan. There's no city filter, but central Punjab is one of the busiest regions on the app." },
+      { q: "Can I talk in Punjabi?", a: "Of course. Talk in whatever language you both like." },
+    ],
+    keywords: ["gujranwala video call", "online dost gujranwala", "gujranwala friends online", "punjabi video chat gujranwala"],
+    related: ["/video-chat-sialkot/", "/video-chat-lahore/", "/video-chat-italy/"],
+  },
+  {
+    slug: "video-chat-sialkot",
+    name: "Sialkot",
+    h1: "Video chat in Sialkot: from the export city to the world",
+    lede: `${n} is free random video chat for Sialkot. Tap Start and you're face to face with someone new, in Sialkot, in Europe where half the city has family, or anywhere in the world. Real, selfie-verified people and calls that start blurred. 18+.`,
+    angle: {
+      h2: "A city with family everywhere",
+      p: [
+        "Sialkot sells footballs and surgical tools to the whole world, and sends its people to Norway, Spain, Italy and Germany. Few Pakistani cities have more reasons to talk to someone abroad, in Punjabi, Urdu or the English you need for the next export order.",
+        "Set the country filter to Pakistan for someone nearby, to a European country to meet people where your cousins live, or leave it open and see who's out there.",
+      ],
+    },
+    faqs: [
+      { q: "Can I meet people from Sialkot?", a: "Set the country filter to Pakistan. There's no city filter, but Sialkot and Gujranwala are well represented on the app." },
+      { q: "Is it good for practising business English?", a: "Yes. Leave the country filter off to meet people from many countries. See our [practise English speaking](/practice-english-speaking/) guide." },
+    ],
+    keywords: ["sialkot video call", "online dost sialkot", "sialkot friends online", "sialkot pakistani in norway"],
+    related: ["/video-chat-gujranwala/", "/video-chat-norway/", "/practice-english-speaking/"],
+  },
+  {
+    slug: "video-chat-quetta",
+    name: "Quetta",
+    h1: "Video chat in Quetta: Balochistan to the world",
+    lede: `${n} is free random video chat for Quetta. One tap puts you on live video with someone new, in Quetta, across Balochistan and Pakistan or anywhere in the world. Selfie-verified people, calls that start blurred, and it keeps working on a slow connection. 18+.`,
+    angle: {
+      h2: "Cool evenings, a long way from everywhere",
+      p: [
+        "Quetta is far from Pakistan's other big cities, and a video call closes that distance. Talk in Balochi, Pashto, Brahui, Hazaragi or Urdu with people across the province, or meet someone in Karachi or Lahore who has never seen snow.",
+        `Internet in Balochistan isn't always fast. ${n} adapts video to your connection, so a call keeps going on 3G and sharpens up on Wi-Fi.`,
+      ],
+    },
+    faqs: [
+      { q: "Can I meet people from Quetta?", a: "Set the country filter to Pakistan. There's no city filter, but Balochistan is well represented in the evenings." },
+      { q: "Does it work on slow data?", a: `Yes. ${n} lowers video quality on a weak signal instead of dropping the call.` },
+    ],
+    keywords: ["quetta video call", "balochistan video chat", "online dost quetta", "hazara video chat", "balochi video chat"],
+    related: ["/video-chat-karachi/", "/video-chat-peshawar/", "/video-chat-afghanistan/"],
   },
 ];
 
