@@ -124,6 +124,7 @@ model User {
   invitedBy      User?                 @relation("Invites", fields: [invitedById], references: [id], onDelete: SetNull)
   invitees       User[]                @relation("Invites")
   wallet         Wallet?
+  adViews        AdView[]
   sessions       Session[]
   ledger         LedgerEntry[]
   purchases      Purchase[]
@@ -1485,4 +1486,27 @@ model SiteEvent {
 
   @@index([at])
   @@index([visitId])
+}
+
+/// One Store video (rewarded ad): started → watched (the network confirmed) → paid (coins given).
+/// Feeds admin → Finance → Store videos. Redis holds the live token; this is the record.
+model AdView {
+  id           String    @id @default(cuid())
+  /// The one-off token (Monetag ymid / AdMob customData).
+  token        String    @unique @db.VarChar(64)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String    @db.VarChar(16)
+  platform     String    @db.VarChar(16)
+  /// Monetag: false for `non_valued` views (no money for us).
+  valued       Boolean?
+  /// The network's estimate of what this view earned us, in USD.
+  estimatedUsd Decimal?  @db.Decimal(12, 7)
+  coins        Int?
+  createdAt    DateTime  @default(now())
+  watchedAt    DateTime?
+  paidAt       DateTime?
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }

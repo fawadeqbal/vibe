@@ -1,109 +1,86 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { createPublicKey, verify } from 'node:crypto';
+import { HttpStatus, Injectable } from '@nestjs/common';
 
+import { AppError } from '../../../common/errors/app-error';
+import { ErrorCode } from '../../../common/errors/error-codes';
 import { AppConfig } from '../../../config/app-config.service';
-import { RedisService } from '../../../infra/redis/redis.service';
-import { Integration, IntegrationMode, IntegrationReporter, IntegrationStatus, missingKeys, ProviderSwitch, resolveMode } from '../../../integrations/core/integration.types';
-import { FetchLike, ProviderHttp } from '../../../integrations/core/provider-http';
+import { SettingsService } from '../../settings/settings.service';
+import { AdPlatform, AdProviderKey, AdViews, RewardedAdProvider } from './ad-views';
+import { AdMobProvider } from './admob.provider';
+import { MonetagProvider } from './monetag.provider';
 
-const ADMOB_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
-const VERIFIED = (userId: string, token: string) => `ad:verified:${userId}:${token}`;
-const USED = (userId: string, token: string) => `ad:used:${userId}:${token}`;
+export interface AdSetup {
+  /** `off` hides the Store's video card. */
+  provider: AdProviderKey | 'off';
+  /** Provider-specific client config (Monetag: zoneId, sdkUrl, frameUrl). */
+  config?: Record<string, string>;
+}
 
 /**
- * Rewarded ads must really have been watched before coins are paid.
+ * Rewarded videos in the Store, whatever the network.
  *
- * Live (AdMob server-side verification): the app shows the ad with
- * ServerSideVerificationOptions(userId = our user id, customData = a fresh
- * nonce). AdMob calls /v1/webhooks/admob/ssv with a signed callback; we check
- * Google's signature, the ad unit and freshness, and remember the nonce.
- * The app then claims with that nonce (POST /wallet/rewards/ad).
- *
- * Dev: any token, once.
+ * 1. `setup(platform)`: which network the admin picked for the website / app.
+ * 2. `start(userId, platform)`: a one-off token for one view.
+ * 3. The client shows the network's ad with that token; the network's webhook
+ *    marks the view watched ([AdViews.markWatched]).
+ * 4. `consume(userId, token)`: the claim pays once, after the network confirmed.
  */
-@Integration()
 @Injectable()
-export class AdsService implements IntegrationReporter {
-  private readonly logger = new Logger(AdsService.name);
-  readonly mode: IntegrationMode;
-  private keys = new Map<string, string>();
-  private keysAt = 0;
-  /** Swappable in tests. */
-  fetchImpl: FetchLike = (i, init) => fetch(i, init);
+export class AdsService {
+  private readonly providers: Record<AdProviderKey, RewardedAdProvider>;
 
   constructor(
-    private readonly redis: RedisService,
+    private readonly views: AdViews,
+    private readonly settings: SettingsService,
     private readonly config: AppConfig,
+    private readonly admob: AdMobProvider,
+    monetag: MonetagProvider,
   ) {
-    this.mode = resolveMode(config.get('ADS_VERIFIER') as ProviderSwitch, missingKeys(config.env, ['ADMOB_AD_UNIT_IDS']).length === 0, config.isProduction);
+    this.providers = { admob, monetag };
   }
 
-  /** AdMob's callback (raw query string, signature over everything before `&signature=`). */
-  async acceptCallback(rawQuery: string): Promise<boolean> {
-    if (this.mode !== 'live') return false;
-    const sigIndex = rawQuery.indexOf('&signature=');
-    if (sigIndex < 0) return false;
-    const message = rawQuery.slice(0, sigIndex);
-    const p = new URLSearchParams(rawQuery);
-    const signature = p.get('signature');
-    const keyId = p.get('key_id');
-    const tx = p.get('transaction_id');
-    const userId = p.get('user_id');
-    if (!signature || !keyId || !tx || !userId) return false;
-    const pem = await this.key(keyId);
-    if (!pem || !verify('sha256', Buffer.from(message), createPublicKey(pem), Buffer.from(signature, 'base64url'))) return false;
-    const units = this.config.list('ADMOB_AD_UNIT_IDS');
-    const unit = p.get('ad_unit') ?? '';
-    if (units.length && !units.some((u) => unit === u || u.endsWith(`/${unit}`))) {
-      this.logger.warn(`AdMob reward for unexpected ad unit ${unit}`);
-      return false;
-    }
-    const ts = Number(p.get('timestamp'));
-    if (ts && Math.abs(Date.now() - ts) > 3600_000) return false;
-    const token = p.get('custom_data') || tx;
-    await this.redis.client.set(VERIFIED(userId, token), tx, 'EX', 86400);
-    return true;
+  async setup(platform: AdPlatform): Promise<AdSetup> {
+    const picked = platform === 'web' ? await this.settings.get('ads.web') : await this.settings.get('ads.app');
+    if (picked === 'off') return { provider: 'off' };
+    const config = await this.providers[picked].clientSetup(platform);
+    return config ? { provider: picked, config } : { provider: 'off' };
+  }
+
+  async start(userId: string, platform: AdPlatform): Promise<AdSetup & { token: string }> {
+    const s = await this.setup(platform);
+    if (s.provider === 'off') throw new AppError(ErrorCode.FEATURE_DISABLED, 'Videos are off for now', HttpStatus.FORBIDDEN);
+    return { ...s, token: await this.views.issue(userId, s.provider, platform) };
   }
 
   /**
-   * Waits briefly for AdMob's callback (it usually lands within a second or
-   * two of the ad closing) and claims the token once.
+   * Claims a watched view once, waiting briefly for the network's callback
+   * (it usually lands within a few seconds of the ad closing).
    */
-  async consume(userId: string, token: string, waitMs = 4000): Promise<boolean> {
+  async consume(userId: string, token: string, waitMs = 8000): Promise<boolean> {
     if (!token) return false;
-    if (this.mode === 'dev') return (await this.redis.client.set(USED(userId, token), '1', 'EX', 86400 * 2, 'NX')) === 'OK';
-    if (this.mode === 'off') return false;
+    if (await this.views.take(userId, token)) return true;
+    const ticket = await this.views.ticket(token);
+    if (ticket) {
+      if (ticket.userId !== userId) return false;
+      // Tokens we issued (Monetag) always need the network's postback, except on a dev machine.
+      if (this.devPays && !this.config.isProduction) return this.views.takeUnverified(userId, token);
+    } else if (this.devPays) {
+      // Older app builds make their own AdMob nonce; ADS_VERIFIER=dev pays those as before.
+      return this.views.takeUnverified(userId, token);
+    }
     const until = Date.now() + waitMs;
-    do {
-      if ((await this.redis.client.del(VERIFIED(userId, token))) === 1) return true;
+    while (Date.now() < until) {
       await new Promise((r) => setTimeout(r, 250));
-    } while (Date.now() < until);
+      if (await this.views.take(userId, token)) return true;
+    }
     return false;
   }
 
-  private async key(id: string): Promise<string | undefined> {
-    if (Date.now() - this.keysAt > 24 * 3600_000 || !this.keys.has(id)) {
-      try {
-        const r = await new ProviderHttp('admob-keys', '', this.fetchImpl).request<{ keys: { keyId: number; pem: string }[] }>(ADMOB_KEYS_URL, { retries: 2 });
-        this.keys = new Map(r.body.keys.map((k) => [String(k.keyId), k.pem]));
-        this.keysAt = Date.now();
-      } catch (e) {
-        this.logger.warn(`Could not fetch AdMob keys: ${(e as Error).message}`);
-      }
-    }
-    return this.keys.get(id);
+  /** For the admin report: coins actually paid for this view. */
+  paid(token: string, coins: number): Promise<void> {
+    return this.views.paid(token, coins);
   }
 
-  integrationStatus(): IntegrationStatus {
-    return {
-      key: 'ads.admob',
-      kind: 'ads',
-      label: 'AdMob rewarded ads',
-      mode: this.mode,
-      requiredEnv: ['ADMOB_AD_UNIT_IDS'],
-      missingEnv: missingKeys(this.config.env, ['ADMOB_AD_UNIT_IDS']),
-      endpoints: [{ label: 'Server-side verification callback URL', url: this.config.url('/v1/webhooks/admob/ssv') }],
-      notes: this.mode === 'dev' ? ['Dev: any ad token pays once.'] : [],
-    };
+  private get devPays(): boolean {
+    return this.admob.mode === 'dev';
   }
 }

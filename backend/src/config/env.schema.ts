@@ -176,6 +176,8 @@ export const envSchema = z.object({
   ADS_VERIFIER: z.enum(['dev', 'admob', 'live', 'auto']).default('dev').transform((v) => (v === 'admob' ? 'live' : v)),
   /** Optional: only accept rewards from these ad unit ids (numeric part, comma-separated). */
   ADMOB_AD_UNIT_IDS: opt,
+  /** Secret in Monetag's postback URL. Empty = derived from JWT_ACCESS_SECRET (shown on the admin Integrations page). */
+  MONETAG_POSTBACK_SECRET: opt,
 
   // ── Push notifications (Firebase Cloud Messaging HTTP v1) ──────────
   PUSH_PROVIDER: providerSwitch.default('dev'),

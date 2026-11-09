@@ -118,18 +118,17 @@ class _CameraBlockedSheetState extends State<CameraBlockedSheet> {
 
 // ── A filter you can't afford ─────────────────────────────────────────────
 
-enum FilterCoinsChoice { store, ad, vip, anyone }
+enum FilterCoinsChoice { store, vip, anyone }
 
 /// "This filter costs N coins": get coins, watch a video, VIP, or match with anyone for free.
-Future<FilterCoinsChoice?> showFilterCoins(BuildContext context, {required int cost, required int coins, required String filterLabel, required bool adsAvailable}) =>
-    showVibeSheet<FilterCoinsChoice>(context, child: FilterCoinsSheet(cost: cost, coins: coins, filterLabel: filterLabel, adsAvailable: adsAvailable));
+Future<FilterCoinsChoice?> showFilterCoins(BuildContext context, {required int cost, required int coins, required String filterLabel}) =>
+    showVibeSheet<FilterCoinsChoice>(context, child: FilterCoinsSheet(cost: cost, coins: coins, filterLabel: filterLabel));
 
 class FilterCoinsSheet extends StatelessWidget {
-  const FilterCoinsSheet({super.key, required this.cost, required this.coins, required this.filterLabel, required this.adsAvailable});
+  const FilterCoinsSheet({super.key, required this.cost, required this.coins, required this.filterLabel});
   final int cost;
   final int coins;
   final String filterLabel;
-  final bool adsAvailable;
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +182,6 @@ class FilterCoinsSheet extends StatelessWidget {
         Text("You only pay when you're matched. Matching with anyone is always free.", style: VT.body(14, color: V.text2, height: 1.5)),
         const SizedBox(height: 16),
         row(FilterCoinsChoice.store, SolarIconsBold.dollarMinimalistic, V.gold, 'Get coins', highlight: true),
-        if (adsAvailable) row(FilterCoinsChoice.ad, SolarIconsBold.videoFrame, V.lavender, 'Watch a short video for free coins'),
         row(FilterCoinsChoice.vip, SolarIconsBold.crown, V.gold, 'VIP — every filter free', sub: 'Plus unlimited likes in Discover'),
         const SizedBox(height: 8),
         GradientButton(label: 'Match with anyone — free', onTap: () => Navigator.of(context).pop(FilterCoinsChoice.anyone)),

@@ -7,10 +7,12 @@ import { Idempotent } from '../../common/decorators/idempotent.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CursorQueryDto } from '../../common/dto/pagination.dto';
 import { CashoutService } from './cashout.service';
-import { AdRewardDto, CashoutDto, PayoutAccountDto } from './dto/wallet.dto';
+import { AdPlatformDto, AdRewardDto, CashoutDto, PayoutAccountDto } from './dto/wallet.dto';
 import { PayoutAccountsService } from './payouts/payout-accounts.service';
 import { PayoutGateway } from './payouts/payout-gateway.service';
+import { AdMobProvider } from './ads/admob.provider';
 import { AdsService } from './ads/ads.service';
+import { MonetagPostback, MonetagProvider } from './ads/monetag.provider';
 import { RewardsService } from './rewards.service';
 import { WalletService } from './wallet.service';
 import { SkipMaintenance } from '../settings/maintenance.guard';
@@ -25,6 +27,7 @@ export class WalletController {
     private readonly cashouts: CashoutService,
     private readonly payoutAccounts: PayoutAccountsService,
     private readonly payoutGateway: PayoutGateway,
+    private readonly ads: AdsService,
   ) {}
 
   @Get()
@@ -44,6 +47,20 @@ export class WalletController {
   async checkIn(@CurrentUser('id') userId: string) {
     const r = await this.rewards.checkIn(userId);
     return { ...r, wallet: await this.wallet.view(userId) };
+  }
+
+  @Get('rewards/ad/setup')
+  @ApiOperation({ summary: 'Which network plays Store videos on this platform (provider "off" hides the card)' })
+  adSetup(@Query() q: AdPlatformDto) {
+    return this.ads.setup(q.platform);
+  }
+
+  @Post('rewards/ad/start')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'A one-off token for one Store video; show the ad with it, then claim with POST rewards/ad' })
+  async adStart(@CurrentUser('id') userId: string, @Body() dto: AdPlatformDto) {
+    await this.rewards.assertAdsLeft(userId);
+    return this.ads.start(userId, dto.platform);
   }
 
   @Post('rewards/ad')
@@ -112,13 +129,31 @@ export class WalletController {
 @SkipMaintenance()
 @Controller('webhooks/admob')
 export class AdMobWebhookController {
-  constructor(private readonly ads: AdsService) {}
+  constructor(private readonly admob: AdMobProvider) {}
 
   @Public()
   @Get('ssv')
   async ssv(@Req() req: Request) {
     const raw = req.originalUrl.split('?')[1] ?? '';
-    const ok = await this.ads.acceptCallback(raw);
+    const ok = await this.admob.acceptCallback(raw);
     return { ok };
+  }
+}
+
+/**
+ * Monetag postback (URL with its secret: admin → Integrations). Always 200,
+ * so Monetag doesn't retry views we refused on purpose.
+ */
+@ApiTags('webhooks')
+@SkipMaintenance()
+@Controller('webhooks/monetag')
+export class MonetagWebhookController {
+  constructor(private readonly monetag: MonetagProvider) {}
+
+  @Public()
+  @Get('postback')
+  async postback(@Query() q: MonetagPostback) {
+    const result = await this.monetag.acceptPostback(q);
+    return { ok: result === 'paid' || result === 'duplicate' || result === 'ignored', result };
   }
 }

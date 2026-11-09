@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import Script from "next/script";
 
 import { JsonLd } from "@/components/json-ld";
+import { LandingAd } from "@/components/landing-ad";
 import { Tracker } from "@/components/tracker";
 import { organizationLd, websiteLd } from "@/lib/seo";
 import { site } from "@/lib/site";
@@ -76,10 +77,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </Script>
           </>
         )}
-        {/* Monetag Vignette */}
-        <Script id="monetag-vignette" strategy="afterInteractive">
-          {`(function(s){s.dataset.zone='12201130',s.src='https://n6wxm.com/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`}
-        </Script>
+        {/* Monetag Vignette: on/off and zone from admin → Settings → Ads. */}
+        <LandingAd />
       </body>
     </html>
   );

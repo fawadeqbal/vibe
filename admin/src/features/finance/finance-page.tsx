@@ -14,6 +14,7 @@ import type { FinanceDay, FinanceSummary } from "@/lib/api/types";
 import { format } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+import { AdsInsights } from "@/features/insights/ads-insights";
 import { MoneyInsights } from "@/features/insights/money-insights";
 
 import { useFinanceSummary } from "./api";
@@ -42,6 +43,8 @@ export function FinancePage() {
       />
 
       <MoneyInsights days={days} />
+
+      <AdsInsights days={days} />
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard label="Gross sales" icon={DollarSign} tone="money" loading={q.isLoading} value={format.usd(s?.grossUsd)} hint={s && `${format.number(s.salesCount)} payments`} href="/finance/purchases" />

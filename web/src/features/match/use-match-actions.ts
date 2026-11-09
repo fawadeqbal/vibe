@@ -6,7 +6,6 @@ import { useCallback, useMemo } from "react";
 import { confirm, useNeedCoins } from "@/components/shared/dialogs";
 import { pickGift } from "@/components/shared/gift-sheet";
 import { pickReport } from "@/components/shared/report-sheet";
-import { rewardedAds } from "@/components/shared/rewarded-ads";
 import { errorMessage } from "@/lib/api/errors";
 import type { Gift } from "@/lib/models";
 import { COUNTRIES } from "@/lib/catalog";
@@ -42,7 +41,7 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
   const currentFilterCost = () => filterCost(useMatch.getState().filters, isVip(useWallet.getState().wallet) || isVibeHour(useEngagement.getState()));
 
   /**
-   * Filters they can't afford: get coins, watch a video, VIP, or match with
+   * Filters they can't afford: get coins (the Store also has free videos), VIP, or match with
    * anyone for free (which starts right away).
    */
   const filtersNeedCoins = useCallback(async (): Promise<boolean> => {
@@ -53,13 +52,7 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
     const choice = await openFilterCoins({ cost: currentFilterCost(), coins: useWallet.getState().wallet.coins, filterLabel: label || "Filters" });
     if (choice === "store") router.push("/store");
     else if (choice === "vip") router.push("/vip");
-    else if (choice === "ad") {
-      const r = await rewardedAds.show();
-      if (r.outcome === "rewarded" && r.token) {
-        const coins = await useWallet.getState().rewardAd(r.token).catch(() => null);
-        toast(coins == null ? "Daily ad limit reached" : `+${coins} coins — tap Start again`, { error: coins == null });
-      } else if (r.outcome !== "dismissed") toast(r.message ?? "No video right now. Try again in a minute.", { error: true });
-    } else if (choice === "anyone") {
+    else if (choice === "anyone") {
       useMatch.getState().setFilters({ ...f, gender: "anyone", countryCode: null });
       return true;
     }

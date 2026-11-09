@@ -20,8 +20,6 @@ import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
-import '../../services/app_services.dart';
-import '../../services/ads/rewarded_ads.dart';
 import '../invite/invite_screen.dart';
 import '../invite/share_cards.dart';
 import '../profile/leaderboard_screen.dart';
@@ -139,29 +137,19 @@ class _MatchScreenState extends State<MatchScreen> {
     await _explainFailure(m, 'These filters cost ${m.filterCost} coins per match.');
   }
 
-  /// Filters they can't afford: get coins, watch a video, VIP, or match
-  /// with anyone for free. True when they chose "anyone" (start again).
+  /// Filters they can't afford: get coins (the Store also has free videos),
+  /// VIP, or match with anyone for free. True when they chose "anyone" (start again).
   Future<bool> _filtersNeedCoins(MatchProvider m) async {
     final f = m.filters;
     final label = [if (f.gender == GenderFilter.women) 'Women', if (f.gender == GenderFilter.men) 'Men', if (f.countryCode != null) MockData.country(f.countryCode!).name].join(' · ');
-    final services = context.read<AppServices>();
     final wallet = context.read<WalletProvider>();
-    final choice = await showFilterCoins(context, cost: m.filterCost, coins: wallet.coins, filterLabel: label.isEmpty ? 'Filters' : label, adsAvailable: services.ads.available);
+    final choice = await showFilterCoins(context, cost: m.filterCost, coins: wallet.coins, filterLabel: label.isEmpty ? 'Filters' : label);
     if (!mounted || choice == null) return false;
     switch (choice) {
       case FilterCoinsChoice.store:
         widget.onOpenStore();
       case FilterCoinsChoice.vip:
         await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen()));
-      case FilterCoinsChoice.ad:
-        final r = await services.ads.show(context, userId: context.read<SessionProvider>().me?.id ?? '');
-        if (!mounted) return false;
-        if (r.outcome == AdOutcome.rewarded) {
-          final coins = await wallet.rewardAd(adToken: r.token).catchError((_) => null);
-          if (mounted) toast(context, coins == null ? 'Daily ad limit reached' : '+$coins coins — tap Start again', error: coins == null);
-        } else if (r.outcome != AdOutcome.dismissed) {
-          toast(context, r.message ?? 'No video right now. Try again in a minute.', error: true);
-        }
       case FilterCoinsChoice.anyone:
         m.setFilters(const MatchFilters().copyWith(safeMode: f.safeMode));
         return true;

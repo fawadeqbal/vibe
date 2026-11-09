@@ -111,6 +111,22 @@ export interface GrowthReport {
     d30: number | null;
   }[];
 }
+/** GET admin/insights/ads: Store videos (rewarded ads). */
+export interface AdsReport {
+  generatedAt: string;
+  days: number;
+  started: number;
+  watched: number;
+  paid: number;
+  unpaidByNetwork: number;
+  coinsGiven: number;
+  estimatedUsd: number;
+  previousEstimatedUsd: number;
+  people: number;
+  daily: { day: string; started: number; watched: number; paid: number; estimatedUsd: number }[];
+  byPlatform: { platform: string; started: number; paid: number; estimatedUsd: number }[];
+}
+
 export interface MoneyReport {
   generatedAt: string;
   days: number;
@@ -133,7 +149,7 @@ export interface MoneyReport {
 }
 
 /** GET admin/insights/<what>?days=&client= (cached 60 s on the server). */
-export function useInsights<T>(what: "health" | "matching" | "growth" | "money", days: number, client: ClientFilter = "all") {
+export function useInsights<T>(what: "health" | "matching" | "growth" | "money" | "ads", days: number, client: ClientFilter = "all") {
   return useQuery({
     queryKey: ["insights", what, days, client],
     queryFn: ({ signal }) => api.get<T>(`admin/insights/${what}`, { days, client }, signal),

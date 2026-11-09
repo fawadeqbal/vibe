@@ -84,6 +84,24 @@ export interface GrowthReport {
   cohorts: { week: string; signups: number; d1: number | null; d7: number | null; d30: number | null }[];
 }
 
+export interface AdsReport {
+  generatedAt: string;
+  days: number;
+  /** Store videos asked for / confirmed by the network / paid in coins. */
+  started: number;
+  watched: number;
+  paid: number;
+  /** Confirmed, but the network paid us nothing (Monetag `non_valued`). */
+  unpaidByNetwork: number;
+  coinsGiven: number;
+  /** The network's own estimate (postbacks), USD. */
+  estimatedUsd: number;
+  previousEstimatedUsd: number;
+  people: number;
+  daily: { day: string; started: number; watched: number; paid: number; estimatedUsd: number }[];
+  byPlatform: { platform: string; started: number; paid: number; estimatedUsd: number }[];
+}
+
 export interface MoneyReport {
   generatedAt: string;
   days: number;
@@ -505,6 +523,55 @@ export class InsightsService {
       repeatPayers: n(t?.repeat),
       products: products.map((x) => ({ type: x.type, productId: x.product, purchases: n(x.k), revenueUsd: n(x.cents) / 100 })),
       previousRevenueUsd: n(prev[0]?.cents) / 100,
+    };
+  }
+
+  // ── Store videos (rewarded ads) ───────────────────────────────────────
+
+  async ads(days: number): Promise<AdsReport> {
+    return this.redis.remember(`admin:insights:ads:${days}`, 60, () => this.buildAds(days));
+  }
+
+  private async buildAds(days: number): Promise<AdsReport> {
+    const w = this.window(days);
+    const p = this.window(days, 1);
+    const [totals, prev, daily, platforms] = await Promise.all([
+      this.prisma.$queryRaw<{ started: bigint; watched: bigint; paid: bigint; unpaid: bigint; coins: bigint | null; usd: Prisma.Decimal | null; people: bigint }[]>`
+        SELECT count(*) AS started, count("watchedAt") AS watched, count("paidAt") AS paid,
+               count(*) FILTER (WHERE valued = false) AS unpaid, sum(coins) AS coins, sum("estimatedUsd") AS usd,
+               count(DISTINCT "userId") FILTER (WHERE "watchedAt" IS NOT NULL) AS people
+          FROM "AdView" WHERE "createdAt" >= ${w.from} AND "createdAt" < ${w.to}`,
+      this.prisma.$queryRaw<{ usd: Prisma.Decimal | null }[]>`SELECT sum("estimatedUsd") AS usd FROM "AdView" WHERE "createdAt" >= ${p.from} AND "createdAt" < ${p.to}`,
+      this.prisma.$queryRaw<{ day: Date; started: bigint; watched: bigint; paid: bigint; usd: Prisma.Decimal | null }[]>`
+        SELECT ${this.dayOf('"createdAt"')} AS day, count(*) AS started, count("watchedAt") AS watched, count("paidAt") AS paid, sum("estimatedUsd") AS usd
+          FROM "AdView" WHERE "createdAt" >= ${w.from} AND "createdAt" < ${w.to} GROUP BY 1 ORDER BY 1`,
+      this.prisma.$queryRaw<{ platform: string; started: bigint; paid: bigint; usd: Prisma.Decimal | null }[]>`
+        SELECT platform, count(*) AS started, count("paidAt") AS paid, sum("estimatedUsd") AS usd
+          FROM "AdView" WHERE "createdAt" >= ${w.from} AND "createdAt" < ${w.to} GROUP BY 1 ORDER BY 2 DESC`,
+    ]);
+    const t = totals[0];
+    const usd = (v: Prisma.Decimal | null | undefined) => Math.round(Number(v ?? 0) * 10_000) / 10_000;
+    const key = (at: Date) => new Date(at.getTime() + this.off * MS.minute).toISOString().slice(0, 10);
+    const byDay = new Map(daily.map((d) => [key(new Date(d.day)), d]));
+    const series: AdsReport['daily'] = [];
+    for (let i = 0; i < days; i++) {
+      const day = key(new Date(w.from.getTime() + i * MS.day));
+      const d = byDay.get(day);
+      series.push({ day, started: n(d?.started), watched: n(d?.watched), paid: n(d?.paid), estimatedUsd: usd(d?.usd) });
+    }
+    return {
+      generatedAt: this.clock.now().toISOString(),
+      days,
+      started: n(t?.started),
+      watched: n(t?.watched),
+      paid: n(t?.paid),
+      unpaidByNetwork: n(t?.unpaid),
+      coinsGiven: n(t?.coins),
+      estimatedUsd: usd(t?.usd),
+      previousEstimatedUsd: usd(prev[0]?.usd),
+      people: n(t?.people),
+      daily: series,
+      byPlatform: platforms.map((x) => ({ platform: x.platform, started: n(x.started), paid: n(x.paid), estimatedUsd: usd(x.usd) })),
     };
   }
 }

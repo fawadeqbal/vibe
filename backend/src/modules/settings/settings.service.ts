@@ -76,13 +76,15 @@ export class SettingsService implements OnModuleInit, OnModuleDestroy {
     const meta = new Map(rows.map((r) => [r.key, r]));
     return SETTING_KEYS.map((key) => {
       const def = SETTINGS[key];
-      const schema = def.schema as unknown as { _def: { typeName: string } };
+      const schema = def.schema as unknown as { _def: { typeName: string; values?: string[] } };
+      const t = schema._def.typeName;
       return {
         key,
         group: def.group,
         label: def.label,
         description: def.description,
-        type: schema._def.typeName === 'ZodBoolean' ? 'boolean' : schema._def.typeName === 'ZodNumber' ? 'number' : 'string',
+        type: t === 'ZodBoolean' ? 'boolean' : t === 'ZodNumber' ? 'number' : t === 'ZodEnum' ? 'select' : 'string',
+        ...(t === 'ZodEnum' ? { options: schema._def.values ?? [] } : {}),
         value: values[key],
         default: defaultFor(key, this.config.isProduction),
         updatedAt: meta.get(key)?.updatedAt.toISOString() ?? null,
