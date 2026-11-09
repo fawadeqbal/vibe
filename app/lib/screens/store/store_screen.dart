@@ -31,8 +31,7 @@ class StoreScreen extends StatelessWidget {
     final wallet = context.watch<WalletProvider>();
     void openWallet() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WalletScreen()));
     final packs = MockData.packs;
-    final hero = packs.firstWhere((p) => p.tag == 'Best value', orElse: () => packs.last);
-    final rest = [for (final p in packs) if (p != hero) p];
+    final best = packs.where((p) => p.tag == 'Best value').firstOrNull;
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -53,17 +52,16 @@ class StoreScreen extends StatelessWidget {
                 children: [
                   if (!wallet.isVip) const _VipBanner(),
                   SectionTitle('Coins', note: 'Coins never expire', top: wallet.isVip ? 4 : 28),
-                  _HeroPack(pack: hero),
-                  const SizedBox(height: 10),
-                  for (var i = 0; i < rest.length; i += 2) ...[
-                    if (i > 0) const SizedBox(height: 10),
+                  const SizedBox(height: 4),
+                  for (var i = 0; i < packs.length; i += 2) ...[
+                    if (i > 0) const SizedBox(height: 14),
                     IntrinsicHeight(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: _PackCard(pack: rest[i])),
+                          Expanded(child: _PackCard(pack: packs[i], best: packs[i] == best)),
                           const SizedBox(width: 10),
-                          Expanded(child: i + 1 < rest.length ? _PackCard(pack: rest[i + 1]) : const SizedBox.shrink()),
+                          Expanded(child: i + 1 < packs.length ? _PackCard(pack: packs[i + 1], best: packs[i + 1] == best) : const SizedBox.shrink()),
                         ],
                       ),
                     ),
@@ -74,7 +72,7 @@ class StoreScreen extends StatelessWidget {
                   Text(
                     context.read<AppServices>().config.isStoreBuild
                         ? 'Prices in USD; your store may show them in your currency.'
-                        : 'Prices in USD; JazzCash, Easypaisa and bank charge the PKR equivalent.',
+                        : 'Prices in USD. JazzCash, Easypaisa and bank pay the PKR amount.',
                     style: VT.body(11, color: V.muted, height: 1.45),
                     textAlign: TextAlign.center,
                   ),
@@ -131,14 +129,17 @@ class _VipBanner extends StatelessWidget {
                             children: [
                               Text('Go VIP', style: VT.title(17)),
                               const SizedBox(height: 2),
-                              Text('Free filters, no ads, ${Economy.vipMonthlyBonusCoins} coins a month, see who liked you.', style: VT.body(12.5, color: V.text2, height: 1.4)),
+                              Text('Unlimited likes, free filters, no ads, ${Economy.vipMonthlyBonusCoins} coins a month', style: VT.body(12.5, color: V.text2, height: 1.4)),
                             ],
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [Text('from', style: VT.body(10.5, color: V.muted, height: 1.2)), Text(Fmt.usd(MockData.plans.first.usd), style: VT.number(15, color: V.gold))],
+                        Container(
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(gradient: V.goldGrad, borderRadius: BorderRadius.circular(18)),
+                          child: Text('From ${Fmt.usd(MockData.plans.first.usd)}', style: VT.label(13, color: V.onGold, weight: FontWeight.w700)),
                         ),
                       ],
                     ),
@@ -153,80 +154,59 @@ class _VipBanner extends StatelessWidget {
   }
 }
 
-class _HeroPack extends StatelessWidget {
-  const _HeroPack({required this.pack});
+class _PackCard extends StatelessWidget {
+  const _PackCard({required this.pack, required this.best});
   final CoinPack pack;
+  final bool best;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: V.gold.withValues(alpha: 0.55), width: 1.5)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const CoinIcon(size: 44),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(Fmt.figure(pack.coins), style: VT.number(30)),
-                    const SizedBox(height: 2),
-                    Text('${pack.name} · ${Fmt.usd(pack.usdPer100)} per 100', style: VT.body(12.5, color: V.text2)),
-                  ],
+    final badge = pack.bonusPercent > 0 ? '+${pack.bonusPercent}% bonus' : pack.tag;
+    return Semantics(
+      button: true,
+      label: 'Buy ${Fmt.thousands(pack.coins)} coins for ${Fmt.usd(pack.usd)}',
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: () => _buy(context, pack),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+              decoration: BoxDecoration(
+                color: best ? null : V.surface,
+                gradient: best ? LinearGradient(colors: [V.gold.withValues(alpha: 0.10), V.surface], begin: Alignment.topLeft, end: Alignment.bottomRight) : null,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: best ? V.gold.withValues(alpha: 0.55) : V.line, width: best ? 1.5 : 1),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [const CoinIcon(size: 22), const SizedBox(width: 8), Text(Fmt.figure(pack.coins), style: VT.number(24))]),
+                  const SizedBox(height: 2),
+                  Text('coins', style: VT.body(12, color: V.muted)),
+                  const Spacer(),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: best ? null : V.surface3, gradient: best ? V.goldGrad : null, borderRadius: BorderRadius.circular(20)),
+                    child: Text(Fmt.usd(pack.usd), style: VT.title(14, weight: best ? FontWeight.w700 : FontWeight.w600, color: best ? V.onGold : V.text)),
+                  ),
+                ],
+              ),
+            ),
+            if (badge != null)
+              Positioned(
+                top: -10,
+                left: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: V.pink, borderRadius: BorderRadius.circular(10)),
+                  child: Text(badge, style: VT.label(11, color: Colors.white, weight: FontWeight.w700)),
                 ),
               ),
-              if (pack.tag != null) Tag(pack.tag!, color: V.gold),
-            ],
-          ),
-          const SizedBox(height: 16),
-          GradientButton(label: Fmt.usd(pack.usd), height: 46, gradient: V.goldGrad, foreground: V.onGold, glow: V.gold, onTap: () => _buy(context, pack)),
-        ],
-      ),
-    );
-  }
-}
-
-class _PackCard extends StatelessWidget {
-  const _PackCard({required this.pack});
-  final CoinPack pack;
-
-  @override
-  Widget build(BuildContext context) {
-    final tag = pack.bonusPercent > 0 ? Tag('+${pack.bonusPercent}% bonus', color: V.ok) : (pack.tag != null ? Tag(pack.tag!, color: V.pink) : null);
-    return Material(
-      color: V.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: const BorderSide(color: V.line)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _buy(context, pack),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 24,
-                child: Row(children: [const CoinIcon(size: 22), const SizedBox(width: 8), if (tag != null) Expanded(child: Align(alignment: Alignment.centerRight, child: FittedBox(fit: BoxFit.scaleDown, child: tag)))]),
-              ),
-              const SizedBox(height: 10),
-              Text(Fmt.figure(pack.coins), style: VT.number(22)),
-              const SizedBox(height: 2),
-              Text('${pack.name} · ${Fmt.usd(pack.usdPer100)}/100', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: V.muted)),
-              const Spacer(),
-              const SizedBox(height: 12),
-              Container(
-                height: 38,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: V.surface3, borderRadius: BorderRadius.circular(19)),
-                child: Text(Fmt.usd(pack.usd), style: VT.title(14, weight: FontWeight.w600)),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -279,107 +259,38 @@ class _EarnSectionState extends State<_EarnSection> {
     final day = wallet.nextCheckInDay;
     final done = wallet.checkedInToday;
     final rewards = Economy.checkInRewards;
-    return Column(
+    final today = rewards[day.clamp(0, rewards.length - 1)];
+    return GroupCard(
       children: [
-        const VideoCoinsCard(),
-        Panel(
-          radius: 24,
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Daily check-in', style: VT.title(15, weight: FontWeight.w600)),
-              const SizedBox(height: 2),
-              Text('Miss a day and the streak starts over.', style: VT.body(12, color: V.muted)),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  for (var i = 0; i < rewards.length; i++) _streakDay(i, rewards[i], day, done),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if (done)
-                GhostButton(label: 'Come back tomorrow', icon: Icons.check_rounded, height: 48, expand: true, onTap: null)
-              else
-                GradientButton(label: 'Claim ${rewards[day]} coins', onTap: _checkIn, height: 48),
-            ],
-          ),
+        const VideoCoinsCard(asRow: true),
+        GroupRow(
+          icon: Icons.schedule_rounded,
+          iconColor: V.pinkSoft,
+          iconBg: V.pink.withValues(alpha: 0.13),
+          title: 'Daily check-in',
+          subtitle: done ? 'Day $day of 7 · come back tomorrow' : 'Day ${day + 1} of 7 · +$today today',
+          trailing: done ? const Icon(SolarIconsBold.checkCircle, color: V.ok, size: 22) : actionPill('Claim'),
+          onTap: done ? null : _checkIn,
         ),
-        const SizedBox(height: 10),
-        GroupCard(
-          children: [
-            GroupRow(
-              icon: SolarIconsBold.userPlusRounded,
-              iconColor: V.gold,
-              iconBg: V.gold.withValues(alpha: 0.12),
-              title: 'Invite a friend',
-              subtitle: 'They get ${Economy.inviteeRewardCoins} when they\'re active, you get ${Economy.inviteRewardCoins}',
-              trailing: _reward('+${Economy.inviteRewardCoins}', true),
-              onTap: _invite,
-            ),
-            GroupRow(
-              icon: SolarIconsBold.userId,
-              iconColor: V.gold,
-              iconBg: V.gold.withValues(alpha: 0.12),
-              title: 'Complete your profile',
-              subtitle: wallet.wallet.profileBonusClaimed ? 'Claimed' : (me?.isComplete == true ? 'Ready to claim · once' : 'Photo, bio, 3 interests · once'),
-              trailing: wallet.wallet.profileBonusClaimed ? const Icon(SolarIconsBold.checkCircle, color: V.ok, size: 22) : _reward('+${Economy.profileCompleteCoins}', true),
-              onTap: wallet.wallet.profileBonusClaimed ? null : _profileBonus,
-            ),
-          ],
+        GroupRow(
+          icon: SolarIconsBold.gift,
+          iconColor: V.lavender,
+          iconBg: V.violet.withValues(alpha: 0.16),
+          title: 'Invite a friend',
+          subtitle: 'You get ${Economy.inviteRewardCoins} when they get active',
+          trailing: _reward('+${Economy.inviteRewardCoins}', true),
+          onTap: _invite,
+        ),
+        GroupRow(
+          icon: SolarIconsBold.user,
+          iconColor: V.lavender,
+          iconBg: V.violet.withValues(alpha: 0.16),
+          title: 'Complete your profile',
+          subtitle: wallet.wallet.profileBonusClaimed ? 'Claimed' : (me?.isComplete == true ? 'Ready to claim · once' : 'Photo, bio and 3 interests'),
+          trailing: wallet.wallet.profileBonusClaimed ? const Icon(SolarIconsBold.checkCircle, color: V.ok, size: 22) : _reward('+${Economy.profileCompleteCoins}', true),
+          onTap: wallet.wallet.profileBonusClaimed ? null : _profileBonus,
         ),
       ],
-    );
-  }
-
-  Widget _streakDay(int i, int reward, int day, bool done) {
-    final claimed = i < day || (i == day && done);
-    final today = i == day && !done;
-    final last = i == Economy.checkInRewards.length - 1;
-    Widget circle;
-    if (claimed) {
-      circle = Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: V.gold.withValues(alpha: 0.16)),
-        child: const Icon(Icons.check_rounded, size: 18, color: V.gold),
-      );
-    } else if (today) {
-      circle = Container(
-        width: 38,
-        height: 38,
-        padding: const EdgeInsets.all(2),
-        decoration: const BoxDecoration(shape: BoxShape.circle, gradient: V.brand),
-        child: Container(
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(shape: BoxShape.circle, color: V.surface),
-          child: Text('$reward', style: VT.number(12, color: V.gold)),
-        ),
-      );
-    } else {
-      circle = Container(
-        width: 38,
-        height: 38,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: last ? V.gold.withValues(alpha: 0.08) : V.surface2,
-          border: last ? Border.all(color: V.gold.withValues(alpha: 0.45)) : null,
-        ),
-        child: Text('$reward', style: VT.number(12, color: last ? V.gold : V.muted, weight: last ? FontWeight.w700 : FontWeight.w600)),
-      );
-    }
-    return Semantics(
-      label: 'Day ${i + 1}, $reward coins${claimed ? ', claimed' : today ? ', today' : ''}',
-      excludeSemantics: true,
-      child: Column(
-        children: [
-          circle,
-          const SizedBox(height: 6),
-          Text(today ? 'Today' : (claimed ? '$reward' : 'D${i + 1}'), style: VT.label(10.5, color: today ? V.text : V.muted, weight: today ? FontWeight.w600 : FontWeight.w400)),
-        ],
-      ),
     );
   }
 
