@@ -1,3 +1,4 @@
+import { Clock } from '../src/common/utils/clock';
 import { MonetagProvider } from '../src/modules/wallet/ads/monetag.provider';
 import { createTestApp, resetState, signUp, staffLogin, TestApp, TestStaff } from './helpers';
 
@@ -72,7 +73,8 @@ describe('rewarded videos via Monetag', () => {
 
   it('no token once the daily videos are used up', async () => {
     const u = await signUp(t);
-    await t.prisma.wallet.update({ where: { userId: u.id }, data: { adsDay: new Date(), adsWatchedToday: 10 } });
+    // Today's business day (not the UTC date: they differ every evening).
+    await t.prisma.wallet.update({ where: { userId: u.id }, data: { adsDay: t.app.get(Clock).dayOf(), adsWatchedToday: 10 } });
     const r = await t.http.post('/v1/wallet/rewards/ad/start').set(u.auth).send({ platform: 'web' }).expect(409);
     expect(r.body.error.code).toBe('DAILY_LIMIT_REACHED');
   });

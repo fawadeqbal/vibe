@@ -45,7 +45,16 @@ export async function createTestApp(): Promise<TestApp> {
 /** Empties every table and the test Redis db between suites. */
 export async function resetState(t: TestApp): Promise<void> {
   const tables = await t.prisma.$queryRaw<{ tablename: string }[]>`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
-  await t.prisma.$executeRawUnsafe(`TRUNCATE ${tables.map((x) => `"${x.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`);
+  // A job still finishing from the last test can hold a row lock: TRUNCATE may then deadlock. Try again.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await t.prisma.$executeRawUnsafe(`TRUNCATE ${tables.map((x) => `"${x.tablename}"`).join(', ')} RESTART IDENTITY CASCADE`);
+      break;
+    } catch (e) {
+      if (attempt >= 5 || !String((e as Error).message).includes('deadlock detected')) throw e;
+      await new Promise((r) => setTimeout(r, 100 * attempt));
+    }
+  }
   await t.redis.client.flushdb();
   await t.app.get(SystemRolesSync).sync();
   t.app.get(SettingsService).invalidate();
