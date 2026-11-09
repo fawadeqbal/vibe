@@ -139,7 +139,8 @@ class RealtimeClient {
           .enableReconnection()
           .setReconnectionDelay(1000)
           .setReconnectionDelayMax(8000)
-          .setAuthFn((cb) => cb({'token': _api.accessToken}))
+          // `client`: which Vibe this is (android/ios), so admin can tell app users from web users.
+          .setAuthFn((cb) => cb({'token': _api.accessToken, if (_api.clientName != null) 'client': _api.clientName}))
           .build(),
     );
     s.onConnect((_) => _setConnected(true));

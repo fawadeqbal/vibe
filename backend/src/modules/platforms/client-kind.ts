@@ -15,3 +15,16 @@ export function clientKind(headers: Headers): ClientKind {
   if (/^Dart\//.test(one(headers['user-agent']))) return 'android';
   return 'web';
 }
+
+/** The phone apps (Android, iPhone) as opposed to the website. */
+export const isApp = (c: ClientKind | string | null | undefined): boolean => c === 'android' || c === 'ios';
+
+/**
+ * Which Vibe a socket comes from. Browsers can't set headers on a WebSocket,
+ * so both apps say it in the handshake's `auth.client` (same value as their
+ * X-Client header); older app builds still give themselves away with "Dart/…".
+ */
+export function socketClient(handshake: { auth?: Record<string, unknown>; headers: Headers }): ClientKind {
+  const said = typeof handshake.auth?.client === 'string' ? handshake.auth.client : undefined;
+  return clientKind({ 'x-client': said ?? one(handshake.headers['x-client']), 'user-agent': handshake.headers['user-agent'] });
+}

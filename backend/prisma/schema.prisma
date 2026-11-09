@@ -76,6 +76,8 @@ model User {
   signupDeviceHash     String?
   /// Where the account was made: android (the app), ios, or web.
   signupClient         String?    @db.VarChar(16)
+  /// Which Vibe they used last: android | ios | web (updated when it changes).
+  lastClient           String?    @db.VarChar(16)
   /// Referrals of this user that reached REWARDED (milestones, Ambassador badge).
   referralsRewarded    Int        @default(0)
   matchesCount         Int        @default(0)
@@ -156,6 +158,7 @@ model User {
   @@index([createdAt])
   @@index([bannedUntil])
   @@index([lastSeenAt])
+  @@index([lastClient])
 }
 
 enum AuthProvider {

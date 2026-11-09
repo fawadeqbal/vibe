@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { Prisma } from '@prisma/client';
 
 import { Clock, MS } from '../../common/utils/clock';
 import { AppConfig } from '../../config/app-config.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { SOCKET_CONNECTED, type SocketLifecycleEvent } from '../../infra/realtime/realtime.gateway';
 import { RedisService } from '../../infra/redis/redis.service';
 import { CLIENT_KINDS, ClientKind } from './client-kind';
 
@@ -47,12 +49,32 @@ export class PlatformsService {
     private readonly config: AppConfig,
   ) {}
 
-  /** Counts someone as active on this client today (one write per person, client and day). */
+  /**
+   * Counts someone as active on this client today (one write per person,
+   * client and day), and remembers it as the Vibe they use now
+   * (`User.lastClient`, written only when it changes).
+   */
   async noteActive(userId: string, client: ClientKind): Promise<void> {
+    await this.noteLastClient(userId, client);
     const day = this.clock.startOfDay();
     const fresh = await this.redis.client.set(`act:${day.getTime()}:${client}:${userId}`, '1', 'EX', 2 * 24 * 3600, 'NX');
     if (!fresh) return;
     await this.prisma.clientActivity.createMany({ data: [{ day, userId, client }], skipDuplicates: true });
+  }
+
+  /** Opening the app or the website (a socket connecting) counts too. */
+  @OnEvent(SOCKET_CONNECTED, { async: true, suppressErrors: true })
+  async onConnect(e: SocketLifecycleEvent): Promise<void> {
+    if (e.client) await this.noteActive(e.userId, e.client);
+  }
+
+  private async noteLastClient(userId: string, client: ClientKind): Promise<void> {
+    const key = `lastclient:${userId}`;
+    const before = await this.redis.client.getset(key, client);
+    await this.redis.client.expire(key, 7 * 24 * 3600);
+    if (before === client) return;
+    // (NOT lastClient = x would skip people with no value yet: SQL NULL never matches.)
+    await this.prisma.user.updateMany({ where: { id: userId, OR: [{ lastClient: null }, { lastClient: { not: client } }] }, data: { lastClient: client } });
   }
 
   async report(days: number): Promise<PlatformsReport> {

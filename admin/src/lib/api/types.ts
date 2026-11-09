@@ -112,11 +112,17 @@ export interface UserSummary {
   matchesCount: number;
   openReports: number;
   lastSeenAt: string | null;
+  /** The Vibe they used last: android | ios | web (null = before tracking). */
+  lastClient: string | null;
   createdAt: string;
   online: boolean;
+  /** Connected right now on these (app first); empty when offline. */
+  onlineOn: string[];
 }
 
 export interface UserDetail extends UserSummary {
+  /** Where they signed up, what they used last, and every Vibe they've used. */
+  clients: { signup: string | null; last: string | null; used: { client: string; lastDay: string | null; days: number }[] };
   inCall: { matchId: string; partnerId: string; startedAt: string } | null;
   bio: string;
   interests: string[];
@@ -468,6 +474,8 @@ export interface FunnelReport {
 export interface LiveState {
   at: string;
   online: number;
+  /** Connected right now, by Vibe (someone on both counts in both). */
+  onlineBy?: { android: number; ios: number; web: number };
   searching: number;
   inCalls: number;
   calls: { id: string; startedAt: string; a: PersonRef | null; b: PersonRef | null; coinsSpent: number }[];

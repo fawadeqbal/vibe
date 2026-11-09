@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PhoneOff, Radio, Search, Users, Video } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 
 import { Time, UserCell } from "@/components/common/bits";
@@ -95,7 +96,28 @@ export function LiveNow({ embedded = false }: { embedded?: boolean }) {
         <PageHeader title="Live" description={s ? <>As of {format.time(s.at)}</> : "Real-time activity"} actions={toggle} />
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatCard label="Online" icon={Users} tone="trust" loading={q.isLoading} value={format.number(s?.online)} hint="Apps connected right now" />
+        <StatCard
+          label="Online"
+          icon={Users}
+          tone="trust"
+          loading={q.isLoading}
+          value={format.number(s?.online)}
+          hint={
+            s?.onlineBy ? (
+              <span className="flex flex-wrap gap-x-2">
+                <Link href="/users?online=app" className="hover:underline">
+                  {format.number(s.onlineBy.android + s.onlineBy.ios)} on the app
+                </Link>
+                <span aria-hidden>·</span>
+                <Link href="/users?online=web" className="hover:underline">
+                  {format.number(s.onlineBy.web)} on the website
+                </Link>
+              </span>
+            ) : (
+              "Connected right now"
+            )
+          }
+        />
         <StatCard label="Searching" icon={Search} tone="primary" loading={q.isLoading} value={format.number(s?.searching)} hint="In the match queue" />
         <StatCard label="In calls" icon={Video} tone="money" loading={q.isLoading} value={format.number(s?.inCalls)} hint={s && `${format.number(s.inCalls * 2)} people talking`} />
       </div>
