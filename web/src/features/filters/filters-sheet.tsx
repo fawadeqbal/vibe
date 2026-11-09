@@ -213,7 +213,7 @@ function RadioRow({ icon, title, sub, on, onClick }: { icon: string; title: stri
 }
 
 /** Two thumbs on one track (two native range inputs, so keys and screen readers work). */
-function AgeRange({ min, max, onChange }: { min: number; max: number; onChange: (min: number, max: number) => void }) {
+export function AgeRange({ min, max, onChange }: { min: number; max: number; onChange: (min: number, max: number) => void }) {
   const pct = (v: number) => ((v - 18) / (99 - 18)) * 100;
   const thumb =
     "pointer-events-none absolute inset-x-0 top-0 h-[34px] w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:size-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-[0_2px_8px_rgb(0_0_0/.4)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:size-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white";

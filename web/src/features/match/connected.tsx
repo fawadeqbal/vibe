@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type FormEvent, useEffect, useRef, useState } from "react";
 
 import { VideoView } from "@/components/shared/video-view";
 import { Avatar } from "@/components/ui/avatar";
@@ -246,7 +246,7 @@ export function PartnerStage({
   );
 }
 
-function SelfPip() {
+export function SelfPip({ className, style }: { className?: string; style?: CSSProperties } = {}) {
   const stream = useMatch((s) => s.localStream);
   const camOn = useMatch((s) => s.camOn);
   const micOn = useMatch((s) => s.micOn);
@@ -255,8 +255,8 @@ function SelfPip() {
   const me = useSession((s) => s.me);
   return (
     <div
-      className="absolute right-3 h-[136px] w-[96px] overflow-hidden rounded-[18px] border-2 border-white/22 bg-surface2 shadow-[0_8px_24px_rgb(0_0_0/.4)] lg:h-[180px] lg:w-[128px]"
-      style={{ top: "calc(70px + env(safe-area-inset-top))" }}
+      className={cn("absolute overflow-hidden rounded-[18px] border-2 border-white/22 bg-surface2 shadow-[0_8px_24px_rgb(0_0_0/.4)]", className ?? "right-3 h-[136px] w-[96px] lg:h-[180px] lg:w-[128px]")}
+      style={style ?? { top: "calc(70px + env(safe-area-inset-top))" }}
     >
       {stream && camOn ? (
         <VideoView stream={stream} mirror={front} />
@@ -285,7 +285,7 @@ function SelfPip() {
 }
 
 /** Next, as a pill beside the composer. In a cooldown it counts down and offers the skip. */
-function NextButton({ onClick }: { onClick: () => void }) {
+export function NextButton({ onClick }: { onClick: () => void }) {
   const cooldownUntil = useMatch((s) => s.cooldownUntil);
   const bypass = useCatalog((s) => s.economy.skipCooldownBypassCost);
   const now = useNow(250, cooldownUntil != null);
@@ -318,14 +318,15 @@ function NextButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function FriendControl({ state, onAdd }: { state: FriendState; onAdd: () => void }) {
+export function FriendControl({ state, onAdd, bare = false }: { state: FriendState; onAdd: () => void; bare?: boolean }) {
   const icon = state === "friends" ? "how_to_reg" : state === "requested" ? "hourglass_top" : "person_add";
   const label = state === "friends" ? "Friends" : state === "requested" ? "Sent" : state === "incoming" ? "Accept" : "Add friend";
   return (
     <RoundControl
-      size={50}
+      size={bare ? 52 : 50}
       icon={icon}
-      label={label}
+      label={bare ? undefined : label}
+      ariaLabel={bare ? (state === "requested" ? "Friend request sent" : label) : undefined}
       onClick={state === "none" || state === "incoming" ? onAdd : undefined}
       iconColor={state === "friends" ? "ok" : "white"}
       tint={state === "incoming" ? "violet" : undefined}
@@ -438,7 +439,7 @@ function Composer({ partnerName }: { partnerName: string }) {
 }
 
 /** "More": camera, mic, their profile, then report, block and end. */
-function openCallOptions(actions: ConnectedActions) {
+export function openCallOptions(actions: ConnectedActions) {
   return openSheet<void>((close) => <CallOptions actions={actions} onDone={() => close()} />);
 }
 

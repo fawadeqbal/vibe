@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { Avatar } from "@/components/ui/avatar";
 import { VibeLogo } from "@/components/ui/brand";
 import { TabIcon, type TabIconName } from "@/components/ui/tab-icons";
 import { cn } from "@/lib/cn";
 import { discoverBadge, useDiscover } from "@/stores/discover";
 import { useMatch } from "@/stores/match";
+import { useSession } from "@/stores/session";
 import { unreadTotal, useSocial } from "@/stores/social";
 import { useWaitlist } from "@/stores/waitlist";
 import { useWaves } from "@/stores/waves";
@@ -90,6 +92,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <TabItem key={t.href} tab={t} on={isActive(path, t.href)} className="w-[76px]" />
           ))}
         </div>
+        <span className="flex-1" />
+        <RailMe />
       </nav>
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
@@ -117,6 +121,17 @@ export function AppShell({ children }: { children: ReactNode }) {
       <DiscoverMatchHost />
       <CallHost />
     </div>
+  );
+}
+
+/** Your photo at the foot of the rail (to Me). */
+function RailMe() {
+  const me = useSession((s) => s.me);
+  if (!me) return null;
+  return (
+    <Link href="/me" aria-label="Your profile" className="rounded-full transition-[filter] hover:brightness-110">
+      <Avatar url={me.avatarUrl ?? ""} name={me.name} size={40} ring />
+    </Link>
   );
 }
 
