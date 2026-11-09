@@ -72,7 +72,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   int _index = 0;
   late final DiscoverProvider _discover;
   late final CallsProvider _calls;
-  StreamSubscription<String>? _friendCallEnded;
+  StreamSubscription<FriendCallEnded>? _friendCallEnded;
   bool _matchOpen = false;
   String? _incomingShown;
   bool _outgoingShown = false;
@@ -142,7 +142,8 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   /// picked up: the call screen (Match tab, nothing on top).
   void _onMatchChanged() {
     _breaks.setActive(_match.isSearching || _match.isConnected);
-    if (_match.isConnected && _match.friendCall && (_index != Tabs.match || _covered)) {
+    // Shrunk to the chat: stay on the page you're on until you tap back in.
+    if (_match.isConnected && _match.friendCall && !_match.minimized && (_index != Tabs.match || _covered)) {
       Navigator.of(context).popUntil((r) => r.isFirst);
       go(Tabs.match);
     }
@@ -162,8 +163,9 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   void _onCallsChanged() {
     if (!mounted) return;
     final nav = Navigator.of(context);
+    // A ring while you use the app is a banner (CallLayer); full screen once tapped, or when opened from a push.
     final inc = _calls.incoming;
-    if (inc != null && _incomingShown != inc.callId) {
+    if (inc != null && _calls.incomingFull && _incomingShown != inc.callId) {
       _incomingShown = inc.callId;
       nav.push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => IncomingCallScreen(call: inc))).then((_) => _incomingShown = null);
     }
@@ -273,11 +275,12 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     _discover.addListener(_onDiscoverChanged);
     _calls = context.read<CallsProvider>();
     _calls.addListener(_onCallsChanged);
-    // A friend call ended: back to that chat.
-    _friendCallEnded = _match.friendCallEnded.listen((id) {
+    // A friend call ended: "Call ended" (back to the chat, call again, a gift).
+    _friendCallEnded = _match.friendCallEnded.listen((e) {
       if (!mounted) return;
-      Navigator.of(context).popUntil((r) => r.isFirst);
-      _openChat(id);
+      final nav = Navigator.of(context);
+      nav.popUntil((r) => r.isFirst);
+      nav.push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => FriendCallEndedScreen(ended: e, onChat: _openChat)));
     });
     _wallet.addListener(_onWalletChanged);
     _session.addListener(_onSessionChanged);
@@ -423,7 +426,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
         child: IndexedStack(
           index: _index,
           children: [
-            MatchScreen(onOpenStore: () => go(Tabs.store), onOpenChats: () => go(Tabs.chats), onOpenMe: () => go(Tabs.me)),
+            MatchScreen(onOpenStore: () => go(Tabs.store), onOpenChats: () => go(Tabs.chats), onOpenMe: () => go(Tabs.me), onOpenChat: _openChat),
             DiscoverScreen(onOpenMatch: () => go(Tabs.match)),
             PrimaryScrollController(controller: _scrollers[Tabs.chats], child: ChatsScreen(onFindPeople: () => go(Tabs.match))),
             PrimaryScrollController(controller: _scrollers[Tabs.store], child: const StoreScreen()),

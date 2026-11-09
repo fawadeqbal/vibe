@@ -403,11 +403,11 @@ export class MatchingService {
     return { matchId: m.id, partnerId };
   }
 
-  /** Camera / mic on or off: told to the partner ("Sara turned their camera off"). */
-  async media(userId: string, camOn: boolean, micOn: boolean): Promise<void> {
+  /** Camera / mic on or off, and "Blur me": told to the partner ("Sara turned their camera off"). */
+  async media(userId: string, camOn: boolean, micOn: boolean, blur = false): Promise<void> {
     const { m, partnerId } = await this.requireMatch(userId);
     if ((await this.redis.incrWithTtl(`mmedia:${userId}`, 10)) > 20) return;
-    this.realtime.toUser(partnerId, ServerEvent.MatchMedia, { matchId: m.id, camOn, micOn });
+    this.realtime.toUser(partnerId, ServerEvent.MatchMedia, { matchId: m.id, camOn, micOn, blur });
   }
 
   /**

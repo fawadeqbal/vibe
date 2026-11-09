@@ -80,7 +80,8 @@ interface CallsState {
   /** Turn calls off for both (or "not now" to their ask, or take back yours). */
   turnOff: (friendId: string) => Promise<CallState>;
   ring: (friend: Profile, media?: CallMedia) => Promise<void>;
-  accept: () => Promise<void>;
+  /** Pick up; "voice" answers a video call as voice only. */
+  accept: (media?: CallMedia) => Promise<void>;
   decline: (reply?: string) => Promise<void>;
   cancel: () => Promise<void>;
   dismissOutgoing: () => void;
@@ -130,12 +131,12 @@ export const useCalls = create<CallsState>()((set, get) => {
       }
     },
 
-    async accept() {
+    async accept(media) {
       const c = get().incoming;
       if (!c) return;
       set({ incoming: null });
       try {
-        await api.post(`/calls/${c.callId}/accept`);
+        await api.post(`/calls/${c.callId}/accept`, media === "voice" ? { media: "voice" } : {});
       } catch {
         // Already over (they hung up): the chat shows the missed call.
       }

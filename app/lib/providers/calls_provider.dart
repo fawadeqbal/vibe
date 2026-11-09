@@ -35,6 +35,17 @@ abstract class CallsProvider extends ChangeNotifier {
   final Map<String, CallState> _states = {};
 
   IncomingCall? get incoming => _incoming;
+
+  /// Show the ringing call full screen (opened from a push or at launch) rather than as a banner.
+  bool get incomingFull => _incomingFull;
+  bool _incomingFull = false;
+
+  /// The banner was tapped: full screen.
+  void showIncomingFull() {
+    if (_incoming == null || _incomingFull) return;
+    _incomingFull = true;
+    notifyListeners();
+  }
   OutgoingCall? get outgoing => _outgoing;
   bool get enabled => Economy.friendCallsEnabled;
 
@@ -60,7 +71,8 @@ abstract class CallsProvider extends ChangeNotifier {
   Future<CallState> turnOff(String friendId);
 
   Future<void> ring(Profile friend, [CallMedia media = CallMedia.video]);
-  Future<void> accept();
+  /// Pick up; [media] voice answers a video call as voice only.
+  Future<void> accept([CallMedia? media]);
   Future<void> decline([String? reply]);
   Future<void> cancel();
 
@@ -72,8 +84,15 @@ abstract class CallsProvider extends ChangeNotifier {
   /// A call that was already ringing when the app opened.
   Future<void> checkIncoming() async {}
 
+  /// A new ring: banner first. Implementations call this when [incoming] changes.
+  @protected
+  void setIncoming(IncomingCall? c, {bool full = false}) {
+    _incoming = c;
+    _incomingFull = c != null && full;
+  }
+
   void clear() {
-    _incoming = null;
+    setIncoming(null);
     _outgoing = null;
     _states.clear();
     notifyListeners();

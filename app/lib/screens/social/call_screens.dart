@@ -5,16 +5,23 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
+import '../../core/util/format.dart';
 import '../../models/calls.dart';
 import '../../providers/calls_provider.dart';
+import '../../providers/match_provider.dart';
+import '../../providers/social_provider.dart';
+import '../calls/call_ui.dart';
+import '../match/gift_sheet.dart';
+import '../store/store_screen.dart';
 
 const _quickReplies = ["Can't talk now", 'Call me in 10 min', 'Text me instead'];
 
-/// A friend is calling: full screen, Accept / Decline, quick replies.
-/// Closes itself when the call stops ringing (answered elsewhere, cancelled,
-/// rang out).
+/// A friend is calling, full screen: quick replies, Decline, Voice only,
+/// Accept. Closes itself when the call stops ringing (answered elsewhere,
+/// cancelled, rang out). (web: features/calls/call-host.tsx)
 class IncomingCallScreen extends StatefulWidget {
   const IncomingCallScreen({super.key, required this.call});
   final IncomingCall call;
@@ -24,18 +31,12 @@ class IncomingCallScreen extends StatefulWidget {
 }
 
 class _IncomingCallScreenState extends State<IncomingCallScreen> {
-  Timer? _tick;
   Timer? _buzz;
   late final CallsProvider _calls = context.read<CallsProvider>();
-
-  int get _left => widget.call.expiresAt.difference(DateTime.now()).inSeconds.clamp(0, 999);
 
   @override
   void initState() {
     super.initState();
-    _tick = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      if (mounted) setState(() {});
-    });
     // A gentle buzz while it rings (the app's own ring; the push rings when closed).
     unawaited(HapticFeedback.heavyImpact());
     _buzz = Timer.periodic(const Duration(milliseconds: 1600), (_) => HapticFeedback.mediumImpact());
@@ -48,7 +49,6 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
 
   @override
   void dispose() {
-    _tick?.cancel();
     _buzz?.cancel();
     _calls.removeListener(_onCalls);
     super.dispose();
@@ -57,93 +57,118 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   @override
   Widget build(BuildContext context) {
     final from = widget.call.from;
-    final first = from.name.split(' ').first;
+    final video = widget.call.media == CallMedia.video;
+    final pad = MediaQuery.of(context).padding;
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(center: Alignment(0, -0.44), radius: 1.1, colors: [Color(0xFF6B3A7A), Color(0xFF2B1B4D), V.bg], stops: [0, 0.45, 0.85]),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-            child: Column(
-              children: [
-                Text(widget.call.media == CallMedia.voice ? 'VIBE · VOICE CALL' : 'VIBE · VIDEO CALL', style: VT.overline(color: const Color(0xFFE0D6F5))),
-                const SizedBox(height: 44),
-                PulseRings(child: VAvatar(url: from.avatarUrl, name: from.name, size: 160)),
-                const SizedBox(height: 32),
-                Text(first, style: VT.display(34)),
-                const SizedBox(height: 6),
-                Text(widget.call.media == CallMedia.voice ? 'wants to voice call you' : 'wants to video call you', style: VT.body(15, color: const Color(0xFFD8CFE8))),
-                const Spacer(),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
+      backgroundColor: V.bg,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          BlurredPhoto(url: from.avatarUrl, brightness: 0.42),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, pad.top + 96, 16, pad.bottom + 34),
+                child: Column(
                   children: [
-                    for (final r in _quickReplies)
-                      ActionChip(
-                        label: Text(r, style: VT.label(13, color: V.text)),
-                        backgroundColor: Colors.black.withValues(alpha: 0.3),
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
-                        shape: const StadiumBorder(),
-                        onPressed: () => _calls.decline(r),
+                    PulseAvatar(url: from.avatarUrl, name: from.name),
+                    const SizedBox(height: 8),
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        from.name,
+                        textAlign: TextAlign.center,
+                        style: VT.title(28, weight: FontWeight.w700),
                       ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text('is ${video ? 'video' : 'voice'} calling you', style: VT.body(14.5, color: Colors.white.withValues(alpha: 0.8))),
+                    const Spacer(),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final r in _quickReplies)
+                          Semantics(
+                            button: true,
+                            child: GestureDetector(
+                              onTap: () => _calls.decline(r),
+                              child: Container(
+                                height: 36,
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+                                child: Center(
+                                  widthFactor: 1,
+                                  child: Text(
+                                    r,
+                                    style: VT.label(13.5, color: Colors.white, weight: FontWeight.w600),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        EndCallButton(label: 'Decline', size: 68, semantics: 'Decline', onTap: () => _calls.decline()),
+                        if (video)
+                          CallCtl(
+                            icon: SolarIconsBold.phone,
+                            label: 'Voice only',
+                            size: 68,
+                            background: Colors.white.withValues(alpha: 0.16),
+                            semantics: 'Accept as a voice call',
+                            onTap: () => _calls.accept(CallMedia.voice),
+                          ),
+                        Semantics(
+                          button: true,
+                          label: video ? 'Accept video call' : 'Accept voice call',
+                          excludeSemantics: true,
+                          child: GestureDetector(
+                            onTap: () => _calls.accept(),
+                            child: SizedBox(
+                              width: 86,
+                              child: Column(
+                                children: [
+                                  Container(
+                                    width: 68,
+                                    height: 68,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: callGreen,
+                                      boxShadow: [BoxShadow(color: callGreen.withValues(alpha: 0.4), blurRadius: 26, offset: const Offset(0, 10))],
+                                    ),
+                                    child: Icon(video ? SolarIconsBold.videocamera : SolarIconsBold.phone, size: 30, color: onCallGreen),
+                                  ),
+                                  const SizedBox(height: 7),
+                                  Text('Accept', style: VT.label(12, color: Colors.white.withValues(alpha: 0.88))),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _BigButton(label: 'Decline', icon: Icons.call_end_rounded, color: const Color(0xFFE11D48), onTap: () => _calls.decline()),
-                    _BigButton(label: 'Accept', icon: widget.call.media == CallMedia.voice ? SolarIconsBold.phone : SolarIconsBold.videocamera, color: V.ok, iconColor: V.bg, onTap: () => _calls.accept()),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Text("Rings for ${_left}s more. Not answered, it shows as a missed call in your chat.", textAlign: TextAlign.center, style: VT.body(12, color: const Color(0xFFB3A9C9))),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _BigButton extends StatelessWidget {
-  const _BigButton({required this.label, required this.icon, required this.color, required this.onTap, this.iconColor = Colors.white});
-  final String label;
-  final IconData icon;
-  final Color color;
-  final Color iconColor;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 76,
-            height: 76,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 30, offset: const Offset(0, 12))]),
-            child: Icon(icon, size: 32, color: iconColor),
-          ),
-          const SizedBox(height: 10),
-          Text(label, style: VT.label(13, color: const Color(0xFFE0D6F5))),
-        ]),
-      ),
-    );
-  }
-}
-
-/// Your call, ringing on their side ("Calling… 12s", Cancel) — and how it
-/// ended (declined with their reply, no answer, busy).
+/// Your call ringing on their side: their photo, "Calling…", your camera
+/// and the controls — then how it ended (declined with their reply, no
+/// answer, busy).
 class OutgoingCallScreen extends StatefulWidget {
   const OutgoingCallScreen({super.key, required this.onMessage});
 
@@ -155,86 +180,225 @@ class OutgoingCallScreen extends StatefulWidget {
 }
 
 class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
-  int _secs = 0;
-  Timer? _tick;
   late final CallsProvider _calls = context.read<CallsProvider>();
+  late final MatchProvider _match = context.read<MatchProvider>();
+  VoidCallback? _unpin;
 
   @override
   void initState() {
     super.initState();
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && _calls.outgoing?.status == OutgoingStatus.ringing) setState(() => _secs++);
-    });
     _calls.addListener(_onCalls);
+    _onCalls();
   }
 
   void _onCalls() {
-    if (_calls.outgoing == null && mounted) Navigator.of(context).maybePop();
+    final c = _calls.outgoing;
+    // Your camera, for a video call, while it rings.
+    final wantCamera = c != null && c.status == OutgoingStatus.ringing && c.media == CallMedia.video;
+    if (wantCamera && _unpin == null) {
+      _unpin = _match.pinCamera();
+    } else if (!wantCamera && _unpin != null) {
+      _unpin!();
+      _unpin = null;
+    }
+    if (c == null && mounted) Navigator.of(context).maybePop();
   }
 
   @override
   void dispose() {
-    _tick?.cancel();
+    _unpin?.call();
     _calls.removeListener(_onCalls);
     super.dispose();
   }
 
   (String, String)? _outcome(OutgoingCall c, String name) => switch (c.status) {
-        OutgoingStatus.ringing => null,
-        OutgoingStatus.declined => ('Not available right now', c.reply != null ? '$name: "${c.reply}"' : "$name can't talk now. Send a message instead — calls are still allowed."),
-        OutgoingStatus.noAnswer => ('No answer', "$name didn't pick up. It shows as a missed call in your chat."),
-        OutgoingStatus.busy => ('In another call', '$name is busy right now. Try again in a little while.'),
-        OutgoingStatus.paused => ("Can't call right now", 'They declined a few calls in a row. Try a message instead.'),
-        OutgoingStatus.error => ("Couldn't call", c.message ?? 'Something went wrong. Try again.'),
-      };
+    OutgoingStatus.ringing => null,
+    OutgoingStatus.declined => ('Not available right now', c.reply != null ? '$name: "${c.reply}"' : "$name can't talk now. Send a message instead."),
+    OutgoingStatus.noAnswer => ('No answer', "$name didn't pick up. We'll show them a missed call."),
+    OutgoingStatus.busy => ('In another call', '$name is busy right now. Try again in a little while.'),
+    OutgoingStatus.paused => ("Can't call right now", 'They declined a few calls in a row. Try a message instead.'),
+    OutgoingStatus.error => ("Couldn't call", c.message ?? 'Something went wrong. Try again.'),
+  };
 
   @override
   Widget build(BuildContext context) {
     final c = context.watch<CallsProvider>().outgoing;
+    final m = context.watch<MatchProvider>();
     if (c == null) return const Scaffold(backgroundColor: V.bg);
     final first = c.to.name.split(' ').first;
     final done = _outcome(c, first);
+    final video = c.media == CallMedia.video;
+    final pad = MediaQuery.of(context).padding;
+    if (done != null) {
+      return Scaffold(
+        backgroundColor: V.bg,
+        body: CallEndCard(
+          url: c.to.avatarUrl,
+          name: c.to.name,
+          title: done.$1,
+          sub: done.$2,
+          children: [
+            GradientButton(
+              label: 'Send a message',
+              icon: SolarIconsBold.chatRoundDots,
+              height: 54,
+              onTap: () {
+                final id = c.to.id;
+                _calls.dismissOutgoing();
+                widget.onMessage(id);
+              },
+            ),
+            if (c.status == OutgoingStatus.paused)
+              GhostButton(label: 'Close', height: 48, expand: true, onTap: _calls.dismissOutgoing)
+            else
+              GhostButton(label: 'Try again', icon: SolarIconsOutline.restart, height: 48, expand: true, onTap: () => _calls.ring(c.to, c.media)),
+          ],
+        ),
+      );
+    }
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF2A2A3A), Color(0xFF17151F), V.bg], stops: [0, 0.6, 1])),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 72, 24, 32),
-            child: Column(
-              children: [
-                VAvatar(url: c.to.avatarUrl, name: c.to.name, size: 112),
-                const SizedBox(height: 20),
-                Text(first, style: VT.display(30)),
-                const SizedBox(height: 6),
-                Semantics(liveRegion: true, child: Text(done?.$1 ?? '${c.media == CallMedia.voice ? 'Voice call' : 'Video call'} · Calling… ${_secs}s', style: VT.body(15, color: const Color(0xFFD8CFE8)))),
-                if (done != null) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    constraints: const BoxConstraints(maxWidth: 340),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(16)),
-                    child: Text(done.$2, textAlign: TextAlign.center, style: VT.body(13.5, height: 1.45)),
-                  ),
-                ],
-                const Spacer(),
-                if (done != null) ...[
-                  GradientButton(
-                    label: 'Send a message',
-                    onTap: () {
-                      final id = c.to.id;
-                      _calls.dismissOutgoing();
-                      widget.onMessage(id);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  GhostButton(label: 'Close', expand: true, onTap: _calls.dismissOutgoing),
-                ] else
-                  _BigButton(label: 'Cancel', icon: Icons.call_end_rounded, color: const Color(0xFFE11D48), onTap: () => _calls.cancel()),
-              ],
+      backgroundColor: V.bg,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          BlurredPhoto(url: c.to.avatarUrl),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, pad.top + 96, 16, pad.bottom + 40),
+                child: Column(
+                  children: [
+                    PulseAvatar(url: c.to.avatarUrl, name: c.to.name),
+                    const SizedBox(height: 8),
+                    Text(
+                      c.to.name,
+                      textAlign: TextAlign.center,
+                      style: VT.title(28, weight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    Semantics(
+                      liveRegion: true,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(video ? SolarIconsBold.videocamera : SolarIconsBold.phone, size: 17, color: Colors.white.withValues(alpha: 0.8)),
+                          const SizedBox(width: 6),
+                          Text('Calling…', style: VT.body(14.5, color: Colors.white.withValues(alpha: 0.8))),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        if (video)
+                          Flexible(
+                            child: CallCtl(icon: SolarIconsBold.cameraRotate, label: 'Flip', onTap: () => m.switchCamera()),
+                          ),
+                        if (video)
+                          Flexible(
+                            child: CallCtl(icon: Icons.videocam_off_rounded, label: m.camOn ? 'Camera off' : 'Camera on', on: !m.camOn, onTap: m.toggleCam),
+                          ),
+                        Flexible(
+                          child: CallCtl(icon: Icons.mic_off_rounded, label: m.micOn ? 'Mute' : 'Unmute', on: !m.micOn, onTap: m.toggleMic),
+                        ),
+                        Flexible(
+                          child: EndCallButton(label: 'Cancel', semantics: 'Cancel call', onTap: () => _calls.cancel()),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          if (video) Positioned(right: 12, top: pad.top + 16, child: const SelfPreview()),
+        ],
+      ),
+    );
+  }
+}
+
+/// After a friend call: back to the chat, call again, or send a gift.
+class FriendCallEndedScreen extends StatelessWidget {
+  const FriendCallEndedScreen({super.key, required this.ended, required this.onChat});
+  final FriendCallEnded ended;
+  final ValueChanged<String> onChat;
+
+  Future<void> _gift(BuildContext context) async {
+    final p = ended.partner;
+    final g = await showGiftSheet(context, toName: p.name);
+    if (g == null || !context.mounted) return;
+    try {
+      if (await context.read<SocialProvider>().sendGift(p.id, g)) {
+        if (context.mounted) toast(context, '${g.name} sent to ${p.name.split(' ').first}');
+      } else if (context.mounted) {
+        final go = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Not enough coins'),
+            content: Text('A ${g.name} costs ${g.coins} coins.\n\nTop up, or earn free coins in the store.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Not now', style: TextStyle(color: V.text2)),
+              ),
+              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Get coins')),
+            ],
+          ),
+        );
+        if (go == true && context.mounted) Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StoreScreen(asPage: true)));
+      }
+    } on ApiException catch (e) {
+      if (context.mounted) toast(context, e.message, error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = ended.partner;
+    final first = p.name.split(' ').first;
+    return Scaffold(
+      backgroundColor: V.bg,
+      body: CallEndCard(
+        url: p.avatarUrl,
+        name: p.name,
+        title: 'Call ended',
+        sub: '${ended.voice ? 'Voice' : 'Video'} call with $first · ${Fmt.duration(ended.length)}',
+        children: [
+          GradientButton(
+            label: 'Back to the chat',
+            icon: SolarIconsBold.chatRoundDots,
+            height: 54,
+            onTap: () {
+              Navigator.of(context).pop();
+              onChat(p.id);
+            },
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: GhostButton(
+                  label: 'Call again',
+                  icon: ended.voice ? SolarIconsBold.phone : SolarIconsBold.videocamera,
+                  height: 48,
+                  expand: true,
+                  onTap: () {
+                    final calls = context.read<CallsProvider>();
+                    Navigator.of(context).pop();
+                    unawaited(calls.ring(p, ended.voice ? CallMedia.voice : CallMedia.video));
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GhostButton(label: 'Send a gift', icon: SolarIconsBold.gift, height: 48, expand: true, color: V.gold, onTap: () => _gift(context)),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

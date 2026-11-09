@@ -80,19 +80,19 @@ class LocalCallsProvider extends CallsProvider {
   }
 
   @override
-  Future<void> accept() async {
+  Future<void> accept([CallMedia? media]) async {
     final c = _incoming;
     if (c == null) return;
-    _incoming = null;
+    setIncoming(null);
     notifyListeners();
-    await _match.beginFriendCall(c.from, voice: c.media == CallMedia.voice);
+    await _match.beginFriendCall(c.from, voice: c.media == CallMedia.voice || media == CallMedia.voice);
   }
 
   @override
   Future<void> decline([String? reply]) async {
     final c = _incoming;
     if (c == null) return;
-    _incoming = null;
+    setIncoming(null);
     if (reply != null) await _social.sendMessage(c.from.id, reply);
     _social.addSystemLine(c.from.id, '${c.media == CallMedia.voice ? 'Voice' : 'Video'} call declined', 'call_declined', fromMe: true, extra: {'video': c.media == CallMedia.video});
     notifyListeners();
@@ -109,7 +109,7 @@ class LocalCallsProvider extends CallsProvider {
   /// Test seam: a friend calls you.
   @visibleForTesting
   void debugIncoming(Profile from, {CallMedia media = CallMedia.video}) {
-    _incoming = IncomingCall(callId: 'in${DateTime.now().millisecondsSinceEpoch}', from: from, expiresAt: DateTime.now().add(Duration(seconds: Economy.callRingSeconds)), media: media);
+    setIncoming(IncomingCall(callId: 'in${DateTime.now().millisecondsSinceEpoch}', from: from, expiresAt: DateTime.now().add(Duration(seconds: Economy.callRingSeconds)), media: media));
     notifyListeners();
   }
 

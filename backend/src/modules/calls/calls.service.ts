@@ -325,16 +325,16 @@ export class CallsService {
     return c;
   }
 
-  /** Pick up: the call starts (`match:found` to both, marked as a friend call). */
-  async accept(me: string, callId: string): Promise<{ matchId: string | null }> {
+  /** Pick up: the call starts (`match:found` to both, marked as a friend call). `voiceOnly` picks up a video call as voice. */
+  async accept(me: string, callId: string, voiceOnly = false): Promise<{ matchId: string | null }> {
     await this.mine(callId, me, 'to');
     const c = await this.finish(callId);
     if (!c) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
     await this.redis.client.del(DECLINES(c.from, c.to));
     this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId, reason: 'accepted' });
-    const matchId = await this.matching.startFriendCall(c.from, c.to, { voice: !c.video });
-    if (matchId)
-      await this.redis.client.hset(LIVE, matchId, JSON.stringify({ a: c.from, b: c.to, startedAt: Date.now(), video: c.video }));
+    const video = c.video && !voiceOnly;
+    const matchId = await this.matching.startFriendCall(c.from, c.to, { voice: !video });
+    if (matchId) await this.redis.client.hset(LIVE, matchId, JSON.stringify({ a: c.from, b: c.to, startedAt: Date.now(), video }));
     return { matchId };
   }
 
@@ -440,11 +440,20 @@ export class CallsService {
    * into a video call for both (`call:video` { matchId, state: "on" }); the
    * cameras open on each side then.
    */
-  async video(me: string, matchId: string, action: 'ask' | 'yes' | 'no'): Promise<{ state: 'asked' | 'on' | 'declined' }> {
+  async video(me: string, matchId: string, action: 'ask' | 'yes' | 'no' | 'off'): Promise<{ state: 'asked' | 'on' | 'declined' | 'off' }> {
     const raw = await this.redis.client.hget(LIVE, matchId);
     const live = raw ? (JSON.parse(raw) as { a: string; b: string; startedAt: number; video?: boolean }) : null;
     if (!live || ![live.a, live.b].includes(me)) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
     const other = live.a === me ? live.b : live.a;
+    // "Switch to voice only": either side, no ask; both cameras turn off.
+    if (action === 'off') {
+      if (live.video !== false) {
+        await this.redis.client.hset(LIVE, matchId, JSON.stringify({ ...live, video: false }));
+        await this.redis.client.del(VIDEO_ASK(matchId));
+        for (const uid of [live.a, live.b]) this.realtime.toUser(uid, ServerEvent.CallVideo, { matchId, state: 'off', from: me });
+      }
+      return { state: 'off' };
+    }
     if (live.video) return { state: 'on' };
     const f = await this.friends.requireFriends(me, other);
     const v = callsView(f, me);

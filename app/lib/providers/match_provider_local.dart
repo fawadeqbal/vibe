@@ -368,6 +368,15 @@ class LocalMatchProvider extends MatchProvider {
     await ensureCamera();
   }
 
+  @override
+  Future<void> turnOffVideo() async {
+    if (voiceCall || !friendCall) return;
+    await super.turnOffVideo();
+    // Reopen with the microphone only.
+    await releaseCamera();
+    await ensureCamera();
+  }
+
   /// Test seam: the demo friend asks to turn on video.
   @visibleForTesting
   void debugTheyAskVideo() => setVideoAsk(VideoAsk.theirs);

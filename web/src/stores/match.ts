@@ -22,6 +22,15 @@ export type MatchStatus = "idle" | "searching" | "connected" | "ended";
 export type EndReason = "skipped" | "partnerLeft" | "stopped" | "reported";
 
 /** What `match:ended` adds for the recap: the mutual like and the reconnect price. */
+/** A friend call that just ended: the "Call ended" screen. */
+export interface FriendCallEnded {
+  friendId: string;
+  partner: Profile;
+  voice: boolean;
+  seconds: number;
+  at: number;
+}
+
 export interface EndedInfo {
   mutualLike: boolean;
   /** Coins once the free window (if any) is over. */
@@ -61,7 +70,13 @@ interface MatchState {
   /** This call is with a friend, started from a chat (no Next, no recap). */
   friendCall: boolean;
   /** A friend call just ended: go back to that chat. */
-  friendCallEnded: { friendId: string; at: number } | null;
+  friendCallEnded: FriendCallEnded | null;
+  /** A friend call shrunk to the chat (the green bar and the small window). */
+  minimized: boolean;
+  /** "Blur me": they see you blurred. */
+  blurMe: boolean;
+  /** They turned on "Blur me": their video is shown blurred. */
+  partnerBlur: boolean;
   /** A voice call with a friend: no camera until you both turn video on. */
   voiceCall: boolean;
   /** Turning video on in a voice call: you asked, they asked, or nothing. */
@@ -140,6 +155,12 @@ interface MatchState {
   reset: () => void;
   /** In a voice call: ask to turn on video. */
   askVideo: () => Promise<void>;
+  /** A video call with a friend → voice only, for both (no ask). */
+  switchToVoice: () => Promise<void>;
+  setMinimized: (v: boolean) => void;
+  toggleBlurMe: () => void;
+  /** Your camera while your video call rings on their side (the "Calling…" screen). */
+  setCallPreview: (on: boolean) => void;
   /** Answer their ask to turn on video. */
   answerVideo: (yes: boolean) => Promise<void>;
 }
@@ -163,6 +184,8 @@ let cameraOpening: Promise<void> | null = null;
 let cameraGen = 0;
 let openingGen = -1;
 let lobbyVisible = false;
+/** Your video call is ringing on their side: the camera may open for the "Calling…" screen. */
+let callPreview = false;
 let pageHidden = false;
 let idleTimer: ReturnType<typeof setTimeout> | undefined;
 let hiddenTimer: ReturnType<typeof setTimeout> | undefined;
@@ -233,7 +256,7 @@ export const useMatch = create<MatchState>()((set, get) => {
   };
 
   /** Whether the camera should be open right now (see the rules above). */
-  const cameraWanted = () => isLive() || (get().previewOn && lobbyVisible && !pageHidden);
+  const cameraWanted = () => isLive() || callPreview || (get().previewOn && lobbyVisible && !pageHidden);
 
   const syncCamera = () => {
     if (cameraWanted()) void get().ensureCamera();
@@ -267,6 +290,9 @@ export const useMatch = create<MatchState>()((set, get) => {
     ended: null,
     friendCall: false,
     friendCallEnded: null,
+    minimized: false,
+    blurMe: false,
+    partnerBlur: false,
     voiceCall: false,
     videoAsk: "none",
     elapsed: 0,
@@ -633,6 +659,27 @@ export const useMatch = create<MatchState>()((set, get) => {
 
     clearError: () => set({ lastError: null, needsCoins: false }),
 
+    async switchToVoice() {
+      const id = matchId;
+      if (!id || get().voiceCall || !get().friendCall) return;
+      turnOffVideo();
+      await api.post(`/calls/live/${id}/video`, { action: "off" }).catch(() => {});
+    },
+
+    setMinimized: (v) => set({ minimized: v }),
+
+    toggleBlurMe() {
+      set((s) => ({ blurMe: !s.blurMe }));
+      tellMedia();
+    },
+
+    setCallPreview(on) {
+      if (on === callPreview) return;
+      callPreview = on;
+      if (on) set({ camOn: true });
+      syncCamera();
+    },
+
     async askVideo() {
       const id = matchId;
       if (!id || !get().voiceCall) return;
@@ -757,6 +804,9 @@ realtime.on(Ev.matchFound, (e) => {
     lastError: null,
     friendCall: e.friendCall === true,
     friendCallEnded: null,
+    minimized: false,
+    blurMe: false,
+    partnerBlur: false,
     voiceCall: e.friendCall === true && e.audioOnly === true,
     videoAsk: "none",
     partnerCamOn: true,
@@ -764,7 +814,7 @@ realtime.on(Ev.matchFound, (e) => {
     weakSignal: false,
     rematchSoon: null,
   });
-  toldMedia = "on:on";
+  toldMedia = "on:on:";
   tellMedia();
   watchSignal();
   // A voice call starts with the microphone only: drop a camera the lobby had open.
@@ -907,7 +957,21 @@ realtime.on(Ev.matchEnded, (e) => {
     reason === "skipped" ? "skipped" : reason === "stopped" || reason === "disconnected" ? "stopped" : reason === "reported" || reason === "blocked" || reason === "banned" ? "reported" : "partnerLeft";
   if (s.friendCall) {
     // A call with a friend: no recap, back to your chat with them.
-    set({ current: null, partner: null, game: null, mutual: false, status: "idle", blurred: false, friendCall: false, voiceCall: false, videoAsk: "none", friendCallEnded: s.partner ? { friendId: s.partner.id, at: Date.now() } : null });
+    set({
+      current: null,
+      partner: null,
+      game: null,
+      mutual: false,
+      status: "idle",
+      blurred: false,
+      friendCall: false,
+      voiceCall: false,
+      videoAsk: "none",
+      minimized: false,
+      blurMe: false,
+      partnerBlur: false,
+      friendCallEnded: s.partner ? { friendId: s.partner.id, partner: s.partner, voice: s.voiceCall, seconds: matchLengthSeconds(rec), at: Date.now() } : null,
+    });
     return;
   }
   // Skipping puts you straight back in the queue; anything else ends here.
@@ -921,7 +985,7 @@ realtime.on(Ev.rtcSignal, (e) => void onSignal(e));
 
 realtime.on(Ev.matchMedia, (e) => {
   if (e.matchId !== matchId) return;
-  set({ partnerCamOn: e.camOn !== false, partnerMicOn: e.micOn !== false });
+  set({ partnerCamOn: e.camOn !== false, partnerMicOn: e.micOn !== false, partnerBlur: e.blur === true });
 });
 
 realtime.on(Ev.matchRematchSoon, (e) => {
@@ -935,10 +999,10 @@ function tellMedia() {
   const s = useMatch.getState();
   if (s.status !== "connected" || !matchId) return;
   const camOn = s.camOn && !pageHidden && !s.voiceCall;
-  const key = `${camOn ? "on" : "off"}:${s.micOn ? "on" : "off"}`;
+  const key = `${camOn ? "on" : "off"}:${s.micOn ? "on" : "off"}:${s.blurMe ? "blur" : ""}`;
   if (key === toldMedia) return;
   toldMedia = key;
-  realtime.request("match:media", { camOn, micOn: s.micOn }).catch(() => {});
+  realtime.request("match:media", { camOn, micOn: s.micOn, ...(s.blurMe ? { blur: true } : {}) }).catch(() => {});
 }
 
 /** Their video should keep moving: no new frames for ~4 s (while their camera is on) means a weak connection. */
@@ -1069,6 +1133,20 @@ async function onSignal(e: Json) {
   }
 }
 
+/** Voice only from now on (either side switched): stop the camera, keep the call. */
+function turnOffVideo() {
+  if (get().voiceCall) return;
+  const local = get().localStream;
+  local?.getVideoTracks().forEach((t) => {
+    t.stop();
+    local.removeTrack(t);
+  });
+  const t = pc?.getTransceivers().find((x) => x.receiver.track.kind === "video");
+  void t?.sender.replaceTrack(null);
+  set({ voiceCall: true, videoAsk: "none", localStream: local ? new MediaStream(local.getTracks()) : null });
+  tellMedia();
+}
+
 /** Both said yes: open the camera and send it on the reserved video line. */
 async function turnOnVideo() {
   if (!get().voiceCall) return;
@@ -1095,6 +1173,7 @@ realtime.on(Ev.callVideo, (e) => {
   if (e.state === "asked") set({ videoAsk: "theirs" });
   else if (e.state === "on") void turnOnVideo();
   else if (e.state === "declined") set({ videoAsk: "none", lastError: "They'd rather stay on voice for now." });
+  else if (e.state === "off") turnOffVideo();
 });
 
 async function flushIce() {

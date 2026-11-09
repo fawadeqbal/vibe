@@ -27,6 +27,14 @@ enum EndReason { skipped, partnerLeft, stopped, reported }
 /// Turning a voice call into video: nobody asked, you asked, they asked.
 enum VideoAsk { none, mine, theirs }
 
+/// A friend call that just ended: the "Call ended" screen.
+class FriendCallEnded {
+  const FriendCallEnded({required this.partner, required this.voice, required this.length});
+  final Profile partner;
+  final bool voice;
+  final Duration length;
+}
+
 /// The match loop: idle → searching → connected → (next) → searching …
 ///
 /// Owns the local camera (WebRTC local stream, no peer yet — the mock
@@ -297,13 +305,68 @@ abstract class MatchProvider extends ChangeNotifier {
 
   // ── calls with friends (from a chat) ──────────────────────────────────
   bool _friendCall = false;
-  final _friendCallEnded = StreamController<String>.broadcast();
+  final _friendCallEnded = StreamController<FriendCallEnded>.broadcast();
 
   /// This call is with a friend, started from a chat: no Next, no recap.
   bool get friendCall => _friendCall;
 
-  /// A friend call ended: the friend's id (go back to that chat).
-  Stream<String> get friendCallEnded => _friendCallEnded.stream;
+  /// A friend call ended: who, voice or video, how long (the "Call ended" screen).
+  Stream<FriendCallEnded> get friendCallEnded => _friendCallEnded.stream;
+
+  bool _minimized = false;
+  bool _blurMe = false;
+  bool _partnerBlur = false;
+  bool _speakerOn = true;
+
+  /// The friend call is shrunk to the chat (the green bar and the small window).
+  bool get minimized => _minimized;
+  void setMinimized(bool v) {
+    if (v == _minimized) return;
+    _minimized = v;
+    notifyListeners();
+  }
+
+  /// "Blur me": they see you blurred.
+  bool get blurMe => _blurMe;
+  void toggleBlurMe() {
+    _blurMe = !_blurMe;
+    tellMedia();
+    notifyListeners();
+  }
+
+  /// They turned on "Blur me": their video is shown blurred.
+  bool get partnerBlur => _partnerBlur;
+
+  /// Loudspeaker (on) or the earpiece.
+  bool get speakerOn => _speakerOn;
+  Future<void> toggleSpeaker() async {
+    _speakerOn = !_speakerOn;
+    notifyListeners();
+    try {
+      await Helper.setSpeakerphoneOn(_speakerOn);
+    } catch (_) {}
+  }
+
+  /// How loud the friend is right now (0–1), for "Sana is talking".
+  Future<double> partnerVoiceLevel() async => 0;
+
+  /// A video call with a friend → voice only, for both (no ask).
+  Future<void> switchToVoice() => turnOffVideo();
+
+  /// Voice only from now on (either side switched): the camera stops, the call goes on.
+  @protected
+  Future<void> turnOffVideo() async {
+    if (_voiceCall || !_friendCall) return;
+    _voiceCall = true;
+    _videoAsk = VideoAsk.none;
+    notifyListeners();
+  }
+
+  void _resetCallTools() {
+    _minimized = false;
+    _blurMe = false;
+    _partnerBlur = false;
+  }
 
   /// Offline demo: a friend picked up — start the call with them. (On the
   /// server the call starts with `match:found`, friendCall: true.)
@@ -315,6 +378,8 @@ abstract class MatchProvider extends ChangeNotifier {
     _friendCall = v;
     _voiceCall = v && voice;
     _videoAsk = VideoAsk.none;
+    _speakerOn = !(v && voice);
+    _resetCallTools();
   }
 
   bool _voiceCall = false;
@@ -356,15 +421,16 @@ abstract class MatchProvider extends ChangeNotifier {
     _friendCall = false;
     // The voice call's stream had no camera: open a full one next time.
     if (_voiceCall || (_localStream?.getVideoTracks().isEmpty ?? false)) unawaited(releaseCamera());
+    final ended = _partner == null ? null : FriendCallEnded(partner: _partner!, voice: _voiceCall, length: DateTime.now().difference(_current?.startedAt ?? DateTime.now()));
     _voiceCall = false;
     _videoAsk = VideoAsk.none;
-    final id = _partner?.id;
+    _resetCallTools();
     _state = MatchState.idle;
     _partner = null;
     _current = null;
     _game = null;
     notifyListeners();
-    if (id != null) _friendCallEnded.add(id);
+    if (ended != null) _friendCallEnded.add(ended);
     return true;
   }
 

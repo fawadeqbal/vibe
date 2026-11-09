@@ -42,7 +42,7 @@ import 'package:vibe_app/models/discover.dart';
 import 'package:vibe_app/screens/social/chat_screen.dart';
 import 'package:vibe_app/screens/social/chat_calls.dart';
 import 'package:vibe_app/screens/social/chat_tools.dart';
-import 'package:vibe_app/screens/match/voice_call.dart';
+import 'package:vibe_app/screens/calls/friend_call.dart';
 import 'package:vibe_app/screens/store/vip_screen.dart';
 import 'package:vibe_app/services/app_services.dart';
 
@@ -353,7 +353,7 @@ void main() {
       await h.match.beginFriendCall(h.sana, voice: true);
     });
     (h.match as dynamic).debugTheyAskVideo();
-    await t.pumpWidget(h.app(Scaffold(body: Consumer<MatchProvider>(builder: (_, m, _) => VoiceCallView(m: m, onReport: () {})))));
+    await t.pumpWidget(h.app(Scaffold(body: Consumer<MatchProvider>(builder: (_, m, _) => FriendVoiceCall(m: m, actions: FriendCallActions(shrink: () {}, gift: () {}, report: () {}, play: () {}))))));
     await snap(t, 't6_voice_call');
   });
 

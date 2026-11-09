@@ -15,7 +15,7 @@ import 'package:vibe_app/providers/match_provider.dart';
 import 'package:vibe_app/providers/session_provider.dart';
 import 'package:vibe_app/providers/social_provider.dart';
 import 'package:vibe_app/providers/wallet_provider.dart';
-import 'package:vibe_app/screens/match/voice_call.dart';
+import 'package:vibe_app/screens/calls/friend_call.dart';
 import 'package:vibe_app/screens/social/chat_calls.dart';
 import 'package:vibe_app/screens/social/chat_screen.dart';
 import 'package:vibe_app/screens/social/chat_tools.dart';
@@ -223,7 +223,7 @@ void main() {
       match.dispose();
     });
 
-    testWidgets('voice call: mute, turn on video when allowed, their ask', (tester) async {
+    testWidgets('voice call: mute, speaker, turn on video when allowed, their ask, switch back to voice', (tester) async {
       tester.view.physicalSize = const Size(1170, 2532);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
@@ -238,23 +238,38 @@ void main() {
         await match.beginFriendCall(_sana, voice: true);
       });
       expect(match.voiceCall, isTrue);
+      var shrunk = 0;
       Widget app() => MultiProvider(
             providers: [ChangeNotifierProvider<SocialProvider>.value(value: social), ChangeNotifierProvider<MatchProvider>.value(value: match)],
-            child: MaterialApp(theme: V.theme(), home: Scaffold(body: Consumer<MatchProvider>(builder: (_, m, _) => VoiceCallView(m: m, onReport: () {})))),
+            child: MaterialApp(theme: V.theme(), home: Scaffold(body: Consumer<MatchProvider>(builder: (_, m, _) => m.partner == null ? const SizedBox() : FriendVoiceCall(m: m, actions: FriendCallActions(shrink: () => shrunk++, gift: () {}, report: () {}, play: () {}))))),
           );
       await tester.pumpWidget(app());
-      expect(find.text('Sana'), findsOneWidget);
+      expect(find.text(_sana.name), findsOneWidget);
+      expect(find.text('Voice call'), findsOneWidget);
       expect(find.text('Camera stays off. Not recorded.'), findsOneWidget);
-      expect(find.text('Video'), findsOneWidget);
-      expect(find.text('Mute'), findsOneWidget);
+      expect(find.text('Turn on video'), findsOneWidget);
+      expect(find.text('Speaker'), findsOneWidget);
+      await tester.tap(find.text('Mute'));
+      await tester.pump();
+      expect(match.micOn, isFalse);
+      expect(find.text('Unmute'), findsOneWidget);
+      await tester.tap(find.text('Message'));
+      expect(shrunk, 1);
 
       (match as dynamic).debugTheyAskVideo();
       await tester.pump();
       expect(find.text('Sana wants to turn on video'), findsOneWidget);
-      expect(find.text('Stay on voice'), findsOneWidget);
-      await tester.tap(find.text('Stay on voice'));
+      await tester.tap(find.text('Not now'));
       await tester.pump();
       expect(match.videoAsk, VideoAsk.none);
+      expect(match.voiceCall, isTrue);
+
+      // Video on, then either side can switch back to voice only.
+      await tester.runAsync(() => match.answerVideo(true));
+      await tester.pump();
+      expect(match.voiceCall, isFalse);
+      await tester.runAsync(() => match.switchToVoice());
+      await tester.pump();
       expect(match.voiceCall, isTrue);
       match.stop();
       await tester.pump(const Duration(seconds: 1));

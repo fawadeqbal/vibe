@@ -232,6 +232,40 @@ describe('calls in chat', () => {
     expect(low).toMatchObject({ on: true, video: false });
   });
 
+  it('a video call can be picked up as voice only, switched to voice by either side, and "Blur me" reaches the other', async () => {
+    const { a, b } = await callsOn();
+    const sa = await online(a);
+    const sb = await online(b);
+    // Voice only: a video call starts audio-only for both.
+    let r = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).send({ media: 'video' }).expect(200)).body;
+    let foundA = next(sa, 'match:found');
+    await t.http.post(`/v1/calls/${r.callId}/accept`).set(b.auth).send({ media: 'voice' }).expect(200);
+    expect(await foundA).toMatchObject({ friendCall: true, audioOnly: true });
+    let ended = next(sb, 'match:ended');
+    await emit(sa, 'match:end');
+    await ended;
+
+    // A video call; B switches it to voice only: both are told, no ask.
+    r = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).send({ media: 'video' }).expect(200)).body;
+    foundA = next(sa, 'match:found');
+    const foundB = next(sb, 'match:found');
+    await t.http.post(`/v1/calls/${r.callId}/accept`).set(b.auth).expect(200);
+    const found = await foundA;
+    await foundB;
+    expect(found).toMatchObject({ friendCall: true, audioOnly: false });
+
+    const blur = next(sb, 'match:media');
+    await emit(sa, 'match:media', { camOn: true, micOn: true, blur: true });
+    expect(await blur).toMatchObject({ camOn: true, micOn: true, blur: true });
+
+    const offA = next(sa, 'call:video');
+    expect((await t.http.post(`/v1/calls/live/${found.matchId}/video`).set(b.auth).send({ action: 'off' }).expect(200)).body).toEqual({ state: 'off' });
+    expect(await offA).toMatchObject({ state: 'off', from: b.id });
+    ended = next(sb, 'match:ended');
+    await emit(sa, 'match:end');
+    await ended;
+  });
+
   it('declines (with a quick reply) and missed calls are logged; declines in a row pause ringing', async () => {
     await setRules({ callDeclinePause: 2 });
     const { a, b } = await callsOn();

@@ -13,7 +13,7 @@ import { unreadTotal, useSocial } from "@/stores/social";
 import { useWaitlist } from "@/stores/waitlist";
 import { useWaves } from "@/stores/waves";
 
-import { CallHost } from "@/features/chats/call-host";
+import { CallHost, CallReturnBar } from "@/features/calls/call-host";
 import { DiscoverMatchHost } from "@/features/discover/match-dialog";
 import { dismissLooking } from "@/features/match/waitlist-strip";
 
@@ -93,6 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <CallReturnBar />
         {!onVideo ? <SomeoneLookingBar /> : null}
         <main className={cn("flex min-h-0 flex-1 flex-col", showBar && !onVideo && "pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0")}>{children}</main>
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -20,11 +21,20 @@ import 'package:vibe_app/providers/match_provider.dart';
 import 'package:vibe_app/providers/session_provider.dart';
 import 'package:vibe_app/providers/social_provider.dart';
 import 'package:vibe_app/providers/wallet_provider.dart';
+import 'package:vibe_app/screens/calls/call_layer.dart';
+import 'package:vibe_app/screens/social/call_screens.dart';
 import 'package:vibe_app/screens/social/chat_calls.dart';
 import 'package:vibe_app/screens/store/vip_screen.dart';
 import 'package:vibe_app/services/push/push_route.dart';
 
 http.Response json(Object body, [int status = 200]) => http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json'});
+
+/// The ringing pulse never stops: pump a little instead of pumpAndSettle.
+Future<void> settle(WidgetTester t) async {
+  for (var i = 0; i < 6; i++) {
+    await t.pump(const Duration(milliseconds: 150));
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -183,6 +193,74 @@ void main() {
       expect(social.friend(id)!.calls.on, isFalse);
       final events = social.messages(id).where((m) => m.isSystem).map((m) => m.event).toList();
       expect(events, ['matched', 'calls_asked', 'calls_on', 'calls_off']);
+      calls.dispose();
+      match.dispose();
+    });
+  });
+
+  group('friend call screens', () {
+    testWidgets('a ring is a banner; tapped, the full screen answers as voice only; a shrunk call shows the green bar', (tester) async {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      SharedPreferences.setMockInitialValues({});
+      const sana = Profile(id: 'u9', name: 'Sana Malik', age: 24, gender: Gender.female, country: Country('PK', 'Pakistan', ''), avatarUrl: '');
+      final backend = MockBackend();
+      final wallet = WalletProvider(backend);
+      final social = SocialProvider(backend, wallet);
+      final match = MatchProvider(backend, wallet, social, SessionProvider(backend), cameraEnabled: false);
+      final calls = CallsProvider(social, match);
+      await tester.runAsync(() async {
+        await social.load();
+        await social.addMatched(Friend(profile: sana, state: FriendState.friends, since: DateTime.now(), calls: const CallsView(mine: true, theirs: true, mineVideo: true, theirsVideo: true)));
+      });
+      final nav = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SocialProvider>.value(value: social),
+          ChangeNotifierProvider<MatchProvider>.value(value: match),
+          ChangeNotifierProvider<CallsProvider>.value(value: calls),
+        ],
+        child: MaterialApp(navigatorKey: nav, theme: V.theme(), builder: (_, child) => CallLayer(child: child!), home: const Scaffold(body: Text('Chats page'))),
+      ));
+      (calls as LocalCallsProvider).debugIncoming(sana);
+      await tester.pump();
+      expect(find.text('Video call'), findsOneWidget, reason: 'the banner');
+      await tester.tap(find.text('Sana Malik'));
+      await tester.pump();
+      expect(calls.incomingFull, isTrue);
+      unawaited(nav.currentState!.push(MaterialPageRoute(builder: (_) => IncomingCallScreen(call: calls.incoming!))));
+      await settle(tester);
+      expect(find.text('is video calling you'), findsOneWidget);
+      expect(find.text("Can't talk now"), findsOneWidget);
+      await tester.tap(find.text('Voice only'));
+      await settle(tester);
+      expect(match.isConnected, isTrue);
+      expect(match.friendCall && match.voiceCall, isTrue, reason: 'picked up as voice only');
+      expect(find.text('is video calling you'), findsNothing);
+
+      match.setMinimized(true);
+      await tester.pump();
+      expect(find.text('Tap to go back to the call'), findsOneWidget);
+      await tester.tap(find.text('Tap to go back to the call'));
+      await tester.pump();
+      expect(match.minimized, isFalse);
+
+      // Hanging up: "Call ended" with the length, and the way back.
+      final ended = match.friendCallEnded.first;
+      match.stop();
+      final e = await ended;
+      expect(e.partner.id, 'u9');
+      expect(e.voice, isTrue);
+      unawaited(nav.currentState!.push(MaterialPageRoute(builder: (_) => FriendCallEndedScreen(ended: e, onChat: (_) {}))));
+      await settle(tester);
+      expect(find.text('Call ended'), findsOneWidget);
+      expect(find.textContaining('Voice call with Sana · '), findsOneWidget);
+      expect(find.text('Back to the chat'), findsOneWidget);
+      expect(find.text('Call again'), findsOneWidget);
+      expect(find.text('Send a gift'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(minutes: 1));
       calls.dispose();
       match.dispose();
     });
