@@ -29,7 +29,7 @@ Tested: a build with `NEXT_PUBLIC_BRAND_NAME=Lumo NEXT_PUBLIC_SITE_URL=https://l
 |---|---|
 | Titles, descriptions, keywords, canonical, Open Graph, Twitter cards per page | `src/lib/seo.ts` → `pageMetadata()` |
 | Search-intent landing pages (14): Omegle / Chatroulette / Azar / OmeTV / Monkey alternatives, random video chat, talk to strangers, earn money, safe video chat, video chat online, meet new people, make friends, practise English | `src/content/pages.ts` → `/<slug>/` |
-| Country pages (19 + Pakistan) and city pages (Karachi, Lahore, Islamabad), plus a hub at `/video-chat-by-country/`. Each has its own angle, cities, languages, a local-time table for Pakistani evenings and FAQs | `src/content/places.ts` → `/video-chat-<country>/` |
+| Country pages (29 + Pakistan) and Pakistani city pages (11: Karachi, Lahore, Islamabad, Faisalabad, Peshawar, Multan, Bahawalpur, Hyderabad, Gujranwala, Sialkot, Quetta), plus a hub at `/video-chat-by-country/`. Each has its own angle, cities, languages, a local-time table for Pakistani evenings and FAQs | `src/content/places.ts` → `/video-chat-<country>/` |
 | Blog (6 guides) + RSS | `src/content/posts.ts` → `/blog/`, `/blog/<slug>/`, `/blog/feed.xml` |
 | Structured data: Organization, WebSite, MobileApplication+WebApplication, WebPage, FAQPage, BreadcrumbList, Blog, BlogPosting | `src/lib/seo.ts`, rendered per page |
 | Share image per page (generated at build) | `src/lib/og.tsx`, `opengraph-image.tsx` files |
