@@ -1111,3 +1111,42 @@ class VideoScrims extends StatelessWidget {
     );
   }
 }
+
+/// Pill tabs (wallet history, badges): the chosen one is a white pill.
+/// (web: PillTabs in components/ui/tabs.tsx)
+class PillTabs<T> extends StatelessWidget {
+  const PillTabs({super.key, required this.tabs, required this.value, required this.onChanged});
+  final List<(T, String)> tabs;
+  final T value;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final (v, label) in tabs)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Semantics(
+                selected: v == value,
+                button: true,
+                child: GestureDetector(
+                  onTap: () => onChanged(v),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: v == value ? V.text : Colors.white.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(17)),
+                    child: Text(label, style: VT.label(13.5, color: v == value ? V.bg : V.text2, weight: FontWeight.w600)),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

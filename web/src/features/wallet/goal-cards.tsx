@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 
-import { CircleIconButton, GradientButton, TextButton } from "@/components/ui/button";
+import { GradientButton, TextButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { ProgressBar } from "@/components/ui/misc";
 import { GemIcon } from "@/components/ui/money";
 import { Panel } from "@/components/ui/panel";
 import { TextField } from "@/components/ui/text-field";
-import { Headline } from "@/components/ui/typography";
+import { SectionTitle } from "@/components/ui/typography";
 import { parseGemGoal, recapHasNews, recapVisible } from "@/lib/engagement";
 import { compact, figure, gemsAsUsd, thousands } from "@/lib/format";
 import { useCatalog } from "@/stores/catalog";
@@ -37,23 +36,35 @@ export function GemGoalCard() {
     );
 
   const reached = gems >= goal;
+  const cashoutMin = useCatalog.getState().economy.cashoutMinGems;
   return (
-    <Panel gradient="walletGems" className="border-gem/30">
-      <div className="flex items-center">
-        <Icon name="flag" size={18} className="text-gem" />
-        <span className="type-label ml-1.5 flex-1 text-[12px] text-text2">Gem goal</span>
-        <CircleIconButton icon="edit" label="Change goal" size={32} iconSize={17} className="bg-white/6" onClick={() => void openGoalSheet(goal)} />
+    <Panel className="px-4 py-3.5">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-[12px] bg-gem/13">
+          <Icon name="flag" size={21} className="text-gem" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="type-title text-[15px] font-semibold" title={`${thousands(goal)} gems ≈ ${gemsAsUsd(goal, usdPerGem)}`}>
+            Goal: {figure(goal)} gems
+          </span>
+          <span className="type-body text-[12px] text-text2">
+            {reached ? "Reached 🎯 Cash out, or set a bigger one" : `${figure(goal - gems)} to go${goal >= cashoutMin ? " · enough to cash out" : ""}`}
+          </span>
+        </span>
+        <button type="button" onClick={() => void openGoalSheet(goal)} className="type-label text-[13px] text-pink-soft hover:brightness-125">
+          Change
+        </button>
       </div>
-      <p className="mt-1.5 flex items-baseline">
-        <span className="type-number-lg text-[22px] text-gem" title={`${thousands(Math.min(gems, goal))} gems`}>{figure(Math.min(gems, goal))}</span>
-        <span className="type-body ml-1 text-[13px] text-text2">/ {figure(goal)} gems</span>
-        <span className="flex-1" />
-        <span className="type-body text-[12px] text-text2">≈ {gemsAsUsd(goal, usdPerGem)}</span>
-      </p>
-      <div className="mt-2.5">
-        <ProgressBar value={gems / goal} tone="gem" />
+      <div
+        className="mt-3 h-2 overflow-hidden rounded-[8px] bg-surface3"
+        role="progressbar"
+        aria-label="Toward your goal"
+        aria-valuenow={Math.round(Math.min(1, gems / goal) * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div className="bg-gem-grad h-full rounded-[8px] transition-[width] duration-300" style={{ width: `${Math.min(1, gems / goal) * 100}%` }} />
       </div>
-      <p className="type-body mt-2 text-[12px] text-text2">{reached ? "Goal reached 🎯 Cash out, or set a bigger one." : `${figure(goal - gems)} gems to go`}</p>
     </Panel>
   );
 }
@@ -97,7 +108,12 @@ function GoalSheet({ current, onDone }: { current: number | null; onDone: () => 
       />
       <div className="mt-3 flex flex-wrap gap-1.5">
         {presets.map((n) => (
-          <button key={n} type="button" onClick={() => setText(String(n))} className="type-label flex h-8 items-center rounded-full border border-line bg-surface2 px-3 text-[12.5px] text-text2 hover:bg-surface3">
+          <button
+            key={n}
+            type="button"
+            onClick={() => setText(String(n))}
+            className="type-label flex h-8 items-center rounded-full border border-line bg-surface2 px-3 text-[12.5px] text-text2 hover:bg-surface3"
+          >
             <GemIcon size={13} className="mr-1" />
             {compact(n)}
           </button>
@@ -124,29 +140,25 @@ export function WeeklyRecapCard() {
     if (visible) void useEngagement.getState().loadRecap();
   }, [visible]);
   if (!visible || !recap || !recapHasNews(recap)) return null;
-  const cells: [string, number, string][] = [
-    ["diamond", recap.gemsEarned, "Gems earned"],
-    ["redeem", recap.giftsReceived, "Gifts"],
-    ["favorite", recap.likesReceived, "Likes"],
-    ["person_add", recap.newFollowers, "New followers"],
-    ["videocam", recap.matches, "Matches"],
-    ["local_fire_department", recap.bestStreak, "Best streak"],
+  const cells: [string, string][] = [
+    [`+${compact(recap.gemsEarned)}`, "Gems"],
+    [compact(recap.giftsReceived), "Gifts"],
+    [compact(recap.matches), "Matches"],
+    [compact(recap.likesReceived), "Likes"],
   ];
   return (
-    <Panel>
-      <Headline as="h2" text="Your week on " accent="Vibe" size={20} />
-      <p className="type-body mt-0.5 text-[12px] text-muted">Last Monday to Sunday</p>
-      <div className="mt-3.5 grid grid-cols-3 gap-y-3.5">
-        {cells.map(([icon, n, label]) => (
-          <div key={label} className="flex flex-col items-center">
-            <span className="flex items-center">
-              <Icon name={icon} size={15} className={icon === "diamond" ? "text-gem" : icon === "local_fire_department" ? "text-flame" : "text-text2"} />
-              <span className="type-number ml-1 text-[17px]">{compact(n)}</span>
+    <>
+      <SectionTitle text="Last week" top={26} bottom={10} />
+      <Panel className="px-2 py-3.5">
+        <div className="grid grid-cols-4 text-center">
+          {cells.map(([n, label]) => (
+            <span key={label} className="flex flex-col gap-0.5">
+              <b className="type-number text-[18px] tracking-[-0.02em]">{n}</b>
+              <span className="type-body text-[11.5px] text-text2">{label}</span>
             </span>
-            <span className="type-body mt-0.5 text-[11px] text-muted">{label}</span>
-          </div>
-        ))}
-      </div>
-    </Panel>
+          ))}
+        </div>
+      </Panel>
+    </>
   );
 }

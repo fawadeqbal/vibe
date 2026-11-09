@@ -52,38 +52,44 @@ class GemGoalCard extends StatelessWidget {
     final gems = wallet.gems;
     final reached = gems >= goal;
     return Panel(
-      gradient: const LinearGradient(colors: [Color(0xFF0E2E2B), V.surface], begin: Alignment.topLeft, end: Alignment.bottomRight),
-      border: V.gem.withValues(alpha: 0.3),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(SolarIconsBold.flag, size: 18, color: V.gem),
-              const SizedBox(width: 6),
-              Expanded(child: Text('Gem goal', style: VT.label(12, color: V.text2))),
-              CircleIconButton(icon: SolarIconsBold.pen, size: 32, iconSize: 17, background: Colors.white.withValues(alpha: 0.06), tooltip: 'Change goal', onTap: () => edit(context, goal)),
+              Container(width: 40, height: 40, decoration: BoxDecoration(color: V.gem.withValues(alpha: 0.13), borderRadius: BorderRadius.circular(12)), child: const Icon(SolarIconsBold.flag, color: V.gem, size: 21)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Goal: ${Fmt.figure(goal)} gems', style: VT.title(15, weight: FontWeight.w600), semanticsLabel: 'Goal: ${Fmt.thousands(goal)} gems, about ${Fmt.gemsAsUsd(goal)}'),
+                    Text(
+                      reached ? 'Reached 🎯 Cash out, or set a bigger one' : '${Fmt.figure(goal - gems)} to go${goal >= Economy.cashoutMinGems ? ' · enough to cash out' : ''}',
+                      style: VT.body(12, color: V.text2),
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () => edit(context, goal),
+                child: Padding(padding: const EdgeInsets.all(4), child: Text('Change', style: VT.label(13, color: V.pinkSoft, weight: FontWeight.w600))),
+              ),
             ],
           ),
-          const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(Fmt.figure(gems < goal ? gems : goal), style: VT.number(22, color: V.gem)),
-              const SizedBox(width: 4),
-              Text('/ ${Fmt.figure(goal)} gems', style: VT.body(13, color: V.text2)),
-              const Spacer(),
-              Text('≈ ${Fmt.gemsAsUsd(goal)}', style: VT.body(12, color: V.text2)),
-            ],
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(value: (gems / goal).clamp(0.0, 1.0), minHeight: 6, backgroundColor: V.surface3, color: V.gem),
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              height: 8,
+              child: Stack(
+                children: [
+                  Container(color: V.surface3),
+                  FractionallySizedBox(widthFactor: (gems / goal).clamp(0.0, 1.0), child: Container(decoration: const BoxDecoration(gradient: V.gemGrad))),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 8),
-          Text(reached ? 'Goal reached 🎯 Cash out, or set a bigger one.' : '${Fmt.figure(goal - gems)} gems to go', style: VT.body(12, color: V.text2)),
         ],
       ),
     );
@@ -223,39 +229,23 @@ class WeeklyRecapCard extends StatelessWidget {
     final e = context.watch<EngagementProvider>();
     final r = e.recap;
     if (!e.showRecap || r == null) return const SizedBox.shrink();
-    Widget cell(String value, String label, {Color color = V.text, Widget? icon}) => Expanded(
-          child: Column(
-            children: [
-              Row(mainAxisSize: MainAxisSize.min, children: [if (icon != null) ...[icon, const SizedBox(width: 4)], Text(value, style: VT.number(18, color: color))]),
-              const SizedBox(height: 2),
-              Text(label, textAlign: TextAlign.center, style: VT.body(11, color: V.muted, height: 1.2)),
-            ],
-          ),
-        );
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Panel(
-        gradient: const LinearGradient(colors: [Color(0xFF1F1830), V.surface], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Headline('Your week on ', accent: 'Vibe', size: 20),
-            if (r.weekStart != null) Text('${Fmt.date(r.weekStart!)} – ${Fmt.date(r.weekEnd!.subtract(const Duration(days: 1)))}', style: VT.body(12, color: V.muted)),
-            const SizedBox(height: 14),
-            Row(children: [
-              cell(Fmt.compact(r.gemsEarned), 'Gems earned', color: V.gem, icon: const GemIcon(size: 15)),
-              cell(Fmt.compact(r.giftsReceived), 'Gifts'),
-              cell(Fmt.compact(r.likesReceived), 'Likes'),
-            ]),
-            const SizedBox(height: 12),
-            Row(children: [
-              cell(Fmt.compact(r.newFollowers), 'New followers'),
-              cell(Fmt.compact(r.matches), 'Matches'),
-              cell('${r.bestStreak}', 'Best streak', color: r.bestStreak > 0 ? V.flame : V.text),
-            ]),
-          ],
+    Widget stat(String value, String label) => Expanded(
+      child: Column(children: [Text(value, style: VT.number(18)), const SizedBox(height: 2), Text(label, style: VT.body(11.5, color: V.text2))]),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionTitle('Last week', top: 26, bottom: 10),
+        Panel(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+          child: Row(children: [
+            stat('+${Fmt.compact(r.gemsEarned)}', 'Gems'),
+            stat(Fmt.compact(r.giftsReceived), 'Gifts'),
+            stat(Fmt.compact(r.matches), 'Matches'),
+            stat(Fmt.compact(r.likesReceived), 'Likes'),
+          ]),
         ),
-      ),
+      ],
     );
   }
 }

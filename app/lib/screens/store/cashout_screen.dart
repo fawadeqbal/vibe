@@ -143,9 +143,41 @@ class _CashoutScreenState extends State<CashoutScreen> {
   @override
   Widget build(BuildContext context) {
     final wallet = context.watch<WalletProvider>();
+    final can = wallet.canCashOut;
     return Scaffold(
       appBar: vibeAppBar(context, 'Cash out gems'),
       body: _done != null ? _sent(_done!) : _form(wallet),
+      bottomNavigationBar: _done != null
+          ? null
+          : Container(
+              decoration: const BoxDecoration(color: V.bg, border: Border(top: BorderSide(color: V.lineSoft))),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GradientButton(
+                        label: can ? 'Cash out ${Fmt.figure(wallet.gems)} gems' : 'Not enough gems yet',
+                        height: 52,
+                        gradient: V.gemGrad,
+                        foreground: V.onGem,
+                        glow: V.gem,
+                        onTap: can && _selected != null ? _submit : null,
+                        busy: _busy,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        can ? 'Paid within 3 business days. A selfie check above the monthly limit.' : 'Available once you reach ${Fmt.thousands(Economy.cashoutMinGems)} gems',
+                        textAlign: TextAlign.center,
+                        style: VT.body(12, color: V.muted),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
@@ -182,32 +214,34 @@ class _CashoutScreenState extends State<CashoutScreen> {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
           Panel(
-            gradient: const LinearGradient(colors: [Color(0xFF0E2E2B), V.surface], begin: Alignment.topLeft, end: Alignment.bottomRight),
-            border: V.gem.withValues(alpha: 0.3),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Available', style: VT.label(12)),
-                const SizedBox(height: 4),
-                Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                  Text(Fmt.figure(wallet.gems), style: VT.number(30, color: V.gem), semanticsLabel: '${Fmt.thousands(wallet.gems)} gems'),
-                  const SizedBox(width: 8),
-                  Flexible(child: Text('gems ≈ Rs ${Fmt.thousands(estimatePkr)} (${Fmt.gemsAsUsd(wallet.gems)})', style: VT.body(14, color: V.text2))),
-                ]),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(value: (wallet.gems / Economy.cashoutMinGems).clamp(0, 1).toDouble(), minHeight: 6, backgroundColor: V.surface3, color: V.gem),
-                ),
+                Row(children: [const GemIcon(size: 16), const SizedBox(width: 6), Text(can ? 'You can cash out' : 'Your gems', style: VT.label(12.5, color: V.gem, weight: FontWeight.w600))]),
                 const SizedBox(height: 6),
+                Text(Fmt.figure(wallet.gems), style: VT.number(30), semanticsLabel: '${Fmt.thousands(wallet.gems)} gems'),
+                const SizedBox(height: 6),
+                Text('gems ≈ ${Fmt.gemsAsUsd(wallet.gems)} · Rs ${Fmt.thousands(estimatePkr)}', style: VT.body(12, color: V.text2)),
+                const SizedBox(height: 14),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    height: 8,
+                    child: Stack(children: [
+                      Container(color: V.surface3),
+                      FractionallySizedBox(widthFactor: (wallet.gems / Economy.cashoutMinGems).clamp(0.0, 1.0), child: Container(decoration: const BoxDecoration(gradient: V.gemGrad))),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Text(
-                  can ? 'You can cash out.' : '${Fmt.thousands(Economy.cashoutMinGems - wallet.gems)} more gems to reach the ${Fmt.thousands(Economy.cashoutMinGems)} minimum (${Fmt.gemsAsUsd(Economy.cashoutMinGems)}).',
+                  can ? "You're over the minimum. Pick where to send it." : 'The smallest cash-out is ${Fmt.thousands(Economy.cashoutMinGems)} gems. ${Fmt.thousands(Economy.cashoutMinGems - wallet.gems)} to go.',
                   style: VT.body(12, color: V.text2),
                 ),
               ],
             ),
           ),
-          const SectionTitle('Pay to'),
+          SectionTitle('Pay to', action: wallet.payoutAccounts.length >= 5 ? null : 'Add', onAction: _addAccount, bottom: 10),
           if (_loading && !wallet.payoutsLoaded)
             const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator(color: V.gem)))
           else if (_loadError != null && !wallet.payoutsLoaded)
@@ -224,31 +258,23 @@ class _CashoutScreenState extends State<CashoutScreen> {
               ]),
             ),
           ],
-          const SizedBox(height: 20),
-          GradientButton(
-            label: can ? 'Cash out ${Fmt.figure(wallet.gems)} gems' : 'Not enough gems yet',
-            gradient: V.gemGrad,
-            foreground: V.onGem,
-            glow: V.gem,
-            onTap: can && _selected != null ? _submit : null,
-            busy: _busy,
-          ),
-          const SizedBox(height: 8),
-          Text('Paid within 3 business days. Identity check (selfie) above the monthly limit.', textAlign: TextAlign.center, style: VT.body(11.5, color: V.muted)),
           if (wallet.cashouts.isNotEmpty) ...[
-            const SectionTitle('Your cash-outs'),
-            for (final c in wallet.cashouts) _cashoutRow(c),
+            const SectionTitle('Cash-outs', bottom: 10),
+            GroupCard(children: [for (final c in wallet.cashouts) _cashoutRow(c)]),
           ],
-          const SectionTitle('How gems work'),
-          Panel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _line('Someone sends you a gift during a match or chat.'),
-                _line('You keep ${(Economy.giftGemShare * 100).round()}% of its coin value as gems.'),
-                _line('1 gem = ${Fmt.usd(Economy.usdPerGem)}, paid in rupees at the day\'s rate. Cash out from ${Fmt.thousands(Economy.cashoutMinGems)} gems.'),
-              ],
-            ),
+          const SectionTitle('How gems work', bottom: 10),
+          GroupCard(
+            children: [
+              GroupRow(icon: SolarIconsBold.gift, iconColor: V.gem, iconBg: V.gem.withValues(alpha: 0.13), title: 'People send you gifts', subtitle: 'On calls and in chats'),
+              GroupRow(
+                icon: Icons.percent_rounded,
+                iconColor: V.gem,
+                iconBg: V.gem.withValues(alpha: 0.13),
+                title: 'You keep ${Economy.giftGemShare == 0.5 ? 'half' : '${(Economy.giftGemShare * 100).round()}%'} of a gift as gems',
+                subtitle: "1 gem = ${Fmt.usd(Economy.usdPerGem)}, paid in rupees at the day's rate",
+              ),
+              GroupRow(icon: Icons.schedule_rounded, iconColor: V.gem, iconBg: V.gem.withValues(alpha: 0.13), title: 'Paid within 3 business days', subtitle: 'Bigger amounts get a quick check first'),
+            ],
           ),
         ],
       ),
@@ -310,31 +336,17 @@ class _CashoutScreenState extends State<CashoutScreen> {
       CashoutStatus.review => V.warn,
       _ => V.gem,
     };
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Panel(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_money(c), style: VT.title(15)),
-                  Text('${Fmt.thousands(c.gems)} gems · ${c.method.label} ${c.accountMasked}${c.createdAt != null ? ' · ${Fmt.ago(c.createdAt!)}' : ''}', style: VT.body(11.5, color: V.muted)),
-                  if (c.status == CashoutStatus.rejected && c.failureReason != null) Text(c.failureReason!, style: VT.body(12, color: V.bad)),
-                ],
-              ),
-            ),
-            Tag(c.status.label, color: color),
-          ],
-        ),
-      ),
+    final sub = '${c.createdAt != null ? '${Fmt.date(c.createdAt!)} · ' : ''}${Fmt.thousands(c.gems)} gems · ${c.accountMasked}'
+        '${c.status == CashoutStatus.rejected && c.failureReason != null ? '\n${c.failureReason}' : ''}';
+    return GroupRow(
+      icon: SolarIconsBold.banknote,
+      iconColor: V.gem,
+      iconBg: V.gem.withValues(alpha: 0.13),
+      title: '${_money(c)} to ${c.method.label}',
+      subtitle: sub,
+      trailing: Tag(c.status.label, color: color),
     );
   }
 
-  Widget _line(String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Padding(padding: EdgeInsets.only(top: 6), child: Icon(Icons.circle, size: 5, color: V.gem)), const SizedBox(width: 10), Expanded(child: Text(t, style: VT.body(13, color: V.text2)))]),
-      );
+
 }
