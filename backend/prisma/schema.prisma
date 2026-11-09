@@ -1203,21 +1203,26 @@ model MediaFlag {
 /// with `feed`). Written whatever the push/inbox settings, so nothing is lost
 /// when a push is skipped. Kept 90 days.
 model ActivityItem {
-  id        String    @id @default(cuid())
-  userId    String
+  id          String    @id @default(cuid())
+  userId      String
   /// Notification type key (catalog.ts), e.g. friend.request.
-  type      String    @db.VarChar(40)
+  type        String    @db.VarChar(40)
   /// Who it's from (person types); null for Vibe's own.
-  actorId   String?
-  title     String    @db.VarChar(200)
-  body      String    @db.VarChar(500)
+  actorId     String?
+  title       String    @db.VarChar(200)
+  body        String    @db.VarChar(500)
   /// Where a tap leads: route + ids (catalog Content.data).
-  data      Json      @default("{}")
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  data        Json      @default("{}")
+  /// Lines that stand for several notifications (one per chat): type + the push's collapse key.
+  collapseKey String?   @db.VarChar(120)
+  /// How many notifications this line stands for ("3 new messages").
+  count       Int       @default(1)
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, readAt])
+  @@index([userId, collapseKey])
   @@index([createdAt])
 }
 

@@ -442,5 +442,7 @@ export interface ActivityItem {
   actor: Profile | null;
   rel: ActivityRel | null;
   read: boolean;
+  /** How many notifications this line stands for ("3 new" messages from one chat). */
+  count: number;
   at: Date;
 }

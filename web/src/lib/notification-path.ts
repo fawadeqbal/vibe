@@ -9,7 +9,10 @@ export function notificationPath(data: Record<string, string>): string {
     case "call":
       return data.friendId ? `/chats/${data.friendId}` : "/chats";
     case "friends":
-      return data.userId ? `/u/${data.userId}` : "/chats";
+      // A friend request: their profile (Accept / Decline); requests no longer live in Chats.
+      return data.userId ? `/u/${data.userId}` : "/notifications";
+    case "notifications":
+      return "/notifications";
     case "inbox":
       return "/chats/inbox";
     case "wallet":

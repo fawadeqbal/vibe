@@ -14,7 +14,7 @@ class ActivityRel {
 
 /// One line on the Notifications page.
 class ActivityItem {
-  const ActivityItem({required this.id, required this.type, required this.title, required this.body, required this.data, required this.at, this.actor, this.rel, this.read = false});
+  const ActivityItem({required this.id, required this.type, required this.title, required this.body, required this.data, required this.at, this.actor, this.rel, this.read = false, this.count = 1});
   final String id;
 
   /// Notification type, e.g. `friend.request`, `follow.new`, `payment.update`.
@@ -29,7 +29,10 @@ class ActivityItem {
   final Profile? actor;
   final ActivityRel? rel;
   final bool read;
+
+  /// How many notifications this line stands for ("3 new" messages from one chat).
+  final int count;
   final DateTime at;
 
-  ActivityItem copyWith({bool? read}) => ActivityItem(id: id, type: type, title: title, body: body, data: data, at: at, actor: actor, rel: rel, read: read ?? this.read);
+  ActivityItem copyWith({bool? read}) => ActivityItem(id: id, type: type, title: title, body: body, data: data, at: at, actor: actor, rel: rel, read: read ?? this.read, count: count);
 }

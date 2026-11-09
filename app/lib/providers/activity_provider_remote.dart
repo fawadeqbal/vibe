@@ -7,7 +7,8 @@ class RemoteActivityProvider extends ActivityProvider {
     _subs = [
       _rt.on(Ev.activityNew).listen((e) {
         final item = e['item'] is Map ? ApiMap.activityItem(Map<String, dynamic>.from(e['item'] as Map)) : null;
-        if (item != null && !_items.any((x) => x.id == item.id)) _items = [item, ..._items];
+        // A collapsed line (one per chat) comes back with the same id: move it to the top with its new text.
+        if (item != null) _items = [item, ..._items.where((x) => x.id != item.id)];
         _unread = e['unread'] is num ? (e['unread'] as num).toInt() : _unread + (item == null ? 0 : 1);
         notifyListeners();
       }),

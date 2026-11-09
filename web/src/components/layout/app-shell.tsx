@@ -8,9 +8,8 @@ import { VibeLogo } from "@/components/ui/brand";
 import { TabIcon, type TabIconName } from "@/components/ui/tab-icons";
 import { cn } from "@/lib/cn";
 import { discoverBadge, useDiscover } from "@/stores/discover";
-import { useInbox } from "@/stores/inbox";
 import { useMatch } from "@/stores/match";
-import { incomingOf, unreadTotal, useSocial } from "@/stores/social";
+import { unreadTotal, useSocial } from "@/stores/social";
 import { useWaitlist } from "@/stores/waitlist";
 import { useWaves } from "@/stores/waves";
 
@@ -27,14 +26,14 @@ interface Tab {
 }
 
 function useTabs(): Tab[] {
-  const chatsBadge = useSocial((s) => unreadTotal(s) + incomingOf(s).length);
-  const teamUnread = useInbox((s) => s.unread);
+  // Chats counts unread messages only; requests and news are on the bell (Notifications).
+  const chatsBadge = useSocial(unreadTotal);
   const likes = useDiscover(discoverBadge);
   const discoverOn = useDiscover((s) => s.status?.enabled !== false);
   return [
     { href: "/match", label: "Match", icon: "match" },
     ...(discoverOn ? [{ href: "/discover", label: "Discover", icon: "discover" as const, badge: likes }] : []),
-    { href: "/chats", label: "Chats", icon: "chats", badge: chatsBadge + teamUnread },
+    { href: "/chats", label: "Chats", icon: "chats", badge: chatsBadge },
     { href: "/store", label: "Store", icon: "store" },
     { href: "/me", label: "Me", icon: "me" },
   ];

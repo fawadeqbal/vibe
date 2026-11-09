@@ -50,6 +50,10 @@ describe("activityItem", () => {
     expect(i.data).not.toHaveProperty("junk");
     expect(i.at.toISOString()).toBe("2026-11-09T11:00:00.000Z");
   });
+  it("a collapsed line keeps its count (one per chat)", () => {
+    expect(activityItem({ id: "c1", type: "chat.message", count: 3 }).count).toBe(3);
+    expect(activityItem({ id: "c2", type: "chat.message" }).count).toBe(1);
+  });
   it("Vibe's own notifications have no person", () => {
     expect(activityItem({ id: "a2", type: "payment.update", title: "Payment received", body: "", data: { route: "wallet" }, actor: null, rel: null, read: true })).toMatchObject({ actor: null, rel: null, read: true });
   });
@@ -61,6 +65,9 @@ describe("activityItem", () => {
 describe("notificationPath", () => {
   it("sends each kind of notification to its screen", () => {
     expect(notificationPath({ route: "friends", userId: "u1" })).toBe("/u/u1");
+    expect(notificationPath({ route: "friends" })).toBe("/notifications");
+    expect(notificationPath({ route: "notifications" })).toBe("/notifications");
+    expect(notificationPath({ route: "inbox" })).toBe("/chats/inbox");
     expect(notificationPath({ route: "chat", friendId: "u2" })).toBe("/chats/u2");
     expect(notificationPath({ route: "profile", userId: "u3" })).toBe("/u/u3");
     expect(notificationPath({ route: "follow-requests", userId: "u4" })).toBe("/me/follows");

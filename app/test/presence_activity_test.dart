@@ -13,6 +13,7 @@ import 'package:vibe_app/providers/follows_provider.dart';
 import 'package:vibe_app/providers/social_provider.dart';
 import 'package:vibe_app/providers/wallet_provider.dart';
 import 'package:vibe_app/screens/notifications/notifications_screen.dart';
+import 'package:vibe_app/services/push/push_route.dart';
 
 import 'user_profile_test.dart' show FakeFollows;
 
@@ -106,6 +107,74 @@ void main() {
     testWidgets('no ActivityProvider (older test setups): the bell still draws', (tester) async {
       await tester.pumpWidget(MaterialApp(theme: V.theme(), home: const Scaffold(body: NotificationsBell(glass: true))));
       expect(find.byType(NotificationsBell), findsOneWidget);
+    });
+  });
+
+  group('one place for notifications', () {
+    test('a collapsed line keeps its count', () {
+      expect(ApiMap.activityItem({'id': 'a', 'type': 'chat.message', 'count': 3}).count, 3);
+      expect(ApiMap.activityItem({'id': 'b', 'type': 'chat.message'}).count, 1);
+    });
+
+    testWidgets('tapping a line deep-links exactly like its push', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final backend = MockBackend();
+      final wallet = WalletProvider(backend);
+      final social = SocialProvider(backend, wallet);
+      final activity = ActivityProvider();
+      await activity.load();
+      final opened = <PushRoute>[];
+      final sub = DeepLinks.stream.listen(opened.add);
+      addTearDown(sub.cancel);
+      tester.view.physicalSize = const Size(412 * 3, 892 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<WalletProvider>.value(value: wallet),
+          ChangeNotifierProvider<SocialProvider>.value(value: social),
+          ChangeNotifierProvider<FollowsProvider>.value(value: FakeFollows({})),
+          ChangeNotifierProvider<ActivityProvider>.value(value: activity),
+        ],
+        child: MaterialApp(theme: V.theme(), home: const NotificationsScreen()),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Payment received'));
+      await tester.pump();
+      expect(opened, [const PushRoute(PushTarget.wallet)]);
+      await tester.tap(find.textContaining('Sana started following you'));
+      await tester.pump();
+      expect(opened.last, const PushRoute(PushTarget.profile, userId: 'demo-sana'));
+    });
+
+    testWidgets('friend requests (theirs and yours) are on the Notifications page now', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final backend = MockBackend();
+      final wallet = WalletProvider(backend);
+      final social = SocialProvider(backend, wallet);
+      const zara = Profile(id: 'z1', name: 'Zara Ali', age: 24, gender: Gender.female, country: Country('PK', 'Pakistan', '🇵🇰'), avatarUrl: '', bio: '', interests: []);
+      social.receiveRequest(zara);
+      final activity = ActivityProvider();
+      await activity.load();
+      tester.view.physicalSize = const Size(412 * 3, 892 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MultiProvider(
+        providers: [
+          ChangeNotifierProvider<WalletProvider>.value(value: wallet),
+          ChangeNotifierProvider<SocialProvider>.value(value: social),
+          ChangeNotifierProvider<FollowsProvider>.value(value: FakeFollows({})),
+          ChangeNotifierProvider<ActivityProvider>.value(value: activity),
+        ],
+        child: MaterialApp(theme: V.theme(), home: const NotificationsScreen()),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('Friend requests · 1'), findsOneWidget);
+      expect(find.text('Zara Ali, 24'), findsOneWidget);
+      await tester.tap(find.text('Accept'));
+      await tester.pumpAndSettle();
+      expect(social.stateOf('z1'), FriendState.friends);
+      expect(find.text('Friend requests · 1'), findsNothing);
     });
   });
 }

@@ -41,7 +41,7 @@ export function InboxView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)] lg:h-dvh">
-      <AppBar title="Messages from Vibe" onBack={() => router.push("/chats")} className="lg:pl-5 lg:[&>span:first-child]:hidden" />
+      <AppBar title="Messages from Vibe" onBack={() => router.back()} className="lg:pl-5 lg:[&>span:first-child]:hidden" />
       {!messages.length ? (
         <EmptyState className="flex-1" icon="mark_email_read" iconVariant="outlined" title="Nothing " accent="yet" body="News and notes from the Vibe team will show up here." />
       ) : (

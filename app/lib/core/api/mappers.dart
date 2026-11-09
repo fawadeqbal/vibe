@@ -206,6 +206,7 @@ class ApiMap {
               followRequest: rel['followRequest'] == true,
             ),
       read: m['read'] == true,
+      count: i(m['count']) < 1 ? 1 : i(m['count']),
       at: date(m['createdAt']) ?? DateTime.now(),
     );
   }
