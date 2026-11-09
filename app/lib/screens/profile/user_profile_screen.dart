@@ -10,6 +10,7 @@ import '../../core/util/format.dart';
 import '../../models/follows.dart';
 import '../../models/models.dart';
 import '../../providers/follows_provider.dart';
+import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../match/report_sheet.dart';
@@ -215,44 +216,21 @@ class _UserProfileBodyState extends State<UserProfileBody> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Stack(
               children: [
-                VAvatar(url: p.avatarUrl, name: p.name, size: 84, ring: true),
+                VAvatar(url: p.avatarUrl, name: p.name, size: 92, ring: true),
                 if (v.online == true)
-                  Positioned(right: 2, bottom: 2, child: Container(width: 18, height: 18, decoration: BoxDecoration(shape: BoxShape.circle, color: V.ok, border: Border.all(color: V.bg, width: 3)))),
+                  Positioned(right: 4, bottom: 4, child: Container(width: 20, height: 20, decoration: BoxDecoration(shape: BoxShape.circle, color: V.ok, border: Border.all(color: V.bg, width: 3)))),
               ],
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Flexible(child: Text('${p.name}, ${p.age}', overflow: TextOverflow.ellipsis, style: VT.display(26, height: 1.1))),
-                      if (p.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(SolarIconsBold.verifiedCheck, color: V.trust, size: 20, semanticLabel: 'Verified')),
-                      if (p.vip) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.crown, color: V.gold, size: 19, semanticLabel: 'VIP')),
-                      if (v.level > 0) Padding(padding: const EdgeInsets.only(left: 8), child: LevelChip(level: v.level)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Builder(builder: (_) {
-                    final status = v.tier == ProfileTier.friends ? Fmt.presence(live.$1 ?? v.online, live.$2 ?? v.lastSeenAt) : null;
-                    return Text('${p.country.flag} ${p.country.name}${status == null ? '' : ' · ${status == 'Online' ? 'Online now' : status}'}', style: VT.body(13, color: V.text2));
-                  }),
-                  if (friend == FriendState.friends && streak.count > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Row(children: [
-                        Icon(SolarIconsBold.fire, size: 16, color: streak.atRisk ? V.warn : V.flame),
-                        const SizedBox(width: 4),
-                        Text('${streak.count}-day streak${streak.atRisk ? ' · ends tonight' : ''}', style: VT.label(13, color: streak.atRisk ? V.warn : V.flame)),
-                      ]),
-                    ),
-                  if (v.followsYou) const Padding(padding: EdgeInsets.only(top: 8), child: Tag('Follows you', color: V.violet)),
+                  _stat(v.followers == null ? '—' : Fmt.compact(v.followers!), v.followers == 1 ? 'Follower' : 'Followers'),
+                  _stat(v.stats == null ? '—' : Fmt.compact(v.stats!.likes), 'Likes'),
+                  _stat('Lv ${v.level}', 'Level'),
                 ],
               ),
             ),
@@ -270,6 +248,39 @@ class _UserProfileBodyState extends State<UserProfileBody> {
               ),
           ],
         ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Flexible(child: Text('${p.name}, ${p.age}', overflow: TextOverflow.ellipsis, style: VT.title(18))),
+            if (p.verified) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(SolarIconsBold.verifiedCheck, color: V.trust, size: 18, semanticLabel: 'Verified')),
+            if (p.vip) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.crown, color: V.gold, size: 18, semanticLabel: 'VIP')),
+            if (v.followsYou) const Padding(padding: EdgeInsets.only(left: 8), child: Tag('Follows you', color: V.violet)),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Builder(builder: (_) {
+          final status = v.tier == ProfileTier.friends ? Fmt.presence(live.$1 ?? v.online, live.$2 ?? v.lastSeenAt) : null;
+          return Text([('${p.country.flag} ${p.country.name}'), p.gender.label, if (status != null) (status == 'Online' ? 'Active now' : status)].join(' · '), style: VT.body(13, color: V.text2));
+        }),
+        if (p.bio.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(p.bio, style: VT.body(14, color: V.text))),
+        if (v.stats == null && !self)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(children: [
+              Icon(v.statsHidden ? SolarIconsOutline.eyeClosed : SolarIconsOutline.lock, size: 14, color: V.muted),
+              const SizedBox(width: 6),
+              Text(v.statsHidden ? 'Stats hidden' : 'Follow to see their stats', style: VT.body(12, color: V.muted)),
+            ]),
+          ),
+        if (friend == FriendState.friends && streak.count > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(children: [
+              Icon(SolarIconsBold.fire, size: 16, color: streak.atRisk ? V.warn : V.flame),
+              const SizedBox(width: 4),
+              Text('${streak.count}-day streak${streak.atRisk ? ' · ends tonight' : ''}', style: VT.label(13, color: streak.atRisk ? V.warn : V.flame)),
+            ]),
+          ),
         if (!self) ...[
           const SizedBox(height: 18),
           Row(
@@ -303,43 +314,55 @@ class _UserProfileBodyState extends State<UserProfileBody> {
             ]),
           ],
         ],
-        if (v.followers != null) ...[
-          const SizedBox(height: 16),
-          Text.rich(TextSpan(children: [
-            TextSpan(text: Fmt.compact(v.followers!), style: VT.number(15, weight: FontWeight.w600)),
-            TextSpan(text: v.followers == 1 ? ' follower' : ' followers', style: VT.body(13.5, color: V.text2)),
-            TextSpan(text: '  ·  ', style: VT.body(13.5, color: V.muted)),
-            TextSpan(text: Fmt.compact(v.following ?? 0), style: VT.number(15, weight: FontWeight.w600)),
-            TextSpan(text: ' following', style: VT.body(13.5, color: V.text2)),
-          ])),
+        if (p.interests.isNotEmpty) ...[
+          const SectionTitle('Interests', top: 22, bottom: 10),
+          Builder(builder: (context) {
+            final mine = _myInterests(context);
+            return Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final i in p.interests)
+                  Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: mine.contains(i) ? V.pink.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: mine.contains(i) ? V.pink.withValues(alpha: 0.4) : V.line),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (mine.contains(i)) ...[const Icon(Icons.check_rounded, size: 14, color: V.pinkSoft), const SizedBox(width: 4)],
+                      Text(i, style: VT.label(13, color: mine.contains(i) ? V.pinkSoft : V.text, weight: FontWeight.w600)),
+                    ]),
+                  ),
+              ],
+            );
+          }),
         ],
-        const SizedBox(height: 16),
-        _StatsBlock(view: v),
+        if (p.intent != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Row(children: [Icon(intentIcon(p.intent!), size: 16, color: V.pinkSoft), const SizedBox(width: 6), Text('Here for: ${p.intent!.label}', style: VT.label(13, color: V.text2))]),
+          ),
         if (v.badges.isNotEmpty) ...[
           const SectionTitle('Badges', top: 22, bottom: 10),
           BadgesRow(ids: v.badges),
         ],
-        if (p.bio.trim().isNotEmpty || p.intent != null) ...[
-          const SectionTitle('About', top: 22, bottom: 8),
-          if (p.bio.trim().isNotEmpty) Text(p.bio, style: VT.body(14.5, color: V.text)),
-          if (p.intent != null)
-            Padding(
-              padding: EdgeInsets.only(top: p.bio.trim().isNotEmpty ? 8 : 0),
-              child: Row(
-                children: [
-                  Icon(intentIcon(p.intent!), size: 16, color: V.pinkSoft),
-                  const SizedBox(width: 6),
-                  Text('Here for: ${p.intent!.label}', style: VT.label(13, color: V.text2)),
-                ],
-              ),
-            ),
-        ],
-        if (p.interests.isNotEmpty) ...[
-          const SectionTitle('Interests', top: 22, bottom: 10),
-          Wrap(spacing: 6, runSpacing: 6, children: [for (final i in p.interests) Tag(i, color: V.violet)]),
-        ],
       ],
     );
+  }
+
+  Widget _stat(String value, String label) => Expanded(
+    child: Column(children: [Text(value, style: VT.number(20)), Text(label, style: VT.body(12, color: V.text2))]),
+  );
+
+  List<String> _myInterests(BuildContext context) {
+    try {
+      return context.read<SessionProvider>().me?.interests ?? const [];
+    } on ProviderNotFoundException {
+      return const [];
+    }
   }
 
   Widget _followButton(Profile p, FollowState s, bool followsYou) => switch (s) {
@@ -355,26 +378,4 @@ class _UserProfileBodyState extends State<UserProfileBody> {
         FriendState.blocked => const SizedBox.shrink(),
         FriendState.none => GhostButton(label: 'Add friend', icon: SolarIconsBold.userPlusRounded, height: 46, expand: true, onTap: _busy ? null : () => _friendAction(p, s)),
       };
-}
-
-/// Matches · Likes · Gifts, or why you can't see them.
-class _StatsBlock extends StatelessWidget {
-  const _StatsBlock({required this.view});
-  final ProfileView view;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = view.stats;
-    if (s != null) {
-      Widget cell(int n, String label) => Expanded(
-            child: Column(children: [Text(Fmt.compact(n), style: VT.number(20), semanticsLabel: Fmt.thousands(n)), const SizedBox(height: 2), Text(label, style: VT.body(11, color: V.muted, height: 1.2))]),
-          );
-      return Panel(padding: const EdgeInsets.symmetric(vertical: 16), child: Row(children: [cell(s.matches, 'Matches'), cell(s.likes, 'Likes'), cell(s.gifts, 'Gifts')]));
-    }
-    final (icon, text) = view.statsHidden ? (SolarIconsBold.eyeClosed, 'Stats hidden') : (SolarIconsOutline.lockKeyhole, 'Follow to see their stats');
-    return Panel(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-      child: Row(children: [Icon(icon, size: 18, color: V.muted), const SizedBox(width: 10), Expanded(child: Text(text, style: VT.body(13, color: V.text2)))]),
-    );
-  }
 }

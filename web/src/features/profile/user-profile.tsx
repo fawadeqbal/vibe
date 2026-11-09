@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Screen } from "@/components/layout/screen";
 import { confirm, useNeedCoins } from "@/components/shared/dialogs";
-import { BadgeRow, LevelChip } from "@/components/shared/level-chip";
+import { BadgeRow } from "@/components/shared/level-chip";
 import { pickReport } from "@/components/shared/report-sheet";
 import { Avatar } from "@/components/ui/avatar";
 import { GhostButton, GradientButton } from "@/components/ui/button";
@@ -14,16 +14,16 @@ import { Icon } from "@/components/ui/icon";
 import { MenuButton, type MenuItem } from "@/components/ui/menu";
 import { EmptyState, Tag } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
-import { Panel } from "@/components/ui/panel";
 import { Spinner } from "@/components/ui/spinner";
 import { SectionTitle } from "@/components/ui/typography";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { streakDays } from "@/lib/engagement";
 import { compact, presenceLabel, thousands } from "@/lib/format";
-import { type FollowState, type FriendState, intentInfo, type ProfileView } from "@/lib/models";
+import { type FollowState, type FriendState, genderLabel, intentInfo, type ProfileView } from "@/lib/models";
 import { economy } from "@/stores/catalog";
 import { followStateOf, useFollows } from "@/stores/follows";
+import { useSession } from "@/stores/session";
 import { friendStateOf, useSocial } from "@/stores/social";
 import { openSheet, toast } from "@/stores/ui";
 import { freeFriendRequestsLeft, useWallet } from "@/stores/wallet";
@@ -39,6 +39,7 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
   const friend = useSocial((s) => friendStateOf(s, userId));
   const asFriend = useSocial((s) => s.all.find((f) => f.profile.id === userId && f.state === "friends"));
   const streak = asFriend?.streak ?? null;
+  const me = useSession((st) => st.me);
   /** undefined = loading, null = may not see it. */
   const [view, setView] = useState<ProfileView | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
@@ -70,7 +71,8 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
         <Spinner />
       </div>
     );
-  if (view === null) return <EmptyState icon="person_off" title="Profile not available" body="You can see the profiles of people you have met in a match." className="py-10" />;
+  if (view === null)
+    return <EmptyState icon="person_off" title="Profile not available" body="You can see the profiles of people you have met in a match." className="py-10" />;
 
   const p = view.profile;
   const self = view.tier === "self";
@@ -98,7 +100,12 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
 
   const onUnfollow = async () => {
     const pending = follow === "requested";
-    const ok = await confirm({ title: pending ? "Cancel your request?" : `Unfollow ${p.name}?`, ok: pending ? "Cancel request" : "Unfollow", cancel: "Keep", okTone: "bad" });
+    const ok = await confirm({
+      title: pending ? "Cancel your request?" : `Unfollow ${p.name}?`,
+      ok: pending ? "Cancel request" : "Unfollow",
+      cancel: "Keep",
+      okTone: "bad",
+    });
     if (ok) await run(() => useFollows.getState().unfollow(userId));
   };
 
@@ -159,39 +166,49 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
 
   return (
     <div>
-      <div className="flex items-start">
+      <div className="flex items-center">
         <span className="relative shrink-0">
-          <Avatar url={p.avatarUrl} name={p.name} size={84} ring />
-          {view.online ? <span className="absolute right-0.5 bottom-0.5 size-[18px] rounded-full border-[3px] border-bg bg-ok" /> : null}
+          <Avatar url={p.avatarUrl} name={p.name} size={92} ring />
+          {view.online ? <span className="absolute right-1 bottom-1 size-[20px] rounded-full border-[3px] border-bg bg-ok" /> : null}
         </span>
-        <span className="ml-4 min-w-0 flex-1 pt-2">
-          <span className="flex items-center">
-            <span className="type-display truncate text-[26px] leading-[1.1]">
-              {p.name}, {p.age}
-            </span>
-            {p.verified ? <Icon name="verified" size={20} className="ml-1.5 text-trust" label="Verified" /> : null}
-            {p.vip ? <Icon name="workspace_premium" size={19} className="ml-1 text-gold" label="VIP" /> : null}
-            <LevelChip level={view.level} className="ml-1.5" />
-          </span>
-          <span className="type-body mt-1 block text-[13px] text-text2">
-            {p.country.flag} {p.country.name}
-            {status ? ` · ${status === "Online" ? "Online now" : status}` : ""}
-          </span>
-          {streak && streak.count > 0 ? (
-            <span className="type-label mt-1 flex items-center text-[13px]" style={{ color: streak.today ? "var(--color-flame)" : streak.atRisk ? "var(--color-warn)" : "var(--color-text2)" }}>
-              <Icon name="local_fire_department" size={16} className="mr-1" />
-              {streakDays(streak.count)}
-              {streak.atRisk ? " · ends tonight" : ""}
-            </span>
-          ) : null}
-          {view.followsYou ? (
-            <span className="mt-2 inline-block">
-              <Tag text="Follows you" tone="violet" />
-            </span>
-          ) : null}
+        <span className="ml-4 grid flex-1 grid-cols-3 text-center">
+          <Stat
+            value={view.counts ? compact(view.counts.followers) : "—"}
+            label={view.counts?.followers === 1 ? "Follower" : "Followers"}
+            title={view.counts && view.counts.followers >= 10_000 ? thousands(view.counts.followers) : undefined}
+          />
+          <Stat value={view.stats && view.stats !== "hidden" ? compact(view.stats.likes) : "—"} label="Likes" />
+          <Stat value={`Lv ${view.level}`} label="Level" />
         </span>
-        {!self ? <MenuButton label="More" items={menu} /> : null}
+        {!self ? (
+          <span className="self-start">
+            <MenuButton label="More" items={menu} />
+          </span>
+        ) : null}
       </div>
+
+      <p className="mt-3.5 flex items-center gap-1.5">
+        <span className="type-title truncate text-[18px]">
+          {p.name}, {p.age}
+        </span>
+        {p.verified ? <Icon name="verified" size={18} className="text-trust" label="Verified" /> : null}
+        {p.vip ? <Icon name="workspace_premium" size={18} className="text-gold" label="VIP" /> : null}
+        {view.followsYou ? <Tag text="Follows you" tone="violet" /> : null}
+      </p>
+      <p className="type-body mt-0.5 text-[13px] text-text2">
+        {[`${p.country.flag} ${p.country.name}`, genderLabel[p.gender], status === "Online" ? "Active now" : status].filter(Boolean).join(" · ")}
+      </p>
+      {p.bio.trim() ? <p className="type-body mt-1 text-[14px] text-text">{p.bio}</p> : null}
+      {streak && streak.count > 0 ? (
+        <p
+          className="type-label mt-1.5 flex items-center text-[13px]"
+          style={{ color: streak.today ? "var(--color-flame)" : streak.atRisk ? "var(--color-warn)" : "var(--color-text2)" }}
+        >
+          <Icon name="local_fire_department" size={16} className="mr-1" />
+          {streakDays(streak.count)}
+          {streak.atRisk ? " · ends tonight" : ""}
+        </p>
+      ) : null}
 
       {!self ? (
         <div className="mt-[18px] flex gap-2.5">
@@ -210,7 +227,12 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
         <p className="type-body mt-2.5 flex items-center gap-2 text-[12.5px] text-text2">
           <Icon name="person_add" size={16} className="text-muted" />
           <span className="flex-1">{p.name.split(" ")[0]} wants to be friends.</span>
-          <button type="button" disabled={busy} onClick={() => void onDecline()} className="type-label rounded-full px-3 py-1 text-[12.5px] font-semibold text-text2 hover:bg-surface2 hover:text-text">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void onDecline()}
+            className="type-label rounded-full px-3 py-1 text-[12.5px] font-semibold text-text2 hover:bg-surface2 hover:text-text"
+          >
             Decline
           </button>
         </p>
@@ -222,54 +244,78 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
         </p>
       ) : null}
 
-      {view.counts ? (
-        <p className="type-body mt-4 text-[13.5px] text-text2">
-          <span className="type-number text-[15px] font-semibold text-text">{compact(view.counts.followers)}</span> {view.counts.followers === 1 ? "follower" : "followers"}
-          <span className="mx-2 text-muted">·</span>
-          <span className="type-number text-[15px] font-semibold text-text">{compact(view.counts.following)}</span> following
+      {p.interests.length ? (
+        <>
+          <SectionTitle text="Interests" top={22} bottom={10} />
+          <div className="flex flex-wrap gap-1.5">
+            {p.interests.map((i) => {
+              const both = !!me?.interests.includes(i);
+              return (
+                <span
+                  key={i}
+                  className={cn(
+                    "type-label flex h-8 items-center gap-1 rounded-full border px-3 text-[13px] font-semibold",
+                    both ? "border-pink/40 bg-pink/14 text-pink-soft" : "border-line bg-white/5 text-text",
+                  )}
+                >
+                  {both ? <Icon name="check" size={14} /> : null}
+                  {i}
+                </span>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
+      {p.intent ? (
+        <p className="mt-4 flex items-center">
+          <Icon name={intentInfo[p.intent].icon} size={16} className="text-pink-soft" />
+          <span className="type-label ml-1.5 text-[13px] text-text2">Here for: {intentInfo[p.intent].label}</span>
         </p>
       ) : null}
-
-      <div className="mt-4">
-        <StatsBlock view={view} />
-      </div>
-
       {view.badges.length ? (
         <>
           <SectionTitle text="Badges" top={22} bottom={10} />
           <BadgeRow ids={view.badges} />
         </>
       ) : null}
-
-      {p.bio.trim() || p.intent ? (
-        <>
-          <SectionTitle text="About" top={22} bottom={8} />
-          {p.bio.trim() ? <p className="type-body text-[14.5px] text-text">{p.bio}</p> : null}
-          {p.intent ? (
-            <p className={cn("flex items-center", p.bio.trim() && "mt-2")}>
-              <Icon name={intentInfo[p.intent].icon} size={16} className="text-pink-soft" />
-              <span className="type-label ml-1.5 text-[13px] text-text2">Here for: {intentInfo[p.intent].label}</span>
-            </p>
-          ) : null}
-        </>
-      ) : null}
-      {p.interests.length ? (
-        <>
-          <SectionTitle text="Interests" top={22} bottom={10} />
-          <div className="flex flex-wrap gap-1.5">
-            {p.interests.map((i) => (
-              <Tag key={i} text={i} tone="violet" />
-            ))}
-          </div>
-        </>
-      ) : null}
     </div>
   );
 }
 
-function FollowButton({ state, followsYou, busy, onFollow, onUndo }: { state: FollowState; followsYou: boolean; busy: boolean; onFollow: () => void; onUndo: () => void }) {
-  if (state === "none") return <GradientButton label={followsYou ? "Follow back" : "Follow"} icon="person_add_alt_1" height={46} busy={busy} onClick={onFollow} />;
-  return <GhostButton label={state === "requested" ? "Requested" : "Following"} icon={state === "requested" ? "hourglass_top" : "check"} height={46} expand disabled={busy} onClick={onUndo} />;
+function Stat({ value, label, title }: { value: string; label: string; title?: string }) {
+  return (
+    <span className="flex flex-col items-center" title={title}>
+      <span className="type-number text-[20px] tracking-[-0.02em]">{value}</span>
+      <span className="type-body text-[12px] text-text2">{label}</span>
+    </span>
+  );
+}
+
+function FollowButton({
+  state,
+  followsYou,
+  busy,
+  onFollow,
+  onUndo,
+}: {
+  state: FollowState;
+  followsYou: boolean;
+  busy: boolean;
+  onFollow: () => void;
+  onUndo: () => void;
+}) {
+  if (state === "none")
+    return <GradientButton label={followsYou ? "Follow back" : "Follow"} icon="person_add_alt_1" height={46} busy={busy} onClick={onFollow} />;
+  return (
+    <GhostButton
+      label={state === "requested" ? "Requested" : "Following"}
+      icon={state === "requested" ? "hourglass_top" : "check"}
+      height={46}
+      expand
+      disabled={busy}
+      onClick={onUndo}
+    />
+  );
 }
 
 function FriendButton({ state, inCall, busy, onClick }: { state: FriendState; inCall: boolean; busy: boolean; onClick: () => void }) {
@@ -278,37 +324,6 @@ function FriendButton({ state, inCall, busy, onClick }: { state: FriendState; in
   if (state === "requested") return <GhostButton label="Request sent" icon="hourglass_top" height={46} expand disabled={busy} onClick={onClick} />;
   if (state === "none") return <GhostButton label="Add friend" icon="person_add" height={46} expand disabled={busy} onClick={onClick} />;
   return null;
-}
-
-/** Matches · Likes · Gifts, or why you can't see them. */
-function StatsBlock({ view }: { view: ProfileView }) {
-  const s = view.stats;
-  if (s && s !== "hidden") {
-    const cell = (n: number, label: string) => (
-      <span className="flex flex-1 flex-col items-center">
-        <span className="type-number text-[20px]" title={n >= 10_000 ? thousands(n) : undefined}>{compact(n)}</span>
-        <span className="type-body mt-0.5 text-[11px] leading-[1.2] text-muted">{label}</span>
-      </span>
-    );
-    return (
-      <Panel className="py-4">
-        <div className="flex">
-          {cell(s.matches, "Matches")}
-          {cell(s.likes, "Likes")}
-          {cell(s.gifts, "Gifts")}
-        </div>
-      </Panel>
-    );
-  }
-  const hidden = s === "hidden";
-  return (
-    <Panel className="px-4 py-[18px]">
-      <div className="flex items-center gap-2.5">
-        <Icon name={hidden ? "visibility_off" : "lock"} size={18} className="text-muted" />
-        <span className="type-body text-[13px] text-text2">{hidden ? "Stats hidden" : "Follow to see their stats"}</span>
-      </div>
-    </Panel>
-  );
 }
 
 /** The page at /u/[id]. */
@@ -351,7 +366,11 @@ export function FollowPill({ userId }: { userId: string }) {
   return (
     <button type="button" title={label} aria-label={label} disabled={state !== "none"} onClick={follow} className="shrink-0 enabled:hover:brightness-110">
       <Glass radius={18} className={cn("flex size-9 items-center justify-center p-0", state === "none" ? "border-violet/50 bg-violet/28" : "bg-bg2/45")}>
-        <Icon name={state === "following" ? "check" : state === "requested" ? "hourglass_top" : "add"} size={20} className={state === "following" ? "text-ok" : "text-white"} />
+        <Icon
+          name={state === "following" ? "check" : state === "requested" ? "hourglass_top" : "add"}
+          size={20}
+          className={state === "following" ? "text-ok" : "text-white"}
+        />
       </Glass>
     </button>
   );
