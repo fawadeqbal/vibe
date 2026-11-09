@@ -605,26 +605,6 @@ class _Lobby extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => showSafetySheet(context),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                            child: Row(
-                              children: [
-                                const Icon(SolarIconsBold.shield, size: 16, color: V.trust),
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text(
-                                    m.autoBlur ? 'Safe start: both videos stay blurred for 3 seconds' : 'Safety: report and block are one tap away in every call',
-                                    style: VT.body(12.5, color: Colors.white.withValues(alpha: 0.82)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
                         if (m.lastError != null) ...[
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -633,20 +613,12 @@ class _Lobby extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                         ],
-                        Semantics(
-                          label: 'Start a video chat with someone new',
-                          button: true,
-                          excludeSemantics: true,
-                          child: GradientButton(
-                            label: 'Start video chat',
-                            icon: SolarIconsBold.videocamera,
-                            height: 60,
-                            softGlow: true,
-                            onTap: () {
-                              HapticFeedback.mediumImpact();
-                              onStart();
-                            },
-                          ),
+                        _StartDock(
+                          autoBlur: m.autoBlur,
+                          onStart: () {
+                            HapticFeedback.mediumImpact();
+                            onStart();
+                          },
                         ),
                         // Clear air above the tab bar (the SafeArea already
                         // holds the bar and the phone's own inset).
@@ -660,6 +632,65 @@ class _Lobby extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The bottom of Home: one frosted dock. Safe start on the left (tap for how
+/// it works), Start on the right. 14px under the filter tags, 20px above the
+/// tab bar. (web: StartDock in features/match/lobby.tsx)
+class _StartDock extends StatelessWidget {
+  const _StartDock({required this.autoBlur, required this.onStart});
+  final bool autoBlur;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return Glass(
+      radius: 32,
+      height: 64,
+      color: V.bg2.withValues(alpha: 0.52),
+      padding: const EdgeInsets.all(6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              button: true,
+              label: autoBlur ? 'Safe start: both videos stay blurred for 3 seconds. How it works' : 'Safety: report and block are one tap away in every call. How it works',
+              excludeSemantics: true,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => showSafetySheet(context),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: Row(
+                    children: [
+                      const Icon(SolarIconsBold.shield, size: 20, color: V.trust),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(autoBlur ? 'Safe start' : 'Safety on', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(13, color: Colors.white, weight: FontWeight.w700)),
+                            Text(autoBlur ? 'Blurred for 3 s' : 'Report in one tap', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: V.text2)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Semantics(
+            label: 'Start a video chat with someone new',
+            button: true,
+            excludeSemantics: true,
+            child: GradientButton(label: 'Start chat', icon: SolarIconsBold.videocamera, height: 52, expand: false, softGlow: true, onTap: onStart),
+          ),
+        ],
+      ),
     );
   }
 }

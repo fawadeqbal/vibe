@@ -90,20 +90,48 @@ function PhoneLobby({ onStart }: { onStart: () => void }) {
 
         <div className="px-4">
           <FilterTags glass />
-          <button type="button" onClick={() => void openSafetySheet()} className="mt-3.5 mb-3 flex items-center gap-1.5 px-0.5 text-left">
-            <Icon name="shield" size={16} className="shrink-0 text-trust" />
-            <span className="type-body text-[12.5px] text-white/82">
-              {autoBlur ? "Safe start: both videos stay blurred for 3 seconds" : "Safety: report and block are one tap away in every call"}
-            </span>
-          </button>
           {lastError ? (
-            <p role="alert" className="type-body mb-2.5 rounded-[14px] bg-bad/12 px-3 py-2 text-[12.5px] text-bad">
+            <p role="alert" className="type-body mt-3 rounded-[14px] bg-bad/12 px-3 py-2 text-[12.5px] text-bad">
               {lastError}
             </p>
           ) : null}
-          <GradientButton label="Start video chat" icon="videocam" height={60} softGlow onClick={onStart} aria-label="Start a video chat with someone new" />
+          <StartDock autoBlur={autoBlur} onStart={onStart} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The bottom of Home on a phone: one frosted dock. Safe start on the left
+ * (tap for how it works), Start on the right. 14px under the filter tags,
+ * 20px above the tab bar.
+ */
+function StartDock({ autoBlur, onStart }: { autoBlur: boolean; onStart: () => void }) {
+  return (
+    <div className="mt-3.5 flex h-16 items-center rounded-full border border-white/10 bg-bg2/52 p-1.5 backdrop-blur-[18px]">
+      <button
+        type="button"
+        onClick={() => void openSafetySheet()}
+        aria-label={autoBlur ? "Safe start: both videos stay blurred for 3 seconds. How it works" : "Safety: report and block are one tap away in every call. How it works"}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-full py-1 pr-2 pl-3 text-left hover:bg-white/4"
+      >
+        <Icon name="shield" size={20} className="shrink-0 text-trust" />
+        <span className="flex min-w-0 flex-col leading-[1.2]">
+          <span className="truncate text-[13px] font-bold text-white">{autoBlur ? "Safe start" : "Safety on"}</span>
+          <span className="truncate text-[11.5px] text-text2">{autoBlur ? "Blurred for 3 s" : "Report in one tap"}</span>
+        </span>
+      </button>
+      <GradientButton
+        label="Start chat"
+        icon="videocam"
+        height={52}
+        expand={false}
+        softGlow
+        onClick={onStart}
+        aria-label="Start a video chat with someone new"
+        className="shrink-0 px-6"
+      />
     </div>
   );
 }
