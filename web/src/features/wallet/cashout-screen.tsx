@@ -8,14 +8,15 @@ import { confirm } from "@/components/shared/dialogs";
 import { startSelfieVerification } from "@/components/shared/selfie-verification";
 import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { EmptyState, ProgressBar, Tag } from "@/components/ui/misc";
+import { EmptyState, Tag } from "@/components/ui/misc";
+import { GemIcon } from "@/components/ui/money";
 import { AppBar } from "@/components/ui/page-header";
-import { Panel } from "@/components/ui/panel";
+import { GroupCard, GroupRow, Panel } from "@/components/ui/panel";
 import { Spinner } from "@/components/ui/spinner";
 import { SectionTitle } from "@/components/ui/typography";
 import { ApiError, errorMessage } from "@/lib/api/errors";
-import type { Tone } from "@/lib/colors";
-import { ago, figure, gemsAsUsd, thousands, usd } from "@/lib/format";
+import { alpha, type Tone } from "@/lib/colors";
+import { date, figure, gemsAsUsd, thousands, usd } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/models";
 import { type Cashout, cashoutStatusLabel, type PayoutAccount } from "@/lib/payments";
 import { useCatalog } from "@/stores/catalog";
@@ -73,7 +74,13 @@ export function CashoutScreen() {
   const accountAction = async (a: PayoutAccount, action: "default" | "remove") => {
     try {
       if (action === "default") return await useWallet.getState().makeDefaultPayoutAccount(a.id);
-      const ok = await confirm({ title: "Remove this account?", body: `${paymentMethodLabel[a.method]} ${a.accountMasked} will no longer receive cash-outs.`, ok: "Remove", cancel: "Keep", okTone: "bad" });
+      const ok = await confirm({
+        title: "Remove this account?",
+        body: `${paymentMethodLabel[a.method]} ${a.accountMasked} will no longer receive cash-outs.`,
+        ok: "Remove",
+        cancel: "Keep",
+        okTone: "bad",
+      });
       if (!ok) return;
       await useWallet.getState().removePayoutAccount(a.id);
       if (selected === a.id) setSelected(defaultId());
@@ -114,7 +121,8 @@ export function CashoutScreen() {
         </span>
         <h2 className="type-display mt-5 text-center text-[28px]">{done.status === "review" ? "Request received" : "On its way"}</h2>
         <p className="type-body mt-2 text-center text-[15px] text-text2">
-          {money(done)} to your {paymentMethodLabel[done.method]} {done.accountMasked}. {done.status === "review" ? "Larger cash-outs get a quick check first; " : ""}Payouts land within 3 business days. We will notify you.
+          {money(done)} to your {paymentMethodLabel[done.method]} {done.accountMasked}.{" "}
+          {done.status === "review" ? "Larger cash-outs get a quick check first; " : ""}Payouts land within 3 business days. We will notify you.
         </p>
         <div className="min-h-8 flex-1" />
         <GradientButton label="Done" tone="gem" onClick={() => router.push("/wallet")} />
@@ -123,26 +131,58 @@ export function CashoutScreen() {
   }
 
   return (
-    <Screen width="sm" header={<AppBar title="Cash out gems" onBack={() => router.back()} />} bodyClassName="pt-2">
-      <Panel gradient="walletGems" className="border-gem/30">
-        <p className="type-label text-[12px] text-text2">Available</p>
-        <p className="mt-1 flex items-baseline">
-          <span className="type-number-lg text-[30px] text-gem" title={`${thousands(gems)} gems`}>{figure(gems)}</span>
-          <span className="type-body ml-2 text-[14px] text-text2">
-            gems ≈ Rs {thousands(estimatePkr)} ({gemsAsUsd(gems, e.usdPerGem)})
-          </span>
-        </p>
-        <div className="mt-2.5">
-          <ProgressBar value={gems / e.cashoutMinGems} />
+    <Screen
+      width="sm"
+      header={<AppBar title="Cash out gems" onBack={() => router.back()} />}
+      bodyClassName="pt-2"
+      footer={
+        <div className="border-t border-line-soft bg-bg px-4 pt-3 pb-[calc(20px+env(safe-area-inset-bottom))]">
+          <div className="mx-auto max-w-[560px]">
+            <GradientButton
+              label={can ? `Cash out ${figure(gems)} gems` : "Not enough gems yet"}
+              tone="gem"
+              height={52}
+              busy={busy}
+              onClick={can && selected ? () => void submit() : undefined}
+            />
+            <p className="type-body mt-2 text-center text-[12px] text-muted">
+              {can ? "Paid within 3 business days. A selfie check above the monthly limit." : `Available once you reach ${thousands(e.cashoutMinGems)} gems`}
+            </p>
+          </div>
         </div>
-        <p className="type-body mt-1.5 text-[12px] text-text2">
+      }
+    >
+      <Panel>
+        <div className="flex flex-col gap-1.5">
+          <span className="type-label flex items-center gap-1.5 text-[12.5px] text-gem">
+            <GemIcon size={16} />
+            {can ? "You can cash out" : "Your gems"}
+          </span>
+          <span className="type-number-lg text-[30px] leading-none" title={`${thousands(gems)} gems`}>
+            {figure(gems)}
+          </span>
+          <span className="type-body text-[12px] text-text2">
+            gems ≈ {gemsAsUsd(gems, e.usdPerGem)} · Rs {thousands(estimatePkr)}
+          </span>
+        </div>
+        <div
+          className="mt-3.5 h-2 overflow-hidden rounded-[8px] bg-surface3"
+          role="progressbar"
+          aria-label="Toward the smallest cash-out"
+          aria-valuenow={Math.round(Math.min(1, gems / e.cashoutMinGems) * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div className="bg-gem-grad h-full rounded-[8px]" style={{ width: `${Math.min(1, gems / e.cashoutMinGems) * 100}%` }} />
+        </div>
+        <p className="type-body mt-2 text-[12px] text-text2">
           {can
-            ? "You can cash out."
-            : `${thousands(e.cashoutMinGems - gems)} more gems to reach the ${thousands(e.cashoutMinGems)} minimum (${gemsAsUsd(e.cashoutMinGems, e.usdPerGem)}).`}
+            ? "You're over the minimum. Pick where to send it."
+            : `The smallest cash-out is ${thousands(e.cashoutMinGems)} gems. ${thousands(e.cashoutMinGems - gems)} to go.`}
         </p>
       </Panel>
 
-      <SectionTitle text="Pay to" />
+      <SectionTitle text="Pay to" action="Add" onAction={() => void add()} bottom={10} />
       {loading && !w.payoutsLoaded ? (
         <div className="flex justify-center p-5">
           <Spinner className="text-gem" />
@@ -150,38 +190,44 @@ export function CashoutScreen() {
       ) : loadError && !w.payoutsLoaded ? (
         <EmptyState icon="cloud_off" title="Couldn't load your accounts" body={loadError} action={<GhostButton label="Try again" onClick={load} />} />
       ) : (
-        <PayoutAccountList accounts={w.payoutAccounts} selected={selected} onSelect={setSelected} onAdd={() => void add()} onAction={(a, act) => void accountAction(a, act)} />
+        <PayoutAccountList
+          accounts={w.payoutAccounts}
+          selected={selected}
+          onSelect={setSelected}
+          onAdd={() => void add()}
+          onAction={(a, act) => void accountAction(a, act)}
+        />
       )}
-
-      <div className="mt-5">
-        <GradientButton label={can ? `Cash out ${figure(gems)} gems` : "Not enough gems yet"} tone="gem" busy={busy} onClick={can && selected ? () => void submit() : undefined} />
-      </div>
-      <p className="type-body mt-2 text-center text-[11.5px] text-muted">Paid within 3 business days. Identity check (selfie) above the monthly limit.</p>
 
       {w.cashouts.length ? (
         <>
-          <SectionTitle text="Your cash-outs" />
-          <div className="flex flex-col gap-1.5">
+          <SectionTitle text="Cash-outs" bottom={10} />
+          <GroupCard>
             {w.cashouts.map((c) => (
               <CashoutRow key={c.id} c={c} money={money(c)} />
             ))}
-          </div>
+          </GroupCard>
         </>
       ) : null}
 
-      <SectionTitle text="How gems work" />
-      <Panel>
-        {[
-          "Someone sends you a gift during a match or chat.",
-          `You keep ${Math.round(e.giftGemShare * 100)}% of its coin value as gems.`,
-          `1 gem = ${usd(e.usdPerGem)}, paid in rupees at the day's rate. Cash out from ${thousands(e.cashoutMinGems)} gems.`,
-        ].map((t) => (
-          <p key={t} className="mb-1.5 flex items-start last:mb-0">
-            <span className="mt-1.5 size-[5px] shrink-0 rounded-full bg-gem" />
-            <span className="type-body ml-2.5 text-[13px] text-text2">{t}</span>
-          </p>
-        ))}
-      </Panel>
+      <SectionTitle text="How gems work" bottom={10} />
+      <GroupCard>
+        <GroupRow icon="redeem" iconColor="gem" iconBg={alpha("gem", 0.13)} title="People send you gifts" subtitle="On calls and in chats" />
+        <GroupRow
+          icon="percent"
+          iconColor="gem"
+          iconBg={alpha("gem", 0.13)}
+          title={`You keep ${e.giftGemShare === 0.5 ? "half" : `${Math.round(e.giftGemShare * 100)}%`} of a gift as gems`}
+          subtitle={`1 gem = ${usd(e.usdPerGem)}, paid in rupees at the day's rate`}
+        />
+        <GroupRow
+          icon="schedule"
+          iconColor="gem"
+          iconBg={alpha("gem", 0.13)}
+          title="Paid within 3 business days"
+          subtitle="Bigger amounts get a quick check first"
+        />
+      </GroupCard>
     </Screen>
   );
 }
@@ -190,16 +236,19 @@ const STATUS_TONE: Record<Cashout["status"], Tone> = { paid: "ok", rejected: "ba
 
 function CashoutRow({ c, money }: { c: Cashout; money: string }) {
   return (
-    <Panel className="flex items-center px-3.5 py-2.5">
-      <span className="min-w-0 flex-1">
-        <span className="type-title block text-[15px]">{money}</span>
-        <span className="type-body block text-[11.5px] text-muted">
-          {thousands(c.gems)} gems · {paymentMethodLabel[c.method]} {c.accountMasked}
-          {c.createdAt ? ` · ${ago(c.createdAt)}` : ""}
-        </span>
-        {c.status === "rejected" && c.failureReason ? <span className="type-body block text-[12px] text-bad">{c.failureReason}</span> : null}
-      </span>
-      <Tag text={cashoutStatusLabel[c.status]} tone={STATUS_TONE[c.status]} />
-    </Panel>
+    <GroupRow
+      icon="payments"
+      iconColor="gem"
+      iconBg={alpha("gem", 0.13)}
+      title={`${money} to ${paymentMethodLabel[c.method]}`}
+      subtitle={
+        <>
+          {c.createdAt ? `${date(c.createdAt)} · ` : ""}
+          {thousands(c.gems)} gems · {c.accountMasked}
+          {c.status === "rejected" && c.failureReason ? <span className="block text-bad">{c.failureReason}</span> : null}
+        </>
+      }
+      trailing={<Tag text={cashoutStatusLabel[c.status]} tone={STATUS_TONE[c.status]} />}
+    />
   );
 }

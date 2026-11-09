@@ -432,9 +432,8 @@ void main() {
     await t.tap(find.text('Save goal'));
     await t.pumpAndSettle();
     expect(h.wallet.gemGoal, 5000);
-    expect(find.text('1,250'), findsOneWidget);
-    expect(find.text('/ 5,000 gems'), findsOneWidget);
-    expect(find.text('3,750 gems to go'), findsOneWidget);
+    expect(find.text('Goal: 5,000 gems'), findsOneWidget);
+    expect(find.text('3,750 to go · enough to cash out'), findsOneWidget);
     await finish(t, h);
   });
 
