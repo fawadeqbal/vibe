@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 
 import { ImageSafetyService } from './image-safety.service';
+import { PhotoSweeperService } from './photo-sweeper.service';
 
-/** Photo safety (see ImageSafetyService). Used by friend chats, Moments and profile photos. */
-@Module({ providers: [ImageSafetyService], exports: [ImageSafetyService] })
+/** Photo safety: every upload (ImageSafetyService) and every photo already up (PhotoSweeperService). */
+@Module({ providers: [ImageSafetyService, PhotoSweeperService], exports: [ImageSafetyService, PhotoSweeperService] })
 export class SafetyModule {}

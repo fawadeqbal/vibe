@@ -27,11 +27,20 @@ export function usePhotoFlags(q: Query) {
 }
 
 /** Photos nobody has looked at yet (the Reports tab badge). */
+/** Older photos still waiting for their first check (the sweeper works through them, ~20 a minute). */
+export function usePhotoBacklog() {
+  return useQuery({
+    queryKey: ["photo-flags", "backlog"],
+    queryFn: ({ signal }) => api.get<{ backlog?: { avatars: number; moments: number } }>("admin/photo-flags", { limit: 1 }, signal).then((r) => r.backlog ?? { avatars: 0, moments: 0 }),
+    refetchInterval: 60_000,
+  });
+}
+
 export function useOpenPhotoFlags() {
   return useQuery({ queryKey: photoFlagKeys.open, queryFn: ({ signal }) => api.get<Page<PhotoFlag> & { open: number }>("admin/photo-flags", { status: "open", limit: 1 }, signal).then((r) => r.open), refetchInterval: 60_000 });
 }
 
-const PLACE: Record<PhotoFlag["place"], string> = { chat: "Chat photo", moment: "Moment", avatar: "Profile photo" };
+const PLACE: Record<PhotoFlag["place"], string> = { chat: "Chat photo", moment: "Moment", avatar: "Profile photo", selfie: "Verification selfie" };
 
 /**
  * Photos the nudity filter blocked (never sent; a private copy is kept 30
@@ -42,6 +51,7 @@ export function PhotoFlagsTable({ userId }: { userId?: string }) {
   const can = useCan();
   const [status, setStatus] = React.useState<"open" | "all">(userId ? "all" : "open");
   const [action, setAction] = React.useState<"" | "blocked" | "review">("");
+  const backlog = usePhotoBacklog();
   const q = usePhotoFlags({ ...(userId ? { userId } : {}), status, ...(action ? { action } : {}) });
   const done = useAction((id: string) => api.post(`admin/photo-flags/${id}/reviewed`), { success: "Marked as reviewed", invalidate: [photoFlagKeys.all] });
 
@@ -79,8 +89,13 @@ export function PhotoFlagsTable({ userId }: { userId?: string }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-text-2">
-        Every chat photo, Moment and profile photo is checked for nudity. Blocked photos never reach anyone; three in 30 days pause the account. Borderline ones were sent (shown blurred until tapped) and wait here for a look. Kept 30 days.
+        Every chat photo, Moment, profile photo and verification selfie is checked for nudity. Blocked uploads never reach anyone; three in 30 days pause the account. Older profile photos and Moments are checked in the background and taken down if they show nudity. Borderline ones stay up and wait here for a look. Kept 30 days.
       </p>
+      {backlog.data && backlog.data.avatars + backlog.data.moments > 0 ? (
+        <p className="rounded-lg bg-info-soft px-3 py-2 text-sm text-info">
+          Still checking older photos: {backlog.data.avatars} profile photo{backlog.data.avatars === 1 ? "" : "s"} and {backlog.data.moments} Moment{backlog.data.moments === 1 ? "" : "s"} to go (about 20 a minute).
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <Segmented value={status} onChange={setStatus} options={[{ value: "open", label: "To review" }, { value: "all", label: "All" }]} />
         <Segmented value={action} onChange={setAction} options={[{ value: "", label: "Any" }, { value: "blocked", label: "Blocked" }, { value: "review", label: "Borderline" }]} />

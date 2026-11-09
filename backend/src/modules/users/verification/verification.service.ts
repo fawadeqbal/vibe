@@ -19,6 +19,7 @@ import { LivenessStep, newChallengeSteps } from './liveness';
 import { RekognitionVerificationProvider } from './rekognition.provider';
 import { DevVerificationProvider, ManualVerificationProvider, VerificationProvider } from './verification.provider';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { ImageSafetyService } from '../../safety/image-safety.service';
 
 const REKOGNITION_KEYS = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'];
 /** A pose challenge must be answered within this many seconds, once. */
@@ -52,6 +53,7 @@ export class VerificationService implements IntegrationReporter {
     private readonly redis: RedisService,
     private readonly events: EventEmitter2,
     private readonly notifications: NotificationsService,
+    private readonly images: ImageSafetyService,
   ) {
     const kind = config.get('VERIFICATION_PROVIDER');
     if (kind === 'face') {
@@ -99,6 +101,14 @@ export class VerificationService implements IntegrationReporter {
     const steps = frames ? await this.takeChallenge(userId, capture.challengeId!) : undefined;
     if (frames && steps && frames.length !== steps.length + 1) throw new AppError(ErrorCode.VALIDATION_FAILED, `Send ${steps.length + 1} photos for this check.`);
     const selfie = frames ? frames[0] : (capture.selfie ?? null);
+    // Staff may look at this photo in the review queue: no nudity there either.
+    if (selfie?.length) {
+      const j = await this.images.judge(selfie);
+      if (j.verdict === 'block') {
+        await this.images.recordBlocked(userId, 'selfie', userId, j.jpeg!, j.score!);
+        throw new AppError(ErrorCode.CONTENT_BLOCKED, "This photo can't be used. Take your selfie fully dressed, showing just your face.", 422);
+      }
+    }
 
     const photoKey = avatarUrl ? this.storage.keyFromUrl(avatarUrl) : null;
     const profilePhoto = photoKey ? await this.storage.read(photoKey) : null;

@@ -8,6 +8,7 @@ import { AppError } from '../../../common/errors/app-error';
 import { Clock } from '../../../common/utils/clock';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { StorageProvider } from '../../../infra/storage/storage.provider';
+import { PhotoSweeperService } from '../../safety/photo-sweeper.service';
 import { pageArgs, toAdminPage } from '../core/admin-query';
 import { P } from '../core/permissions';
 import { Audit, RequirePermissions, StaffApi } from '../core/staff-api.decorator';
@@ -43,6 +44,7 @@ export class AdminPhotoFlagsController {
     private readonly prisma: PrismaService,
     private readonly storage: StorageProvider,
     private readonly clock: Clock,
+    private readonly sweeper: PhotoSweeperService,
   ) {}
 
   @Get()
@@ -50,11 +52,13 @@ export class AdminPhotoFlagsController {
   @ApiOperation({ summary: 'Photos blocked or flagged by the nudity filter, newest first' })
   async list(@Query() q: PhotoFlagQuery) {
     const where = { ...(q.userId ? { userId: q.userId } : {}), ...(q.action ? { action: q.action } : {}), ...(q.status === 'open' ? { reviewedAt: null } : {}) };
-    const [rows, open] = await Promise.all([this.prisma.mediaFlag.findMany({ where, ...pageArgs(q) }), this.prisma.mediaFlag.count({ where: { ...where, reviewedAt: null } })]);
+    const [rows, open, backlog] = await Promise.all([this.prisma.mediaFlag.findMany({ where, ...pageArgs(q) }), this.prisma.mediaFlag.count({ where: { ...where, reviewedAt: null } }), this.sweeper.backlog()]);
     const users = await this.prisma.user.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.userId))] } }, ...PERSON });
     const byId = new Map(users.map((u) => [u.id, { ...u, bannedUntil: u.bannedUntil && u.bannedUntil > this.clock.now() ? u.bannedUntil.toISOString() : null }]));
     return {
       open,
+      /** Older photos (from before the filter, or set some other way) still waiting for their first check. */
+      backlog,
       ...toAdminPage(rows, q.limit, (r) => ({
         id: r.id,
         user: byId.get(r.userId) ?? { id: r.userId, name: 'Deleted user', avatarUrl: '', verified: false, bannedUntil: null },
