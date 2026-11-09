@@ -43,7 +43,7 @@ export function Lobby({ onStart }: { onStart: () => void }) {
     <div className="absolute inset-0">
       <SelfVideo />
       <VideoScrims top={190} bottom={520} />
-      <div className="absolute inset-0 mx-auto flex max-w-[560px] flex-col pt-[env(safe-area-inset-top)] pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-4">
+      <div className="absolute inset-0 mx-auto flex max-w-[560px] flex-col pt-[env(safe-area-inset-top)] pb-[calc(85px+env(safe-area-inset-bottom))] lg:pb-6">
         <LobbyTop availability={availability} />
 
         <div className="mt-3 flex flex-col items-center gap-2 px-4 empty:hidden">
@@ -93,7 +93,7 @@ export function Lobby({ onStart }: { onStart: () => void }) {
               {lastError}
             </p>
           ) : null}
-          <GradientButton label="Start video chat" icon="videocam" height={60} onClick={onStart} aria-label="Start a video chat with someone new" />
+          <GradientButton label="Start video chat" icon="videocam" height={60} softGlow onClick={onStart} aria-label="Start a video chat with someone new" />
         </div>
       </div>
     </div>

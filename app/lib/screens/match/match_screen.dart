@@ -641,13 +641,16 @@ class _Lobby extends StatelessWidget {
                             label: 'Start video chat',
                             icon: SolarIconsBold.videocamera,
                             height: 60,
+                            softGlow: true,
                             onTap: () {
                               HapticFeedback.mediumImpact();
                               onStart();
                             },
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        // Clear air above the tab bar (the SafeArea already
+                        // holds the bar and the phone's own inset).
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
