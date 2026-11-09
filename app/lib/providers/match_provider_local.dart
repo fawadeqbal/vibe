@@ -17,6 +17,20 @@ class LocalMatchProvider extends MatchProvider {
     notifyListeners();
   }
 
+  /// The demo pages through the calls on the device; the cursor is the next index.
+  Paged<T> _page<T>(List<T> all, String? cursor) {
+    final from = int.tryParse(cursor ?? '') ?? 0;
+    final to = (from + MatchProvider.pageSize).clamp(0, all.length);
+    return Paged(all.sublist(from.clamp(0, all.length), to), to < all.length ? '$to' : null);
+  }
+
+  @override
+  Future<Paged<MatchRecord>> fetchMatches({String? cursor}) async => _page(history, cursor);
+
+  @override
+  Future<Paged<LikeReceived>> fetchLikes({String? cursor}) async =>
+      _page([for (final r in history) if (r.likedMe) LikeReceived(id: r.id, profile: r.partner, likedAt: r.endedAt ?? r.startedAt)], cursor);
+
   // ── who's around · notify me (believable numbers on the device) ───────
 
   Timer? _lookTimer;

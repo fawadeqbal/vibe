@@ -79,6 +79,12 @@ export class MeController {
     return this.users.matchHistory(id, q);
   }
 
+  @Get('likes')
+  @ApiOperation({ summary: 'Everyone who liked you on a call (your Likes number), newest first, paged' })
+  likes(@CurrentUser('id') id: string, @Query() q: CursorQueryDto) {
+    return this.users.likesReceived(id, q);
+  }
+
   @Delete()
   async remove(@CurrentUser('id') id: string) {
     await this.users.deleteAccount(id);

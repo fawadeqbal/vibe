@@ -29,6 +29,7 @@ import 'package:vibe_app/screens/invite/invite_screen.dart';
 import 'package:vibe_app/screens/profile/blocked_people_screen.dart';
 import 'package:vibe_app/screens/profile/follow_lists_screen.dart';
 import 'package:vibe_app/screens/profile/leaderboard_screen.dart';
+import 'package:vibe_app/screens/profile/me_lists.dart';
 import 'package:vibe_app/screens/profile/me_overview.dart';
 import 'package:vibe_app/screens/profile/me_settings.dart';
 import 'package:vibe_app/screens/store/cashout_screen.dart';
@@ -59,7 +60,7 @@ class MeHarness {
   final catalog = CatalogProvider();
   final share = RecordingShare();
 
-  Future<void> init({PartnerStatus partnerStatus = PartnerStatus.active, bool history = false}) async {
+  Future<void> init({PartnerStatus partnerStatus = PartnerStatus.active, bool history = false, int calls = 5}) async {
     SharedPreferences.setMockInitialValues({});
     backend = MockBackend(fast: true, random: Random(3));
     invites = InviteCapture(store: MemoryInviteStore(checked: true));
@@ -79,7 +80,8 @@ class MeHarness {
       // A few past calls (no photos: tests have no network).
       final now = DateTime.now();
       await backend.saveMatches([
-        for (final (i, p) in backend.people.take(5).indexed)
+        for (final i in List.generate(calls, (i) => i))
+          if (backend.people[i % backend.people.length] case final p)
           MatchRecord(
             id: 'm$i',
             partner: p.copyWith(avatarUrl: ''),
@@ -123,14 +125,14 @@ class MeHarness {
 }
 
 /// A 412×892 phone with Me on it.
-Future<MeHarness> pumpMe(WidgetTester t, {PartnerStatus partnerStatus = PartnerStatus.active, bool history = false}) async {
+Future<MeHarness> pumpMe(WidgetTester t, {PartnerStatus partnerStatus = PartnerStatus.active, bool history = false, int calls = 5}) async {
   t.view.physicalSize = const Size(412 * 3, 892 * 3);
   t.view.devicePixelRatio = 3;
   addTearDown(t.view.reset);
   final h = MeHarness();
   // Real async: the demo engagement provider arms an hours-long Vibe Hour
   // timer that fake time would report as pending.
-  await t.runAsync(() => h.init(partnerStatus: partnerStatus, history: history));
+  await t.runAsync(() => h.init(partnerStatus: partnerStatus, history: history, calls: calls));
   await t.pumpWidget(h.app(ProfileScreen(onOpenStore: () {})));
   await t.pump();
   await t.pump(const Duration(milliseconds: 50));
@@ -169,7 +171,7 @@ void main() {
     await pumpMe(t);
     expect(find.text('Me'), findsOneWidget);
     expect(find.text('Sana Malik, 23'), findsOneWidget);
-    for (final label in ['Matches', 'Likes', 'Friends', 'Edit profile', 'Share profile', 'Not verified']) {
+    for (final label in ['Friends', 'Followers', 'Likes', 'Edit profile', 'Share profile', 'Not verified']) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.byTooltip('Settings and activity'), findsOneWidget);
@@ -259,7 +261,7 @@ void main() {
     ('Account & sign-in', AccountSectionScreen, 'Account & sign-in'),
     ('Notifications', NotificationsSectionScreen, 'Notifications'),
     ('Time & wellbeing', WellbeingSectionScreen, 'Time & wellbeing'),
-    ('Recent matches', RecentMatchesScreen, 'Recent matches'),
+    ('Recent matches', RecentMatchesScreen, 'Matches'),
     ('Followers & friends', FollowListsScreen, null),
     ('Progress & badges', ProgressSectionScreen, 'Progress & badges'),
     ('Leaderboard', LeaderboardScreen, null),
@@ -319,5 +321,45 @@ void main() {
     await pumpSettings(t, partnerStatus: PartnerStatus.none);
     await scrollToRow(t, 'Creator partner program');
     expect(find.text('Earn money for the people you bring'), findsOneWidget);
+  });
+
+  testWidgets('your three numbers open their lists, and Back returns to Me', (t) async {
+    await pumpMe(t, history: true);
+    await opens(t, 'Friends', FriendsListScreen, appBar: 'Friends', backTo: ProfileScreen);
+    await opens(t, 'Followers', FollowListsScreen, backTo: ProfileScreen);
+    await opens(t, 'Likes', LikesScreen, appBar: 'Likes', backTo: ProfileScreen);
+  });
+
+  testWidgets('likes: everyone who liked you on a call', (t) async {
+    await pumpMe(t, history: true);
+    await t.tap(find.text('Likes'));
+    await t.pumpAndSettle();
+    // In the demo history only the second call liked you.
+    expect(find.descendant(of: find.byType(LikesScreen), matching: find.byType(PersonRow)), findsOneWidget);
+    expect(find.textContaining('Liked you'), findsOneWidget);
+  });
+
+  testWidgets('friends: each one has a Message button', (t) async {
+    final h = await pumpMe(t);
+    await t.tap(find.text('Friends'));
+    await t.pumpAndSettle();
+    final n = h.social.friends.length;
+    expect(find.widgetWithText(GhostButton, 'Message'), n == 0 ? findsNothing : findsNWidgets(n));
+  });
+
+  testWidgets('matches load the next page as you scroll', (t) async {
+    final h = await pumpMe(t, history: true, calls: 45);
+    await scrollToRow(t, 'See all');
+    await t.tap(find.text('See all'));
+    await t.pumpAndSettle();
+    expect(find.byType(RecentMatchesScreen), findsOneWidget);
+    final list = find.descendant(of: find.byType(RecentMatchesScreen), matching: find.byType(Scrollable)).first;
+    for (var i = 0; i < 12; i++) {
+      await t.drag(list, const Offset(0, -900));
+      await t.pumpAndSettle();
+    }
+    // 45 calls in pages of 30: the oldest arrived without a "load more" tap.
+    expect(h.match.history, hasLength(45));
+    expect(find.byKey(ValueKey(h.match.history.last.id)), findsOneWidget);
   });
 }

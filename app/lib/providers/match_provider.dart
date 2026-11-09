@@ -59,6 +59,21 @@ class MatchAvailability {
   final int searching;
 }
 
+/// One page of a cursor-paged list; [nextCursor] null = the last page.
+class Paged<T> {
+  const Paged(this.items, this.nextCursor);
+  final List<T> items;
+  final String? nextCursor;
+}
+
+/// Someone who tapped the heart on a call with you.
+class LikeReceived {
+  const LikeReceived({required this.id, required this.profile, required this.likedAt});
+  final String id;
+  final Profile profile;
+  final DateTime likedAt;
+}
+
 abstract class MatchProvider extends ChangeNotifier {
   MatchProvider.base(this._wallet, this._social, this._session, {bool cameraEnabled = true}) : _cameraEnabled = cameraEnabled;
 
@@ -380,6 +395,14 @@ abstract class MatchProvider extends ChangeNotifier {
   }
 
   Future<void> load();
+
+  /// Every call, newest first, a page at a time (Me → Matches).
+  Future<Paged<MatchRecord>> fetchMatches({String? cursor});
+
+  /// Everyone who liked you on a call (your Likes number), newest first, a page at a time.
+  Future<Paged<LikeReceived>> fetchLikes({String? cursor});
+
+  static const pageSize = 30;
 
   // ── camera ────────────────────────────────────────────────────────────
   //

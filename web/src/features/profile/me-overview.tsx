@@ -18,6 +18,7 @@ import { thousands } from "@/lib/format";
 import { genderLabel, intentInfo, isProfileComplete, type Profile } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
 import { useEngagement } from "@/stores/engagement";
+import { useFollows } from "@/stores/follows";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { friendsOf, useSocial } from "@/stores/social";
@@ -37,6 +38,7 @@ import { profileSteps } from "./profile-steps";
 export function ProfileHeader({ me }: { me: Profile }) {
   const router = useRouter();
   const friends = useSocial((s) => friendsOf(s).length);
+  const followers = useFollows((s) => s.settings.followers);
   const level = useEngagement((s) => s.level);
   const vip = useWallet((s) => isVip(s.wallet));
   const [uploading, setUploading] = useState(false);
@@ -75,9 +77,9 @@ export function ProfileHeader({ me }: { me: Profile }) {
           ) : null}
         </button>
         <div className="flex flex-1">
-          <Stat value={me.matches} label="Matches" href="/me/matches" />
-          <Stat value={me.likes} label="Likes" />
-          <Stat value={friends} label="Friends" href="/chats" />
+          <Stat value={friends} label="Friends" href="/me/friends" />
+          <Stat value={followers} label="Followers" href="/me/follows" />
+          <Stat value={me.likes} label="Likes" href="/me/likes" />
         </div>
       </div>
 
@@ -109,6 +111,7 @@ export function ProfileHeader({ me }: { me: Profile }) {
   );
 }
 
+/** One of your three numbers; each opens its list (only you see these). */
 function Stat({ value, label, href }: { value: number; label: string; href?: string }) {
   const body = (
     <>
