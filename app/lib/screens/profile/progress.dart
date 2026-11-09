@@ -217,7 +217,7 @@ class _ProgressCardState extends State<ProgressCard> {
                             ],
                           ),
                           const SizedBox(height: 2),
-                          Text('${Fmt.thousands(l.xpToNext)} XP to Level ${l.level + 1}', style: VT.body(12.5, color: V.text2)),
+                          Text('${Fmt.compact(l.xpToNext)} XP to Level ${l.level + 1}', style: VT.body(12.5, color: V.text2)),
                           const SizedBox(height: 8),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(3),
@@ -254,7 +254,7 @@ class _ProgressCardState extends State<ProgressCard> {
               iconColor: V.level,
               iconBg: V.level.withValues(alpha: 0.12),
               title: "This week's top",
-              subtitle: p == null ? 'Weekly leaderboards' : 'You earned ${Fmt.thousands(p.weekXp)} XP this week',
+              subtitle: p == null ? 'Weekly leaderboards' : 'You earned ${Fmt.compact(p.weekXp)} XP this week',
               trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LeaderboardScreen())),
             ),
@@ -294,7 +294,7 @@ Future<void> showBadgesSheet(BuildContext context, ProgressView p) {
                       children: [
                         Row(children: [
                           Expanded(child: Text(b.name, style: VT.title(15, weight: FontWeight.w600, color: b.earned ? V.text : V.text2))),
-                          if (b.earned) const Icon(SolarIconsBold.checkCircle, size: 18, color: V.level) else Text('${Fmt.thousands(b.progress)}/${Fmt.thousands(b.target)}', style: VT.mono(12)),
+                          if (b.earned) const Icon(SolarIconsBold.checkCircle, size: 18, color: V.level) else Text('${Fmt.compact(b.progress)}/${Fmt.compact(b.target)}', style: VT.mono(12)),
                         ]),
                         Text(Badges.how(b), style: VT.body(12, color: V.muted)),
                         if (!b.earned) ...[

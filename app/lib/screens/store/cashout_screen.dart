@@ -190,7 +190,7 @@ class _CashoutScreenState extends State<CashoutScreen> {
                 Text('Available', style: VT.label(12)),
                 const SizedBox(height: 4),
                 Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                  Text(Fmt.thousands(wallet.gems), style: VT.number(30, color: V.gem)),
+                  Text(Fmt.figure(wallet.gems), style: VT.number(30, color: V.gem), semanticsLabel: '${Fmt.thousands(wallet.gems)} gems'),
                   const SizedBox(width: 8),
                   Flexible(child: Text('gems ≈ Rs ${Fmt.thousands(estimatePkr)} (${Fmt.gemsAsUsd(wallet.gems)})', style: VT.body(14, color: V.text2))),
                 ]),
@@ -226,7 +226,7 @@ class _CashoutScreenState extends State<CashoutScreen> {
           ],
           const SizedBox(height: 20),
           GradientButton(
-            label: can ? 'Cash out ${Fmt.thousands(wallet.gems)} gems' : 'Not enough gems yet',
+            label: can ? 'Cash out ${Fmt.figure(wallet.gems)} gems' : 'Not enough gems yet',
             gradient: V.gemGrad,
             foreground: V.onGem,
             glow: V.gem,

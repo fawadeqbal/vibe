@@ -61,7 +61,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: p.id)));
   }
 
-  String _score(int n) => _board == Board.xp ? '${Fmt.thousands(n)} XP' : Fmt.thousands(n);
+  String _score(int n) => _board == Board.xp ? '${Fmt.compact(n)} XP' : Fmt.compact(n);
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +238,7 @@ class _MeRow extends StatelessWidget {
                 child: Text('You', style: VT.label(13, color: V.level)),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Text(rank == null ? 'Not ranked yet this week' : '#${Fmt.thousands(rank)}', style: VT.title(16))),
+              Expanded(child: Text(rank == null ? 'Not ranked yet this week' : '#${Fmt.compact(rank)}', style: VT.title(16))),
               Text(score, style: VT.number(15, color: lb.board == Board.gems ? V.gem : V.text)),
             ],
           ),

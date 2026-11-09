@@ -704,7 +704,7 @@ class _LobbyTop extends StatelessWidget {
                             child: Semantics(
                               liveRegion: true,
                               child: Text(
-                                a.online == 0 ? 'Quiet right now' : '${Fmt.thousands(a.online)} on now',
+                                a.online == 0 ? 'Quiet right now' : '${Fmt.compact(a.online)} on now',
                                 overflow: TextOverflow.ellipsis,
                                 style: VT.label(13, color: Colors.white),
                               ),

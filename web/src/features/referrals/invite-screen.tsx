@@ -16,7 +16,7 @@ import { Panel } from "@/components/ui/panel";
 import { Spinner } from "@/components/ui/spinner";
 import { Headline, SectionTitle } from "@/components/ui/typography";
 import { cn } from "@/lib/cn";
-import { ago, plural, thousands } from "@/lib/format";
+import { ago, compact, plural } from "@/lib/format";
 import { inviteMessage, type Milestone, milestoneFill, milestoneRewardLabel, personSteps, type ReferralOverview, type ReferralPerson, rejectReasonLabel, whatsappUrl, withSource } from "@/lib/referrals";
 import { useCatalog } from "@/stores/catalog";
 import { useReferrals } from "@/stores/referrals";
@@ -212,10 +212,10 @@ function Totals({ ov }: { ov: ReferralOverview }) {
   );
   return (
     <div className="flex rounded-card border border-line bg-surface py-3.5">
-      {cell(thousands(ov.stats.joined), "Joined")}
-      {cell(thousands(ov.stats.pending), "On the way")}
-      {cell(thousands(ov.stats.rewarded), "Active")}
-      {cell(thousands(ov.stats.coinsEarned), "Coins earned", "text-gold")}
+      {cell(compact(ov.stats.joined), "Joined")}
+      {cell(compact(ov.stats.pending), "On the way")}
+      {cell(compact(ov.stats.rewarded), "Active")}
+      {cell(compact(ov.stats.coinsEarned), "Coins earned", "text-gold")}
     </div>
   );
 }
@@ -240,7 +240,7 @@ function PersonRow({ p, last }: { p: ReferralPerson; last: boolean }) {
         </span>
       </span>
       {p.status === "REWARDED" ? (
-        <span className="type-number flex h-[26px] items-center rounded-[13px] bg-gold/12 px-2.5 text-[12.5px] text-gold">+{thousands(p.coins)}</span>
+        <span className="type-number flex h-[26px] items-center rounded-[13px] bg-gold/12 px-2.5 text-[12.5px] text-gold">+{compact(p.coins)}</span>
       ) : p.status === "QUALIFIED" ? (
         <Tag text="Active" tone="trust" icon="check" />
       ) : p.status === "REJECTED" ? (

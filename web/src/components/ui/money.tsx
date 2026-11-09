@@ -1,7 +1,9 @@
 "use client";
 
+import type { CSSProperties } from "react";
+
 import { cn } from "@/lib/cn";
-import { coins as fmtCoins, thousands } from "@/lib/format";
+import { AMOUNT_SLOT, compact, thousands } from "@/lib/format";
 
 import { Icon } from "./icon";
 
@@ -24,8 +26,21 @@ export function GemIcon({ size = 18, className }: { size?: number; className?: s
 }
 
 /**
+ * A short amount in a fixed 5-character slot (tabular figures), so 30, 9,999,
+ * 12.4K and 1.25M all take the same room and nothing beside it moves.
+ */
+export function AmountSlot({ n, className, style }: { n: number; className?: string; style?: CSSProperties }) {
+  return (
+    <span className={cn("type-number inline-block shrink-0 overflow-hidden text-center whitespace-nowrap", className)} style={{ width: AMOUNT_SLOT, ...style }}>
+      {compact(n)}
+    </span>
+  );
+}
+
+/**
  * Coins balance chip — lives in most headers so the number is always in
- * sight. With `onClick` it shows a "+" bubble (top up).
+ * sight. With `onClick` it shows a "+" bubble (top up). Always the same width:
+ * the number sits in a 5-character slot and goes short past 9,999.
  */
 export function CoinChip({ coins, onClick, glass = false, showPlus = true }: { coins: number; onClick?: () => void; glass?: boolean; showPlus?: boolean }) {
   const plus = !!onClick && showPlus;
@@ -33,9 +48,7 @@ export function CoinChip({ coins, onClick, glass = false, showPlus = true }: { c
   const content = (
     <>
       <CoinIcon size={glass ? 18 : 16} />
-      <span className="type-number ml-1.5 text-gold" style={{ fontSize: glass ? 14 : 13.5 }}>
-        {fmtCoins(coins)}
-      </span>
+      <AmountSlot n={coins} className="ml-1 text-gold" style={{ fontSize: glass ? 14 : 13.5 }} />
       {plus ? (
         <span className="ml-1.5 flex items-center justify-center rounded-full bg-gold/16" style={{ width: glass ? 24 : 22, height: glass ? 24 : 22 }}>
           <Icon name="add" size={glass ? 16 : 15} className="text-gold" />
@@ -43,15 +56,16 @@ export function CoinChip({ coins, onClick, glass = false, showPlus = true }: { c
       ) : null}
     </>
   );
-  const cls = cn("inline-flex shrink-0 items-center rounded-full pl-2.5", plus ? "pr-1.5" : "pr-3", glass ? "border border-gold/28 bg-glass backdrop-blur-[20px]" : "bg-gold/12");
+  const cls = cn("inline-flex shrink-0 items-center rounded-full pl-2.5", plus ? "pr-1.5" : "pr-2", glass ? "border border-gold/28 bg-glass backdrop-blur-[20px]" : "bg-gold/12");
+  const label = `${thousands(coins)} coins`;
   if (!onClick)
     return (
-      <span className={cls} style={{ height: h }}>
+      <span role="img" aria-label={label} className={cls} style={{ height: h }}>
         {content}
       </span>
     );
   return (
-    <button type="button" onClick={onClick} aria-label={`${fmtCoins(coins)} coins. Top up`} className={cn(cls, "transition-[filter] hover:brightness-125")} style={{ height: h }}>
+    <button type="button" onClick={onClick} aria-label={plus ? `${label}. Top up` : label} className={cn(cls, "transition-[filter] hover:brightness-125")} style={{ height: h }}>
       {content}
     </button>
   );
@@ -59,28 +73,33 @@ export function CoinChip({ coins, onClick, glass = false, showPlus = true }: { c
 
 /** Gems balance chip. */
 export function GemChip({ gems, onClick }: { gems: number; onClick?: () => void }) {
-  const cls = "inline-flex h-[34px] shrink-0 items-center rounded-full bg-gem/10 px-2.5";
+  const cls = "inline-flex h-[34px] shrink-0 items-center rounded-full bg-gem/10 pr-2 pl-2.5";
   const content = (
     <>
       <GemIcon size={16} />
-      <span className="type-number ml-[5px] text-[13.5px] text-gem">{fmtCoins(gems)}</span>
+      <AmountSlot n={gems} className="ml-1 text-[13.5px] text-gem" />
     </>
   );
-  if (!onClick) return <span className={cls}>{content}</span>;
+  if (!onClick)
+    return (
+      <span role="img" aria-label={`${thousands(gems)} gems`} className={cls}>
+        {content}
+      </span>
+    );
   return (
-    <button type="button" onClick={onClick} aria-label={`${fmtCoins(gems)} gems`} className={cn(cls, "transition-[filter] hover:brightness-125")}>
+    <button type="button" onClick={onClick} aria-label={`${thousands(gems)} gems`} className={cn(cls, "transition-[filter] hover:brightness-125")}>
       {content}
     </button>
   );
 }
 
-/** A small coin amount: gold disc + number ("● 20"). */
+/** A small coin amount: gold disc + number ("● 20", "● 12.4K"). */
 export function CoinAmount({ amount, size = 12, className, locked = false }: { amount: number; size?: number; className?: string; locked?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center", locked ? "text-muted" : "text-gold", className)}>
+    <span className={cn("inline-flex items-center", locked ? "text-muted" : "text-gold", className)} title={amount >= 10_000 ? `${thousands(amount)} coins` : undefined}>
       {locked ? <Icon name="lock" size={size + 1} className="text-muted" /> : <CoinIcon size={size} plain />}
       <span className="type-number ml-1" style={{ fontSize: size }}>
-        {thousands(amount)}
+        {compact(amount)}
       </span>
     </span>
   );

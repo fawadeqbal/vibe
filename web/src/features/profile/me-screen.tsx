@@ -10,7 +10,7 @@ import { CoinChip } from "@/components/ui/money";
 import { PageHeader } from "@/components/ui/page-header";
 import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { alpha } from "@/lib/colors";
-import { thousands, until } from "@/lib/format";
+import { compact, until } from "@/lib/format";
 import { useCatalog } from "@/stores/catalog";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
@@ -55,7 +55,7 @@ export function MeScreen() {
       <RecentMatches />
 
       <GroupCard className="mt-[26px]">
-        <Shortcut icon="account_balance_wallet" title="Wallet" subtitle={`${thousands(wallet.coins)} coins · ${thousands(wallet.gems)} gems`} href="/wallet" />
+        <Shortcut icon="account_balance_wallet" title="Wallet" subtitle={`${compact(wallet.coins)} coins · ${compact(wallet.gems)} gems`} href="/wallet" />
         <Shortcut icon="workspace_premium" title={vip ? "You are VIP" : "Get VIP"} subtitle={vip ? until(wallet.vipUntil!) : "Free filters, no ads, see who liked you"} href="/vip" />
         <Shortcut icon="card_giftcard" title="Invite friends" subtitle={`Give ${economy.inviteeRewardCoins}, get ${economy.inviteRewardCoins} coins`} href="/invite" />
       </GroupCard>

@@ -17,7 +17,7 @@ import { TextField } from "@/components/ui/text-field";
 import { SectionTitle } from "@/components/ui/typography";
 import { CheckoutController } from "@/lib/checkout-controller";
 import { cn } from "@/lib/cn";
-import { coins as fmtCoins, date, thousands, time, usd } from "@/lib/format";
+import { date, thousands, time, usd } from "@/lib/format";
 import { onPaymentReturn, openHostedPage } from "@/lib/hosted-payment";
 import { paymentMethodHint, paymentMethodLabel, type CoinPack, type VipPlan } from "@/lib/models";
 import { isLocalCurrency, type ProductKind } from "@/lib/payments";
@@ -62,7 +62,7 @@ function Checkout({ pack, plan, resume, resumeStatus }: { pack?: CoinPack; plan?
   const e = useCatalog((s) => s.economy);
   const kind: ProductKind = pack ? "coinPack" : "vipPlan";
   const price = pack?.usd ?? plan!.usd;
-  const title = pack ? `${fmtCoins(pack.coins)} coins` : `VIP ${plan!.label.toLowerCase()}`;
+  const title = pack ? `${thousands(pack.coins)} coins` : `VIP ${plan!.label.toLowerCase()}`;
 
   const c = useMemo(() => {
     const w = useWallet.getState();
@@ -397,7 +397,7 @@ function Checkout({ pack, plan, resume, resumeStatus }: { pack?: CoinPack; plan?
           icon={pack ? "check" : "workspace_premium"}
           iconClass="bg-gold-grad text-on-gold-icon shadow-[0_0_47.2px_rgb(255_200_87/.4)]"
           title={pack ? "Coins added" : "You are VIP"}
-          text={pack ? `Your balance is now ${fmtCoins(walletCoins)} coins.` : `Filters are free, ads are gone, and ${e.vipMonthlyBonusCoins} bonus coins just landed.`}
+          text={pack ? `Your balance is now ${thousands(walletCoins)} coins.` : `Filters are free, ads are gone, and ${e.vipMonthlyBonusCoins} bonus coins just landed.`}
           extra={
             <Panel className="mt-6">
               <Kv k="Item" v={title} />

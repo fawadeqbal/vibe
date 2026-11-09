@@ -11,7 +11,7 @@ import { Tag } from "@/components/ui/misc";
 import { CoinChip, CoinIcon, GemChip } from "@/components/ui/money";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionTitle } from "@/components/ui/typography";
-import { thousands, usd } from "@/lib/format";
+import { figure, usd } from "@/lib/format";
 import { type CoinPack, usdPer100 } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
 import { checkedInToday, isVip, nextCheckInDay, useWallet } from "@/stores/wallet";
@@ -96,7 +96,7 @@ function HeroPack({ pack }: { pack: CoinPack }) {
       <div className="flex items-start">
         <CoinIcon size={44} />
         <div className="ml-3.5 flex-1">
-          <p className="type-number-lg text-[30px]">{thousands(pack.coins)}</p>
+          <p className="type-number-lg text-[30px]">{figure(pack.coins)}</p>
           <p className="type-body mt-0.5 text-[12.5px] text-text2">
             {pack.name} · {usd(usdPer100(pack))} per 100
           </p>
@@ -118,7 +118,7 @@ function PackCard({ pack }: { pack: CoinPack }) {
         <CoinIcon size={22} />
         <span className="ml-2 flex min-w-0 flex-1 justify-end">{tag}</span>
       </span>
-      <span className="type-number-lg mt-2.5 text-[22px]">{thousands(pack.coins)}</span>
+      <span className="type-number-lg mt-2.5 text-[22px]">{figure(pack.coins)}</span>
       <span className="type-body mt-0.5 truncate text-[11.5px] text-muted">
         {pack.name} · {usd(usdPer100(pack))}/100
       </span>

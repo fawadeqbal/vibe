@@ -10,7 +10,7 @@ import { Panel } from "@/components/ui/panel";
 import { TextField } from "@/components/ui/text-field";
 import { Headline } from "@/components/ui/typography";
 import { parseGemGoal, recapHasNews, recapVisible } from "@/lib/engagement";
-import { gemsAsUsd, thousands } from "@/lib/format";
+import { compact, figure, gemsAsUsd, thousands } from "@/lib/format";
 import { useCatalog } from "@/stores/catalog";
 import { useEngagement } from "@/stores/engagement";
 import { openSheet, toast } from "@/stores/ui";
@@ -45,15 +45,15 @@ export function GemGoalCard() {
         <CircleIconButton icon="edit" label="Change goal" size={32} iconSize={17} className="bg-white/6" onClick={() => void openGoalSheet(goal)} />
       </div>
       <p className="mt-1.5 flex items-baseline">
-        <span className="type-number-lg text-[22px] text-gem">{thousands(Math.min(gems, goal))}</span>
-        <span className="type-body ml-1 text-[13px] text-text2">/ {thousands(goal)} gems</span>
+        <span className="type-number-lg text-[22px] text-gem" title={`${thousands(Math.min(gems, goal))} gems`}>{figure(Math.min(gems, goal))}</span>
+        <span className="type-body ml-1 text-[13px] text-text2">/ {figure(goal)} gems</span>
         <span className="flex-1" />
         <span className="type-body text-[12px] text-text2">≈ {gemsAsUsd(goal, usdPerGem)}</span>
       </p>
       <div className="mt-2.5">
         <ProgressBar value={gems / goal} tone="gem" />
       </div>
-      <p className="type-body mt-2 text-[12px] text-text2">{reached ? "Goal reached 🎯 Cash out, or set a bigger one." : `${thousands(goal - gems)} gems to go`}</p>
+      <p className="type-body mt-2 text-[12px] text-text2">{reached ? "Goal reached 🎯 Cash out, or set a bigger one." : `${figure(goal - gems)} gems to go`}</p>
     </Panel>
   );
 }
@@ -99,7 +99,7 @@ function GoalSheet({ current, onDone }: { current: number | null; onDone: () => 
         {presets.map((n) => (
           <button key={n} type="button" onClick={() => setText(String(n))} className="type-label flex h-8 items-center rounded-full border border-line bg-surface2 px-3 text-[12.5px] text-text2 hover:bg-surface3">
             <GemIcon size={13} className="mr-1" />
-            {thousands(n)}
+            {compact(n)}
           </button>
         ))}
       </div>
@@ -141,7 +141,7 @@ export function WeeklyRecapCard() {
           <div key={label} className="flex flex-col items-center">
             <span className="flex items-center">
               <Icon name={icon} size={15} className={icon === "diamond" ? "text-gem" : icon === "local_fire_department" ? "text-flame" : "text-text2"} />
-              <span className="type-number ml-1 text-[17px]">{thousands(n)}</span>
+              <span className="type-number ml-1 text-[17px]">{compact(n)}</span>
             </span>
             <span className="type-body mt-0.5 text-[11px] text-muted">{label}</span>
           </div>

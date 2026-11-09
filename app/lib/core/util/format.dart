@@ -3,11 +3,54 @@ import '../../models/models.dart';
 class Fmt {
   Fmt._();
 
-  /// 1234 → "1,234"; 1200000 → "1.2M".
-  static String coins(int n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    return thousands(n);
+  // How amounts are written (coins, gems, money, counts) — the same rule as
+  // web's lib/format.ts:
+  //
+  //  - compact(n): chips, tiles, list rows, counts. Never more than 5
+  //    characters: 9,999 · 12.4K · 999K · 1.25M · 45.6M · 3.4B · 1.2T.
+  //    It rounds DOWN, so a balance is never shown as more than it is.
+  //    Show it in an [AmountSlot] so a growing number never moves anything.
+  //  - figure(n): the one big number on a screen (wallet balance, cash out,
+  //    a coin pack). Exact up to 999,999, compact from a million.
+  //  - thousands(n): sentences, receipts and history, where the exact value
+  //    matters and the text can wrap.
+  //
+  // Wherever a short form is shown, the exact value goes in the semantics
+  // label: "1,234,567 coins".
+
+  static const _units = [(1e12, 'T'), (1e9, 'B'), (1e6, 'M'), (1e3, 'K')];
+
+  static double _floorTo(double v, int places) {
+    final f = places == 2 ? 100 : (places == 1 ? 10 : 1);
+    return (v * f + 1e-9).floorToDouble() / f;
   }
+
+  static String _trim(String s) => s.contains('.') ? s.replaceFirst(RegExp(r'\.?0+$'), '') : s;
+
+  /// 9,999 · 12.4K · 999K · 1.25M · 3.4B — at most 5 characters (plus a minus sign).
+  static String compact(int n) {
+    final a = n.abs();
+    final sign = n < 0 ? '-' : '';
+    if (a < 10000) return '$sign${thousands(a)}';
+    for (final (size, unit) in _units) {
+      if (a < size) continue;
+      final v = a / size;
+      if (v >= 1000) return '${sign}999$unit+';
+      final s = v < 10 ? _trim(_floorTo(v, 2).toStringAsFixed(2)) : (v < 100 ? _trim(_floorTo(v, 1).toStringAsFixed(1)) : v.floor().toString());
+      return '$sign$s$unit';
+    }
+    return '$sign${thousands(a)}';
+  }
+
+  /// The one big number on a screen: exact up to 999,999, then compact.
+  static String figure(int n) => n.abs() < 1000000 ? thousands(n) : compact(n);
+
+  /// The old name: coins in a chip are [compact].
+  static String coins(int n) => compact(n);
+
+  /// Money in a tight spot: "Rs 9,999" · "Rs 12.4K" · "$12.50" · "$1.25M".
+  static String pkrCompact(num rupees) => 'Rs ${compact(rupees.round())}';
+  static String usdCompact(double v) => v.abs() < 10000 ? usd(v) : '\$${compact(v.truncate())}';
 
   static String thousands(int n) {
     final s = n.abs().toString();

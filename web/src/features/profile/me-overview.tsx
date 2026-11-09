@@ -14,7 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { SectionTitle } from "@/components/ui/typography";
 import { alpha, color, type Tone } from "@/lib/colors";
 import { cn } from "@/lib/cn";
-import { thousands } from "@/lib/format";
+import { compact, thousands } from "@/lib/format";
 import { genderLabel, intentInfo, isProfileComplete, type Profile } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
 import { useEngagement } from "@/stores/engagement";
@@ -115,7 +115,7 @@ export function ProfileHeader({ me }: { me: Profile }) {
 function Stat({ value, label, href }: { value: number; label: string; href?: string }) {
   const body = (
     <>
-      <span className="type-number-lg text-[20px]">{thousands(value)}</span>
+      <span className="type-number-lg text-[20px]" title={value >= 10_000 ? thousands(value) : undefined}>{compact(value)}</span>
       <span className="type-label mt-0.5 text-[12px] text-text2">{label}</span>
     </>
   );

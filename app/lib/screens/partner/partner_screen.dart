@@ -298,7 +298,7 @@ class PartnerDashboard extends StatelessWidget {
               title: 'Stats',
               subtitle: stats == null
                   ? 'Clicks, sign-ups, active users and earnings'
-                  : 'Last ${stats.days} days · ${Fmt.thousands(stats.totals.clicks)} clicks · ${Fmt.thousands(stats.totals.signups)} sign-ups',
+                  : 'Last ${stats.days} days · ${Fmt.compact(stats.totals.clicks)} clicks · ${Fmt.compact(stats.totals.signups)} sign-ups',
               trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
               onTap: () => push(const PartnerStatsScreen()),
             ),

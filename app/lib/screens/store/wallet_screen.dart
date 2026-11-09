@@ -52,7 +52,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     children: [
                       Row(children: [const CoinIcon(size: 16), const SizedBox(width: 6), Text('Coins', style: VT.label(12))]),
                       const SizedBox(height: 8),
-                      Text(Fmt.thousands(wallet.coins), style: VT.number(28, color: V.gold)),
+                      Text(Fmt.figure(wallet.coins), style: VT.number(28, color: V.gold), semanticsLabel: '${Fmt.thousands(wallet.coins)} coins'),
                       const SizedBox(height: 10),
                       GhostButton(label: 'Buy', height: 36, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StoreScreen(asPage: true)))),
                     ],
@@ -69,8 +69,8 @@ class _WalletScreenState extends State<WalletScreen> {
                     children: [
                       Row(children: [const GemIcon(size: 16), const SizedBox(width: 6), Text('Gems', style: VT.label(12))]),
                       const SizedBox(height: 8),
-                      Text(Fmt.thousands(wallet.gems), style: VT.number(28, color: V.gem)),
-                      Text('≈ ${Fmt.gemsAsUsd(wallet.gems)}', style: VT.body(11, color: V.text2)),
+                      Text(Fmt.figure(wallet.gems), style: VT.number(28, color: V.gem), semanticsLabel: '${Fmt.thousands(wallet.gems)} gems'),
+                      Text('≈ ${Fmt.usdCompact(wallet.gems * Economy.usdPerGem)}', style: VT.body(11, color: V.text2)),
                       const SizedBox(height: 4),
                       GhostButton(label: 'Cash out', height: 36, onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CashoutScreen()))),
                     ],
@@ -127,9 +127,9 @@ class _TxRow extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                if (t.coins != 0) Text('${t.coins > 0 ? '+' : ''}${Fmt.thousands(t.coins)}', style: VT.title(14, color: t.coins > 0 ? V.ok : V.text)),
-                if (t.gems != 0) Text('${t.gems > 0 ? '+' : ''}${Fmt.thousands(t.gems)} gems', style: VT.label(12, color: V.gem)),
-                if (t.usd > 0) Text(Fmt.usd(t.usd), style: VT.body(11, color: V.muted)),
+                if (t.coins != 0) Text('${t.coins > 0 ? '+' : ''}${Fmt.compact(t.coins)}', style: VT.title(14, color: t.coins > 0 ? V.ok : V.text)),
+                if (t.gems != 0) Text('${t.gems > 0 ? '+' : ''}${Fmt.compact(t.gems)} gems', style: VT.label(12, color: V.gem)),
+                if (t.usd > 0) Text(Fmt.usdCompact(t.usd), style: VT.body(11, color: V.muted)),
               ],
             ),
           ],

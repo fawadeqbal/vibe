@@ -11,7 +11,7 @@ import { SectionTitle } from "@/components/ui/typography";
 import { type AffiliateOverview, type ChartMetric, type Commission, type CommissionStatus, payoutBlock, sourceLabel, STATS_RANGES, usdCents } from "@/lib/affiliate";
 import type { Tone } from "@/lib/colors";
 import { cn } from "@/lib/cn";
-import { ago, date, thousands } from "@/lib/format";
+import { ago, compact, date } from "@/lib/format";
 import { useAffiliate } from "@/stores/affiliate";
 
 import { LinkBuilder } from "./link-builder";
@@ -122,10 +122,10 @@ function Stats() {
         ) : (
           <>
             <div className="grid grid-cols-3 gap-y-3">
-              <Figure label="Clicks" value={thousands(stats.totals.clicks)} />
-              <Figure label="Sign-ups" value={thousands(stats.totals.signups)} />
-              <Figure label="Active users" value={thousands(stats.totals.qualified)} />
-              <Figure label="Paying users" value={thousands(stats.totals.payingUsers)} />
+              <Figure label="Clicks" value={compact(stats.totals.clicks)} />
+              <Figure label="Sign-ups" value={compact(stats.totals.signups)} />
+              <Figure label="Active users" value={compact(stats.totals.qualified)} />
+              <Figure label="Paying users" value={compact(stats.totals.payingUsers)} />
               <Figure label="Their purchases" value={usdCents(stats.totals.revenueUsdCents)} />
               <Figure label="You earned" value={usdCents(stats.totals.earnedUsdCents)} gold />
             </div>
@@ -162,9 +162,9 @@ function Stats() {
                     <th scope="row" className="px-4 py-2.5 font-medium text-text">
                       {sourceLabel(c.channel)}
                     </th>
-                    <td className="type-number px-2 py-2.5 text-right font-medium text-text2">{thousands(c.clicks)}</td>
-                    <td className="type-number px-2 py-2.5 text-right font-medium text-text2">{thousands(c.signups)}</td>
-                    <td className="type-number px-2 py-2.5 text-right font-medium text-text2">{thousands(c.qualified)}</td>
+                    <td className="type-number px-2 py-2.5 text-right font-medium text-text2">{compact(c.clicks)}</td>
+                    <td className="type-number px-2 py-2.5 text-right font-medium text-text2">{compact(c.signups)}</td>
+                    <td className="type-number px-2 py-2.5 text-right font-medium text-text2">{compact(c.qualified)}</td>
                     <td className="type-number px-4 py-2.5 text-right text-gold">{usdCents(c.earnedUsdCents)}</td>
                   </tr>
                 ))}

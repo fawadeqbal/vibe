@@ -122,7 +122,7 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
           _Item(
             icon: SolarIconsBold.usersGroupTwoRounded,
             title: 'Followers & friends',
-            subtitle: '${Fmt.thousands(follows.followers)} ${follows.followers == 1 ? 'follower' : 'followers'} · ${Fmt.thousands(friends)} ${friends == 1 ? 'friend' : 'friends'}',
+            subtitle: '${Fmt.compact(follows.followers)} ${follows.followers == 1 ? 'follower' : 'followers'} · ${Fmt.compact(friends)} ${friends == 1 ? 'friend' : 'friends'}',
             words: 'following requests',
             open: (_) => const FollowListsScreen(),
           ),
@@ -130,7 +130,7 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
             icon: SolarIconsBold.cupStar,
             color: V.lavender,
             title: 'Progress & badges',
-            subtitle: 'Level ${engagement.level.level} · ${Fmt.thousands(engagement.level.xp)} XP',
+            subtitle: 'Level ${engagement.level.level} · ${Fmt.compact(engagement.level.xp)} XP',
             words: 'xp level streak',
             open: (_) => const ProgressSectionScreen(),
           ),
@@ -201,7 +201,7 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
       (
         'Wallet & invites',
         [
-          _Item(icon: SolarIconsBold.wallet, color: V.gold, title: 'Wallet', subtitle: '${Fmt.thousands(wallet.coins)} coins · ${Fmt.thousands(wallet.gems)} gems', words: 'coins gems buy money', open: (_) => const WalletScreen()),
+          _Item(icon: SolarIconsBold.wallet, color: V.gold, title: 'Wallet', subtitle: '${Fmt.compact(wallet.coins)} coins · ${Fmt.compact(wallet.gems)} gems', words: 'coins gems buy money', open: (_) => const WalletScreen()),
           _Item(
             icon: SolarIconsBold.crown,
             color: V.gold,

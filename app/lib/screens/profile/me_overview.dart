@@ -521,7 +521,7 @@ class _Stat extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Column(
               children: [
-                Text(Fmt.thousands(value), style: VT.number(20)),
+                Text(Fmt.compact(value), style: VT.number(20), semanticsLabel: Fmt.thousands(value)),
                 const SizedBox(height: 2),
                 Text(label, style: VT.label(12, color: V.text2)),
               ],
