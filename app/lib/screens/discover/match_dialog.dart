@@ -1,12 +1,15 @@
-import 'dart:ui';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
+import '../../models/calls.dart';
 import '../../models/models.dart';
+import '../../providers/calls_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../social/chat_screen.dart';
@@ -30,10 +33,10 @@ Future<void> showMatchDialog(BuildContext context, Friend f) => showGeneralDialo
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Close',
-      barrierColor: Colors.black.withValues(alpha: 0.72),
+      barrierColor: V.bg,
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (ctx, _, _) => _MatchDialog(f: f),
-      transitionBuilder: (_, a, _, child) => FadeTransition(opacity: a, child: ScaleTransition(scale: Tween(begin: 0.94, end: 1.0).animate(CurvedAnimation(parent: a, curve: VMotion.out)), child: child)),
+      transitionBuilder: (_, a, _, child) => FadeTransition(opacity: a, child: child),
     );
 
 class _MatchDialog extends StatefulWidget {
@@ -71,112 +74,172 @@ class _MatchDialogState extends State<_MatchDialog> {
     }
   }
 
+  /// Calls are off until you both allow them in the chat: there you can ask.
+  void _videoCall() {
+    final f = widget.f;
+    final nav = Navigator.of(context);
+    nav.pop();
+    if (f.calls.on && f.calls.video) {
+      unawaited(context.read<CallsProvider>().ring(f.profile, CallMedia.video));
+    } else {
+      unawaited(nav.push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: f.profile.id))));
+    }
+  }
+
+  Widget _photo(String url, String name, double angle) => Transform.rotate(
+        angle: angle,
+        child: Container(
+          width: 140,
+          height: 180,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: V.bg, width: 3),
+            color: V.surface,
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 30, offset: const Offset(0, 14))],
+          ),
+          child: url.startsWith('http')
+              ? Image.network(url, fit: BoxFit.cover, semanticLabel: name, errorBuilder: (_, _, _) => const ColoredBox(color: V.surface))
+              : DecoratedBox(
+                  decoration: const BoxDecoration(gradient: V.brand),
+                  child: Center(child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: VT.display(56, color: Colors.white.withValues(alpha: 0.6)))),
+                ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final f = widget.f;
     final me = context.watch<SessionProvider>().me;
     final first = f.profile.name.split(' ').first;
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-      child: SafeArea(
+    final mine = me?.interests ?? const <String>[];
+    final both = f.profile.interests.where(mine.contains).take(2).toList();
+    final pad = MediaQuery.of(context).padding;
+    return Material(
+      color: Colors.transparent,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(center: Alignment(0, -0.5), radius: 0.9, colors: [Color(0x59FF3D8F), Color(0x2E8B5CF6), V.bg], stops: [0, 0.45, 0.85]),
+        ),
         child: Center(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 460),
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(32),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                  gradient: const RadialGradient(center: Alignment.topCenter, radius: 1.2, colors: [Color(0xFF3D1A45), V.surface], stops: [0, 0.62]),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Align(alignment: Alignment.topRight, child: CircleIconButton(icon: Icons.close_rounded, tooltip: 'Close', onTap: () => Navigator.of(context).pop())),
-                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Transform.rotate(angle: -0.1, child: VAvatar(url: me?.avatarUrl ?? '', name: me?.name ?? 'You', size: 104, border: V.surface)),
-                        Transform.translate(offset: const Offset(-20, 0), child: Transform.rotate(angle: 0.1, child: VAvatar(url: f.profile.avatarUrl, name: f.profile.name, size: 104, border: V.surface))),
-                      ]),
-                      const SizedBox(height: 16),
-                      Text.rich(
-                        TextSpan(children: [TextSpan(text: "It's a ", style: VT.display(36)), TextSpan(text: 'match!', style: VT.serif(44, color: V.pinkSoft))]),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 4),
-                      Text('You and $first liked each other.', textAlign: TextAlign.center, style: VT.body(15, color: V.text2)),
-                      if (f.online) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          height: 28,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(color: V.ok.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(14)),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Container(width: 8, height: 8, decoration: const BoxDecoration(color: V.ok, shape: BoxShape.circle)),
-                            const SizedBox(width: 8),
-                            Text('$first is online now', style: VT.label(12.5, color: V.ok)),
-                          ]),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(20, pad.top, 20, pad.bottom + 26 + MediaQuery.of(context).viewInsets.bottom),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(padding: const EdgeInsets.only(top: 12), child: CircleIconButton(icon: Icons.close_rounded, tooltip: 'Keep discovering', onTap: () => Navigator.of(context).pop())),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    height: 210,
+                    child: Stack(
+                      alignment: Alignment.topCenter,
+                      children: [
+                        Positioned(top: 20, left: 0, right: 140, child: Center(child: _photo(me?.avatarUrl ?? '', me?.name ?? 'You', -0.14))),
+                        Positioned(top: 6, left: 140, right: 0, child: Center(child: _photo(f.profile.avatarUrl, f.profile.name, 0.12))),
+                        Positioned(
+                          top: 150,
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(shape: BoxShape.circle, gradient: V.brand, boxShadow: [BoxShadow(color: V.pink.withValues(alpha: 0.5), blurRadius: 22, offset: const Offset(0, 8))]),
+                            child: const Icon(SolarIconsBold.heart, size: 28, color: Colors.white),
+                          ),
                         ),
                       ],
-                      const SizedBox(height: 24),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final o in matchOpeners(f, me?.interests ?? const []))
-                            ActionChip(
-                              label: Text(o, style: VT.label(13, color: V.text)),
-                              backgroundColor: Colors.white.withValues(alpha: 0.06),
-                              side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
-                              shape: const StadiumBorder(),
-                              onPressed: _busy ? null : () => _send(o),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _text,
-                            textInputAction: TextInputAction.send,
-                            onSubmitted: _send,
-                            style: VT.body(15),
-                            decoration: InputDecoration(
-                              hintText: 'Write your first message…',
-                              filled: true,
-                              fillColor: V.bg2,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(26), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12))),
-                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(26), borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12))),
-                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(26), borderSide: BorderSide(color: V.pink.withValues(alpha: 0.6))),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Semantics(
-                          button: true,
-                          label: 'Send',
-                          child: GestureDetector(
-                            onTap: () => _send(_text.text),
-                            child: Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(gradient: V.brand, shape: BoxShape.circle, boxShadow: [BoxShadow(color: V.pink.withValues(alpha: 0.32), blurRadius: 30, offset: const Offset(0, 10))]),
-                              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                            ),
-                          ),
-                        ),
-                      ]),
-                      const SizedBox(height: 8),
-                      TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Keep swiping', style: VT.label(14, color: V.text2))),
-                      Text('Chat is open now. Video calls stay off until you both allow them in the chat.', textAlign: TextAlign.center, style: VT.body(12, color: V.muted, height: 1.45)),
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 26),
+                  const Headline("It's a ", accent: 'match!', size: 34, accentColor: V.pinkSoft, textAlign: TextAlign.center),
+                  const SizedBox(height: 4),
+                  Text(
+                    'You and $first liked each other.${both.isEmpty ? '' : ' You both like ${both.join(' and ')}.'}',
+                    textAlign: TextAlign.center,
+                    style: VT.body(14.5, color: V.text2),
+                  ),
+                  if (f.online) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Container(
+                        height: 28,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(color: V.ok.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(999)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const OnlineDot(),
+                          const SizedBox(width: 8),
+                          Text('$first is online now', style: VT.label(12.5, color: V.ok, weight: FontWeight.w600)),
+                        ]),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  Text('SAY SOMETHING FIRST', style: VT.overline(color: V.muted)),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 36,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        for (final o in matchOpeners(f, mine))
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: _busy ? null : () => _send(o),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), border: Border.all(color: Colors.white.withValues(alpha: 0.14)), borderRadius: BorderRadius.circular(999)),
+                                child: Center(widthFactor: 1, child: Text(o, style: VT.label(13.5, color: V.text, weight: FontWeight.w600))),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 52,
+                    padding: const EdgeInsets.only(left: 18, right: 6),
+                    decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(999), border: Border.all(color: V.line)),
+                    child: Row(children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _text,
+                          style: VT.body(15),
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: _send,
+                          decoration: InputDecoration(
+                            hintText: 'Write your first message…',
+                            hintStyle: VT.body(15, color: V.muted),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                      Semantics(
+                        button: true,
+                        label: 'Send',
+                        child: GestureDetector(
+                          onTap: () => _send(_text.text),
+                          child: Container(width: 40, height: 40, decoration: const BoxDecoration(shape: BoxShape.circle, gradient: V.brand), child: const Icon(SolarIconsBold.plain, size: 19, color: Colors.white)),
+                        ),
+                      ),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: GhostButton(label: 'Video call', icon: SolarIconsBold.videocamera, height: 48, expand: true, onTap: _videoCall)),
+                    const SizedBox(width: 10),
+                    Expanded(child: GhostButton(label: 'Keep discovering', height: 48, expand: true, onTap: () => Navigator.of(context).pop())),
+                  ]),
+                ],
               ),
             ),
           ),

@@ -13,7 +13,9 @@ import 'package:vibe_app/core/api/token_store.dart';
 import 'package:vibe_app/core/theme/vibe_theme.dart';
 import 'package:vibe_app/models/discover.dart';
 import 'package:vibe_app/providers/discover_provider.dart';
+import 'package:vibe_app/providers/filters_provider.dart';
 import 'package:vibe_app/providers/social_provider.dart';
+import 'package:vibe_app/screens/discover/discover_profile.dart';
 import 'package:vibe_app/screens/discover/discover_screen.dart';
 import 'package:vibe_app/screens/discover/discover_states.dart';
 
@@ -59,7 +61,10 @@ Future<RemoteDiscoverProvider> show(WidgetTester t, {required Size size, Map<Str
   SharedPreferences.setMockInitialValues({if (filters != null) 'vibe.discover.filters': filters});
   final d = RemoteDiscoverProvider(api, RealtimeClient(api), RemoteSocialProvider(api, RealtimeClient(api)));
   await t.binding.setSurfaceSize(size);
-  await t.pumpWidget(ChangeNotifierProvider<DiscoverProvider>.value(value: d, child: MaterialApp(theme: V.theme(), home: DiscoverScreen(onOpenMatch: () {}))));
+  await t.pumpWidget(MultiProvider(
+    providers: [ChangeNotifierProvider<DiscoverProvider>.value(value: d), ChangeNotifierProvider<FiltersProvider>(create: (_) => FiltersProvider(null))],
+    child: MaterialApp(theme: V.theme(), home: DiscoverScreen(onOpenMatch: () {})),
+  ));
   for (var i = 0; i < 6; i++) {
     await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
     await t.pump(const Duration(milliseconds: 100));
@@ -135,6 +140,25 @@ void main() {
       testWidgets('cards: buttons work', (t) async {
         await show(t, size: size);
         expect(likeEnabled(t), isTrue);
+        expect(find.bySemanticsLabel('Meet someone live'), findsOneWidget);
+        expect(t.takeException(), isNull);
+      });
+
+      testWidgets('cards: ⓘ opens the whole profile, with the same buttons; back returns to the card', (t) async {
+        await show(t, size: size);
+        await t.tap(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'More about Ayesha'));
+        for (var i = 0; i < 4; i++) {
+          await t.pump(const Duration(milliseconds: 150));
+        }
+        expect(find.byType(DiscoverProfileScreen), findsOneWidget);
+        expect(find.text('INTERESTS'), findsNothing, reason: 'no interests on this person');
+        expect(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'More: report or block'), findsOneWidget);
+        expect(find.descendant(of: find.byType(DiscoverProfileScreen), matching: find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'Pass')), findsOneWidget);
+        await t.tap(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'Back to the card'));
+        for (var i = 0; i < 10; i++) {
+          await t.pump(const Duration(milliseconds: 150));
+        }
+        expect(find.byType(DiscoverProfileScreen), findsNothing);
         expect(t.takeException(), isNull);
       });
     });

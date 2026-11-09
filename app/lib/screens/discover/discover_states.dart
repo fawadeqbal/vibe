@@ -48,19 +48,19 @@ class _StateFrame extends StatelessWidget {
       label: label,
       child: Container(
         decoration: BoxDecoration(
-          color: V.bg2,
+          color: V.surface,
           borderRadius: BorderRadius.circular(28),
           border: Border.all(color: V.line),
         ),
         clipBehavior: Clip.antiAlias,
         child: LayoutBuilder(
           builder: (context, box) => SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 24),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: box.maxHeight - 48),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 320),
+                  constraints: const BoxConstraints(maxWidth: 340),
                   child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
                 ),
               ),
@@ -83,17 +83,17 @@ class _StateIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg) = switch (tone) {
-      _Tone.pink => (V.pink.withValues(alpha: 0.14), V.pinkSoft),
-      _Tone.violet => (V.violet.withValues(alpha: 0.18), V.lavender),
-      _Tone.muted => (V.surface, V.text2),
+      _Tone.pink => (V.pink.withValues(alpha: 0.14), V.pink),
+      _Tone.violet => (V.lavender.withValues(alpha: 0.14), V.lavender),
+      _Tone.muted => (Colors.white.withValues(alpha: 0.08), V.text2),
     };
     return Center(
       child: ExcludeSemantics(
         child: Container(
-          width: 64,
-          height: 64,
+          width: 72,
+          height: 72,
           decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-          child: Icon(icon, size: 30, color: fg),
+          child: Icon(icon, size: 32, color: fg),
         ),
       ),
     );
@@ -102,9 +102,9 @@ class _StateIcon extends StatelessWidget {
 
 /// Headline, then a line of text: the same in every state.
 List<Widget> _title(String text, String accent, Color color, String body) => [
-  const SizedBox(height: 16),
+  const SizedBox(height: 18),
   Headline(text, accent: accent, accentColor: color, size: 24, textAlign: TextAlign.center),
-  const SizedBox(height: 8),
+  const SizedBox(height: 6),
   Text(
     body,
     textAlign: TextAlign.center,
@@ -139,70 +139,65 @@ class _DeckSkeletonState extends State<DeckSkeleton> with SingleTickerProviderSt
     Widget bar(double w, double h, [double r = 8]) => Container(
       width: w,
       height: h,
-      decoration: BoxDecoration(color: V.surface3, borderRadius: BorderRadius.circular(r)),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(r)),
     );
     final reduce = MediaQuery.of(context).disableAnimations;
     final slow = widget.slow;
+    Widget line(double f, double h, [double r = 8]) => FractionallySizedBox(
+          widthFactor: f,
+          alignment: Alignment.centerLeft,
+          child: Container(height: h, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(r))),
+        );
     return Semantics(
       liveRegion: true,
       label: slow ? 'Taking longer than usual' : widget.label,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned(
-            left: 14,
-            right: 14,
-            top: -8,
-            bottom: 12,
-            child: DecoratedBox(
-              decoration: BoxDecoration(color: V.bg2, borderRadius: BorderRadius.circular(28)),
-            ),
-          ),
-          FadeTransition(
-            opacity: reduce ? const AlwaysStoppedAnimation(1) : Tween(begin: 0.55, end: 1.0).animate(_c),
-            child: Container(
-              decoration: BoxDecoration(
-                color: V.surface,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: V.line),
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  bar(150, 22),
-                  const SizedBox(height: 10),
-                  bar(110, 14, 6),
-                  const SizedBox(height: 14),
-                  Row(children: [bar(72, 24, 12), const SizedBox(width: 6), bar(56, 24, 12), const SizedBox(width: 6), bar(64, 24, 12)]),
-                ],
-              ),
-            ),
-          ),
-          Align(
-            alignment: const Alignment(0, -0.2),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    slow ? 'Taking longer than usual…' : widget.label,
-                    textAlign: TextAlign.center,
-                    style: VT.body(14, color: V.text2, weight: FontWeight.w600),
-                  ),
-                  if (slow && widget.onRetry != null) ...[
-                    const SizedBox(height: 4),
-                    Text('The connection looks slow.', style: VT.body(12.5, color: V.muted)),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [V.surface2, V.surface]),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 22,
+              child: FadeTransition(
+                opacity: reduce ? const AlwaysStoppedAnimation(1) : Tween(begin: 0.55, end: 1.0).animate(_c),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    line(0.6, 30, 10),
                     const SizedBox(height: 12),
-                    GhostButton(label: 'Try again', icon: SolarIconsOutline.refresh, onTap: widget.onRetry),
+                    line(0.45, 14, 7),
+                    const SizedBox(height: 10),
+                    line(0.9, 14, 7),
+                    const SizedBox(height: 12),
+                    Row(children: [bar(70, 28, 999), const SizedBox(width: 6), bar(80, 28, 999), const SizedBox(width: 6), bar(64, 28, 999)]),
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-        ],
+            Align(
+              alignment: const Alignment(0, -0.1),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(slow ? 'Taking longer than usual…' : widget.label, textAlign: TextAlign.center, style: VT.body(13.5, color: V.muted)),
+                    if (slow && widget.onRetry != null) ...[
+                      const SizedBox(height: 12),
+                      GhostButton(label: 'Try again', icon: SolarIconsOutline.refresh, height: 44, onTap: widget.onRetry),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -246,104 +241,19 @@ class NoPhotoPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget step(bool done, String label, {String? tag, bool needed = false}) => Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: V.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: needed ? Border.all(color: V.pink.withValues(alpha: 0.45)) : null,
-      ),
-      child: Row(
-        children: [
-          if (done)
-            Container(
-              width: 24,
-              height: 24,
-              decoration: const BoxDecoration(color: V.ok, shape: BoxShape.circle),
-              child: const Icon(Icons.check_rounded, size: 15, color: V.bg),
-            )
-          else
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: needed ? V.pinkSoft : Colors.white24, width: 2),
-              ),
-            ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              style: VT.body(14, color: done ? V.text2 : V.text, weight: done ? FontWeight.w400 : FontWeight.w600),
-            ),
-          ),
-          if (tag != null) Text(tag, style: VT.label(12, color: needed ? V.pinkSoft : V.text2)),
-        ],
-      ),
-    );
     return _StateFrame(
-      label: 'Nobody can see you yet',
+      label: 'Add a photo to be seen',
       children: [
-        Center(
-          child: Semantics(
-            button: true,
-            label: 'Add a photo',
-            excludeSemantics: true,
-            child: GestureDetector(
-              onTap: onAddPhoto,
-              child: SizedBox(
-                width: 64,
-                height: 64,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: V.pink.withValues(alpha: 0.08),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: V.pinkSoft.withValues(alpha: 0.6), width: 2),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Icon(SolarIconsBold.user, size: 30, color: V.pinkSoft),
-                    ),
-                    Positioned(
-                      right: -4,
-                      bottom: -4,
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: V.pink,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: V.bg2, width: 3),
-                        ),
-                        child: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        ..._title('Nobody can see you ', 'yet', V.pinkSoft, 'Discover only shows people with a photo. Add one and others can see you — and like you back.').take(4),
-        const SizedBox(height: 16),
-        step(false, 'Add a clear photo of your face', tag: 'Needed', needed: true),
-        step(true, 'Name and age'),
-        const SizedBox(height: 12),
-        GradientButton(label: 'Add a photo', icon: SolarIconsBold.galleryAdd, onTap: onAddPhoto),
-        TextButton(
-          onPressed: onLookAround,
-          child: Text('Just look around for now', style: VT.label(14, color: V.text2)),
-        ),
+        const _StateIcon(SolarIconsBold.galleryAdd, tone: _Tone.violet),
+        ..._title('Add a photo ', 'to be seen', V.pinkSoft, 'Discover shows people with a photo. Add one of your face and others can find you here too. You can still look around.'),
+        GradientButton(label: 'Add a photo', icon: SolarIconsBold.camera, height: 54, onTap: onAddPhoto),
+        const SizedBox(height: 10),
+        GhostButton(label: 'Look around', height: 48, expand: true, onTap: onLookAround),
       ],
     );
   }
 }
 
-/// Nobody left: with filters on, which to drop; without, all caught up.
 class DeckEmpty extends StatelessWidget {
   const DeckEmpty({super.key, required this.filters, required this.onSetFilters, required this.onEditFilters, this.onMeetLive, this.notifyOn, this.onNotify});
   final DiscoverFilters filters;
@@ -411,10 +321,10 @@ class DeckEmpty extends StatelessWidget {
     return _StateFrame(
       label: "You're all caught up",
       children: [
-        const _StateIcon(Icons.done_all_rounded, tone: _Tone.pink),
-        ..._title("You're all caught up ", 'for now', V.pinkSoft, "You've seen everyone here. New people join all day — come back later, or meet someone live right now."),
-        if (onMeetLive != null) ...[GradientButton(label: 'Meet someone live', icon: SolarIconsBold.videocamera, onTap: onMeetLive), const SizedBox(height: 8)],
-        GhostButton(label: 'Change filters', icon: SolarIconsOutline.tuning, expand: true, onTap: onEditFilters),
+        const _StateIcon(SolarIconsBold.checkCircle, tone: _Tone.pink),
+        ..._title("You're all caught up ", 'for now', V.pinkSoft, "You've seen everyone who fits your filters. New people join all day."),
+        if (onMeetLive != null) ...[GradientButton(label: 'Meet someone live', icon: SolarIconsBold.videocamera, height: 54, onTap: onMeetLive), const SizedBox(height: 10)],
+        GhostButton(label: 'Change filters', icon: SolarIconsOutline.tuning, height: 48, expand: true, onTap: onEditFilters),
         if (notifyOn != null && onNotify != null) ...[
           const SizedBox(height: 10),
           if (notifyOn!)
@@ -437,10 +347,10 @@ class DeckEmpty extends StatelessWidget {
           else
             TextButton.icon(
               onPressed: () => onNotify!(true),
-              icon: const Icon(SolarIconsOutline.bell, size: 18, color: V.lavender),
+              icon: const Icon(SolarIconsOutline.bell, size: 17, color: V.lavender),
               label: Text(
                 'Tell me when new people join',
-                style: VT.label(14, color: V.lavender, weight: FontWeight.w600),
+                style: VT.label(13.5, color: V.lavender, weight: FontWeight.w600),
               ),
             ),
         ],
@@ -515,37 +425,45 @@ class WelcomeBackSheet extends StatelessWidget {
 
 /// No likes left today: when they come back, and the way to get more.
 class OutOfLikesBanner extends StatelessWidget {
-  const OutOfLikesBanner({super.key, required this.resetsAt, required this.onMore});
+  const OutOfLikesBanner({super.key, required this.resetsAt, required this.onMore, this.packSize = 30, this.packCost = 20});
   final DateTime? resetsAt;
   final VoidCallback onMore;
+  final int packSize;
+  final int packCost;
 
   @override
   Widget build(BuildContext context) {
+    final r = resetsAt?.toLocal();
+    final until = r == null ? null : TimeOfDay.fromDateTime(r).format(context);
     return Semantics(
       liveRegion: true,
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-        decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: V.pink.withValues(alpha: 0.3))),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(color: V.pink.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(18), border: Border.all(color: V.pink.withValues(alpha: 0.3))),
         child: Row(children: [
           Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(color: V.pink.withValues(alpha: 0.14), shape: BoxShape.circle),
-            child: const Icon(SolarIconsBold.heart, size: 18, color: V.pinkSoft),
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: V.pink.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(12)),
+            child: const Icon(SolarIconsOutline.clockCircle, size: 22, color: V.pinkSoft),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text("That's today's likes used up", style: VT.title(14, weight: FontWeight.w600)),
-              Text('Free likes back in ${resetsAt != null ? comesBackIn(resetsAt!) : 'the morning'} · you can still pass and Super Like', style: VT.body(12, color: V.text2)),
+              Text(until == null ? 'Out of likes for today' : 'Out of likes until $until', style: VT.title(14.5, weight: FontWeight.w700)),
+              Text('$packSize more for $packCost coins, or unlimited with VIP', style: VT.body(12, color: V.text2)),
             ]),
           ),
           const SizedBox(width: 8),
-          TextButton(
-            onPressed: onMore,
-            style: TextButton.styleFrom(backgroundColor: V.gold.withValues(alpha: 0.14), foregroundColor: V.gold, shape: const StadiumBorder(), minimumSize: const Size(0, 36), padding: const EdgeInsets.symmetric(horizontal: 12)),
-            child: Text('Get more', style: VT.label(12.5, color: V.gold, weight: FontWeight.w700)),
+          GestureDetector(
+            onTap: onMore,
+            child: Container(
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(gradient: V.brand, borderRadius: BorderRadius.circular(999)),
+              child: Center(widthFactor: 1, child: Text('Get more', style: VT.label(13, color: Colors.white, weight: FontWeight.w700))),
+            ),
           ),
         ]),
       ),
