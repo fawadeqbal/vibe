@@ -11,7 +11,6 @@ import { CircleIconButton } from "@/components/ui/button";
 import { HiddenNote } from "@/components/shared/hidden-note";
 import { Icon } from "@/components/ui/icon";
 import { KeyHint } from "@/components/ui/kbd";
-import { MenuButton } from "@/components/ui/menu";
 import { EmptyState } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
 import { errorMessage } from "@/lib/api/errors";
@@ -27,6 +26,7 @@ import { toast } from "@/stores/ui";
 import { CallButtons, CallsCard, callsMenuItems, useCallState } from "./chat-calls";
 import { EmojiPanel, openMessageMenu, PhotoMessage, preparePhoto, rememberEmoji, useHold, useVoiceRecorder, VoiceNote, voiceClock } from "./chat-tools";
 import { ChatDetails } from "./chat-details";
+import { ChatHello, openChatMore } from "./chat-sheets";
 import { StreakHeaderChip } from "./streak";
 
 type Panel = "none" | "emoji" | "plus";
@@ -47,6 +47,7 @@ export function ChatView({ friendId }: { friendId: string }) {
   const list = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const photoInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
   const [panel, setPanel] = useState<Panel>("none");
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -181,14 +182,21 @@ export function ChatView({ friendId }: { friendId: string }) {
           actions={
             <span className="flex items-center gap-1.5">
               {f.state === "friends" ? <CallButtons f={f} state={callState} /> : null}
-              <MenuButton
-                label="More"
-                items={[
-                  ...(f.state === "friends" ? callsMenuItems(f, callState) : []),
-                  { label: "Remove friend", onSelect: () => void useSocial.getState().remove(friendId).then(back) },
-                  { label: "Block", tone: "bad", onSelect: () => void useSocial.getState().block(p).then(back) },
-                ]}
-              />
+              <button
+                type="button"
+                aria-label="More"
+                onClick={() =>
+                  void openChatMore({
+                    f,
+                    callItems: f.state === "friends" ? callsMenuItems(f, callState) : [],
+                    onProfile: () => router.push(`/u/${friendId}`),
+                    onGone: back,
+                  })
+                }
+                className="flex size-10 items-center justify-center rounded-full text-text hover:bg-white/8"
+              >
+                <Icon name="more_horiz" size={22} />
+              </button>
             </span>
           }
         >
@@ -216,14 +224,23 @@ export function ChatView({ friendId }: { friendId: string }) {
         </AppBar>
 
         {!msgs?.length ? (
-          <EmptyState className="flex-1" icon="waving_hand" title="Say hi to " accent={p.name} body={`You met in a match. ${p.bio}`} />
+          <ChatHello
+            f={f}
+            onSend={(t) => {
+              void useSocial
+                .getState()
+                .sendMessage(friendId, t, null)
+                .catch((err) => toast(errorMessage(err), { error: true }));
+            }}
+          />
         ) : (
           <div ref={list} className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3 lg:px-7 lg:py-[18px]">
-            {msgs.map((m) => (
+            {msgs.map((m, i) => (
               <Bubble
                 key={m.id}
                 m={m}
                 f={f}
+                tail={endsRun(msgs, i)}
                 onHold={() => void onHold(m)}
                 onCallBack={
                   f.calls.mine && f.calls.theirs
@@ -332,13 +349,28 @@ export function ChatView({ friendId }: { friendId: string }) {
           {panel === "plus" ? (
             <div className="mt-3 grid grid-cols-4 gap-2">
               {e.chatPhotosEnabled !== 0 ? <Tool icon="image" label="Photo" tint="bg-info/16 text-info" onClick={() => photoInput.current?.click()} /> : null}
+              {e.chatPhotosEnabled !== 0 ? (
+                <Tool icon="photo_camera" label="Camera" tint="bg-trust/14 text-trust" onClick={() => cameraInput.current?.click()} />
+              ) : null}
               {e.chatVoiceNotesEnabled !== 0 ? (
                 <Tool icon="mic" label="Voice note" tint="bg-pink/16 text-pink-soft" onClick={() => void recordVoice()} />
               ) : null}
               <Tool icon="redeem" label="Gift" tint="bg-gold/14 text-gold" onClick={() => void gift()} />
-              <Tool icon="sentiment_satisfied" label="Emoji" tint="bg-violet/18 text-lavender" onClick={() => setPanel("emoji")} />
             </div>
           ) : null}
+          {panel === "plus" ? (
+            <p className="type-body mt-2.5 px-1 text-center text-[12px] text-muted">
+              Photos and voice notes go only to {first}. You can unsend for {e.chatUnsendMinutes || 10} minutes.
+            </p>
+          ) : null}
+          <input
+            ref={cameraInput}
+            type="file"
+            accept="image/*"
+            capture="user"
+            hidden
+            onChange={(ev) => void sendPhoto(ev.target.files?.[0] ?? undefined).then(() => (ev.target.value = ""))}
+          />
           <input
             ref={photoInput}
             type="file"
@@ -379,7 +411,13 @@ function canUnsend(m: ChatMessage, minutes: number): boolean {
 const previewOf = (m: { kind?: string; text: string; unsent?: boolean }) =>
   m.unsent ? "Message unsent" : m.kind === "photo" ? "📷 Photo" : m.kind === "voice" ? "🎤 Voice message" : m.text;
 
-function Bubble({ m, f, onHold, onCallBack }: { m: ChatMessage; f: Friend; onHold: () => void; onCallBack?: (video: boolean) => void }) {
+/** The last message of a run from one side (the next is the other side's, a system line, or nothing). */
+function endsRun(msgs: ChatMessage[], i: number): boolean {
+  const next = msgs[i + 1];
+  return !next || next.kind === "system" || next.fromMe !== msgs[i].fromMe;
+}
+
+function Bubble({ m, f, tail, onHold, onCallBack }: { m: ChatMessage; f: Friend; tail: boolean; onHold: () => void; onCallBack?: (video: boolean) => void }) {
   const hold = useHold(onHold);
   if (m.kind === "system") return <SystemLine m={m} onCallBack={onCallBack} />;
   const mine = m.fromMe;
@@ -389,12 +427,13 @@ function Bubble({ m, f, onHold, onCallBack }: { m: ChatMessage; f: Friend; onHol
   const first = f.profile.name.split(" ")[0];
   const reactions = [m.reactions?.theirs, m.reactions?.mine].filter((x): x is string => !!x);
   return (
-    <div className={cn("mb-1.5 flex flex-col", mine ? "items-end" : "items-start", reactions.length && "mb-3")}>
+    <div className={cn("flex flex-col", tail ? "mb-2.5" : "mb-1", mine ? "items-end" : "items-start pl-[34px]", reactions.length && "mb-3.5")}>
       <div
         {...(m.unsent || m.pending ? {} : hold)}
+        title={time(m.at)}
         className={cn(
-          "relative max-w-[78%] rounded-[18px] select-none",
-          mine ? "rounded-br-[6px]" : "rounded-bl-[6px]",
+          "relative max-w-[78%] rounded-[20px] select-none",
+          tail && (mine ? "rounded-br-[6px]" : "rounded-bl-[6px]"),
           m.unsent
             ? "border border-dashed border-white/16 px-3 py-2"
             : gift
@@ -402,8 +441,8 @@ function Bubble({ m, f, onHold, onCallBack }: { m: ChatMessage; f: Friend; onHol
               : m.kind === "photo"
                 ? "p-1"
                 : mine
-                  ? "bg-violet px-3 py-2"
-                  : "bg-surface2 px-3 py-2",
+                  ? "bg-gradient-to-br from-violet to-[#7c3aed] px-[13px] py-[9px]"
+                  : "bg-surface2 px-[13px] py-[9px]",
           m.kind === "photo" && (mine ? "bg-violet" : "bg-surface2"),
           m.pending && "opacity-70",
         )}
@@ -429,18 +468,19 @@ function Bubble({ m, f, onHold, onCallBack }: { m: ChatMessage; f: Friend; onHol
               <PhotoMessage url={url} w={Number(m.meta?.w) || undefined} h={Number(m.meta?.h) || undefined} mine={mine} pending={m.pending} />
             ) : null}
             {m.kind === "voice" && url ? <VoiceNote url={url} seconds={Number(m.meta?.seconds) || 0} mine={mine} /> : null}
-            {!media ? <p className={cn("type-body text-[15px] break-words", mine && !gift ? "text-white" : "text-text")}>{m.text}</p> : null}
+            {!media ? <p className={cn("type-body text-[14.5px] leading-[1.4] break-words", mine && !gift ? "text-white" : "text-text")}>{m.text}</p> : null}
           </>
         )}
-        <p
-          className={cn(
-            "type-label mt-0.5 text-[10px] font-medium",
-            m.kind === "photo" && "px-1.5 pb-0.5",
-            mine && !gift && !m.unsent ? "text-white/70" : "text-muted",
-          )}
-        >
-          {m.pending ? "Sending…" : time(m.at)}
-        </p>
+        {m.pending ? (
+          <p className={cn("type-label mt-0.5 text-[10px] font-medium", m.kind === "photo" && "px-1.5 pb-0.5", mine ? "text-white/70" : "text-muted")}>
+            Sending…
+          </p>
+        ) : null}
+        {!mine && tail ? (
+          <span className="absolute bottom-0 -left-[34px]">
+            <Avatar url={f.profile.avatarUrl} name={f.profile.name} size={26} />
+          </span>
+        ) : null}
         {reactions.length ? (
           <button
             type="button"

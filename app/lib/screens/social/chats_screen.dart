@@ -9,25 +9,41 @@ import '../../core/util/format.dart';
 import '../../models/models.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
-import '../invite/invite_screen.dart';
 import '../store/vip_screen.dart';
 import 'chat_screen.dart';
 import 'moments.dart';
 import 'streaks.dart';
 
-/// Your chats, and only chats: the "liked you" teaser for free users, then a
-/// calm, unboxed conversation list. Friend requests, sent requests and
-/// Messages from Vibe live on the Notifications page (the bell).
-class ChatsScreen extends StatelessWidget {
+/// Your chats: search, moments, friend requests (one row that opens the
+/// Notifications page, where you answer them), the "liked you" teaser for
+/// free users, then your friends in one rounded group. (Design: Chats.)
+class ChatsScreen extends StatefulWidget {
   const ChatsScreen({super.key, required this.onFindPeople});
   final VoidCallback onFindPeople;
+
+  @override
+  State<ChatsScreen> createState() => _ChatsScreenState();
+}
+
+class _ChatsScreenState extends State<ChatsScreen> {
+  final _search = TextEditingController();
+  String _q = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final social = context.watch<SocialProvider>();
     final wallet = context.watch<WalletProvider>();
-    final friends = social.friends;
-    final empty = friends.isEmpty;
+    final all = social.friends;
+    final q = _q.trim().toLowerCase();
+    final friends = q.isEmpty ? all : all.where((f) => f.profile.name.toLowerCase().contains(q)).toList();
+    final requests = social.incoming;
+    final empty = all.isEmpty;
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -36,19 +52,9 @@ class ChatsScreen extends StatelessWidget {
           children: [
             PageHeader(
               'Chats',
-              actions: [
-                const NotificationsBell(),
-                const SizedBox(width: 8),
-                CircleIconButton(
-                  icon: SolarIconsBold.userPlusRounded,
-                  iconSize: 20,
-                  background: V.surface2,
-                  tooltip: 'Invite friends',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InviteScreen())),
-                ),
-              ],
+              actions: const [NotificationsBell()],
             ),
-            const MomentsBar(),
+            if (empty) const MomentsBar(),
             Expanded(
               child: empty
                   ? Padding(
@@ -58,19 +64,32 @@ class ChatsScreen extends StatelessWidget {
                         title: 'No friends ',
                         accent: 'yet',
                         body: 'Tap Add during a match. When they accept, you can keep talking here — text and gifts, any time.',
-                        action: GradientButton(label: 'Find people', icon: SolarIconsBold.videocamera, expand: false, onTap: onFindPeople),
+                        action: GradientButton(label: 'Find people', icon: SolarIconsBold.videocamera, expand: false, onTap: widget.onFindPeople),
                       ),
                     )
                   : ListView(
                       // Clear the floating dock (its height arrives as bottom padding).
-                      padding: EdgeInsets.fromLTRB(20, 0, 20, 32 + MediaQuery.paddingOf(context).bottom),
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 32 + MediaQuery.paddingOf(context).bottom),
                       children: [
-                        if (!wallet.isVip && social.likedYouCount > 0) ...[
-                          const SizedBox(height: 4),
-                          _LikedTeaser(people: social.likedYou, count: social.likedYouCount),
+                        _SearchField(controller: _search, onChanged: (v) => setState(() => _q = v)),
+                        if (q.isEmpty) ...[
+                          const SizedBox(height: 14),
+                          const MomentsBar(padding: EdgeInsets.zero),
+                          if (requests.isNotEmpty) ...[const SizedBox(height: 14), _RequestsRow(requests: requests)],
+                          if (!wallet.isVip && social.likedYouCount > 0) ...[
+                            const SizedBox(height: 14),
+                            _LikedTeaser(people: social.likedYou, count: social.likedYouCount),
+                          ],
                         ],
-                        SectionTitle('Friends · ${friends.length}', top: !wallet.isVip && social.likedYouCount > 0 ? 26 : 4, bottom: 4),
-                        for (var i = 0; i < friends.length; i++) _FriendRow(f: friends[i], last: i == friends.length - 1),
+                        SectionTitle(q.isEmpty ? 'Friends · ${all.length}' : '${friends.length} ${friends.length == 1 ? 'match' : 'matches'}', top: 22, bottom: 10),
+                        if (friends.isEmpty)
+                          Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text('No friend called “${_q.trim()}”.', style: VT.body(13.5, color: V.muted)))
+                        else
+                          Container(
+                            clipBehavior: Clip.antiAlias,
+                            decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: V.line)),
+                            child: Column(children: [for (var i = 0; i < friends.length; i++) _FriendRow(f: friends[i], last: i == friends.length - 1)]),
+                          ),
                       ],
                     ),
             ),
@@ -81,6 +100,115 @@ class ChatsScreen extends StatelessWidget {
   }
 }
 
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller, required this.onChanged});
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: V.line)),
+      child: Row(
+        children: [
+          const Icon(Icons.search_rounded, size: 21, color: V.muted),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              style: VT.body(15),
+              cursorColor: V.pink,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(hintText: 'Search chats', hintStyle: VT.body(15, color: V.muted), filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+            ),
+          ),
+          if (controller.text.isNotEmpty)
+            IconButton(
+              tooltip: 'Clear search',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close_rounded, size: 18, color: V.muted),
+              onPressed: () {
+                controller.clear();
+                onChanged('');
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One row for incoming friend requests; you answer them on the Notifications page.
+class _RequestsRow extends StatelessWidget {
+  const _RequestsRow({required this.requests});
+  final List<Friend> requests;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = requests.length;
+    final first = requests.first.profile.name.split(' ').first;
+    return Semantics(
+      button: true,
+      label: 'Friend requests, $n waiting',
+      excludeSemantics: true,
+      child: Material(
+        color: V.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: const BorderSide(color: V.line)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: Stack(
+                    children: [
+                      Positioned(left: 0, top: 0, child: VAvatar(url: requests[0].profile.avatarUrl, name: requests[0].profile.name, size: 40)),
+                      if (n > 1)
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: V.surface, width: 2)),
+                            child: VAvatar(url: requests[1].profile.avatarUrl, name: requests[1].profile.name, size: 40),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Friend requests', style: VT.title(15.5, weight: FontWeight.w600)),
+                      Text(n == 1 ? '$first wants to be friends' : '$first and ${n - 1} more want to be friends', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(13, color: V.text2)),
+                    ],
+                  ),
+                ),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 22),
+                  height: 22,
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: V.pink, borderRadius: BorderRadius.circular(11)),
+                  child: Text(n > 99 ? '99+' : '$n', style: VT.label(12, color: Colors.white, weight: FontWeight.w700)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _LikedTeaser extends StatelessWidget {
   const _LikedTeaser({required this.people, required this.count});
@@ -134,14 +262,15 @@ class _FriendRow extends StatelessWidget {
     final msgs = social.messages(f.profile.id);
     final at = msgs.isEmpty ? f.since : msgs.last.at;
     final unread = f.unread > 0;
+    final typing = context.select<SocialProvider, bool>((s) => s.isTyping(f.profile.id));
     return InkWell(
       onTap: () {
         social.markRead(f.profile.id);
         Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: f.profile.id)));
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(border: last ? null : const Border(bottom: BorderSide(color: V.lineSoft))),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        foregroundDecoration: last ? null : const _InsetDivider(82),
         child: Row(
           children: [
             Stack(
@@ -165,9 +294,9 @@ class _FriendRow extends StatelessWidget {
                       Expanded(
                         child: Row(
                           children: [
-                            Flexible(child: Text(f.profile.name, style: VT.title(16, weight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                            Flexible(child: Text(f.profile.name, style: VT.title(15.5, weight: unread ? FontWeight.w700 : FontWeight.w600), overflow: TextOverflow.ellipsis)),
                             if (f.profile.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.verifiedCheck, size: 15, color: V.trust)),
-                            if (f.streak.count > 0) Padding(padding: const EdgeInsets.only(left: 6), child: StreakChip(streak: f.streak)),
+                            if (f.streak.count > 0) Padding(padding: const EdgeInsets.only(left: 6), child: StreakFlame(streak: f.streak)),
                           ],
                         ),
                       ),
@@ -184,10 +313,10 @@ class _FriendRow extends StatelessWidget {
                       ] else
                         Expanded(
                           child: Text(
-                            f.lastMessage ?? 'Say hi 👋',
+                            typing ? 'typing…' : (f.lastMessage ?? 'Say hi 👋'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: VT.body(14, color: unread ? V.text : V.text2, weight: unread ? FontWeight.w500 : FontWeight.w400),
+                            style: VT.body(13, color: typing ? V.ok : (unread ? V.text : V.text2), weight: typing || unread ? FontWeight.w600 : FontWeight.w400),
                           ),
                         ),
                       if (unread)
@@ -214,3 +343,21 @@ class _FriendRow extends StatelessWidget {
 
 /// Pinned row for "Messages from Vibe" (the team's messages from the admin
 /// panel), above friend requests.
+
+/// A hairline under a row, starting after the avatar (rows in a group).
+class _InsetDivider extends Decoration {
+  const _InsetDivider(this.left);
+  final double left;
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) => _InsetDividerPainter(left);
+}
+
+class _InsetDividerPainter extends BoxPainter {
+  _InsetDividerPainter(this.left);
+  final double left;
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size!;
+    canvas.drawRect(Rect.fromLTWH(offset.dx + left, offset.dy + size.height - 1, size.width - left, 1), Paint()..color = V.lineSoft);
+  }
+}

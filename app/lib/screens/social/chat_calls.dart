@@ -183,8 +183,8 @@ class CallButton extends StatelessWidget {
             child: Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.06), border: Border.all(color: Colors.white.withValues(alpha: 0.12))),
-              child: const Icon(SolarIconsBold.phone, size: 19, color: V.text),
+              alignment: Alignment.center,
+              child: const Icon(SolarIconsBold.phone, size: 21, color: V.text),
             ),
           ),
         ),
@@ -199,8 +199,8 @@ class CallButton extends StatelessWidget {
               child: Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(gradient: V.brand, shape: BoxShape.circle, boxShadow: [BoxShadow(color: V.pink.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))]),
-                child: const Icon(SolarIconsBold.videocamera, size: 20, color: Colors.white),
+                alignment: Alignment.center,
+                child: const Icon(SolarIconsBold.videocamera, size: 22, color: V.text),
               ),
             ),
           ),
