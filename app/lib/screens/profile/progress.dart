@@ -334,3 +334,65 @@ Future<void> showLevelUpSheet(BuildContext context, int level) {
     ),
   );
 }
+
+/// Badges as a grid of round tiles (the first eight); earned ones lit. (Design: Progress & badges.)
+class BadgeGrid extends StatelessWidget {
+  const BadgeGrid({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.watch<EngagementProvider>().progress;
+    if (p == null || p.badges.isEmpty) return const SizedBox.shrink();
+    final list = ([...p.badges]..sort((a, b) => (a.earned == b.earned) ? 0 : (a.earned ? -1 : 1))).take(8).toList();
+    final earned = p.badges.where((b) => b.earned).length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionTitle('Badges · $earned of ${p.badges.length}', top: 26, bottom: 10, action: 'All badges', onAction: () => showBadgesSheet(context, p)),
+        Panel(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
+          child: Wrap(
+            runSpacing: 16,
+            children: [
+              for (final b in list)
+                FractionallySizedBox(
+                  widthFactor: 0.25,
+                  child: Column(
+                    children: [
+                      BadgeMedal(badge: b, size: 54, locked: !b.earned),
+                      const SizedBox(height: 6),
+                      Text(b.name, textAlign: TextAlign.center, maxLines: 2, style: VT.label(12, color: b.earned ? V.text : V.muted)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Where XP comes from, with the live numbers.
+class HowToEarnXp extends StatelessWidget {
+  const HowToEarnXp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget row(IconData icon, Color c, String title, String sub) => GroupRow(icon: icon, iconColor: c, iconBg: c.withValues(alpha: 0.13), title: title, subtitle: sub);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionTitle('How to earn XP', top: 26, bottom: 10),
+        GroupCard(
+          children: [
+            row(SolarIconsBold.videocamera, V.pink, 'Good calls', 'Calls that last over a minute · +${Economy.xpPerGoodCall} XP'),
+            row(SolarIconsBold.heart, V.pink, 'Likes you get', '+${Economy.xpPerLikeReceived} XP each'),
+            row(SolarIconsBold.gift, V.gold, 'Gifts', 'Gifts you receive · +${Economy.xpPerGiftReceived} XP'),
+            row(SolarIconsBold.fire, V.pinkSoft, 'Streaks', 'Talk with a friend every day · +${Economy.xpPerStreakDay} XP'),
+          ],
+        ),
+      ],
+    );
+  }
+}
