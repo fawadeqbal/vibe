@@ -159,13 +159,39 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
     }
   }, []);
 
+  /** Ended card: Like back. */
+  const likeLast = useCallback(async () => {
+    if (await useMatch.getState().likeLast()) return;
+    const m = useMatch.getState();
+    if (m.lastError) toast(m.lastError, { error: true });
+  }, []);
+
+  /** Ended card: Send a gift to the person you just left. */
+  const giftLast = useCallback(async () => {
+    const p = useMatch.getState().lastPartner;
+    if (!p) return;
+    const g = await pickGift(p.name);
+    if (!g) return;
+    if (await useMatch.getState().giftLast(g)) {
+      onGiftSent(g);
+      toast(`${g.name} sent to ${p.name}`);
+      return;
+    }
+    const m = useMatch.getState();
+    if (m.needsCoins) await needCoins(`A ${g.name} costs ${g.coins} coins.`);
+    else if (m.lastError) toast(m.lastError, { error: true });
+  }, [needCoins, onGiftSent]);
+
   const reconnect = useCallback(async () => {
     const ended = useMatch.getState().ended;
     const cost = ended?.reconnectCost ?? economy().reconnectCost;
     if (!(await useMatch.getState().reconnect())) await explainFailure(freeReconnectLeft(ended?.freeReconnectUntil ?? null) > 0 ? "Reconnecting is free right now — try again." : `Reconnecting costs ${cost} coins.`);
   }, [explainFailure]);
 
-  return useMemo(() => ({ start, next, gift, addFriend, addLastFriend, report, reportLast, reconnect }), [start, next, gift, addFriend, addLastFriend, report, reportLast, reconnect]);
+  return useMemo(
+    () => ({ start, next, gift, addFriend, addLastFriend, likeLast, giftLast, report, reportLast, reconnect }),
+    [start, next, gift, addFriend, addLastFriend, likeLast, giftLast, report, reportLast, reconnect],
+  );
 }
 
 /** Asks before spending on a boost (or using a free one); shared by the lobby and the search. */

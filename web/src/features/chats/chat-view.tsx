@@ -152,7 +152,7 @@ export function ChatView({ friendId }: { friendId: string }) {
       } else if (a.kind === "unsend") {
         await useSocial.getState().unsend(friendId, m.id);
       } else if (a.kind === "report") {
-        const choice = await pickReport(p.name);
+        const choice = await pickReport(p.name, "person");
         if (!choice) return;
         await useFollows.getState().report(friendId, choice);
         toast(`Thanks. ${first} was reported${choice.block ? " and blocked" : ""}.`);

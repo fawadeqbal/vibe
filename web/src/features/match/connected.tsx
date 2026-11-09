@@ -2,7 +2,6 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
-import { LevelChip } from "@/components/shared/level-chip";
 import { VideoView } from "@/components/shared/video-view";
 import { Avatar } from "@/components/ui/avatar";
 import { VideoScrims } from "@/components/ui/brand";
@@ -10,13 +9,12 @@ import { Glass, GlassPill, RoundControl } from "@/components/ui/glass";
 import { HiddenNote } from "@/components/shared/hidden-note";
 import { Icon } from "@/components/ui/icon";
 import { CoinAmount } from "@/components/ui/money";
-import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { alpha } from "@/lib/colors";
 import { cn } from "@/lib/cn";
 import { clock } from "@/lib/format";
 import type { FriendState, Profile } from "@/lib/models";
 import { useNow } from "@/hooks/use-now";
-import { FollowPill, openUserProfileSheet } from "@/features/profile/user-profile";
+import { openUserProfileSheet } from "@/features/profile/user-profile";
 import { useCatalog } from "@/stores/catalog";
 import { cooldownSeconds, mutualLike, useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
@@ -63,65 +61,34 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
       {m.friendCall ? (
         <>
           <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn && !m.voiceCall} />
-          <VideoScrims top={220} bottom={460} topAlpha={0.75} bottomAlpha={0.92} bottomMid={0.6} />
+          <VideoScrims top={200} bottom={380} topAlpha={0.65} bottomAlpha={0.9} bottomMid={0.55} />
         </>
       ) : (
         <SwipeStage onNext={swipeNext} onLike={doubleTapLike}>
           <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn && !m.voiceCall} />
-          <VideoScrims top={220} bottom={460} topAlpha={0.75} bottomAlpha={0.92} bottomMid={0.6} />
+          <VideoScrims top={200} bottom={380} topAlpha={0.65} bottomAlpha={0.9} bottomMid={0.55} />
         </SwipeStage>
       )}
 
-      {/* Top: who, timer, report. */}
-      <div className="absolute inset-x-0 top-0 flex items-center gap-2 px-3 pt-[calc(10px+env(safe-area-inset-top))]">
-        <button type="button" aria-label={`Open ${p.name}'s profile`} onClick={() => void openUserProfileSheet(p.id, { inCall: true })} className="flex min-w-0 shrink text-left">
-        <Glass radius={24} className="flex min-w-0 shrink items-center bg-bg2/45 py-[5px] pr-3.5 pl-[5px]">
-          <Avatar url={p.avatarUrl} name={p.name} size={36} />
-          <span className="ml-2.5 flex min-w-0 flex-col">
-            <span className="flex min-w-0 items-center">
-              <span className="type-title truncate text-[15px] font-semibold">
-                {p.name}, {p.age}
-              </span>
-              {p.verified ? <Icon name="verified" size={16} className="ml-1 text-trust" label="Verified" /> : null}
-              {p.vip ? <Icon name="workspace_premium" size={15} className="ml-1 text-gold" label="VIP" /> : null}
-            </span>
-            <span className="flex min-w-0 items-center">
-              <span className="type-body truncate text-[11.5px] leading-[1.2] text-white/72">
-                {p.country.flag} {p.country.name}
-              </span>
-              <LevelChip level={p.level} glass className="ml-1.5 h-4 text-[10px]" />
-            </span>
-          </span>
-        </Glass>
-        </button>
-        <Glass radius={16} className="flex h-8 shrink-0 items-center bg-bg2/45 px-2.5 py-0">
-          <span className="size-1.5 rounded-full bg-bad" />
-          <span className="type-mono ml-1.5 text-[12px] text-text">{clock(m.elapsed)}</span>
-        </Glass>
-        <span className="flex-1" />
-        <FollowPill userId={p.id} />
-        <GlassPill label="Report" icon="flag" tint="bad" height={36} onClick={actions.report} className="shrink-0" />
-      </div>
+      <CallTop partner={p} elapsed={m.elapsed} onReport={actions.report} />
 
-      {/* Openers and likes, under the identity pill. */}
-      <div className="absolute left-3 flex flex-col items-start gap-2" style={{ top: "calc(64px + env(safe-area-inset-top))", right: 122 }}>
+      {/* What you share and who liked whom, under the name. */}
+      <div className="absolute left-3 flex flex-col items-start gap-2" style={{ top: "calc(72px + env(safe-area-inset-top))", right: 120 }}>
         {opener ? <GlassPill label={opener} icon="interests" iconColor="lavender" height={30} fontSize={12} /> : null}
         {likeText ? <GlassPill label={likeText} icon="favorite" iconColor="pink-soft" tint="pink" height={30} fontSize={12} /> : null}
         <PartnerMediaPills name={p.name} />
       </div>
 
-      {/* You, picture-in-picture. */}
       <SelfPip />
 
-      {/* Bottom: chat, the icebreaker, controls, composer. */}
-      <div className="absolute inset-x-3 bottom-[calc(16px+env(safe-area-inset-bottom))] mx-auto max-w-[560px]">
-        <ChatOverlay partnerName={p.name} compact={!!m.game} />
-        {m.game ? (
-          <div className="mt-2.5">
-            <GameCard game={m.game} partnerName={p.name} />
-          </div>
-        ) : null}
-        {m.friendCall ? (
+      {m.friendCall ? (
+        <div className="absolute inset-x-3 bottom-[calc(16px+env(safe-area-inset-bottom))] mx-auto max-w-[560px]">
+          <ChatOverlay partnerName={p.name} compact={!!m.game} />
+          {m.game ? (
+            <div className="mt-2.5">
+              <GameCard game={m.game} partnerName={p.name} />
+            </div>
+          ) : null}
           <div className="mt-3.5 flex items-end justify-center gap-6 px-1">
             <RoundControl icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
             <RoundControl icon="casino" iconColor={m.game ? "lavender" : "white"} tint={m.game ? "violet" : undefined} onClick={() => void playGame()} label="Play" />
@@ -131,29 +98,83 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
               </span>
               <span className="type-label mt-1.5 text-[11px] font-semibold text-white/85">End</span>
             </button>
-            <RoundControl icon="more_horiz" onClick={() => void openCallOptions()} label="More" />
+            <RoundControl icon="more_horiz" onClick={() => void openCallOptions(actions)} label="More" />
           </div>
-        ) : (
-        <div className="mt-3.5 flex items-end justify-between px-1">
-          <RoundControl
-            icon={m.likedPartner ? "favorite" : "favorite_border"}
-            iconColor={m.likedPartner ? "pink" : "white"}
-            tint={m.likedPartner ? "pink" : undefined}
-            onClick={m.like}
-            label={m.likedPartner ? "Liked" : "Like"}
-          />
-          <RoundControl icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
-          <NextButton onClick={actions.next} />
-          <RoundControl icon="casino" iconColor={m.game ? "lavender" : "white"} tint={m.game ? "violet" : undefined} onClick={() => void playGame()} label="Play" />
-          <FriendControl state={friendState} onAdd={actions.addFriend} />
-          <RoundControl icon="more_horiz" onClick={() => void openCallOptions()} label="More" />
+          <div className="mt-3.5">
+            <Composer partnerName={p.name} />
+          </div>
         </div>
-        )}
-        <Composer />
-      </div>
+      ) : (
+        <>
+          {/* The rail: everything you can do for this person, one thumb away. */}
+          <div className="absolute right-3 flex flex-col gap-3.5 bottom-[calc(112px+env(safe-area-inset-bottom))]">
+            <RoundControl
+              size={50}
+              icon={m.likedPartner ? "favorite" : "favorite_border"}
+              iconColor={m.likedPartner ? "pink" : "white"}
+              tint={m.likedPartner ? "pink" : undefined}
+              onClick={m.like}
+              label={m.likedPartner ? "Liked" : "Like"}
+            />
+            <FriendControl state={friendState} onAdd={actions.addFriend} />
+            <RoundControl size={50} icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
+            <RoundControl size={50} icon="casino" iconColor={m.game ? "lavender" : "white"} tint={m.game ? "violet" : undefined} onClick={() => void playGame()} label="Play" />
+            <RoundControl size={50} icon="more_horiz" onClick={() => void openCallOptions(actions)} label="More" />
+          </div>
+
+          {/* Chat and a game, bottom left, clear of the rail. */}
+          <div className="absolute left-3 flex flex-col gap-2.5 bottom-[calc(96px+env(safe-area-inset-bottom))]" style={{ right: 84 }}>
+            {m.game ? <GameCard game={m.game} partnerName={p.name} /> : null}
+            <ChatOverlay partnerName={p.name} compact={!!m.game} />
+          </div>
+
+          <div className="absolute inset-x-3 flex items-center gap-2.5 bottom-[calc(22px+env(safe-area-inset-bottom))]">
+            <Composer partnerName={p.name} />
+            <NextButton onClick={actions.next} />
+          </div>
+        </>
+      )}
 
       {hint ? <SwipeHint onDone={doneHint} /> : null}
       {m.mutual && m.current && !m.friendCall ? <MutualCelebration key={m.current.id} matchId={m.current.id} friendState={friendState} onAddFriend={actions.addFriend} /> : null}
+    </div>
+  );
+}
+
+/** Top: who you're with (opens their profile), how long, and Report. */
+function CallTop({ partner: p, elapsed, onReport }: { partner: Profile; elapsed: number; onReport: () => void }) {
+  return (
+    <div className="absolute inset-x-0 top-0 flex items-center gap-2 px-3 pt-[calc(12px+env(safe-area-inset-top))]">
+      <button type="button" aria-label={`Open ${p.name}'s profile`} onClick={() => void openUserProfileSheet(p.id, { inCall: true })} className="flex min-w-0 shrink text-left">
+        <Glass radius={999} blur={18} className="flex h-[46px] min-w-0 items-center gap-2 border-white/10 bg-bg2/52 py-0 pr-3.5 pl-1.5">
+          <Avatar url={p.avatarUrl} name={p.name} size={34} />
+          <span className="flex min-w-0 flex-col">
+            <span className="flex min-w-0 items-center gap-1">
+              <span className="truncate text-[14.5px] font-bold">
+                {p.name}, {p.age}
+              </span>
+              {p.verified ? <Icon name="verified" size={15} className="shrink-0 text-trust" label="Verified" /> : null}
+              {p.vip ? <Icon name="workspace_premium" size={15} className="shrink-0 text-gold" label="VIP" /> : null}
+            </span>
+            <span className="truncate text-[11.5px] leading-[1.2] text-white/75">
+              {p.country.name} · Level {p.level}
+            </span>
+          </span>
+        </Glass>
+      </button>
+      <Glass radius={999} blur={18} className="flex h-8 shrink-0 items-center gap-1.5 border-white/10 bg-bg2/52 px-2.5 py-0">
+        <span className="size-[7px] rounded-full bg-bad" />
+        <span className="type-mono text-[12.5px] text-text">{clock(elapsed)}</span>
+      </Glass>
+      <span className="flex-1" />
+      <button
+        type="button"
+        onClick={onReport}
+        aria-label="Report"
+        className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-bg2/52 text-bad backdrop-blur-[18px] transition-[filter] hover:brightness-125"
+      >
+        <Icon name="flag" size={21} />
+      </button>
     </div>
   );
 }
@@ -238,64 +259,73 @@ function SelfPip() {
   const micOn = useMatch((s) => s.micOn);
   const front = useMatch((s) => s.frontCamera);
   const blurred = useMatch((s) => s.blurred);
+  const me = useSession((s) => s.me);
   return (
     <div
-      className="absolute right-3 h-[140px] w-[100px] overflow-hidden rounded-[20px] border-[1.5px] border-white/28 bg-surface2 shadow-[0_12px_35.6px_rgb(0_0_0/.4)] lg:h-[180px] lg:w-[130px]"
-      style={{ top: "calc(64px + env(safe-area-inset-top))" }}
+      className="absolute right-3 h-[136px] w-[96px] overflow-hidden rounded-[18px] border-2 border-white/22 bg-surface2 shadow-[0_8px_24px_rgb(0_0_0/.4)] lg:h-[180px] lg:w-[128px]"
+      style={{ top: "calc(70px + env(safe-area-inset-top))" }}
     >
       {stream && camOn ? (
         <VideoView stream={stream} mirror={front} />
+      ) : me?.avatarUrl ? (
+        // Camera off: they see your photo, so you do too.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={me.avatarUrl} alt="You" className="absolute inset-0 size-full object-cover opacity-70" />
       ) : (
         <span className="absolute inset-0 flex items-center justify-center">
           <Icon name="videocam_off" className="text-muted" />
         </span>
       )}
       {blurred ? <span className="absolute inset-0" style={{ backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }} /> : null}
-      <button type="button" onClick={() => useMatch.getState().toggleMic()} aria-label={micOn ? "Mute microphone" : "Unmute"} className="absolute bottom-1.5 left-1.5">
-        <Glass radius={12} className="flex size-6 items-center justify-center border-transparent bg-bg2/55 p-0">
-          <Icon name={micOn ? "mic" : "mic_off"} size={14} className={micOn ? "text-white" : "text-bad"} />
-        </Glass>
-      </button>
+      {!micOn ? (
+        <button type="button" onClick={() => useMatch.getState().toggleMic()} aria-label="Unmute microphone" className="absolute bottom-1.5 left-1.5 flex size-6 items-center justify-center rounded-full bg-bg2/70">
+          <Icon name="mic_off" size={14} className="text-bad" />
+        </button>
+      ) : null}
     </div>
   );
 }
 
+/** Next, as a pill beside the composer. In a cooldown it counts down and offers the skip. */
 function NextButton({ onClick }: { onClick: () => void }) {
   const cooldownUntil = useMatch((s) => s.cooldownUntil);
   const bypass = useCatalog((s) => s.economy.skipCooldownBypassCost);
   const now = useNow(250, cooldownUntil != null);
   const cd = cooldownSeconds({ cooldownUntil }, now);
-  return (
-    <button type="button" onClick={onClick} aria-label={cd > 0 ? `Next, wait ${cd} seconds or skip for ${bypass} coins` : "Next person"} className="group flex flex-col items-center">
-      <span
-        className={cn("flex size-[76px] items-center justify-center rounded-full transition-[filter] group-hover:brightness-110", cd > 0 ? "" : "bg-brand")}
-        style={
-          cd > 0
-            ? { backgroundImage: "linear-gradient(90deg, #2E2840, #241F31)", boxShadow: "0 12px 35.6px rgb(0 0 0 / .42)" }
-            : { boxShadow: "0 12px 35.6px rgb(255 61 143 / .42)" }
-        }
+  if (cd > 0) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={`Next in ${cd} seconds, or skip the wait for ${bypass} coins`}
+        className="flex h-[52px] shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-surface3/90 pr-4 pl-3.5 text-[14px] font-bold text-white transition-[filter] hover:brightness-125"
       >
-        {cd > 0 ? <span className="type-number-lg text-[20px] text-white">{cd}s</span> : <Icon name="skip_next" size={38} className="text-white" />}
-      </span>
-      <span className="mt-1.5 flex items-center">
-        {cd > 0 ? (
-          <>
-            <span className="type-label text-[11px] whitespace-pre text-white/85">Skip · </span>
-            <CoinAmount amount={bypass} size={11} />
-          </>
-        ) : (
-          <span className="type-label text-[11px] text-white/85">Next</span>
-        )}
-      </span>
+        <span className="type-mono text-[15px]">{cd}s</span>
+        <span className="text-white/60">·</span>
+        <span>Skip</span>
+        <CoinAmount amount={bypass} size={13} />
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Next person"
+      className="flex h-[52px] shrink-0 items-center gap-1 rounded-full bg-brand pr-5 pl-3.5 text-[15px] font-bold text-white shadow-[0_10px_26px_rgb(255_61_143/0.4)] transition-[filter] hover:brightness-110"
+    >
+      <Icon name="skip_next" size={26} />
+      Next
     </button>
   );
 }
 
 function FriendControl({ state, onAdd }: { state: FriendState; onAdd: () => void }) {
   const icon = state === "friends" ? "how_to_reg" : state === "requested" ? "hourglass_top" : "person_add";
-  const label = state === "friends" ? "Friends" : state === "requested" ? "Sent" : state === "incoming" ? "Accept" : "Add";
+  const label = state === "friends" ? "Friends" : state === "requested" ? "Sent" : state === "incoming" ? "Accept" : "Add friend";
   return (
     <RoundControl
+      size={50}
       icon={icon}
       label={label}
       onClick={state === "none" || state === "incoming" ? onAdd : undefined}
@@ -305,7 +335,7 @@ function FriendControl({ state, onAdd }: { state: FriendState; onAdd: () => void
   );
 }
 
-/** The in-match chat, fading out at the top edge. */
+/** The in-call chat: frosted bubbles, the sender's name first, fading at the top. */
 function ChatOverlay({ partnerName, compact = false }: { partnerName: string; compact?: boolean }) {
   const chat = useMatch((s) => s.chat);
   const list = useRef<HTMLDivElement>(null);
@@ -316,86 +346,121 @@ function ChatOverlay({ partnerName, compact = false }: { partnerName: string; co
   return (
     <div
       ref={list}
-      className={cn("no-scrollbar flex flex-col gap-1.5 overflow-y-auto", compact ? "max-h-[84px]" : "max-h-[168px]")}
+      role="log"
+      aria-label="Chat"
+      className={cn("no-scrollbar flex flex-col items-start gap-1.5 overflow-y-auto", compact ? "max-h-[84px]" : "max-h-[168px]")}
       style={{ maskImage: "linear-gradient(to bottom, transparent 0, black 18%)", WebkitMaskImage: "linear-gradient(to bottom, transparent 0, black 18%)" }}
     >
-      {chat.map((c) => {
-        const text = c.gift ? `${c.gift.emoji}  ${c.text}` : c.text;
-        return c.fromMe ? (
-          <div key={c.id} className="flex flex-col items-end">
-            <p
-              className="type-body max-w-[72%] rounded-[18px] rounded-br-[6px] px-3 py-2 text-[14px] leading-[1.35] text-white"
-              style={{ backgroundColor: c.gift ? alpha("gold", 0.28) : alpha("violet", 0.6) }}
-            >
-              {text}
-            </p>
-            {c.hidden ? <HiddenNote className="text-white/80 [text-shadow:0_1px_3px_rgb(0_0_0/0.6)]" /> : null}
-          </div>
-        ) : (
-          <div key={c.id} className="flex justify-start">
-            <div
-              className="max-w-[72%] rounded-[18px] rounded-bl-[6px] border border-white/10 px-3 py-2"
-              style={{ backgroundColor: c.gift ? alpha("gold", 0.2) : "var(--color-glass)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}
-            >
-              <p className="type-label text-[11px] text-pink-soft">{partnerName}</p>
-              <p className="type-body text-[14px] leading-[1.35] text-white">{text}</p>
-            </div>
-          </div>
-        );
-      })}
+      {chat.map((c) => (
+        <div key={c.id} className="flex max-w-[250px] flex-col items-start">
+          <p
+            className="rounded-2xl px-3 py-[7px] text-[13.5px] leading-[1.35] text-white"
+            style={{
+              backgroundColor: c.gift ? alpha("gold", 0.28) : c.fromMe ? "rgb(139 92 246 / .55)" : "rgb(18 16 26 / .55)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+            }}
+          >
+            <b className={cn("font-bold", c.fromMe ? "text-white" : "text-pink-soft")}>{c.fromMe ? "You" : partnerName}</b> {c.gift ? `${c.gift.emoji} ${c.text}` : c.text}
+          </p>
+          {c.hidden ? <HiddenNote className="text-white/80 [text-shadow:0_1px_3px_rgb(0_0_0/0.6)]" /> : null}
+        </div>
+      ))}
     </div>
   );
 }
 
-function Composer() {
+/** Quick reactions behind the smile: one tap sends. */
+export const QUICK_REACTIONS = ["👋", "😂", "😍", "🔥", "👍", "🙏"];
+
+function Composer({ partnerName }: { partnerName: string }) {
   const [text, setText] = useState("");
-  const send = (e?: FormEvent) => {
+  const [quick, setQuick] = useState(false);
+  const send = (e?: FormEvent, value = text) => {
     e?.preventDefault();
-    useMatch.getState().sendMessage(text);
+    if (!value.trim()) return;
+    useMatch.getState().sendMessage(value);
     setText("");
+    setQuick(false);
   };
   return (
-    <form onSubmit={send} className="mt-3.5">
-      <Glass radius={26} className="flex h-[52px] items-center border-white/14 py-0 pr-1.5 pl-[18px]">
+    <form onSubmit={send} className="relative min-w-0 flex-1">
+      {quick ? (
+        <div role="menu" aria-label="Quick reactions" className="absolute bottom-[60px] left-0 flex gap-1 rounded-full border border-white/10 bg-bg2/80 p-1.5 backdrop-blur-[18px]">
+          {QUICK_REACTIONS.map((r) => (
+            <button key={r} type="button" role="menuitem" aria-label={`Send ${r}`} onClick={() => send(undefined, r)} className="flex size-10 items-center justify-center rounded-full text-[22px] hover:bg-white/10">
+              {r}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <label className="flex h-[52px] items-center gap-2 rounded-full border border-white/10 bg-bg2/52 pr-2 pl-[18px] backdrop-blur-[18px]">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Say something…"
-          aria-label="Message"
+          aria-label={`Message ${partnerName}`}
           enterKeyHint="send"
           className="type-body min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none placeholder:text-white/55"
         />
-        <button type="submit" aria-label="Send" className="ml-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-violet text-white transition-[filter] hover:brightness-110">
-          <Icon name="send" size={19} />
-        </button>
-      </Glass>
+        {text.trim() ? (
+          <button type="submit" aria-label="Send" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-violet text-white transition-[filter] hover:brightness-110">
+            <Icon name="send" size={18} />
+          </button>
+        ) : (
+          <button type="button" aria-label="Quick reactions" aria-expanded={quick} onClick={() => setQuick((q) => !q)} className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/75 hover:text-white">
+            <Icon name="face" variant="outlined" size={22} />
+          </button>
+        )}
+      </label>
     </form>
   );
 }
 
-/** "More": mute, camera, switch, block, end. */
-function openCallOptions() {
-  return openSheet<void>((close) => <CallOptions onDone={() => close()} />);
+/** "More": camera, mic, their profile, then report, block and end. */
+function openCallOptions(actions: ConnectedActions) {
+  return openSheet<void>((close) => <CallOptions actions={actions} onDone={() => close()} />);
 }
 
-function CallOptions({ onDone }: { onDone: () => void }) {
+function OptionRow({ icon, title, subtitle, tone, onClick }: { icon: string; title: string; subtitle?: string; tone?: "bad"; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={cn("flex w-full items-center gap-3.5 rounded-2xl px-1 py-[13px] text-left hover:bg-white/[.03]", tone ? "text-bad" : "text-text")}>
+      <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", tone ? "bg-bad/12" : "bg-white/5")}>
+        <Icon name={icon} size={21} className={tone ? "text-bad" : "text-text2"} />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-[15px] font-semibold">{title}</span>
+        {subtitle ? <span className="text-[12px] text-text2">{subtitle}</span> : null}
+      </span>
+    </button>
+  );
+}
+
+function CallOptions({ actions, onDone }: { actions: ConnectedActions; onDone: () => void }) {
   const m = useMatch();
+  const name = m.partner?.name ?? "They";
   const run = (fn: () => void) => () => {
-    fn();
     onDone();
+    fn();
   };
   return (
     <div className="flex flex-col px-5 pt-2.5 pb-5">
-      <h2 className="type-title-lg text-[20px]">Call options</h2>
-      <GroupCard className="mt-4">
-        <GroupRow icon={m.micOn ? "mic" : "mic_off"} title={m.micOn ? "Mute microphone" : "Unmute"} onClick={run(m.toggleMic)} />
-        <GroupRow icon={m.camOn ? "videocam" : "videocam_off"} title={m.camOn ? "Turn camera off" : "Turn camera on"} onClick={run(m.toggleCam)} />
-        <GroupRow icon="cameraswitch" title="Switch camera" onClick={run(() => void m.switchCamera())} />
-      </GroupCard>
-      <GroupCard className="mt-2.5">
-        <GroupRow icon="block" iconColor="bad" iconBg={alpha("bad", 0.12)} title="Block and end" titleColor="bad" onClick={run(() => void m.blockPartner())} />
-        <GroupRow icon="call_end" title="End and go back" onClick={run(m.stop)} />
-      </GroupCard>
+      <h2 className="mt-1 mb-3.5 text-[18px] font-bold tracking-[-0.012em]">Call options</h2>
+      {m.voiceCall ? null : <OptionRow icon="cameraswitch" title="Switch camera" onClick={run(() => void m.switchCamera())} />}
+      <OptionRow icon={m.micOn ? "mic_off" : "mic"} title={m.micOn ? "Mute my mic" : "Unmute my mic"} onClick={run(m.toggleMic)} />
+      {m.voiceCall ? null : (
+        <OptionRow
+          icon={m.camOn ? "videocam_off" : "videocam"}
+          title={m.camOn ? "Turn my camera off" : "Turn my camera on"}
+          subtitle={m.camOn ? `${name} sees your photo instead` : undefined}
+          onClick={run(m.toggleCam)}
+        />
+      )}
+      {m.partner ? <OptionRow icon="visibility" title={`See ${name}'s profile`} onClick={run(() => void openUserProfileSheet(m.partner!.id, { inCall: true }))} /> : null}
+      <div className="my-1.5 h-px bg-line-soft" />
+      <OptionRow icon="flag" title="Report" subtitle="Our team reviews every report" tone="bad" onClick={run(actions.report)} />
+      <OptionRow icon="block" title="Block and end" subtitle="You won't be matched again" tone="bad" onClick={run(() => void m.blockPartner())} />
+      <OptionRow icon="call_end" title="End and go back" onClick={run(m.stop)} />
     </div>
   );
 }

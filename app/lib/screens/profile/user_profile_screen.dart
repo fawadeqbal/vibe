@@ -180,7 +180,7 @@ class _UserProfileBodyState extends State<UserProfileBody> {
       case 'unfriend':
         await _run(() => social.remove(p.id));
       case 'report':
-        final choice = await showReportSheet(context, name: p.name);
+        final choice = await showReportSheet(context, name: p.name, where: ReportContext.person);
         if (choice == null || !mounted) return;
         await _run(() => follows.report(p.id, choice.reason, note: choice.note, block: choice.block));
         if (choice.block) await social.load();

@@ -239,17 +239,20 @@ void main() {
     await t.pump();
     await t.pump();
     expect(find.textContaining("It's a", findRichText: true), findsOneWidget);
-    expect(find.text('Add friend'), findsOneWidget);
-    await t.tap(find.text('Add friend'));
+    // The celebration's own Add friend (the rail has one too).
+    final celebrate = find.descendant(of: find.byType(MutualCelebration), matching: find.text('Add friend'));
+    expect(celebrate, findsOneWidget);
+    await t.tap(celebrate);
     await t.pump();
     await t.pump();
     expect(h.match.friendState, FriendState.requested);
     expect(find.text('Add friend'), findsNothing);
+    expect(find.text('Sent'), findsOneWidget);
     h.match.stop();
     await t.pump();
-    expect(find.text('You liked each other 💞'), findsOneWidget);
+    expect(find.text('You liked each other'), findsOneWidget);
     expect(h.match.reconnectFree, isTrue);
-    expect(find.text('Free for '), findsOneWidget);
+    expect(find.textContaining('Reconnect · Free '), findsOneWidget);
     final coins = h.wallet.coins;
     final reconnecting = h.match.reconnect();
     await t.pump(const Duration(seconds: 2)); // the mock rings them back
@@ -435,8 +438,9 @@ void main() {
     await finish(t, h);
   });
 
-  testWidgets('lobby: Vibe Hour makes filters free, a free boost shows as such, trophy opens the leaderboard', (t) async {
-    final h = await pump(t, (h) => MatchScreen(onOpenStore: () {}, onOpenChats: () {}));
+  testWidgets('lobby: Vibe Hour makes filters free, the avatar opens Me, a free boost shows in the search', (t) async {
+    var openedMe = false;
+    final h = await pump(t, (h) => MatchScreen(onOpenStore: () {}, onOpenChats: () {}, onOpenMe: () => openedMe = true));
     // "Free" filters are checked against the wall clock, so put Vibe Hour
     // around the real time (a fixed date stops matching once it has passed).
     final start = Economy.vibeHourStart;
@@ -451,10 +455,15 @@ void main() {
     await t.pump();
     // Vibe Hour opens gender and country for everyone.
     expect(h.match.extraFiltersOpen?.call() ?? true, isTrue);
-    expect(find.text('Free boost'), findsOneWidget);
-    await t.tap(find.byTooltip("This week's top"));
-    await t.pumpAndSettle();
-    expect(find.byType(LeaderboardScreen), findsOneWidget);
+    expect(find.text('Start video chat'), findsOneWidget);
+    await t.tap(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'Your profile'));
+    expect(openedMe, isTrue);
+    await h.match.start();
+    await t.pump();
+    if (h.match.isSearching) {
+      expect(find.text('Use your free boost'), findsOneWidget);
+      expect(find.text('Free'), findsOneWidget);
+    }
     await finish(t, h);
   });
 }

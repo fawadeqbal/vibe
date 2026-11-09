@@ -23,6 +23,12 @@ class RemoteMatchProvider extends MatchProvider {
       _rt.on(Ev.matchEnded).listen(_onEnded),
       _rt.on(Ev.matchMutual).listen((e) {
         final id = e['matchId'] as String?;
+        if (id != null && id != _matchId && id == _lastMatchId) {
+          patchLast((r) => r.copyWith(liked: true, likedMe: true));
+          _lastMutual = true;
+          notifyListeners();
+          return;
+        }
         if (id == null || id != _matchId) return;
         noteMutual(id);
         notifyListeners();
@@ -384,6 +390,48 @@ class RemoteMatchProvider extends MatchProvider {
   }
 
   @override
+  Future<bool> likeLast() async {
+    if (_lastPartner == null || _history.isEmpty || _history.last.liked) return true;
+    patchLast((r) => r.copyWith(liked: true));
+    notifyListeners();
+    try {
+      final r = await _api.post('/match/last/like');
+      if (r is Map && r['mutual'] == true) {
+        patchLast((x) => x.copyWith(likedMe: true));
+        _lastMutual = true;
+      }
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      patchLast((r) => r.copyWith(liked: false));
+      _lastError = e.message;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> giftLast(Gift g) async {
+    if (_lastPartner == null) return false;
+    _needsCoins = false;
+    _lastError = null;
+    try {
+      await _api.post('/match/last/gift', {'giftId': g.id}, {'Idempotency-Key': ApiClient.newIdempotencyKey()});
+    } on ApiException catch (e) {
+      if (e.isInsufficientCoins) {
+        _needsCoins = true;
+      } else {
+        _lastError = e.message;
+      }
+      notifyListeners();
+      return false;
+    }
+    patchLast((r) => r.copyWith(giftsSent: r.giftsSent + 1, coinsSpent: r.coinsSpent + g.coins));
+    notifyListeners();
+    return true;
+  }
+
+  @override
   Future<void> reportLast(ReportReason reason, {String? note, bool block = false}) async {
     final p = _lastPartner;
     if (p == null) return;
@@ -463,6 +511,13 @@ class RemoteMatchProvider extends MatchProvider {
   }
 
   void _onLiked(Map<String, dynamic> e) {
+    // They liked you back after the call: the ended card shows it.
+    if (e['matchId'] != _matchId && e['matchId'] == _lastMatchId && _lastMatchId != null) {
+      patchLast((r) => r.copyWith(likedMe: true));
+      _lastMutual = _history.isNotEmpty && _history.last.liked;
+      notifyListeners();
+      return;
+    }
     if (e['matchId'] != _matchId) return;
     _partnerLikedMe = true;
     _current = _current?.copyWith(likedMe: true);

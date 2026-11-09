@@ -423,7 +423,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
         child: IndexedStack(
           index: _index,
           children: [
-            MatchScreen(onOpenStore: () => go(Tabs.store), onOpenChats: () => go(Tabs.chats)),
+            MatchScreen(onOpenStore: () => go(Tabs.store), onOpenChats: () => go(Tabs.chats), onOpenMe: () => go(Tabs.me)),
             DiscoverScreen(onOpenMatch: () => go(Tabs.match)),
             PrimaryScrollController(controller: _scrollers[Tabs.chats], child: ChatsScreen(onFindPeople: () => go(Tabs.match))),
             PrimaryScrollController(controller: _scrollers[Tabs.store], child: const StoreScreen()),

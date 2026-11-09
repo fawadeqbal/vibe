@@ -12,23 +12,20 @@ import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
-import '../../models/follows.dart';
 import '../../models/models.dart';
 import '../../models/filters.dart' show WantedGender;
 import '../../providers/engagement_provider.dart';
 import '../../providers/filters_provider.dart';
-import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../invite/invite_screen.dart';
 import '../invite/share_cards.dart';
-import '../profile/leaderboard_screen.dart';
-import '../profile/progress.dart';
 import '../profile/user_profile_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../store/store_screen.dart';
+import '../store/wallet_screen.dart';
 import '../store/vip_screen.dart';
 import '../filters/filter_chips.dart';
 import '../filters/filters_sheet.dart';
@@ -47,9 +44,12 @@ import 'voice_call.dart';
 /// (battery); then it fills the screen clearly (scrims, not a dim);
 /// during a match the partner takes the stage and you shrink to a corner.
 class MatchScreen extends StatefulWidget {
-  const MatchScreen({super.key, required this.onOpenStore, required this.onOpenChats});
+  const MatchScreen({super.key, required this.onOpenStore, required this.onOpenChats, this.onOpenMe});
   final VoidCallback onOpenStore;
   final VoidCallback onOpenChats;
+
+  /// The avatar in the lobby's top bar: the Me tab.
+  final VoidCallback? onOpenMe;
 
   @override
   State<MatchScreen> createState() => _MatchScreenState();
@@ -308,6 +308,36 @@ class _MatchScreenState extends State<MatchScreen> {
     });
   }
 
+  /// Ended card: Like back.
+  Future<void> _likeLast() async {
+    final m = context.read<MatchProvider>();
+    if (!await m.likeLast() && mounted && m.lastError != null) toast(context, m.lastError!, error: true);
+  }
+
+  /// Ended card: Send a gift to the person you just left.
+  Future<void> _giftLast() async {
+    final m = context.read<MatchProvider>();
+    final p = m.lastPartner;
+    if (p == null) return;
+    final g = await showGiftSheet(context, toName: p.name);
+    if (g == null || !mounted) return;
+    if (await m.giftLast(g)) {
+      if (!mounted) return;
+      setState(() {
+        _burst = g;
+        _burstReceived = false;
+        _burstSeq++;
+      });
+      toast(context, '${g.name} sent to ${p.name}');
+    } else if (mounted) {
+      if (m.needsCoins) {
+        await _needCoins('A ${g.name} costs ${g.coins} coins.');
+      } else if (m.lastError != null) {
+        toast(context, m.lastError!, error: true);
+      }
+    }
+  }
+
   Future<void> _reconnect() async {
     final m = context.read<MatchProvider>();
     if (!await m.reconnect()) await _explainFailure(m, 'Reconnecting costs ${m.reconnectPrice} coins.');
@@ -380,8 +410,16 @@ class _MatchScreenState extends State<MatchScreen> {
               MatchState.connected => _Connected(m: m, onNext: _next, onGift: _gift, onAddFriend: _addFriend, onReport: _report, onPlay: _play, message: _message, chatScroll: _chatScroll),
               MatchState.searching => _Searching(m: m, onCallNow: _reconnect, onRestart: _start),
               _ when m.pausedUntil != null => AccountPausedView(m: m, until: m.pausedUntil!, onOpenChats: widget.onOpenChats),
-              MatchState.ended when m.lastPartner != null => _Ended(m: m, onReconnect: _reconnect, onFindAnother: _start, onReport: _reportLast),
-              _ => _Lobby(m: m, onStart: _start, onOpenStore: widget.onOpenStore),
+              MatchState.ended when m.lastPartner != null => _Ended(
+                m: m,
+                onReconnect: _reconnect,
+                onFindAnother: _start,
+                onReport: _reportLast,
+                onLikeBack: _likeLast,
+                onAddFriend: _addLastFriend,
+                onGift: _giftLast,
+              ),
+              _ => _Lobby(m: m, onStart: _start, onOpenStore: widget.onOpenStore, onOpenMe: widget.onOpenMe),
             },
             if (m.isSearching && m.rematchSoon == null)
               Positioned(
@@ -453,73 +491,7 @@ Future<void> confirmBoost(BuildContext context) async {
   }
 }
 
-String _genderLabel(GenderFilter g) => switch (g) {
-  GenderFilter.anyone => 'Anyone',
-  GenderFilter.women => 'Women',
-  GenderFilter.men => 'Men',
-};
-
-String _countryLabel(String? code) {
-  if (code == null) return 'Anywhere';
-  final c = MockData.country(code);
-  return '${c.flag} ${c.name}';
-}
-
 // ── lobby ──────────────────────────────────────────────────────────────
-
-/// The lobby with the camera off: one tap opens the preview. The camera is
-/// never opened just because the app was opened.
-class _PreviewPrompt extends StatelessWidget {
-  const _PreviewPrompt({required this.m});
-  final MatchProvider m;
-
-  @override
-  Widget build(BuildContext context) {
-    // Short screens (as on the web): a smaller circle under 700px, no second line under 760px.
-    final h = MediaQuery.sizeOf(context).height;
-    final small = h <= 700;
-    return Semantics(
-      button: true,
-      label: 'Turn on camera preview',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          HapticFeedback.selectionClick();
-          if (!m.camOn) m.toggleCam();
-          m.startPreview();
-        },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: small ? 48 : 64,
-              height: small ? 48 : 64,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.08),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-              ),
-              child: const Icon(SolarIconsBold.videocamera, size: 28, color: Colors.white),
-            ),
-            SizedBox(height: small ? 8 : 12),
-            Text(
-              'Tap to preview your camera',
-              style: VT.label(14, color: Colors.white, weight: FontWeight.w600),
-            ),
-            if (h > 760) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Only you see this. It stays off until you need it.',
-                textAlign: TextAlign.center,
-                style: VT.body(12, color: Colors.white.withValues(alpha: 0.62)),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _CameraStarting extends StatelessWidget {
   const _CameraStarting();
@@ -528,182 +500,139 @@ class _CameraStarting extends StatelessWidget {
 }
 
 class _Lobby extends StatelessWidget {
-  const _Lobby({required this.m, required this.onStart, required this.onOpenStore});
+  const _Lobby({required this.m, required this.onStart, required this.onOpenStore, this.onOpenMe});
   final MatchProvider m;
   final VoidCallback onStart;
   final VoidCallback onOpenStore;
+  final VoidCallback? onOpenMe;
 
   @override
   Widget build(BuildContext context) {
-    final wallet = context.watch<WalletProvider>();
-    final me = context.watch<SessionProvider>().me;
-    const cost = 0;
-    final f = m.filters;
     final camLive = m.hasLocalVideo && m.camOn;
     return Stack(
       fit: StackFit.expand,
       children: [
         _SelfVideo(m: m),
-        const VideoScrims(top: 200, bottom: 500),
+        const VideoScrims(top: 190, bottom: 520),
         SafeArea(
-          child: Column(
-            children: [
-              // Who you are + balance.
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Row(
-                  children: [
-                    if (me != null) VAvatar(url: me.avatarUrl, name: me.name, size: 40, border: Colors.white.withValues(alpha: 0.25)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                children: [
+                  const _AvailabilityPoller(),
+                  _LobbyTop(m: m, onOpenMe: onOpenMe),
+                  const _LobbyBanners(),
+                  if (camLive)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            me == null ? 'Vibe' : 'Hi ${me.name.split(' ').first}',
-                            overflow: TextOverflow.ellipsis,
-                            style: VT.title(16, weight: FontWeight.w600),
+                          Glass(
+                            radius: 15,
+                            height: 30,
+                            color: V.bg2.withValues(alpha: 0.5),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(SolarIconsBold.eye, size: 15, color: V.text2),
+                                const SizedBox(width: 6),
+                                Text('Only you see this preview', style: VT.body(12, color: V.text2)),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 1),
-                          Row(
+                          const Spacer(),
+                          Column(
                             children: [
-                              Icon(camLive ? SolarIconsBold.lockKeyhole : Icons.videocam_off_rounded, size: 13, color: Colors.white.withValues(alpha: 0.72)),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  camLive ? 'Preview · only you can see this' : 'Camera off · saving battery',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.72), height: 1.2),
-                                ),
+                              Tooltip(
+                                message: 'Turn camera preview off',
+                                child: RoundControl(icon: Icons.videocam_off_rounded, size: 42, onTap: m.stopPreview),
+                              ),
+                              const SizedBox(height: 10),
+                              Tooltip(
+                                message: 'Switch camera',
+                                child: RoundControl(icon: SolarIconsBold.cameraRotate, size: 42, onTap: () => m.switchCamera()),
                               ),
                             ],
                           ),
                         ],
                       ),
                     ),
-                    if (wallet.isVip)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 8),
-                        child: Tag('VIP', color: V.gold, icon: SolarIconsBold.crown),
-                      ),
-                    if (m.previewOn)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: RoundControl(icon: Icons.videocam_off_rounded, size: 40, onTap: m.stopPreview, label: null),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Tooltip(
-                        message: "This week's top",
-                        child: RoundControl(
-                          icon: SolarIconsBold.cupStar,
-                          size: 40,
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LeaderboardScreen())),
+                  Expanded(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 88),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+                        child: Center(
+                          child: camLive
+                              ? const SizedBox.shrink()
+                              : (m.previewOn && m.cameraActive
+                                    ? const _CameraStarting()
+                                    : FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: _PreviewOff(m: m),
+                                      )),
                         ),
                       ),
-                    ),
-                    const Padding(padding: EdgeInsets.only(right: 8), child: NotificationsBell(glass: true)),
-                    CoinChip(coins: wallet.coins, onTap: onOpenStore, glass: true),
-                  ],
-                ),
-              ),
-              // Vibe Hour (live, or when it starts) and friends who are on;
-              // nothing at all when there's none of that.
-              const _LobbyBanners(),
-              // Takes what's left; on short screens the camera prompt shrinks
-              // rather than overlapping the banners.
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 88),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                    child: Center(
-                      child: camLive
-                          ? const SizedBox.shrink()
-                          : (m.previewOn && m.cameraActive
-                                ? const _CameraStarting()
-                                : FittedBox(fit: BoxFit.scaleDown, child: _PreviewPrompt(m: m))),
                     ),
                   ),
-                ),
-              ),
-              const _AvailabilityPoller(),
-              _AvailabilityLine(availability: m.availability),
-              _WaitlistStrip(m: m, onStart: onStart),
-              const SizedBox(height: 16),
-              FilterChips(glass: true, onOpen: () => showFiltersSheet(context)),
-              // The pills as a sentence, so "Anyone · Anywhere · Verified only" reads as a choice.
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(filterSummary(f), textAlign: TextAlign.center, style: VT.body(12, color: Colors.white.withValues(alpha: 0.7))),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 38),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _SideAction(
-                      icon: SolarIconsBold.bolt,
-                      iconColor: V.gold,
-                      tint: wallet.isBoosted ? V.gold : null,
-                      label: wallet.isBoosted
-                          ? Text(Fmt.until(wallet.wallet.boostUntil!), style: VT.label(11.5, color: V.gold))
-                          : wallet.freeBoosts > 0
-                          ? Text('Free boost', style: VT.label(11.5, color: V.gold))
-                          : Text.rich(
-                              TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: 'Boost · ',
-                                    style: VT.label(11.5, color: Colors.white.withValues(alpha: 0.85)),
-                                  ),
-                                  TextSpan(
-                                    text: '${Economy.boostCost}',
-                                    style: VT.label(11.5, color: V.gold),
-                                  ),
-                                ],
-                              ),
-                            ),
-                      semantics: wallet.isBoosted ? 'Boosted' : (wallet.freeBoosts > 0 ? 'Free boost' : 'Boost for ${Economy.boostCost} coins'),
-                      onTap: () => confirmBoost(context),
-                    ),
-                    Flexible(child: _Shutter(onTap: onStart, cost: cost)),
-                    _SideAction(
-                      icon: SolarIconsBold.shield,
-                      iconColor: V.trust,
-                      label: Text('Safety', style: VT.label(11.5, color: Colors.white.withValues(alpha: 0.7))),
-                      semantics: 'Safety settings',
-                      onTap: () => showSafetySheet(context),
-                    ),
-                  ],
-                ),
-              ),
-              if (m.lastError != null) ...[
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Glass(
-                    radius: 16,
-                    child: Row(
+                  FilterChips(glass: true, onOpen: () => showFiltersSheet(context)),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Icon(SolarIconsOutline.dangerCircle, size: 16, color: V.bad),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(m.lastError!, style: VT.body(12, color: Colors.white)),
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => showSafetySheet(context),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Row(
+                              children: [
+                                const Icon(SolarIconsBold.shield, size: 16, color: V.trust),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    m.autoBlur ? 'Safe start: both videos stay blurred for 3 seconds' : 'Safety: report and block are one tap away in every call',
+                                    style: VT.body(12.5, color: Colors.white.withValues(alpha: 0.82)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
+                        const SizedBox(height: 12),
+                        if (m.lastError != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(color: V.bad.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
+                            child: Text(m.lastError!, style: VT.body(12.5, color: V.bad)),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        Semantics(
+                          label: 'Start a video chat with someone new',
+                          button: true,
+                          excludeSemantics: true,
+                          child: GradientButton(
+                            label: 'Start video chat',
+                            icon: SolarIconsBold.videocamera,
+                            height: 60,
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              onStart();
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
-                ),
-              ],
-              const SizedBox(height: 16),
-            ],
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -711,17 +640,121 @@ class _Lobby extends StatelessWidget {
   }
 }
 
-/// The pills as a sentence: "You'll meet verified women in Türkiye."
-String filterSummary(MatchFilters f) {
-  final who = switch (f.gender) {
-    GenderFilter.anyone => 'anyone',
-    GenderFilter.women => 'women',
-    GenderFilter.men => 'men',
-  };
-  final where = f.countryCode != null ? 'in ${MockData.country(f.countryCode!).name}' : 'from anywhere';
-  return "You'll meet ${f.safeMode ? 'verified ${who == 'anyone' ? 'people' : who}' : who} $where.";
+/// Your photo (to Me), who's on right now, your coins and the bell.
+class _LobbyTop extends StatelessWidget {
+  const _LobbyTop({required this.m, this.onOpenMe});
+  final MatchProvider m;
+  final VoidCallback? onOpenMe;
+
+  @override
+  Widget build(BuildContext context) {
+    final me = context.watch<SessionProvider>().me;
+    final coins = context.select<WalletProvider, int>((w) => w.coins);
+    final a = m.availability;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Row(
+        children: [
+          Semantics(
+            button: true,
+            label: 'Your profile',
+            child: GestureDetector(
+              onTap: onOpenMe,
+              child: VAvatar(url: me?.avatarUrl ?? '', name: me?.name ?? 'You', size: 40, ring: true),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: a == null
+                  ? const SizedBox.shrink()
+                  : Glass(
+                      radius: 17,
+                      height: 34,
+                      color: V.bg2.withValues(alpha: 0.5),
+                      padding: const EdgeInsets.only(left: 10, right: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          OnlineDot(color: a.online == 0 ? V.warn : V.ok),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                a.online == 0 ? 'Quiet right now' : '${Fmt.thousands(a.online)} on now',
+                                overflow: TextOverflow.ellipsis,
+                                style: VT.label(13, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          CoinChip(
+            coins: coins,
+            glass: true,
+            showPlus: false,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const WalletScreen())),
+          ),
+          const SizedBox(width: 8),
+          const NotificationsBell(glass: true),
+        ],
+      ),
+    );
+  }
 }
 
+/// Camera off: it stays off to save battery until you need it.
+class _PreviewOff extends StatelessWidget {
+  const _PreviewOff({required this.m});
+  final MatchProvider m;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.07),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: const Icon(Icons.videocam_off_rounded, size: 34, color: V.text2),
+          ),
+          const SizedBox(height: 18),
+          const Headline('Camera preview is ', accent: 'off', size: 22, accentColor: V.pinkSoft, textAlign: TextAlign.center),
+          const SizedBox(height: 6),
+          Text(
+            'It stays off until you need it, to save battery. It turns on by itself when you start.',
+            textAlign: TextAlign.center,
+            style: VT.body(14, color: V.text2, height: 1.5),
+          ),
+          const SizedBox(height: 18),
+          GhostButton(
+            label: 'Turn on preview',
+            icon: SolarIconsBold.videocamera,
+            height: 44,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              if (!m.camOn) m.toggleCam();
+              m.startPreview();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Vibe Hour (live, or when it starts, with "Remind me") and friends who are
 /// on, stacked under the header. Takes no room when there's none of that.
@@ -733,12 +766,7 @@ class _LobbyBanners extends StatelessWidget {
     final e = context.watch<EngagementProvider>();
     final v = e.vibeHour;
     final live = v.activeAt(e.now);
-    final friends = context.select<SocialProvider, bool>((s) => s.onlineFriends.isNotEmpty);
-    final items = <Widget>[
-      if (live) const VibeHourBanner(),
-      if (!live && v.startsAt != null) const VibeHourInvite(),
-      if (friends) const FriendsOnlineRow(),
-    ];
+    final items = <Widget>[if (live) const VibeHourBanner(), if (!live && v.startsAt != null) const VibeHourInvite()];
     if (items.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -790,305 +818,24 @@ class _AvailabilityPollerState extends State<_AvailabilityPoller> {
   }
 }
 
-/// Who's around, from the server — never a made-up number. Quiet hours say
-/// so up front, so an empty queue isn't a surprise after pressing Start.
-class _AvailabilityLine extends StatelessWidget {
-  const _AvailabilityLine({required this.availability});
-  final MatchAvailability? availability;
-
-  @override
-  Widget build(BuildContext context) {
-    final a = availability;
-    if (a == null) return const SizedBox(height: 20);
-    final style = VT.label(13, color: Colors.white.withValues(alpha: 0.82), weight: FontWeight.w500);
-    return Semantics(
-      liveRegion: true,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            OnlineDot(color: a.online == 0 ? V.warn : V.ok),
-            const SizedBox(width: 8),
-            Flexible(
-              child: a.online == 0
-                  ? Text("Quiet right now — you'll be first in line", style: style)
-                  : Text.rich(
-                      TextSpan(
-                        style: style,
-                        children: [
-                          TextSpan(text: '${Fmt.thousands(a.online)} online'),
-                          if (a.searching > 0)
-                            TextSpan(text: ' · ${Fmt.thousands(a.searching)} looking for a match', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
-                        ],
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Under the "who's online" line, one of three things: someone is looking
-/// right now (after you asked) → Start; you've asked → "we'll tell you",
-/// with Cancel; nobody is searching → offer to be told.
-class _WaitlistStrip extends StatelessWidget {
-  const _WaitlistStrip({required this.m, required this.onStart});
-  final MatchProvider m;
-  final VoidCallback onStart;
-
-  @override
-  Widget build(BuildContext context) {
-    final Widget strip;
-    if (m.someoneLookingAt != null) {
-      strip = ClipRRect(
-        borderRadius: BorderRadius.circular(100),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-            decoration: BoxDecoration(
-              color: V.pink.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(100),
-              border: Border.all(color: V.pink.withValues(alpha: 0.5)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const _PingDot(),
-                const SizedBox(width: 8),
-                Flexible(child: Text("Someone's looking right now", maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(13, color: Colors.white))),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    m.dismissLooking();
-                    onStart();
-                  },
-                  child: Container(
-                    height: 32,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                    child: Text('Start', style: VT.label(13, color: V.bg, weight: FontWeight.w600)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Semantics(
-                  button: true,
-                  label: 'Dismiss',
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: m.dismissLooking,
-                    child: SizedBox.square(dimension: 32, child: Icon(Icons.close_rounded, size: 16, color: Colors.white.withValues(alpha: 0.7))),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    } else if (m.notifyUntil != null) {
-      strip = Glass(
-        radius: 18,
-        height: 36,
-        padding: const EdgeInsets.only(left: 12, right: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(SolarIconsBold.bellBing, size: 16, color: V.pinkSoft),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text("We'll tell you when someone's looking", maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(12.5, color: Colors.white.withValues(alpha: 0.9))),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => unawaited(m.cancelNotify()),
-              child: Container(
-                height: 28,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                alignment: Alignment.center,
-                child: Text('Cancel', style: VT.label(12, color: Colors.white.withValues(alpha: 0.7))),
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      final a = m.availability;
-      if (a == null || a.searching > 0) return const SizedBox.shrink();
-      strip = GestureDetector(
-        onTap: () async {
-          final ok = await m.notifyMe();
-          if (context.mounted) toast(context, ok ? "We'll tell you when someone starts looking" : "Couldn't set that up. Try again.", error: !ok);
-        },
-        child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(SolarIconsOutline.bell, size: 16, color: V.pinkSoft),
-              const SizedBox(width: 6),
-              Text("Nobody's searching · notify me", style: VT.label(12.5, color: Colors.white.withValues(alpha: 0.9))),
-            ],
-          ),
-        ),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      child: Center(child: strip),
-    );
-  }
-}
-
-/// A pink dot with a ring that keeps pinging outwards.
-class _PingDot extends StatefulWidget {
-  const _PingDot();
-
-  @override
-  State<_PingDot> createState() => _PingDotState();
-}
-
-class _PingDotState extends State<_PingDot> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final still = MediaQuery.of(context).disableAnimations;
-    return SizedBox.square(
-      dimension: 10,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          if (!still)
-            AnimatedBuilder(
-              animation: _c,
-              builder: (_, _) {
-                final t = Curves.easeOut.transform(_c.value);
-                return Transform.scale(
-                  scale: 1 + t,
-                  child: Container(decoration: BoxDecoration(shape: BoxShape.circle, color: V.pinkSoft.withValues(alpha: 0.7 * (1 - t)))),
-                );
-              },
-            ),
-          Container(decoration: const BoxDecoration(shape: BoxShape.circle, color: V.pink)),
-        ],
-      ),
-    );
-  }
-}
-
-/// The big round "shutter" Start button in the thumb zone.
-class _Shutter extends StatelessWidget {
-  const _Shutter({required this.onTap, required this.cost});
-  final VoidCallback onTap;
-  final int cost;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: cost > 0 ? 'Start a video chat with someone new, $cost coins' : 'Start a video chat with someone new',
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          onTap();
-        },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 1.5),
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: V.brand,
-                  boxShadow: [BoxShadow(color: V.pink.withValues(alpha: 0.45), blurRadius: 36, offset: const Offset(0, 14))],
-                ),
-                child: const Icon(SolarIconsBold.videocamera, size: 38, color: Colors.white),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(child: Text('Start video chat', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.title(15))),
-                if (cost > 0) ...[Text(' · ', style: VT.title(15, color: V.text2)), CoinAmount(cost, size: 13)],
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text('1-on-1 with someone random', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.62))),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SideAction extends StatelessWidget {
-  const _SideAction({required this.icon, required this.iconColor, required this.label, required this.onTap, required this.semantics, this.tint});
-  final IconData icon;
-  final Color iconColor;
-  final Widget label;
-  final VoidCallback onTap;
-  final String semantics;
-  final Color? tint;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: semantics,
-      excludeSemantics: true,
-      child: Container(
-        width: 72,
-        padding: const EdgeInsets.only(bottom: 18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RoundControl(icon: icon, color: iconColor, size: 52, tint: tint, onTap: onTap),
-            const SizedBox(height: 8),
-            label,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── ended ──────────────────────────────────────────────────────────────
 
-/// A recap, not an alert: their portrait blurs behind, the numbers become a
-/// readable row, and reporting stays reachable after the call.
 /// How long "they left" waits before finding the next person.
 const autoNextAfter = Duration(seconds: 5);
 
+/// A recap, not an alert: their portrait blurs behind; a card with what
+/// happened and three things you can still do for them; then Next,
+/// Reconnect, Home, and Report, still reachable after the call.
+/// (web: features/match/ended.tsx)
 class _Ended extends StatefulWidget {
-  const _Ended({required this.m, required this.onReconnect, required this.onFindAnother, required this.onReport});
+  const _Ended({required this.m, required this.onReconnect, required this.onFindAnother, required this.onReport, required this.onLikeBack, required this.onAddFriend, required this.onGift});
   final MatchProvider m;
   final VoidCallback onReconnect;
   final VoidCallback onFindAnother;
   final VoidCallback onReport;
+  final VoidCallback onLikeBack;
+  final VoidCallback onAddFriend;
+  final VoidCallback onGift;
 
   @override
   State<_Ended> createState() => _EndedState();
@@ -1126,18 +873,16 @@ class _EndedState extends State<_Ended> {
         setState(() {});
       });
     }
-    // "Free for 9:41" counts down; then the coin price comes back.
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      if (!widget.m.reconnectFree) {
-        _tick?.cancel();
-        _tick = null;
-      }
-      setState(() {});
-    });
-    if (!widget.m.reconnectFree) {
-      _tick?.cancel();
-      _tick = null;
+    // "Free 9:41" counts down; then the coin price comes back.
+    if (widget.m.reconnectFree) {
+      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        if (!widget.m.reconnectFree) {
+          _tick?.cancel();
+          _tick = null;
+        }
+        setState(() {});
+      });
     }
   }
 
@@ -1148,28 +893,24 @@ class _EndedState extends State<_Ended> {
     super.dispose();
   }
 
-  MatchProvider get m => widget.m;
-  VoidCallback get onReconnect => widget.onReconnect;
-  VoidCallback get onFindAnother => widget.onFindAnother;
-  VoidCallback get onReport => widget.onReport;
-
   @override
   Widget build(BuildContext context) {
+    final m = widget.m;
     final p = m.lastPartner!;
     final reported = m.endReason == EndReason.reported;
+    final theyLeft = m.endReason == EndReason.partnerLeft;
+    final last = m.history.isEmpty ? null : m.history.first;
+    final mutual = m.lastMutual || (last?.liked == true && last?.likedMe == true);
+    final liked = last?.liked == true;
+    final fs = context.select<SocialProvider, FriendState>((s) => s.stateOf(p.id));
     final why = switch (m.endReason) {
       EndReason.partnerLeft => '${p.name} moved on',
-      EndReason.skipped => 'You skipped ${p.name}',
+      EndReason.skipped => 'You skipped',
       EndReason.reported => 'Reported',
       _ => 'Call ended',
     };
-    final last = m.history.isEmpty ? null : m.history.first;
-    final (likeIcon, likeColor, likeLabel) = last?.likedMe == true
-        ? (SolarIconsBold.heart, V.pink, 'Liked you')
-        : last?.liked == true
-        ? (SolarIconsBold.heart, V.pinkSoft, 'You liked')
-        : (SolarIconsOutline.heart, V.muted, 'No likes');
-    final gifts = last?.giftsReceived ?? 0;
+    final chip = mutual ? 'You liked each other' : (last?.likedMe == true ? '${p.name} liked you' : (liked ? 'You liked ${p.name}' : null));
+    final media = MediaQuery.of(context);
     return Listener(
       // Any tap on the recap means "stay here" (no auto-next).
       onPointerDown: _autoAt != null ? (_) => _stay() : null,
@@ -1177,236 +918,266 @@ class _EndedState extends State<_Ended> {
         fit: StackFit.expand,
         children: [
           ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 36, sigmaY: 36, tileMode: TileMode.clamp),
-            child: Image.network(
-              p.avatarUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [Color(0xFF2B1B4D), V.bg], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+            imageFilter: ImageFilter.blur(sigmaX: 14, sigmaY: 14, tileMode: TileMode.clamp),
+            child: ColorFiltered(
+              colorFilter: const ColorFilter.matrix([0.3, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0, 0, 1, 0]),
+              child: Transform.scale(
+                scale: 1.15,
+                child: Image.network(
+                  p.avatarUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [Color(0xFF2B1B4D), V.bg], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-          ColoredBox(color: V.bg.withValues(alpha: 0.7)),
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Row(
-                    children: [
-                      CircleIconButton(icon: Icons.close_rounded, onTap: m.dismissEnded, tooltip: 'Close'),
-                      Expanded(
-                        child: Text(
-                          'CALL ENDED',
-                          textAlign: TextAlign.center,
-                          style: VT.overline(color: V.text2).copyWith(fontSize: 12, letterSpacing: 1.2),
-                        ),
-                      ),
-                      const SizedBox(width: 40),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                      child: Glass(
-                        radius: 30,
-                        color: V.surface.withValues(alpha: 0.88),
-                        border: Colors.white.withValues(alpha: 0.1),
-                        padding: const EdgeInsets.fromLTRB(22, 28, 22, 20),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                GestureDetector(
-                                  onTap: () => showUserProfileSheet(context, p.id),
-                                  child: Semantics(
-                                    button: true,
-                                    label: 'Open ${p.name}\'s profile',
-                                    child: VAvatar(url: p.avatarUrl, name: p.name, size: 92, ring: true, gapColor: V.surface),
-                                  ),
-                                ),
-                                if (p.verified)
-                                  Positioned(
-                                    right: -2,
-                                    bottom: 2,
-                                    child: Container(
-                                      width: 26,
-                                      height: 26,
-                                      decoration: const BoxDecoration(shape: BoxShape.circle, color: V.surface),
-                                      child: const Icon(SolarIconsBold.verifiedCheck, size: 20, color: V.trust),
-                                    ),
-                                  ),
-                              ],
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, media.padding.top + 24, 16, media.padding.bottom + 30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: SingleChildScrollView(
+                          child: Container(
+                            padding: const EdgeInsets.fromLTRB(20, 26, 20, 20),
+                            decoration: BoxDecoration(
+                              color: V.surface.withValues(alpha: 0.86),
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(color: V.line),
                             ),
-                            const SizedBox(height: 16),
-                            Text(why, textAlign: TextAlign.center, style: VT.display(26, height: 1.1)),
-                            if (m.endReason == EndReason.partnerLeft) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                "It happens — it's not about you.",
-                                textAlign: TextAlign.center,
-                                style: VT.body(13.5, color: V.text2),
-                              ),
-                            ],
-                            const SizedBox(height: 4),
-                            Text('${p.country.flag} ${p.country.name} · ${p.age}', style: VT.body(13, color: V.text2)),
-                            const SizedBox(height: 22),
-                            Container(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              decoration: const BoxDecoration(
-                                border: Border.symmetric(horizontal: BorderSide(color: V.line)),
-                              ),
-                              child: IntrinsicHeight(
-                                child: Row(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Stack(
+                                  clipBehavior: Clip.none,
                                   children: [
-                                    _stat(Text(last == null ? '—' : Fmt.duration(last.length), style: VT.mono(18, color: V.text)), 'Call length'),
-                                    const VerticalDivider(width: 1, color: V.line),
-                                    _stat(Icon(likeIcon, size: 22, color: likeColor), likeLabel),
-                                    const VerticalDivider(width: 1, color: V.line),
-                                    _stat(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text('$gifts', style: VT.number(18, weight: FontWeight.w600)),
-                                          const SizedBox(width: 4),
-                                          Icon(SolarIconsBold.gift, size: 18, color: gifts > 0 ? V.gold : V.muted),
-                                        ],
+                                    Semantics(
+                                      button: true,
+                                      label: "Open ${p.name}'s profile",
+                                      child: GestureDetector(
+                                        onTap: () => showUserProfileSheet(context, p.id),
+                                        child: VAvatar(url: p.avatarUrl, name: p.name, size: 92, ring: true, gapColor: V.surface),
                                       ),
-                                      gifts == 1 ? 'Gift received' : 'Gifts received',
                                     ),
+                                    if (p.verified)
+                                      Positioned(
+                                        right: -2,
+                                        bottom: 2,
+                                        child: Container(
+                                          width: 26,
+                                          height: 26,
+                                          decoration: const BoxDecoration(shape: BoxShape.circle, color: V.surface),
+                                          child: const Icon(SolarIconsBold.verifiedCheck, size: 20, color: V.trust),
+                                        ),
+                                      ),
                                   ],
                                 ),
-                              ),
-                            ),
-                            if (m.lastMutual) ...[
-                              const SizedBox(height: 14),
-                              Text(
-                                'You liked each other 💞',
-                                textAlign: TextAlign.center,
-                                style: VT.label(14, color: V.pinkSoft),
-                              ),
-                              const SizedBox(height: 4),
-                              TextButton.icon(
-                                onPressed: () => showShareCardSheet(context, ShareCardData.match(friend: p.name, me: context.read<SessionProvider>().me?.name ?? '')),
-                                icon: const Icon(SolarIconsBold.export, size: 16, color: V.pinkSoft),
-                                label: Text('Share · We vibed', style: VT.label(13, color: V.pinkSoft)),
-                              ),
-                            ],
-                            const SizedBox(height: 20),
-                            GradientButton(label: _autoAt != null ? 'Next person now' : 'Find someone else', onTap: onFindAnother, icon: SolarIconsBold.videocamera),
-                            if (_autoAt != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Semantics(
-                                  liveRegion: true,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text('Finding someone new in ', style: VT.body(13, color: V.text2)),
-                                      Text(
-                                        '${_autoLeft}s',
-                                        style: VT.label(13, color: V.text, weight: FontWeight.w700),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      TextButton(
-                                        onPressed: _stay,
-                                        style: TextButton.styleFrom(
-                                          backgroundColor: Colors.white.withValues(alpha: 0.08),
-                                          shape: const StadiumBorder(),
-                                          minimumSize: const Size(0, 32),
-                                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                                        ),
-                                        child: Text('Stay here', style: VT.label(12, color: V.text)),
-                                      ),
-                                    ],
-                                  ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  '${p.name}, ${p.age}',
+                                  textAlign: TextAlign.center,
+                                  style: VT.title(22, weight: FontWeight.w700),
                                 ),
-                              ),
-                            if (!reported) ...[
-                              const SizedBox(height: 10),
-                              GhostButton(
-                                label: m.reconnectFree ? 'Reconnect' : 'Reconnect with ${p.name}',
-                                icon: SolarIconsOutline.restart,
-                                expand: true,
-                                onTap: onReconnect,
-                                trailing: m.reconnectFree
-                                    ? Container(
-                                        height: 22,
-                                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                                        decoration: BoxDecoration(color: V.ok.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  last == null ? why : '$why · ${Fmt.duration(last.length)}',
+                                  textAlign: TextAlign.center,
+                                  style: VT.body(13.5, color: V.text2),
+                                ),
+                                if (theyLeft) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "It happens — it's not about you.",
+                                    textAlign: TextAlign.center,
+                                    style: VT.body(12.5, color: V.muted),
+                                  ),
+                                ],
+                                if (chip != null) ...[
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        height: 30,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                                        decoration: BoxDecoration(color: V.pink.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(999)),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Text('Free for ', style: VT.label(12, color: V.ok)),
-                                            Text(
-                                              countdown(m.freeReconnectUntil!.difference(DateTime.now())),
-                                              style: VT.mono(12, color: V.ok, weight: FontWeight.w600),
-                                            ),
+                                            const Icon(SolarIconsBold.heart, size: 14, color: V.pinkSoft),
+                                            const SizedBox(width: 6),
+                                            Text(chip, style: VT.label(12.5, color: V.pinkSoft)),
                                           ],
                                         ),
-                                      )
-                                    : Container(
-                                        height: 22,
-                                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                                        decoration: BoxDecoration(color: V.gold.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(11)),
-                                        child: CoinAmount(m.reconnectPrice, size: 12),
                                       ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextButton.icon(
-                                onPressed: onReport,
-                                icon: const Icon(SolarIconsOutline.flag, size: 16, color: V.text2),
-                                label: Text(
-                                  'Something wrong? Report ${p.name}',
-                                  style: VT.label(13, color: V.text2, weight: FontWeight.w500),
-                                ),
-                              ),
-                            ] else ...[
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(SolarIconsBold.checkCircle, size: 16, color: V.trust),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      'Thanks — our team reviews every report.',
-                                      style: VT.label(13, color: V.text2, weight: FontWeight.w500),
-                                    ),
+                                      if (mutual) ...[
+                                        const SizedBox(width: 6),
+                                        Tooltip(
+                                          message: 'Share',
+                                          child: GestureDetector(
+                                            onTap: () => showShareCardSheet(context, ShareCardData.match(friend: p.name, me: context.read<SessionProvider>().me?.name ?? '')),
+                                            child: Container(
+                                              width: 30,
+                                              height: 30,
+                                              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.08)),
+                                              child: const Icon(SolarIconsBold.export, size: 15, color: V.text2),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 4),
-                            ],
-                          ],
+                                const SizedBox(height: 18),
+                                if (reported)
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(SolarIconsBold.checkCircle, size: 16, color: V.trust),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          'Thanks — our team reviews every report.',
+                                          style: VT.label(13, color: V.text2, weight: FontWeight.w500),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Row(
+                                    children: [
+                                      _CardAction(
+                                        icon: SolarIconsBold.heart,
+                                        color: V.pink,
+                                        label: liked ? 'Liked' : (last?.likedMe == true ? 'Like back' : 'Like'),
+                                        onTap: liked ? null : widget.onLikeBack,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      _CardAction(
+                                        icon: switch (fs) {
+                                          FriendState.friends => SolarIconsBold.userCheckRounded,
+                                          FriendState.requested => SolarIconsBold.hourglass,
+                                          _ => SolarIconsBold.userPlusRounded,
+                                        },
+                                        color: V.lavender,
+                                        label: switch (fs) {
+                                          FriendState.friends => 'Friends',
+                                          FriendState.requested => 'Request sent',
+                                          FriendState.incoming => 'Accept friend',
+                                          _ => 'Add friend',
+                                        },
+                                        onTap: fs == FriendState.none || fs == FriendState.incoming ? widget.onAddFriend : null,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      _CardAction(icon: SolarIconsBold.gift, color: V.gold, label: 'Send a gift', onTap: widget.onGift),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    GradientButton(label: _autoAt != null ? 'Next person in $_autoLeft' : 'Next person', icon: SolarIconsBold.skipNext, height: 58, onTap: widget.onFindAnother),
+                    if (_autoAt != null)
+                      Center(
+                        child: TextButton(
+                          onPressed: _stay,
+                          child: Text('Stay here', style: VT.label(12.5, color: V.text2)),
+                        ),
+                      ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        if (!reported) ...[
+                          Expanded(
+                            child: Semantics(
+                              label: m.reconnectFree ? 'Reconnect with ${p.name}, free' : 'Reconnect with ${p.name}, ${m.reconnectPrice} coins',
+                              button: true,
+                              excludeSemantics: true,
+                              child: GhostButton(
+                                label: m.reconnectFree ? 'Reconnect · Free ${countdown(m.freeReconnectUntil!.difference(DateTime.now()))}' : 'Reconnect · ${m.reconnectPrice}',
+                                icon: SolarIconsOutline.restart,
+                                height: 48,
+                                expand: true,
+                                onTap: widget.onReconnect,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: GhostButton(label: 'Home', icon: SolarIconsBold.videocamera, height: 48, expand: true, onTap: m.dismissEnded),
+                        ),
+                      ],
+                    ),
+                    if (!reported)
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: widget.onReport,
+                          icon: const Icon(SolarIconsBold.flag, size: 15, color: V.bad),
+                          label: Text('Report ${p.name}', style: VT.label(13.5, color: V.bad)),
+                        ),
+                      ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _stat(Widget value, String label) {
+/// One of the card's three: a tinted circle and a label. Dimmed once done (Liked, Request sent).
+class _CardAction extends StatelessWidget {
+  const _CardAction({required this.icon, required this.color, required this.label, required this.onTap});
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(height: 24, child: Center(child: value)),
-          const SizedBox(height: 4),
-          Text(label, style: VT.body(11, color: V.muted, height: 1.2)),
-        ],
+      child: Semantics(
+        button: true,
+        enabled: onTap != null,
+        label: label,
+        excludeSemantics: true,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Opacity(
+            opacity: onTap == null ? 0.6 : 1,
+            child: Column(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.14)),
+                  child: Icon(icon, size: 24, color: color),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: VT.label(12.5, color: V.text),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1414,15 +1185,13 @@ class _EndedState extends State<_Ended> {
 
 // ── searching ──────────────────────────────────────────────────────────
 
-/// The brand's two rings become the loader; the wait sets expectations
-/// about blur and reporting.
-/// After this long without a match, say why and offer a way forward.
+/// After this long without a match, offer to widen narrow filters.
 const slowSearchSeconds = 15;
 
-/// The brand's two rings become the loader. Around it: how long you've been
-/// waiting, who else is looking, and — when it's slow — why, and what would
-/// help (widen the filters, or just wait for the evening rush).
-/// (web: features/match/searching.tsx)
+/// Looking for someone: your own photo in the middle of soft rings, who
+/// you're looking for, a tip, then Boost (go to the front) and Stop. When
+/// nobody else is on, it says so plainly ("You're first in line") and offers
+/// to tell you instead. (web: features/match/searching.tsx)
 class _Searching extends StatefulWidget {
   const _Searching({required this.m, required this.onCallNow, required this.onRestart});
   final MatchProvider m;
@@ -1459,144 +1228,155 @@ class _SearchingState extends State<_Searching> {
   Widget build(BuildContext context) {
     final m = widget.m;
     final wallet = context.watch<WalletProvider>();
-    final f = m.filters;
+    final me = context.watch<SessionProvider>().me;
+    final filters = context.watch<FiltersProvider>().filters;
     final seconds = DateTime.now().difference(_startedAt).inMilliseconds / 1000;
-    final availability = m.availability;
-    final nobodyAround = availability != null && availability.online == 0;
-    final slow = seconds >= slowSearchSeconds || (nobodyAround && seconds >= 4);
+    final a = m.availability;
+    final quiet = a != null && a.online == 0 && seconds >= 4;
+    final slow = !quiet && seconds >= slowSearchSeconds;
     final rematch = m.rematchSoon;
-    final blurNote = m.autoBlur && !wallet.isVip;
+    final boosted = wallet.isBoosted;
+
+    final Widget card;
+    if (rematch != null) {
+      card = RematchSoonCard(m: m, onCallNow: widget.onCallNow);
+    } else if (quiet) {
+      card = const _VibeHourNudge();
+    } else if (slow && filters.usesExtra) {
+      card = _SearchCard(
+        icon: SolarIconsBold.tuning,
+        iconColor: V.warn,
+        text: 'Your filters are narrow right now. Meet anyone to find someone sooner.',
+        action: 'Meet anyone',
+        onAction: () {
+          m.stop();
+          final p = context.read<FiltersProvider>();
+          unawaited(p.save(p.filters.freeOnly()));
+          widget.onRestart();
+        },
+      );
+    } else {
+      card = const _SearchCard(icon: SolarIconsBold.widget_4, iconColor: V.lavender, text: 'Tip: say hi first and ask about something in their profile.');
+    }
+
     return Stack(
       fit: StackFit.expand,
       children: [
         _SelfVideo(m: m, blur: 28),
-        ColoredBox(color: V.bg.withValues(alpha: 0.62)),
+        ColoredBox(color: V.bg.withValues(alpha: 0.66)),
         SafeArea(
-          child: LayoutBuilder(
-            builder: (context, box) => SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: box.maxHeight - 12),
-                child: IntrinsicHeight(
-                  child: Column(
-                    children: [
-                      const Expanded(child: SizedBox(height: 16)),
-                      SizedBox(
-                        width: 208,
-                        height: 208,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(36),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.09)),
-                                ),
-                              ),
-                            ),
-                            const VibeMark(size: 110, animate: true, stroke: 0.075),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Semantics(
-                        liveRegion: true,
-                        child: wallet.isBoosted
-                            ? const Headline('Boosted · finding someone ', accent: 'fast', size: 28, textAlign: TextAlign.center)
-                            : const Headline('Finding someone ', accent: 'for you', size: 28, textAlign: TextAlign.center),
-                      ),
-                      const SizedBox(height: 8),
-                      _SearchStatus(seconds: seconds, availability: availability),
-                      const SizedBox(height: 16),
-                      const _SearchSteps(),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [_miniChip(_genderLabel(f.gender)), _miniChip(_countryLabel(f.countryCode)), if (f.safeMode) _miniChip('Verified only', trust: true)],
-                      ),
-                      // A long wait: why, and what to do — right under the status, as part of the screen.
-                      if (rematch != null) ...[
-                        const SizedBox(height: 24),
-                        RematchSoonCard(m: m, onCallNow: widget.onCallNow),
-                      ] else if (slow) ...[
-                        const SizedBox(height: 24),
-                        _SlowSearch(m: m, nobodyAround: nobodyAround, onRestart: widget.onRestart),
-                      ],
-                      const Expanded(child: SizedBox(height: 24)),
-                      if (!slow && rematch == null)
-                        Glass(
-                          radius: 22,
-                          color: V.bg2.withValues(alpha: 0.55),
-                          border: Colors.white.withValues(alpha: 0.1),
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
-                                child: const Icon(SolarIconsBold.shield, size: 20, color: V.trust),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(blurNote ? 'Both videos start blurred' : 'Report is one tap away', style: VT.title(14, weight: FontWeight.w600)),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      blurNote
-                                          ? 'The first 3 seconds stay soft. Report and block are always top-right, one tap away.'
-                                          : 'Report and block are always top-right. Turn on blur in Safety if you want a softer start.',
-                                      style: VT.body(12.5, color: V.text2, height: 1.45),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      GhostButton(label: 'Cancel', expand: true, fill: Colors.white.withValues(alpha: 0.08), onTap: m.stop),
-                      const SizedBox(height: 14),
-                      if (wallet.isBoosted)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(SolarIconsBold.bolt, size: 15, color: V.gold),
-                            const SizedBox(width: 6),
-                            Text('Boosted · ${Fmt.until(wallet.wallet.boostUntil!)}', style: VT.label(12.5, weight: FontWeight.w500)),
-                          ],
-                        )
-                      else
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => confirmBoost(context),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: LayoutBuilder(
+                builder: (context, box) => SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: box.maxHeight - 16),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(SolarIconsBold.bolt, size: 15, color: V.gold),
-                                const SizedBox(width: 6),
-                                Text('Boost to the front of the queue · ', style: VT.label(12.5, weight: FontWeight.w500)),
-                                Text('${Economy.boostCost}', style: VT.label(12.5, color: V.gold)),
+                                Tooltip(
+                                  message: 'Stop looking',
+                                  child: RoundControl(icon: Icons.close_rounded, size: 40, onTap: m.stop),
+                                ),
+                                const Spacer(),
+                                CoinChip(coins: wallet.coins, glass: true, showPlus: false),
                               ],
                             ),
                           ),
-                        ),
-                    ],
+                          const SizedBox(height: 24),
+                          Center(
+                            child: ExcludeSemantics(
+                              child: SizedBox.square(
+                                dimension: 300,
+                                child: _SearchRings(
+                                  child: VAvatar(url: me?.avatarUrl ?? '', name: me?.name ?? 'You', size: 112, ring: true),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Semantics(
+                            liveRegion: true,
+                            child: quiet
+                                ? const Headline("You're first ", accent: 'in line', size: 26, accentColor: V.pinkSoft, textAlign: TextAlign.center)
+                                : boosted
+                                ? const Headline('Boosted · finding someone ', accent: 'fast', size: 26, accentColor: V.pinkSoft, textAlign: TextAlign.center)
+                                : const Headline('Finding someone ', accent: 'new', size: 26, accentColor: V.pinkSoft, textAlign: TextAlign.center),
+                          ),
+                          const SizedBox(height: 6),
+                          if (quiet)
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 330),
+                                child: Text(
+                                  "It's quiet right now. Stay here and we'll connect you the moment someone starts looking.",
+                                  textAlign: TextAlign.center,
+                                  style: VT.body(14, color: V.text2, height: 1.5),
+                                ),
+                              ),
+                            )
+                          else
+                            Text.rich(
+                              TextSpan(
+                                style: VT.body(13.5, color: V.text2),
+                                children: [
+                                  TextSpan(text: '${filters.summary((c) => MockData.country(c).name)} · '),
+                                  TextSpan(
+                                    text: searchClock(seconds),
+                                    style: VT.mono(13.5, color: V.text2),
+                                  ),
+                                ],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          const SizedBox(height: 20),
+                          card,
+                          const Expanded(child: SizedBox(height: 24)),
+                          if (quiet) ...[
+                            GradientButton(
+                              label: 'Notify me instead',
+                              icon: SolarIconsBold.bellBing,
+                              height: 54,
+                              onTap: () async {
+                                final ok = await m.notifyMe();
+                                m.stop();
+                                if (context.mounted) toast(context, ok ? "We'll tell you when someone starts looking" : "Couldn't set that up. Try again.", error: !ok);
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            GhostButton(
+                              label: 'Invite a friend',
+                              icon: SolarIconsBold.userPlusRounded,
+                              height: 48,
+                              expand: true,
+                              onTap: () {
+                                m.stop();
+                                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InviteScreen()));
+                              },
+                            ),
+                          ] else if (boosted)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(SolarIconsBold.bolt, size: 16, color: V.gold),
+                                const SizedBox(width: 6),
+                                Text('Boosted · ${Fmt.until(wallet.wallet.boostUntil!)}', style: VT.label(13, color: V.text2)),
+                              ],
+                            )
+                          else
+                            _BoostCard(free: wallet.freeBoosts > 0),
+                          const SizedBox(height: 10),
+                          GhostButton(label: 'Stop', height: 48, expand: true, fill: quiet ? Colors.transparent : null, onTap: m.stop),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1606,17 +1386,147 @@ class _SearchingState extends State<_Searching> {
       ],
     );
   }
+}
 
-  Widget _miniChip(String label, {bool trust = false}) {
-    return Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(color: trust ? V.trust.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14)),
-      child: Center(
-        widthFactor: 1,
-        child: Text(
-          label,
-          style: VT.label(12, color: trust ? V.trust : V.text2, weight: FontWeight.w500),
+/// Three soft pink rings breathing around your photo.
+class _SearchRings extends StatefulWidget {
+  const _SearchRings({required this.child});
+  final Widget child;
+
+  @override
+  State<_SearchRings> createState() => _SearchRingsState();
+}
+
+class _SearchRingsState extends State<_SearchRings> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final still = MediaQuery.of(context).disableAnimations;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, child) => Stack(
+        alignment: Alignment.center,
+        children: [
+          for (final (i, d) in const [150.0, 220.0, 300.0].indexed)
+            Container(
+              width: d,
+              height: d,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: V.pink.withValues(alpha: const [0.55, 0.32, 0.18][i] * (still ? 1 : 0.6 + 0.4 * ((_c.value + i * 0.2) % 1)))),
+              ),
+            ),
+          child!,
+        ],
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+/// One frosted line in the middle of the search: a tip, or what would help.
+class _SearchCard extends StatelessWidget {
+  const _SearchCard({required this.icon, required this.iconColor, required this.text, this.action, this.onAction});
+  final IconData icon;
+  final Color iconColor;
+  final String text;
+  final String? action;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Glass(
+      radius: 18,
+      color: V.bg2.withValues(alpha: 0.55),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: iconColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: VT.body(13, color: V.text, height: 1.45)),
+          ),
+          if (action != null) ...[
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: onAction,
+              child: Text(action!, style: VT.label(13, color: V.pinkSoft)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// "Go to the front": the boost, gold, with its price (or Free).
+class _BoostCard extends StatelessWidget {
+  const _BoostCard({required this.free});
+  final bool free;
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = Economy.boostLength.inMinutes;
+    return Semantics(
+      button: true,
+      label: free ? 'Go to the front, free boost' : 'Go to the front, ${Economy.boostCost} coins',
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: () => confirmBoost(context),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          decoration: BoxDecoration(
+            color: V.gold.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: V.gold.withValues(alpha: 0.28)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: V.gold.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(12)),
+                child: const Icon(SolarIconsBold.bolt, size: 22, color: V.gold),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Go to the front', style: VT.title(15)),
+                    Text(free ? 'Use your free boost' : 'Boost: $minutes minutes first in line', style: VT.body(12, color: V.text2)),
+                  ],
+                ),
+              ),
+              if (free)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: V.ok.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(999)),
+                  child: Text('Free', style: VT.label(13, color: V.ok)),
+                )
+              else
+                Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(gradient: V.goldGrad, borderRadius: BorderRadius.circular(999)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(SolarIconsBold.dollar, size: 16, color: V.onGold),
+                      const SizedBox(width: 4),
+                      Text('${Economy.boostCost}', style: VT.label(13.5, color: V.onGold)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1627,233 +1537,6 @@ class _SearchingState extends State<_Searching> {
 String searchClock(double seconds) {
   final s = seconds < 0 ? 0 : seconds.floor();
   return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
-}
-
-/// "0:12 · 38 others looking right now" — the wait is visible, and so is the crowd.
-class _SearchStatus extends StatelessWidget {
-  const _SearchStatus({required this.seconds, required this.availability});
-  final double seconds;
-  final MatchAvailability? availability;
-
-  @override
-  Widget build(BuildContext context) {
-    final a = availability;
-    final crowd = a == null
-        ? null
-        : a.searching > 0
-        ? '${Fmt.thousands(a.searching)} ${a.searching == 1 ? 'other person' : 'others'} looking right now'
-        : a.online > 0
-        ? "${Fmt.thousands(a.online)} online · you're first in line"
-        : 'No one else is on yet';
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Semantics(
-          label: 'Searching for ${seconds.floor()} seconds',
-          excludeSemantics: true,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
-            child: Text(searchClock(seconds), style: VT.mono(12, color: V.text)),
-          ),
-        ),
-        if (crowd != null) ...[
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(crowd, style: VT.body(13, color: V.text2)),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// Where you are in getting matched: in the queue → finding someone → connecting video.
-class _SearchSteps extends StatelessWidget {
-  const _SearchSteps();
-
-  @override
-  Widget build(BuildContext context) {
-    const steps = ['In the queue', 'Finding a match', 'Connecting video'];
-    const active = 1;
-    final narrow = MediaQuery.sizeOf(context).width <= 380;
-    // Laid out at its natural width and centred, spilling into the side padding when
-    // the labels are wider than the column (as the web's row does).
-    return Semantics(
-      label: 'Matching progress: finding a match',
-      excludeSemantics: true,
-      child: SizedBox(
-        height: 18,
-        child: OverflowBox(
-          maxWidth: double.infinity,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 0; i < steps.length; i++) ...[
-                if (i > 0)
-                  Container(width: 12, height: 1, margin: const EdgeInsets.symmetric(horizontal: 6), color: i <= active ? V.pink.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.14)),
-                Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: i < active ? V.pink : null,
-                    border: i < active ? null : Border.all(color: i == active ? V.pink : Colors.white.withValues(alpha: 0.2), width: 1.5),
-                  ),
-                  child: i < active
-                      ? const Icon(Icons.check_rounded, size: 12, color: Colors.white)
-                      : i == active
-                      ? Center(
-                          child: Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(shape: BoxShape.circle, color: V.pink),
-                          ),
-                        )
-                      : null,
-                ),
-                if (i == active || !narrow) ...[const SizedBox(width: 6), Text(steps[i], style: VT.label(11.5, color: i < active ? V.text2 : (i == active ? V.text : V.muted)))],
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A small pill action under the status (no card: it sits in the screen, not on top of it).
-class _PillAction extends StatelessWidget {
-  const _PillAction({required this.icon, required this.label, required this.onTap, this.warn = false});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool warn;
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: warn ? V.warn.withValues(alpha: 0.10) : Colors.white.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: warn ? V.warn.withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.14)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: warn ? V.warn : V.pinkSoft),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: VT.label(12.5, color: warn ? V.warn : V.text, weight: FontWeight.w600),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-/// Takes the safety card's place once the wait gets long: one line on why,
-/// and small actions — part of the screen, not a card.
-class _SlowSearch extends StatelessWidget {
-  const _SlowSearch({required this.m, required this.nobodyAround, required this.onRestart});
-  final MatchProvider m;
-  final bool nobodyAround;
-  final VoidCallback onRestart;
-
-  @override
-  Widget build(BuildContext context) {
-    final f = m.filters;
-    final narrowed = f.gender != GenderFilter.anyone || f.countryCode != null || f.safeMode;
-    final body = VT.body(13, color: V.text2, height: 1.45);
-    if (narrowed) {
-      final dropped = [
-        if (f.gender != GenderFilter.anyone) '${_genderLabel(f.gender).toLowerCase()} only',
-        if (f.countryCode != null) _countryLabel(f.countryCode),
-        if (f.safeMode) 'verified only',
-      ].join(', ');
-      return Semantics(
-        liveRegion: true,
-        child: Column(
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 340),
-              child: Text.rich(
-                TextSpan(
-                  style: body,
-                  children: [
-                    const TextSpan(text: 'Few people match '),
-                    TextSpan(
-                      text: dropped,
-                      style: const TextStyle(color: V.text),
-                    ),
-                    const TextSpan(text: ' right now. Anyone, anywhere usually connects in seconds.'),
-                  ],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _PillAction(
-              icon: SolarIconsBold.global,
-              label: 'Match with anyone',
-              warn: true,
-              onTap: () {
-                m.stop();
-                final p = context.read<FiltersProvider>();
-                p.save(p.filters.copyWith(gender: WantedGender.anyone, clearCountry: true));
-                onRestart();
-              },
-            ),
-          ],
-        ),
-      );
-    }
-    return Semantics(
-      liveRegion: true,
-      child: Column(
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 340),
-            child: Text(
-              nobodyAround ? "Stay here — we'll connect you when someone joins." : "Still looking — hang on, or we can tell you when someone's on.",
-              textAlign: TextAlign.center,
-              style: body,
-            ),
-          ),
-          const _VibeHourNudge(),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _PillAction(
-                icon: SolarIconsBold.bellBing,
-                label: 'Notify me instead',
-                onTap: () async {
-                  final ok = await m.notifyMe();
-                  m.stop();
-                  if (context.mounted) toast(context, ok ? "We'll tell you when someone starts looking" : "Couldn't set that up. Try again.", error: !ok);
-                },
-              ),
-              _PillAction(
-                icon: SolarIconsBold.userPlusRounded,
-                label: 'Invite a friend',
-                onTap: () {
-                  m.stop();
-                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InviteScreen()));
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// In a quiet search: when everyone's on, and one tap to be reminded.
@@ -1933,8 +1616,8 @@ class _Connected extends StatelessWidget {
     final me = context.watch<SessionProvider>().me;
     final friendState = m.friendState;
     final media = MediaQuery.of(context);
-    final bottomInset = media.viewInsets.bottom;
-    final topRow = media.padding.top + 64;
+    final keyboard = media.viewInsets.bottom;
+    final bottom = keyboard > 0 ? keyboard + 8 : media.padding.bottom;
     final shared = [
       for (final i in p.interests)
         if (me?.interests.contains(i) == true) i,
@@ -1942,133 +1625,38 @@ class _Connected extends StatelessWidget {
     final opener = shared.isNotEmpty ? 'You both like ${shared.take(2).join(' · ')}' : (p.interests.isEmpty ? null : 'Into ${p.interests.take(2).join(' · ')}');
     final likeText = m.mutualLike ? 'You both liked each other' : (m.partnerLikedMe ? '${p.name} liked you' : null);
 
-    void send() {
-      m.sendMessage(message.text);
-      message.clear();
-    }
+    final stage = Stack(
+      fit: StackFit.expand,
+      children: [
+        _PartnerStage(m: m, partner: p, blurred: m.blurred),
+        const VideoScrims(top: 200, bottom: 380, topAlpha: 0.65, bottomAlpha: 0.9, bottomMid: 0.55),
+      ],
+    );
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (m.friendCall) ...[
-          _PartnerStage(m: m, partner: p, blurred: m.blurred),
-          const VideoScrims(top: 220, bottom: 460, topAlpha: 0.75, bottomAlpha: 0.92, bottomMid: 0.6),
-        ] else
+        if (m.friendCall)
+          stage
+        else
           SwipeStage(
             onNext: onNext,
             onLike: () {
               if (!m.likedPartner) m.like();
             },
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                _PartnerStage(m: m, partner: p, blurred: m.blurred),
-                const VideoScrims(top: 220, bottom: 460, topAlpha: 0.75, bottomAlpha: 0.92, bottomMid: 0.6),
-              ],
-            ),
+            child: stage,
           ),
-        // Top: who, timer, report.
         Positioned(
           left: 0,
           right: 0,
           top: media.padding.top,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-            child: Row(
-              children: [
-                Flexible(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => showUserProfileSheet(context, p.id),
-                    child: Glass(
-                      radius: 24,
-                      color: V.bg2.withValues(alpha: 0.45),
-                      padding: const EdgeInsets.fromLTRB(5, 5, 14, 5),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // "Lv 7" pinned under their photo: always room for it.
-                          Stack(
-                            clipBehavior: Clip.none,
-                            alignment: Alignment.bottomCenter,
-                            children: [
-                              VAvatar(url: p.avatarUrl, name: p.name, size: 36),
-                              if (p.level > 0) Positioned(bottom: -6, child: LevelChip(level: p.level, glass: true, size: 8.5)),
-                            ],
-                          ),
-                          const SizedBox(width: 10),
-                          Flexible(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        '${p.name}, ${p.age}',
-                                        overflow: TextOverflow.ellipsis,
-                                        style: VT.title(15, weight: FontWeight.w600),
-                                      ),
-                                    ),
-                                    if (p.verified)
-                                      const Padding(
-                                        padding: EdgeInsets.only(left: 4),
-                                        child: Icon(SolarIconsBold.verifiedCheck, size: 16, color: V.trust, semanticLabel: 'Verified'),
-                                      ),
-                                    if (p.vip)
-                                      const Padding(
-                                        padding: EdgeInsets.only(left: 4),
-                                        child: Icon(SolarIconsBold.crown, size: 15, color: V.gold, semanticLabel: 'VIP'),
-                                      ),
-                                  ],
-                                ),
-                                Text(
-                                  '${p.country.flag} ${p.country.name}',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.72), height: 1.2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Glass(
-                  radius: 16,
-                  height: 32,
-                  color: V.bg2.withValues(alpha: 0.45),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(shape: BoxShape.circle, color: V.bad),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(Fmt.clock(m.elapsed), style: VT.mono(12, color: V.text)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _FollowPill(userId: p.id),
-                const SizedBox(width: 8),
-                GlassPill(label: 'Report', icon: SolarIconsBold.flag, tint: V.bad, height: 36, onTap: onReport),
-              ],
-            ),
-          ),
+          child: _CallTop(m: m, partner: p, onReport: onReport),
         ),
-        // Openers and likes, under the identity pill.
+        // What you share and who liked whom, under the name.
         Positioned(
           left: 12,
-          top: topRow,
-          right: 12 + 100 + 10,
+          top: media.padding.top + 72,
+          right: 120,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2078,250 +1666,544 @@ class _Connected extends StatelessWidget {
             ],
           ),
         ),
-        // Self PiP
         Positioned(
           right: 12,
-          top: topRow,
-          child: Container(
-            width: 100,
-            height: 140,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.28), width: 1.5),
-              color: V.surface2,
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 30, offset: const Offset(0, 12))],
-            ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (m.hasLocalVideo && m.camOn)
-                  RTCVideoView(m.localRenderer, mirror: m.frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-                else
-                  const Center(child: Icon(Icons.videocam_off_rounded, color: V.muted)),
-                if (m.blurred) BackdropFilter(filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12), child: const SizedBox.expand()),
-                Positioned(
-                  left: 6,
-                  bottom: 6,
-                  child: GestureDetector(
-                    onTap: m.toggleMic,
-                    child: Glass(
-                      radius: 12,
-                      padding: EdgeInsets.zero,
-                      border: Colors.transparent,
-                      color: V.bg2.withValues(alpha: 0.55),
-                      child: SizedBox(width: 24, height: 24, child: Icon(m.micOn ? Icons.mic_rounded : Icons.mic_off_rounded, size: 14, color: m.micOn ? Colors.white : V.bad)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          top: media.padding.top + 70,
+          child: _SelfPip(m: m),
         ),
-        // Bottom stack: chat, controls, composer
-        Positioned(
-          left: 12,
-          right: 12,
-          bottom: bottomInset > 0 ? bottomInset + 8 : media.padding.bottom + 16,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (m.game != null) ...[GameCard(m: m, round: m.game!), const SizedBox(height: 10)],
-              _ChatOverlay(m: m, controller: chatScroll, maxHeight: m.game != null ? 84 : 168),
-              const SizedBox(height: 14),
-              if (m.friendCall)
-                // A call with a friend from a chat: no Next, no like, no add — End.
+        if (m.friendCall)
+          // A call with a friend from a chat: no Next, no like, no add — End.
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: bottom + 16,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (m.game != null) ...[GameCard(m: m, round: m.game!), const SizedBox(height: 10)],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _ChatOverlay(m: m, controller: chatScroll, maxHeight: m.game != null ? 84 : 168),
+                ),
+                const SizedBox(height: 14),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     RoundControl(icon: SolarIconsBold.gift, onTap: onGift, label: 'Gift', color: V.gold),
                     const SizedBox(width: 20),
-                    RoundControl(icon: SolarIconsBold.gamepadMinimalistic, onTap: onPlay, label: 'Play', color: V.lavender, tint: m.game != null ? V.violet : null),
+                    RoundControl(icon: SolarIconsBold.gamepadMinimalistic, onTap: onPlay, label: 'Play', color: m.game != null ? V.lavender : Colors.white, tint: m.game != null ? V.violet : null),
                     const SizedBox(width: 20),
                     RoundControl(icon: Icons.call_end_rounded, size: 64, onTap: m.stop, label: 'End', background: const Color(0xFFE11D48)),
+                    const SizedBox(width: 20),
+                    RoundControl(icon: SolarIconsBold.menuDots, onTap: () => _showCallOptions(context, m, onReport), label: 'More'),
                   ],
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+                const SizedBox(height: 14),
+                _Composer(m: m, controller: message),
+              ],
+            ),
+          )
+        else ...[
+          // The rail: everything you can do for this person, one thumb away.
+          Positioned(
+            right: 12,
+            bottom: bottom + 112,
+            child: Column(
+              children: [
+                RoundControl(
+                  size: 50,
+                  icon: m.likedPartner ? SolarIconsBold.heart : SolarIconsOutline.heart,
+                  color: m.likedPartner ? V.pink : Colors.white,
+                  tint: m.likedPartner ? V.pink : null,
+                  onTap: m.like,
+                  label: m.likedPartner ? 'Liked' : 'Like',
+                ),
+                const SizedBox(height: 14),
+                RoundControl(
+                  size: 50,
+                  icon: switch (friendState) {
+                    FriendState.friends => SolarIconsBold.userCheckRounded,
+                    FriendState.requested => SolarIconsBold.hourglass,
+                    _ => SolarIconsBold.userPlusRounded,
+                  },
+                  onTap: friendState == FriendState.none || friendState == FriendState.incoming ? onAddFriend : null,
+                  label: switch (friendState) {
+                    FriendState.friends => 'Friends',
+                    FriendState.requested => 'Sent',
+                    FriendState.incoming => 'Accept',
+                    _ => 'Add friend',
+                  },
+                  color: friendState == FriendState.friends ? V.ok : Colors.white,
+                  tint: friendState == FriendState.incoming ? V.violet : null,
+                ),
+                const SizedBox(height: 14),
+                RoundControl(size: 50, icon: SolarIconsBold.gift, onTap: onGift, label: 'Gift', color: V.gold),
+                const SizedBox(height: 14),
+                RoundControl(
+                  size: 50,
+                  icon: SolarIconsBold.gamepadMinimalistic,
+                  onTap: onPlay,
+                  label: 'Play',
+                  color: m.game != null ? V.lavender : Colors.white,
+                  tint: m.game != null ? V.violet : null,
+                ),
+                const SizedBox(height: 14),
+                RoundControl(size: 50, icon: SolarIconsBold.menuDots, onTap: () => _showCallOptions(context, m, onReport), label: 'More'),
+              ],
+            ),
+          ),
+          // Chat and a game, bottom left, clear of the rail.
+          Positioned(
+            left: 12,
+            right: 84,
+            bottom: bottom + 96,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (m.game != null) ...[GameCard(m: m, round: m.game!), const SizedBox(height: 10)],
+                _ChatOverlay(m: m, controller: chatScroll, maxHeight: m.game != null ? 84 : 168),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: bottom + 22,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _Composer(m: m, controller: message),
+                ),
+                const SizedBox(width: 10),
+                _NextButton(m: m, onTap: onNext),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Top: who you're with (opens their profile), how long, and Report.
+class _CallTop extends StatelessWidget {
+  const _CallTop({required this.m, required this.partner, required this.onReport});
+  final MatchProvider m;
+  final Profile partner;
+  final VoidCallback onReport;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = partner;
+    final glass = V.bg2.withValues(alpha: 0.52);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Semantics(
+                    button: true,
+                    label: "Open ${p.name}'s profile",
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => showUserProfileSheet(context, p.id),
+                      child: Glass(
+                        radius: 999,
+                        height: 46,
+                        blur: 18,
+                        color: glass,
+                        border: Colors.white.withValues(alpha: 0.10),
+                        padding: const EdgeInsets.only(left: 6, right: 14),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            VAvatar(url: p.avatarUrl, name: p.name, size: 34),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          '${p.name}, ${p.age}',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: VT.title(14.5, weight: FontWeight.w700),
+                                        ),
+                                      ),
+                                      if (p.verified)
+                                        const Padding(
+                                          padding: EdgeInsets.only(left: 4),
+                                          child: Icon(SolarIconsBold.verifiedCheck, size: 15, color: V.trust, semanticLabel: 'Verified'),
+                                        ),
+                                      if (p.vip)
+                                        const Padding(
+                                          padding: EdgeInsets.only(left: 4),
+                                          child: Icon(SolarIconsBold.crown, size: 15, color: V.gold, semanticLabel: 'VIP'),
+                                        ),
+                                    ],
+                                  ),
+                                  Text(
+                                    '${p.country.name} · Level ${p.level}',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: VT.body(11.5, color: Colors.white.withValues(alpha: 0.75), height: 1.2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Glass(
+                  radius: 999,
+                  height: 32,
+                  blur: 18,
+                  color: glass,
+                  border: Colors.white.withValues(alpha: 0.10),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      RoundControl(
-                        icon: m.likedPartner ? SolarIconsBold.heart : SolarIconsOutline.heart,
-                        color: m.likedPartner ? V.pink : Colors.white,
-                        tint: m.likedPartner ? V.pink : null,
-                        onTap: m.like,
-                        label: m.likedPartner ? 'Liked' : 'Like',
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(shape: BoxShape.circle, color: V.bad),
                       ),
-                      RoundControl(icon: SolarIconsBold.gift, onTap: onGift, label: 'Gift', color: V.gold),
-                      _NextButton(m: m, onTap: onNext),
-                      RoundControl(
-                        icon: switch (friendState) {
-                          FriendState.friends => SolarIconsBold.userCheckRounded,
-                          FriendState.requested => SolarIconsBold.hourglass,
-                          _ => SolarIconsBold.userPlusRounded,
-                        },
-                        onTap: friendState == FriendState.none || friendState == FriendState.incoming ? onAddFriend : null,
-                        label: switch (friendState) {
-                          FriendState.friends => 'Friends',
-                          FriendState.requested => 'Sent',
-                          FriendState.incoming => 'Accept',
-                          _ => 'Add',
-                        },
-                        color: friendState == FriendState.friends ? V.ok : Colors.white,
-                        tint: friendState == FriendState.incoming ? V.violet : null,
-                      ),
-                      RoundControl(icon: SolarIconsBold.gamepadMinimalistic, onTap: onPlay, label: 'Play', color: V.lavender, tint: m.game != null ? V.violet : null),
+                      const SizedBox(width: 6),
+                      Text(Fmt.clock(m.elapsed), style: VT.mono(12.5, color: V.text)),
                     ],
                   ),
                 ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  // Call options (mute, camera, block, end) sit by the composer.
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Semantics(
+            button: true,
+            label: 'Report',
+            excludeSemantics: true,
+            child: GestureDetector(
+              onTap: onReport,
+              child: Glass(
+                radius: 999,
+                height: 40,
+                blur: 18,
+                color: glass,
+                border: Colors.white.withValues(alpha: 0.10),
+                padding: EdgeInsets.zero,
+                child: const SizedBox(width: 40, child: Icon(SolarIconsBold.flag, size: 21, color: V.bad)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// You, picture-in-picture. Camera off: your photo (what they see). Muted: a red mic to unmute.
+class _SelfPip extends StatelessWidget {
+  const _SelfPip({required this.m});
+  final MatchProvider m;
+
+  @override
+  Widget build(BuildContext context) {
+    final me = context.watch<SessionProvider>().me;
+    return Container(
+      width: 96,
+      height: 136,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 2),
+        color: V.surface2,
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 24, offset: const Offset(0, 8))],
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (m.hasLocalVideo && m.camOn)
+            RTCVideoView(m.localRenderer, mirror: m.frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+          else if (me != null && me.avatarUrl.isNotEmpty)
+            Opacity(
+              opacity: 0.7,
+              child: Image.network(
+                me.avatarUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.videocam_off_rounded, color: V.muted)),
+              ),
+            )
+          else
+            const Center(child: Icon(Icons.videocam_off_rounded, color: V.muted)),
+          if (m.blurred) BackdropFilter(filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12), child: const SizedBox.expand()),
+          if (!m.micOn)
+            Positioned(
+              left: 6,
+              bottom: 6,
+              child: Semantics(
+                button: true,
+                label: 'Unmute microphone',
+                child: GestureDetector(
+                  onTap: m.toggleMic,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: V.bg2.withValues(alpha: 0.7)),
+                    child: const Icon(Icons.mic_off_rounded, size: 14, color: V.bad),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Quick reactions behind the smile: one tap sends.
+const quickReactions = ['👋', '😂', '😍', '🔥', '👍', '🙏'];
+
+/// "Say something…", with the smile for quick reactions; Send appears once you type.
+class _Composer extends StatefulWidget {
+  const _Composer({required this.m, required this.controller});
+  final MatchProvider m;
+  final TextEditingController controller;
+
+  @override
+  State<_Composer> createState() => _ComposerState();
+}
+
+class _ComposerState extends State<_Composer> {
+  bool _quick = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  void _send([String? value]) {
+    final text = value ?? widget.controller.text;
+    if (text.trim().isEmpty) return;
+    widget.m.sendMessage(text);
+    if (value == null) widget.controller.clear();
+    setState(() => _quick = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final typed = widget.controller.text.trim().isNotEmpty;
+    final name = widget.m.partner?.name;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_quick) ...[
+          Glass(
+            radius: 999,
+            blur: 18,
+            color: V.bg2.withValues(alpha: 0.8),
+            border: Colors.white.withValues(alpha: 0.10),
+            padding: const EdgeInsets.all(6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final r in quickReactions)
                   Semantics(
                     button: true,
-                    label: 'Call options',
-                    excludeSemantics: true,
+                    label: 'Send $r',
                     child: GestureDetector(
-                      onTap: () => _more(context),
-                      child: Glass(
-                        radius: 26,
-                        height: 52,
-                        padding: EdgeInsets.zero,
-                        border: Colors.white.withValues(alpha: 0.14),
-                        child: const SizedBox(width: 52, child: Icon(SolarIconsBold.menuDots, color: Colors.white)),
+                      onTap: () => _send(r),
+                      child: SizedBox.square(
+                        dimension: 40,
+                        child: Center(child: Text(r, style: const TextStyle(fontSize: 22))),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Glass(
-                      radius: 26,
-                      height: 52,
-                      border: Colors.white.withValues(alpha: 0.14),
-                      padding: const EdgeInsets.only(left: 18, right: 6),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: message,
-                              style: VT.body(15, color: Colors.white),
-                              textInputAction: TextInputAction.send,
-                              cursorColor: V.pinkSoft,
-                              decoration: InputDecoration(
-                                hintText: 'Say something…',
-                                hintStyle: VT.body(15, color: Colors.white.withValues(alpha: 0.55)),
-                                filled: false,
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
-                                isDense: true,
-                              ),
-                              onSubmitted: (_) => send(),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Semantics(
-                            button: true,
-                            label: 'Send',
-                            child: Material(
-                              color: V.violet,
-                              shape: const CircleBorder(),
-                              child: InkWell(
-                                customBorder: const CircleBorder(),
-                                onTap: send,
-                                child: const SizedBox(width: 40, height: 40, child: Icon(SolarIconsBold.plain, size: 19, color: Colors.white)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Glass(
+          radius: 999,
+          height: 52,
+          blur: 18,
+          color: V.bg2.withValues(alpha: 0.52),
+          border: Colors.white.withValues(alpha: 0.10),
+          padding: const EdgeInsets.only(left: 18, right: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  label: name == null ? 'Message' : 'Message $name',
+                  child: TextField(
+                    controller: widget.controller,
+                    style: VT.body(15, color: Colors.white),
+                    textInputAction: TextInputAction.send,
+                    cursorColor: V.pinkSoft,
+                    decoration: InputDecoration(
+                      hintText: 'Say something…',
+                      hintStyle: VT.body(15, color: Colors.white.withValues(alpha: 0.55)),
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      isDense: true,
                     ),
+                    onSubmitted: (_) => _send(),
                   ),
-                ],
+                ),
               ),
+              const SizedBox(width: 8),
+              if (typed)
+                Semantics(
+                  button: true,
+                  label: 'Send',
+                  child: Material(
+                    color: V.violet,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _send,
+                      child: const SizedBox(width: 36, height: 36, child: Icon(SolarIconsBold.plain, size: 18, color: Colors.white)),
+                    ),
+                  ),
+                )
+              else
+                Semantics(
+                  button: true,
+                  label: 'Quick reactions',
+                  child: GestureDetector(
+                    onTap: () => setState(() => _quick = !_quick),
+                    child: SizedBox(width: 36, height: 36, child: Icon(SolarIconsOutline.smileCircle, size: 22, color: Colors.white.withValues(alpha: 0.75))),
+                  ),
+                ),
             ],
           ),
         ),
       ],
     );
   }
+}
 
-  void _more(BuildContext context) {
-    showVibeSheet(
-      context,
-      child: Padding(
+/// "More": camera, mic, their profile, then report, block and end.
+void _showCallOptions(BuildContext context, MatchProvider m, VoidCallback onReport) {
+  final name = m.partner?.name ?? 'They';
+  final partnerId = m.partner?.id;
+  void run(BuildContext ctx, VoidCallback fn) {
+    Navigator.of(ctx).pop();
+    fn();
+  }
+
+  showVibeSheet(
+    context,
+    child: Builder(
+      builder: (ctx) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Call options', style: VT.title(20)),
-            const SizedBox(height: 16),
-            GroupCard(
-              children: [
-                GroupRow(
-                  icon: m.micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
-                  title: m.micOn ? 'Mute microphone' : 'Unmute',
-                  onTap: () {
-                    m.toggleMic();
-                    Navigator.of(context).pop();
-                  },
-                ),
-                GroupRow(
-                  icon: m.camOn ? SolarIconsBold.videocamera : Icons.videocam_off_rounded,
-                  title: m.camOn ? 'Turn camera off' : 'Turn camera on',
-                  onTap: () {
-                    m.toggleCam();
-                    Navigator.of(context).pop();
-                  },
-                ),
-                GroupRow(
-                  icon: SolarIconsBold.cameraRotate,
-                  title: 'Switch camera',
-                  onTap: () {
-                    m.switchCamera();
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 14),
+              child: Text('Call options', style: VT.title(18, weight: FontWeight.w700)),
             ),
-            const SizedBox(height: 10),
-            GroupCard(
-              children: [
-                GroupRow(
-                  icon: SolarIconsBold.forbiddenCircle,
-                  iconColor: V.bad,
-                  iconBg: V.bad.withValues(alpha: 0.12),
-                  title: 'Block and end',
-                  titleColor: V.bad,
-                  onTap: () {
-                    m.blockPartner();
-                    Navigator.of(context).pop();
-                  },
-                ),
-                GroupRow(
-                  icon: SolarIconsBold.endCallRounded,
-                  title: 'End and go back',
-                  onTap: () {
-                    m.stop();
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
+            if (!m.voiceCall) _OptionRow(icon: SolarIconsBold.cameraRotate, title: 'Switch camera', onTap: () => run(ctx, () => m.switchCamera())),
+            _OptionRow(icon: m.micOn ? Icons.mic_off_rounded : Icons.mic_rounded, title: m.micOn ? 'Mute my mic' : 'Unmute my mic', onTap: () => run(ctx, m.toggleMic)),
+            if (!m.voiceCall)
+              _OptionRow(
+                icon: m.camOn ? Icons.videocam_off_rounded : SolarIconsBold.videocamera,
+                title: m.camOn ? 'Turn my camera off' : 'Turn my camera on',
+                subtitle: m.camOn ? '$name sees your photo instead' : null,
+                onTap: () => run(ctx, m.toggleCam),
+              ),
+            if (partnerId != null) _OptionRow(icon: SolarIconsBold.eye, title: "See $name's profile", onTap: () => run(ctx, () => showUserProfileSheet(context, partnerId))),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Divider(height: 1, color: V.lineSoft),
             ),
+            _OptionRow(icon: SolarIconsBold.flag, title: 'Report', subtitle: 'Our team reviews every report', bad: true, onTap: () => run(ctx, onReport)),
+            _OptionRow(icon: SolarIconsBold.forbiddenCircle, title: 'Block and end', subtitle: "You won't be matched again", bad: true, onTap: () => run(ctx, m.blockPartner)),
+            _OptionRow(icon: SolarIconsBold.endCallRounded, title: 'End and go back', onTap: () => run(ctx, m.stop)),
           ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _OptionRow extends StatelessWidget {
+  const _OptionRow({required this.icon, required this.title, required this.onTap, this.subtitle, this.bad = false});
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool bad;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = bad ? V.bad : V.text;
+    return Semantics(
+      button: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 13),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: bad ? V.bad.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, size: 21, color: bad ? V.bad : V.text2),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: VT.label(15, color: fg, weight: FontWeight.w600),
+                    ),
+                    if (subtitle != null) Text(subtitle!, style: VT.body(12, color: V.text2)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
+/// Next, as a pill beside the composer. In a cooldown it counts down and offers the skip.
 class _NextButton extends StatelessWidget {
   const _NextButton({required this.m, required this.onTap});
   final MatchProvider m;
@@ -2332,44 +2214,48 @@ class _NextButton extends StatelessWidget {
     final cd = m.cooldownSeconds;
     return Semantics(
       button: true,
-      label: cd > 0 ? 'Next, wait $cd seconds or skip for ${Economy.skipCooldownBypassCost} coins' : 'Next person',
+      label: cd > 0 ? 'Next in $cd seconds, or skip the wait for ${Economy.skipCooldownBypassCost} coins' : 'Next person',
       excludeSemantics: true,
       child: GestureDetector(
         onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: cd > 0 ? const LinearGradient(colors: [V.surface3, V.surface2]) : V.brand,
-                boxShadow: [BoxShadow(color: (cd > 0 ? Colors.black : V.pink).withValues(alpha: 0.42), blurRadius: 30, offset: const Offset(0, 12))],
-              ),
-              child: cd > 0
-                  ? Center(
-                      child: Text('${cd}s', style: VT.number(20, color: Colors.white)),
-                    )
-                  : const Icon(SolarIconsBold.skipNext, size: 38, color: Colors.white),
-            ),
-            const SizedBox(height: 6),
-            cd > 0
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('Skip · ', style: VT.label(11, color: Colors.white.withValues(alpha: 0.85))),
-                      CoinAmount(Economy.skipCooldownBypassCost, size: 11),
-                    ],
-                  )
-                : Text('Next', style: VT.label(11, color: Colors.white.withValues(alpha: 0.85))),
-          ],
+        child: Container(
+          height: 52,
+          padding: EdgeInsets.only(left: 14, right: cd > 0 ? 16 : 20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            gradient: cd > 0 ? null : V.brand,
+            color: cd > 0 ? V.surface3.withValues(alpha: 0.9) : null,
+            border: cd > 0 ? Border.all(color: Colors.white.withValues(alpha: 0.10)) : null,
+            boxShadow: cd > 0 ? null : [BoxShadow(color: V.pink.withValues(alpha: 0.4), blurRadius: 26, offset: const Offset(0, 10))],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: cd > 0
+                ? [
+                    Text('${cd}s', style: VT.mono(15, color: Colors.white)),
+                    Text(' · ', style: VT.label(14, color: Colors.white.withValues(alpha: 0.6))),
+                    Text(
+                      'Skip ',
+                      style: VT.label(14, color: Colors.white, weight: FontWeight.w700),
+                    ),
+                    CoinAmount(Economy.skipCooldownBypassCost, size: 13),
+                  ]
+                : [
+                    const Icon(SolarIconsBold.skipNext, size: 26, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Next',
+                      style: VT.label(15, color: Colors.white, weight: FontWeight.w700),
+                    ),
+                  ],
+          ),
         ),
       ),
     );
   }
 }
 
+/// The in-call chat: frosted bubbles, the sender's name first, fading at the top.
 class _ChatOverlay extends StatelessWidget {
   const _ChatOverlay({required this.m, required this.controller, this.maxHeight = 168});
   final MatchProvider m;
@@ -2380,7 +2266,7 @@ class _ChatOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = m.chat;
     if (items.isEmpty) return const SizedBox.shrink();
-    final maxW = MediaQuery.of(context).size.width * 0.72;
+    final partner = m.partner?.name ?? 'Them';
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
       child: ShaderMask(
@@ -2395,48 +2281,45 @@ class _ChatOverlay extends StatelessWidget {
           itemBuilder: (context, i) {
             final c = items[i];
             final mine = c.fromMe;
-            final text = c.gift != null ? '${c.gift!.emoji}  ${c.text}' : c.text;
-            final bubble = mine
-                ? Container(
-                    constraints: BoxConstraints(maxWidth: maxW),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: c.gift != null ? V.gold.withValues(alpha: 0.28) : V.violet.withValues(alpha: 0.6),
-                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(18), topRight: Radius.circular(18), bottomLeft: Radius.circular(18), bottomRight: Radius.circular(6)),
-                    ),
-                    child: Text(text, style: VT.body(14, color: Colors.white, height: 1.35)),
-                  )
-                : ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxW),
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(18), topRight: Radius.circular(18), bottomLeft: Radius.circular(6), bottomRight: Radius.circular(18)),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: c.gift != null ? V.gold.withValues(alpha: 0.2) : V.glass,
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                            borderRadius: const BorderRadius.only(topLeft: Radius.circular(18), topRight: Radius.circular(18), bottomLeft: Radius.circular(6), bottomRight: Radius.circular(18)),
+            final text = c.gift != null ? '${c.gift!.emoji} ${c.text}' : c.text;
+            final bubble = ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 250),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    color: c.gift != null ? V.gold.withValues(alpha: 0.28) : (mine ? V.violet.withValues(alpha: 0.55) : V.bg2.withValues(alpha: 0.55)),
+                    child: Text.rich(
+                      TextSpan(
+                        style: VT.body(13.5, color: Colors.white, height: 1.35),
+                        children: [
+                          TextSpan(
+                            text: mine ? 'You' : partner,
+                            style: TextStyle(fontWeight: FontWeight.w700, color: mine ? Colors.white : V.pinkSoft),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(m.partner?.name ?? 'Them', style: VT.label(11, color: V.pinkSoft)),
-                              Text(text, style: VT.body(14, color: Colors.white, height: 1.35)),
-                            ],
-                          ),
-                        ),
+                          TextSpan(text: ' $text'),
+                        ],
                       ),
                     ),
-                  );
+                  ),
+                ),
+              ),
+            );
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Align(
-                alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                alignment: Alignment.centerLeft,
                 child: mine && c.hidden
-                    ? Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [bubble, HiddenNote(color: Colors.white.withValues(alpha: 0.8), shadow: true)])
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          bubble,
+                          HiddenNote(color: Colors.white.withValues(alpha: 0.8), shadow: true),
+                        ],
+                      )
                     : bubble,
               ),
             );
@@ -2528,79 +2411,6 @@ class VipNudge extends StatelessWidget {
       icon: SolarIconsBold.crown,
       color: V.gold,
       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen())),
-    );
-  }
-}
-
-/// Follow from the call's top bar (a small icon button). Reads the partner's
-/// profile once so it knows whether you already follow them.
-class _FollowPill extends StatefulWidget {
-  const _FollowPill({required this.userId});
-  final String userId;
-
-  @override
-  State<_FollowPill> createState() => _FollowPillState();
-}
-
-class _FollowPillState extends State<_FollowPill> {
-  @override
-  void initState() {
-    super.initState();
-    final follows = context.read<FollowsProvider>();
-    Future(() async {
-      try {
-        await follows.view(widget.userId);
-      } on ApiException catch (_) {}
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = context.select<FollowsProvider, FollowState>((f) => f.stateOf(widget.userId));
-    final label = switch (s) {
-      FollowState.none => 'Follow',
-      FollowState.requested => 'Follow requested',
-      FollowState.following => 'Following',
-    };
-    final none = s == FollowState.none;
-    // Icon-only so the partner's name keeps its room on small phones.
-    return Tooltip(
-      message: label,
-      child: Semantics(
-        button: none,
-        label: label,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: !none
-              ? null
-              : () async {
-                  try {
-                    await context.read<FollowsProvider>().follow(widget.userId);
-                  } on ApiException catch (e) {
-                    if (context.mounted) toast(context, e.message, error: true);
-                  }
-                },
-          child: Glass(
-            radius: 18,
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 9),
-            color: none ? V.violet.withValues(alpha: 0.28) : V.bg2.withValues(alpha: 0.45),
-            border: none ? V.violet.withValues(alpha: 0.5) : null,
-            child: Center(
-              widthFactor: 1,
-              child: Icon(
-                switch (s) {
-                  FollowState.none => Icons.add_rounded,
-                  FollowState.requested => SolarIconsBold.hourglass,
-                  FollowState.following => Icons.check_rounded,
-                },
-                size: 20,
-                color: s == FollowState.following ? V.ok : Colors.white,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

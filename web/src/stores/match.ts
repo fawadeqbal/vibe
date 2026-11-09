@@ -129,6 +129,10 @@ interface MatchState {
   /** Report the person from the call that just ended (the recap's link). */
   reportLast: (reason: ReportReason, opts: { note?: string; block: boolean }) => Promise<void>;
   blockPartner: () => Promise<void>;
+  /** "Like back" on the ended card: a like on the call that just ended. */
+  likeLast: () => Promise<boolean>;
+  /** "Send a gift" on the ended card, to the person you just left. False = could not pay (see needsCoins). */
+  giftLast: (g: Gift) => Promise<boolean>;
   /** Call the last person again (paid). */
   reconnect: () => Promise<boolean>;
   dismissEnded: () => void;
@@ -573,6 +577,40 @@ export const useMatch = create<MatchState>()((set, get) => {
       if (p) await useSocial.getState().block(p); // the server ends the call and tells us
     },
 
+    async likeLast() {
+      const s = get();
+      const last = s.history.at(-1);
+      if (!s.lastPartner || !last || last.liked) return true;
+      patchLast({ liked: true });
+      try {
+        const r = await api.post<Json>("/match/last/like");
+        if (asMap(r).mutual === true) {
+          patchLast({ likedMe: true });
+          set((st) => ({ ended: st.ended ? { ...st.ended, mutualLike: true } : st.ended }));
+        }
+        return true;
+      } catch (e) {
+        patchLast({ liked: false });
+        set({ lastError: e instanceof ApiError ? e.message : "Could not send the like" });
+        return false;
+      }
+    },
+
+    async giftLast(g) {
+      if (!get().lastPartner) return false;
+      set({ needsCoins: false, lastError: null });
+      try {
+        await api.post("/match/last/gift", { giftId: g.id }, { "Idempotency-Key": newIdempotencyKey() });
+      } catch (e) {
+        if (e instanceof ApiError && e.isInsufficientCoins) set({ needsCoins: true });
+        else set({ lastError: e instanceof ApiError ? e.message : "Could not send the gift" });
+        return false;
+      }
+      const last = get().history.at(-1);
+      if (last) patchLast({ giftsSent: last.giftsSent + 1, coinsSpent: last.coinsSpent + g.coins });
+      return true;
+    },
+
     async reconnect() {
       const s = get();
       if (!s.lastPartner || s.status === "connected") return false;
@@ -751,6 +789,8 @@ realtime.on(Ev.matchChat, (e) => {
 });
 
 realtime.on(Ev.matchLiked, (e) => {
+  // They liked you back after the call: the ended card shows it.
+  if (e.matchId === lastMatchId && e.matchId !== matchId) return patchLast({ likedMe: true });
   if (e.matchId !== matchId) return;
   set((s) => ({ partnerLikedMe: true, current: s.current ? { ...s.current, likedMe: true } : null }));
 });
@@ -767,12 +807,22 @@ realtime.on(Ev.matchGift, (e) => {
 });
 
 /** Both liked each other: once per call, from the like ack or `match:mutual`, whichever comes first. */
+/** Update the call that just ended (the last history record). */
+function patchLast(patch: Partial<MatchRecord>) {
+  set((s) => (s.history.length ? { history: [...s.history.slice(0, -1), { ...s.history[s.history.length - 1], ...patch }] } : {}));
+}
+
 function setMutual() {
   if (get().mutual) return;
   set((s) => ({ mutual: true, likedPartner: true, partnerLikedMe: true, current: s.current ? { ...s.current, liked: true, likedMe: true } : null }));
 }
 
 realtime.on(Ev.matchMutual, (e) => {
+  if (e.matchId === lastMatchId && e.matchId !== matchId) {
+    patchLast({ liked: true, likedMe: true });
+    set((s) => ({ ended: s.ended ? { ...s.ended, mutualLike: true } : s.ended }));
+    return;
+  }
   if (e.matchId === matchId) setMutual();
 });
 

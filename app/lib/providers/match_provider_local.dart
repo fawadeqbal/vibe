@@ -283,6 +283,30 @@ class LocalMatchProvider extends MatchProvider {
     _end(EndReason.reported);
   }
 
+  /// Offline: a like back always lands (the mock partner liked you if they did in the call).
+  @override
+  Future<bool> likeLast() async {
+    if (_lastPartner == null || _history.isEmpty || _history.last.liked) return true;
+    patchLast((r) => r.copyWith(liked: true));
+    _lastMutual = _history.last.likedMe;
+    notifyListeners();
+    return true;
+  }
+
+  @override
+  Future<bool> giftLast(Gift g) async {
+    final p = _lastPartner;
+    if (p == null) return false;
+    if (!await _wallet.spend(g.coins, '${g.name} to ${p.name}', kind: TxKind.gift)) {
+      _needsCoins = true;
+      notifyListeners();
+      return false;
+    }
+    patchLast((r) => r.copyWith(giftsSent: r.giftsSent + 1, coinsSpent: r.coinsSpent + g.coins));
+    notifyListeners();
+    return true;
+  }
+
   /// Report the person from the call that just ended (the recap card's
   /// "Something wrong?" link). The call is already over, so nothing ends.
   @override

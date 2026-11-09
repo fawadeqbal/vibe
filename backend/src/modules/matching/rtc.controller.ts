@@ -1,10 +1,11 @@
-import { Controller, Delete, Get, HttpCode, Logger, OnApplicationBootstrap, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Logger, OnApplicationBootstrap, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { hmacSha1Base64 } from '../../common/utils/crypto';
 import { AppConfig } from '../../config/app-config.service';
+import { SendGiftDto } from '../social/dto/social.dto';
 import { MatchWaitlistService } from './match-waitlist.service';
 import { MatchingService } from './matching.service';
 
@@ -70,5 +71,19 @@ export class RtcController implements OnApplicationBootstrap {
   async cancelNotify(@CurrentUser('id') userId: string) {
     await this.waitlist.remove(userId);
     return { until: null };
+  }
+
+  @Post('match/last/like')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Like the person from the call that just ended ("Like back"): { mutual }. 409 PARTNER_UNAVAILABLE after an hour or a block.' })
+  likeLast(@CurrentUser('id') userId: string) {
+    return this.matching.likeLast(userId);
+  }
+
+  @Post('match/last/gift')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Send a gift to the person from the call that just ended. 402 when short of coins.' })
+  giftLast(@CurrentUser('id') userId: string, @Body() dto: SendGiftDto, @Headers('idempotency-key') key?: string) {
+    return this.matching.giftLast(userId, dto.giftId, key);
   }
 }

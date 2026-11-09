@@ -133,7 +133,7 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
   const onDecline = () => run(() => useSocial.getState().decline(userId));
 
   const onReport = async () => {
-    const choice = await pickReport(p.name);
+    const choice = await pickReport(p.name, "person");
     if (!choice) return;
     await run(() => useFollows.getState().report(userId, choice));
     toast(`Thanks. ${p.name} was reported${choice.block ? " and blocked" : ""}.`);

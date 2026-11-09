@@ -733,6 +733,21 @@ abstract class MatchProvider extends ChangeNotifier {
   /// unaffordable or unavailable.
   Future<bool> reconnect();
 
+  /// "Like back" on the ended card: a like on the call that just ended.
+  /// False when it failed ([lastError]).
+  Future<bool> likeLast();
+
+  /// "Send a gift" on the ended card, to the person you just left. False
+  /// when it could not be paid for ([needsCoins]) or failed ([lastError]).
+  Future<bool> giftLast(Gift g);
+
+  /// Changes the call that just ended (the newest history record).
+  @protected
+  void patchLast(MatchRecord Function(MatchRecord r) f) {
+    if (_history.isEmpty) return;
+    _history[_history.length - 1] = f(_history.last);
+  }
+
   // ── icebreakers (either person can start, skip, answer or close) ──────
 
   /// Puts a prompt on both screens. Throws [ApiException] (`RATE_LIMITED`).
