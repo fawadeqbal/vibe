@@ -14,10 +14,21 @@ import { CoinIcon } from "@/components/ui/money";
 import { AppBar } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { Spinner } from "@/components/ui/spinner";
-import { Headline, SectionTitle } from "@/components/ui/typography";
+import { SectionTitle } from "@/components/ui/typography";
 import { cn } from "@/lib/cn";
 import { ago, compact, plural } from "@/lib/format";
-import { inviteMessage, type Milestone, milestoneFill, milestoneRewardLabel, personSteps, type ReferralOverview, type ReferralPerson, rejectReasonLabel, whatsappUrl, withSource } from "@/lib/referrals";
+import {
+  inviteMessage,
+  type Milestone,
+  milestoneFill,
+  milestoneRewardLabel,
+  personSteps,
+  type ReferralOverview,
+  type ReferralPerson,
+  rejectReasonLabel,
+  whatsappUrl,
+  withSource,
+} from "@/lib/referrals";
 import { useCatalog } from "@/stores/catalog";
 import { useReferrals } from "@/stores/referrals";
 import { toast } from "@/stores/ui";
@@ -47,48 +58,76 @@ export function InviteScreen() {
 
   return (
     <Screen width="sm" header={<AppBar title="Invite friends" onBack={() => router.back()} />} bodyClassName="pt-1">
-      <Panel className="relative overflow-hidden px-5 pt-5 pb-5">
-        <div className="pointer-events-none absolute -top-16 -right-10 size-48 rounded-full bg-gold/10 blur-2xl" aria-hidden />
-        <div className="relative flex items-center gap-1.5" aria-hidden>
-          <CoinIcon size={26} />
-          <CoinIcon size={20} className="opacity-80" />
-          <CoinIcon size={14} className="opacity-60" />
-        </div>
-        <Headline as="h2" text={`Give ${give}, get `} accent={`${get} coins`} size={30} accentColor="gold" className="relative mt-3" />
-        <p className="type-body relative mt-2 text-[14px] leading-[1.5] text-text2">
-          Friends get {give} coins when they join with your link. You get {get} once they&apos;re {verify ? "verified and have had" : "active with"} {calls} {plural(calls, "call")}.
+      <Panel className="px-4 pt-4 pb-4">
+        <h2 className="type-label flex items-center gap-1.5 text-[12.5px] font-bold text-gold">
+          <CoinIcon size={16} />
+          Give {give}, get {get}
+        </h2>
+        <p className="type-body mt-1.5 text-[13.5px] leading-[1.5] text-text2">
+          Friends get {give} coins when they join with your link. You get {get} when they&apos;re {verify ? "verified and have had" : "active with"} {calls}{" "}
+          {plural(calls, "call")}.
         </p>
+        {ov ? (
+          <ShareBox ov={ov} give={give} />
+        ) : loading ? (
+          <Loading />
+        ) : error ? (
+          <EmptyState
+            icon="cloud_off"
+            title="Couldn't load your invites"
+            body={error}
+            action={<GhostButton label="Try again" onClick={() => void useReferrals.getState().load()} />}
+          />
+        ) : null}
       </Panel>
 
-      {ov ? <ShareBox ov={ov} give={give} /> : loading ? <Loading /> : error ? <EmptyState icon="cloud_off" title="Couldn't load your invites" body={error} action={<GhostButton label="Try again" onClick={() => void useReferrals.getState().load()} />} /> : null}
+      {ov ? (
+        <>
+          <SectionTitle text="Your invites" top={26} bottom={10} />
+          <Totals ov={ov} />
+          {ov.people.length ? (
+            <div className="mt-2.5 overflow-hidden rounded-[22px] border border-line bg-surface px-4">
+              {ov.people.map((p, i) => (
+                <PersonRow key={p.id} p={p} last={i === ov.people.length - 1} />
+              ))}
+            </div>
+          ) : (
+            <p className="type-body px-0.5 py-3 text-[13px] text-text2">Nobody yet. Friends show up here as soon as they join.</p>
+          )}
+        </>
+      ) : null}
 
       <SectionTitle text="How it works" top={26} />
       <Panel className="p-0">
         <Step n={1} icon="ios_share" title="Share your link" body="WhatsApp, Instagram, anywhere. They can also type your code." />
-        <Step n={2} icon="verified" title={verify ? `They verify and have ${calls} ${plural(calls, "call")}` : `They have ${calls} ${plural(calls, "call")}`} body={`Calls of a minute or more count. It keeps the coins for real people.`} />
-        <Step n={3} icon="paid" title="You both get coins" body={`${give} for them, ${get} for you${ov && ov.rewards.holdHours > 0 ? `, about ${ov.rewards.holdHours} h later` : ""}.`} last />
+        <Step
+          n={2}
+          icon="verified"
+          title={verify ? `They verify and have ${calls} ${plural(calls, "call")}` : `They have ${calls} ${plural(calls, "call")}`}
+          body={`Calls of a minute or more count. It keeps the coins for real people.`}
+        />
+        <Step
+          n={3}
+          icon="paid"
+          title="You both get coins"
+          body={`${give} for them, ${get} for you${ov && ov.rewards.holdHours > 0 ? `, about ${ov.rewards.holdHours} h later` : ""}.`}
+          last
+        />
       </Panel>
 
       {ov ? (
         <>
           <SectionTitle text="Milestones" note={ov.next ? `${ov.next.remaining} more to the next` : "All unlocked"} top={26} />
           <MilestoneTrack milestones={ov.milestones} count={ov.stats.rewarded} />
-
-          <SectionTitle text="Your invites" top={26} />
-          <Totals ov={ov} />
-          <div className="mt-3 flex flex-col">
-            {ov.people.length ? (
-              ov.people.map((p, i) => <PersonRow key={p.id} p={p} last={i === ov.people.length - 1} />)
-            ) : (
-              <p className="type-body px-0.5 py-3 text-[13px] text-text2">Nobody yet. Friends show up here as soon as they join.</p>
-            )}
-          </div>
         </>
       ) : null}
 
       <InviteCodeField className="mt-6" />
 
-      <Link href="/partner" className="mt-6 flex items-center rounded-[20px] border border-line bg-surface px-4 py-3.5 transition-[filter] hover:brightness-110">
+      <Link
+        href="/partner"
+        className="mt-6 flex items-center rounded-[20px] border border-line bg-surface px-4 py-3.5 transition-[filter] hover:brightness-110"
+      >
         <span className="flex size-10 shrink-0 items-center justify-center rounded-[12px] bg-violet/14">
           <Icon name="campaign" size={22} className="text-lavender" />
         </span>
@@ -127,10 +166,22 @@ function ShareBox({ ov, give }: { ov: ReferralOverview; give: number }) {
         <CircleIconButton icon="content_copy" label="Copy link" iconSize={18} onClick={() => void copy(ov.link)} />
       </div>
       <div className="mt-3">
-        <GradientButton label="Invite on WhatsApp" icon="chat" onClick={() => window.open(whatsappUrl(inviteMessage(withSource(ov.link, "whatsapp"), give)), "_blank", "noopener,noreferrer")} />
+        <GradientButton
+          label="Invite on WhatsApp"
+          icon="chat"
+          onClick={() => window.open(whatsappUrl(inviteMessage(withSource(ov.link, "whatsapp"), give)), "_blank", "noopener,noreferrer")}
+        />
       </div>
       <div className="mt-2.5 flex gap-2">
-        {canShare ? <GhostButton label="Share…" icon="ios_share" expand className="flex-1" onClick={() => void shareLink({ text: inviteMessage(withSource(ov.link, "share"), give) })} /> : null}
+        {canShare ? (
+          <GhostButton
+            label="Share…"
+            icon="ios_share"
+            expand
+            className="flex-1"
+            onClick={() => void shareLink({ text: inviteMessage(withSource(ov.link, "share"), give) })}
+          />
+        ) : null}
         <GhostButton label="Copy link" icon="link" expand className="flex-1" onClick={() => void copy(ov.link)} />
       </div>
       {ov.affiliate ? (
@@ -152,7 +203,9 @@ function Step({ n, icon, title, body, last = false }: { n: number; icon: string;
     <div className={cn("flex items-start px-4 py-3.5", !last && "border-b border-line-soft")}>
       <span className="relative flex size-10 shrink-0 items-center justify-center rounded-[12px] bg-white/5">
         <Icon name={icon} size={20} className="text-text2" />
-        <span className="type-number absolute -top-1.5 -left-1.5 flex size-[18px] items-center justify-center rounded-full bg-surface3 text-[10.5px] text-text">{n}</span>
+        <span className="type-number absolute -top-1.5 -left-1.5 flex size-[18px] items-center justify-center rounded-full bg-surface3 text-[10.5px] text-text">
+          {n}
+        </span>
       </span>
       <span className="ml-3.5 min-w-0 flex-1">
         <span className="type-title block text-[14.5px] font-semibold">{title}</span>
@@ -171,13 +224,23 @@ function MilestoneTrack({ milestones, count }: { milestones: Milestone[]; count:
   const n = milestones.length;
   return (
     <Panel className="px-4 pt-5 pb-4">
-      <div className="relative mx-3 h-2" role="progressbar" aria-valuemin={0} aria-valuemax={milestones[n - 1]?.count ?? 0} aria-valuenow={count} aria-label={`${count} friends active`}>
+      <div
+        className="relative mx-3 h-2"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={milestones[n - 1]?.count ?? 0}
+        aria-valuenow={count}
+        aria-label={`${count} friends active`}
+      >
         <div className="absolute inset-0 rounded-full bg-surface3" />
         <div className="bg-gold-grad absolute inset-y-0 left-0 rounded-full transition-[width] duration-500" style={{ width: `${fill * 100}%` }} />
         {milestones.map((m, i) => (
           <span
             key={m.count}
-            className={cn("absolute top-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2", m.reached ? "bg-gold-grad border-transparent" : "border-surface3 bg-surface")}
+            className={cn(
+              "absolute top-1/2 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2",
+              m.reached ? "bg-gold-grad border-transparent" : "border-surface3 bg-surface",
+            )}
             style={{ left: `${((i + 1) / n) * 100}%` }}
           >
             <Icon name={m.reward.kind === "vip" ? "workspace_premium" : "paid"} size={15} className={m.reached ? "text-on-gold-icon" : "text-muted"} />
@@ -190,7 +253,10 @@ function MilestoneTrack({ milestones, count }: { milestones: Milestone[]; count:
           return (
             <span
               key={m.count}
-              className={cn("absolute top-0 flex flex-col whitespace-nowrap", end ? "-translate-x-full items-end text-right" : "-translate-x-1/2 items-center text-center")}
+              className={cn(
+                "absolute top-0 flex flex-col whitespace-nowrap",
+                end ? "-translate-x-full items-end text-right" : "-translate-x-1/2 items-center text-center",
+              )}
               style={{ left: end ? "calc(100% + 14px)" : `${((i + 1) / n) * 100}%` }}
             >
               <span className={cn("type-number text-[15px]", m.reached ? "text-gold" : "text-text")}>{m.count}</span>

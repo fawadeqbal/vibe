@@ -93,8 +93,8 @@ void main() {
       await tester.tap(find.byType(NotificationsBell));
       await tester.pumpAndSettle();
       expect(find.text('Notifications'), findsOneWidget);
-      expect(find.text('New'), findsOneWidget);
-      expect(find.text('Earlier'), findsOneWidget);
+      expect(find.text('NEW'), findsOneWidget);
+      expect(find.text('EARLIER'), findsOneWidget);
       expect(find.textContaining('Sana started following you'), findsOneWidget);
       expect(find.textContaining('Your coins are in your wallet'), findsOneWidget);
       expect(activity.unread, 0);
@@ -169,12 +169,12 @@ void main() {
         child: MaterialApp(theme: V.theme(), home: const NotificationsScreen()),
       ));
       await tester.pumpAndSettle();
-      expect(find.text('Friend requests · 1'), findsOneWidget);
+      expect(find.text('FRIEND REQUESTS · 1'), findsOneWidget);
       expect(find.text('Zara Ali, 24'), findsOneWidget);
       await tester.tap(find.text('Accept'));
       await tester.pumpAndSettle();
       expect(social.stateOf('z1'), FriendState.friends);
-      expect(find.text('Friend requests · 1'), findsNothing);
+      expect(find.text('FRIEND REQUESTS · 1'), findsNothing);
     });
   });
 }

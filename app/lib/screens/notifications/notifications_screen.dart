@@ -4,6 +4,7 @@ import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
+import '../profile/me_sections.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/activity.dart';
@@ -33,6 +34,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   /// What was unread when the page opened: stays "New" for this visit, whatever reloads come later.
   Set<String> _freshIds = const {};
+  String _tab = 'all';
 
   @override
   void initState() {
@@ -65,11 +67,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     // Waiting friend requests have their own section on top (Accept / Decline); their history line shows once answered.
     final waiting = {for (final f in incoming) f.profile.id};
     final items = [for (final i in a.items) if (!(i.type == 'friend.request' && waiting.contains(i.actor?.id))) i];
+    final listed = _tab == 'calls' ? [for (final i in items) if (i.type.startsWith('call')) i] : (_tab == 'requests' ? <ActivityItem>[] : items);
     bool isNew(ActivityItem i) => !i.read || _freshIds.contains(i.id);
-    final fresh = [for (final i in items) if (isNew(i)) i];
-    final earlier = [for (final i in items) if (!isNew(i)) i];
+    final fresh = [for (final i in listed) if (isNew(i)) i];
+    final earlier = [for (final i in listed) if (!isNew(i)) i];
+    final requestCount = incoming.length + sent.length;
+    Widget card(List<Widget> rows) => Container(
+      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: V.line)),
+      child: Column(children: [for (final (n, r) in rows.indexed) ...[if (n > 0) const Divider(height: 1, color: V.lineSoft), r]]),
+    );
     return Scaffold(
-      appBar: vibeAppBar(context, 'Notifications'),
+      appBar: vibeAppBar(
+        context,
+        'Notifications',
+        actions: [
+          CircleIconButton(
+            icon: SolarIconsOutline.settings,
+            tooltip: 'Notification settings',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsSectionScreen())),
+          ),
+        ],
+      ),
       body: !a.loaded
           ? const Center(child: CircularProgressIndicator(color: V.pink))
           : items.isEmpty && incoming.isEmpty && sent.isEmpty
@@ -79,12 +99,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               onRefresh: a.refresh,
               child: ListView(
                 controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 32),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 children: [
-                  if (incoming.isNotEmpty) ...[_header('Friend requests · ${incoming.length}'), for (final f in incoming) _RequestRow(friend: f, incoming: true)],
-                  if (sent.isNotEmpty) ...[_header('Sent requests · ${sent.length}'), for (final f in sent) _RequestRow(friend: f, incoming: false)],
-                  if (fresh.isNotEmpty) ...[_header('New'), for (final i in fresh) ActivityRow(item: i, isNew: true)],
-                  if (earlier.isNotEmpty) ...[_header(fresh.isEmpty ? 'All' : 'Earlier'), for (final i in earlier) ActivityRow(item: i)],
+                  PillTabs<String>(
+                    value: _tab,
+                    onChanged: (v) => setState(() => _tab = v),
+                    tabs: [('all', 'All'), ('requests', requestCount > 0 ? 'Requests · $requestCount' : 'Requests'), ('calls', 'Calls')],
+                  ),
+                  if (_tab != 'calls' && incoming.isNotEmpty) ...[_header('Friend requests · ${incoming.length}'), card([for (final f in incoming) _RequestRow(friend: f, incoming: true)])],
+                  if (_tab != 'calls' && sent.isNotEmpty) ...[_header('Sent requests · ${sent.length}'), card([for (final f in sent) _RequestRow(friend: f, incoming: false)])],
+                  if (fresh.isNotEmpty) ...[
+                    _header('New', action: ('Mark all as read', () {
+                      setState(() => _freshIds = const {});
+                      a.markAllRead();
+                    })),
+                    card([for (final i in fresh) ActivityRow(item: i, isNew: true)]),
+                  ],
+                  if (earlier.isNotEmpty) ...[_header(fresh.isEmpty ? (_tab == 'calls' ? 'Calls' : 'All') : 'Earlier'), card([for (final i in earlier) ActivityRow(item: i)])],
+                  if (_tab == 'requests' && requestCount == 0) Padding(padding: const EdgeInsets.only(top: 24), child: Text('No friend requests right now.', textAlign: TextAlign.center, style: VT.body(13.5, color: V.muted))),
+                  if (_tab == 'calls' && listed.isEmpty) Padding(padding: const EdgeInsets.only(top: 24), child: Text('No calls yet.', textAlign: TextAlign.center, style: VT.body(13.5, color: V.muted))),
+                  if (_tab != 'requests' && !a.hasMore && listed.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Text('We keep notifications for 90 days.', textAlign: TextAlign.center, style: VT.body(12, color: V.muted))),
                   if (a.hasMore)
                     const Padding(
                       padding: EdgeInsets.all(16),
@@ -96,7 +130,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _header(String text) => Padding(padding: const EdgeInsets.fromLTRB(8, 14, 8, 6), child: Text(text, style: VT.label(13)));
+  Widget _header(String text, {(String, VoidCallback)? action}) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 22, 4, 10),
+    child: Row(
+      children: [
+        Expanded(child: Text(text.toUpperCase(), style: VT.overline())),
+        if (action != null) GestureDetector(onTap: action.$2, child: Text(action.$1, style: VT.label(12.5, color: V.pinkSoft, weight: FontWeight.w600))),
+      ],
+    ),
+  );
 }
 
 /// A friend request still waiting: theirs (Accept / Decline) or yours (Cancel).
@@ -202,11 +244,9 @@ class _ActivityRowState extends State<ActivityRow> {
   Widget build(BuildContext context) {
     final i = widget.item;
     final a = i.actor;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(color: widget.isNew ? V.pink.withValues(alpha: 0.06) : null, borderRadius: BorderRadius.circular(16)),
+    return SizedBox(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         child: Row(
           children: [
             Expanded(

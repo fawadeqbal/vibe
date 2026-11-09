@@ -128,7 +128,8 @@ void main() {
       }),
       const FollowListsScreen(),
     );
-    expect(find.text('Sana, 23 🇵🇰'), findsOneWidget);
+    expect(find.text('Sana'), findsOneWidget);
+    expect(find.textContaining('Followed you'), findsOneWidget);
     await tester.tap(find.text('Follow back'));
     await tester.pumpAndSettle();
     expect(f.calls, ['follow u2']);

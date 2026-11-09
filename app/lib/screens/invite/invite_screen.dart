@@ -53,12 +53,8 @@ class _InviteScreenState extends State<InviteScreen> {
           children: [
             _Hero(rewards: rewards, code: v?.code),
             if (v?.affiliate != null) ...[const SizedBox(height: 12), _PartnerLinkCard(link: v!.affiliate!)],
-            const SectionTitle('How it works'),
-            _HowItWorks(rewards: rewards),
-            SectionTitle('Milestones', note: v == null ? null : '${v.stats.rewarded} active ${v.stats.rewarded == 1 ? 'friend' : 'friends'}'),
-            _MilestoneTrack(milestones: referrals.milestones, rewarded: v?.stats.rewarded ?? 0),
-            if (v != null) ...[const SizedBox(height: 10), _Totals(stats: v.stats)],
-            SectionTitle(v == null || v.people.isEmpty ? 'Your invites' : 'Your invites · ${v.stats.joined}'),
+            const SectionTitle('Your invites', top: 26, bottom: 10),
+            if (v != null) ...[_Totals(stats: v.stats), const SizedBox(height: 10)],
             if (v == null && referrals.loading)
               const Padding(padding: EdgeInsets.symmetric(vertical: 28), child: Center(child: CircularProgressIndicator()))
             else if (v == null && referrals.error != null)
@@ -67,6 +63,10 @@ class _InviteScreenState extends State<InviteScreen> {
               const _NoInvitesYet()
             else
               GroupCard(dividerInset: 74, children: [for (final p in v.people) _PersonRow(person: p)]),
+            const SectionTitle('How it works', top: 26, bottom: 10),
+            _HowItWorks(rewards: rewards),
+            SectionTitle('Milestones', note: v == null ? null : '${v.stats.rewarded} active ${v.stats.rewarded == 1 ? 'friend' : 'friends'}'),
+            _MilestoneTrack(milestones: referrals.milestones, rewarded: v?.stats.rewarded ?? 0),
             if (claimable || widget.claimCode != null) ...[const SizedBox(height: 18), InviteCodeField(initialCode: widget.claimCode)],
             if (referrals is LocalReferralsProvider) ...[
               const SizedBox(height: 8),
@@ -105,10 +105,9 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gold = VT.display(34, color: V.gold);
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
-      decoration: BoxDecoration(gradient: V.vipCard, borderRadius: BorderRadius.circular(26), border: Border.all(color: V.gold.withValues(alpha: 0.22))),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: V.line)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -116,20 +115,12 @@ class _Hero extends StatelessWidget {
             header: true,
             label: 'Give ${rewards.inviteeCoins}, get ${rewards.inviterCoins} coins',
             excludeSemantics: true,
-            child: Text.rich(
-              TextSpan(children: [
-                TextSpan(text: 'Give ', style: VT.display(34)),
-                TextSpan(text: '${rewards.inviteeCoins}', style: gold),
-                TextSpan(text: ', get ', style: VT.display(34)),
-                TextSpan(text: '${rewards.inviterCoins}', style: gold),
-                TextSpan(text: ' coins', style: VT.serif(38, color: V.text)),
-              ]),
-            ),
+            child: Row(children: [const CoinIcon(size: 16), const SizedBox(width: 6), Text('Give ${rewards.inviteeCoins}, get ${rewards.inviterCoins}', style: VT.label(12.5, color: V.gold, weight: FontWeight.w700))]),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            'Friends who join with your link get ${rewards.inviteeCoins} free coins. You get ${rewards.inviterCoins} for each one who becomes active.',
-            style: VT.body(14, color: V.text2, height: 1.5),
+            'Friends get ${rewards.inviteeCoins} coins when they join with your link. You get ${rewards.inviterCoins} when they become active.',
+            style: VT.body(13.5, color: V.text2, height: 1.5),
           ),
           if (code != null && code!.isNotEmpty) ...[
             const SizedBox(height: 16),
