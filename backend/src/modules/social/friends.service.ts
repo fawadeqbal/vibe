@@ -27,6 +27,8 @@ export interface FriendView {
   lastMessageAt: string | null;
   unread: number;
   online: boolean;
+  /** When they were last in the app (friends only; null for pending requests or never). */
+  lastSeenAt: string | null;
   /** Friend streak from your side (zeros for pending requests). */
   streak: StreakView;
   /** Video calls in this chat: each side allowed them; both true = calls on. */
@@ -76,11 +78,13 @@ export class FriendsService {
   }
 
   /**
-   * Sends a friend request, or accepts theirs if they asked first. New
-   * requests only come from a live call (`viaCall`, see MatchingService):
-   * people connect on the call screen, not by browsing profiles later.
+   * Sends a friend request, or accepts theirs if they asked first. Only to
+   * people you have met — on a video call or a Discover match — whether it's
+   * sent from the call screen (`viaCall`, MatchingService) or later from
+   * their profile. Strangers can follow, not friend.
    */
-  async request(me: string, targetId: string, opts: { viaCall?: boolean } = {}): Promise<{ state: FriendState; paidCoins: number }> {
+  // `viaCall` only says where it came from (the call screen); the rules are the same.
+  async request(me: string, targetId: string, _opts: { viaCall?: boolean } = {}): Promise<{ state: FriendState; paidCoins: number }> {
     if (me === targetId) throw AppError.forbidden("That's you");
     if (await this.blocks.eitherBlocked(me, targetId)) throw new AppError(ErrorCode.BLOCKED, 'Not available', HttpStatus.FORBIDDEN);
     const existing = await this.prisma.friendship.findUnique({ where: this.pairWhere(me, targetId) });
@@ -90,7 +94,6 @@ export class FriendsService {
       await this.accept(me, targetId);
       return { state: 'friends', paidCoins: 0 };
     }
-    if (!opts.viaCall) throw new AppError(ErrorCode.FRIEND_IN_CALL_ONLY, 'Add friends during a video call', HttpStatus.FORBIDDEN);
     if (!(await haveMet(this.prisma, me, targetId))) throw new AppError(ErrorCode.NEVER_MATCHED, 'You can add people you have met in a match', HttpStatus.FORBIDDEN);
     const target = await this.prisma.user.findUniqueOrThrow({ where: { id: targetId }, select: { name: true } });
     const [low, high] = orderedPair(me, targetId);
@@ -124,6 +127,12 @@ export class FriendsService {
     return { friendship, created: true };
   }
 
+  /** Ids of your accepted friends (presence updates go to them). */
+  async friendIds(me: string): Promise<string[]> {
+    const rows = await this.prisma.friendship.findMany({ where: { OR: [{ userLowId: me }, { userHighId: me }], status: FriendshipStatus.ACCEPTED }, select: { userLowId: true, userHighId: true } });
+    return rows.map((f) => (f.userLowId === me ? f.userHighId : f.userLowId));
+  }
+
   /** Ids of everyone you are friends with or have a pending request with. */
   async connectedIds(me: string): Promise<string[]> {
     const rows = await this.prisma.friendship.findMany({ where: { OR: [{ userLowId: me }, { userHighId: me }] }, select: { userLowId: true, userHighId: true } });
@@ -137,6 +146,12 @@ export class FriendsService {
     await this.prisma.friendship.update({ where: { id: f.id }, data: { status: FriendshipStatus.ACCEPTED, acceptedAt: this.clock.now() } });
     const meUser = await this.prisma.user.findUniqueOrThrow({ where: { id: me }, include: PROFILE_INCLUDE });
     this.realtime.toUser(requesterId, ServerEvent.FriendAccepted, { friend: await this.view(requesterId, meUser.id) });
+  }
+
+  /** Take back a request you sent (and haven't had accepted). Their pending request disappears live. */
+  async cancel(me: string, targetId: string): Promise<void> {
+    const { count } = await this.prisma.friendship.deleteMany({ where: { ...pairFields(me, targetId), status: FriendshipStatus.PENDING, requesterId: me } });
+    if (count) this.realtime.toUser(targetId, ServerEvent.FriendRemoved, { userId: me });
   }
 
   async decline(me: string, requesterId: string): Promise<void> {
@@ -190,6 +205,7 @@ export class FriendsService {
           lastMessageAt: m?.createdAt.toISOString() ?? null,
           unread: unreadBy.get(f.id) ?? 0,
           online: online[otherId] ?? false,
+          lastSeenAt: f.status === FriendshipStatus.ACCEPTED ? (u.lastSeenAt?.toISOString() ?? null) : null,
           streak: this.streaks.view(f, me, vip),
           calls: callsView(f, me),
         } satisfies FriendView,

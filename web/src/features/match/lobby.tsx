@@ -20,6 +20,7 @@ import { cn } from "@/lib/cn";
 import { thousands, until } from "@/lib/format";
 import { useCatalog } from "@/stores/catalog";
 import { isVibeHour, useEngagement } from "@/stores/engagement";
+import { useActivity } from "@/stores/activity";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { useWaitlist } from "@/stores/waitlist";
@@ -426,6 +427,7 @@ function LobbyHeader({ className, showPreviewToggle = true }: { className?: stri
   const wallet = useWallet((s) => s.wallet);
   const camLive = useMatch((s) => !!s.localStream && s.camOn);
   const previewOn = useMatch((s) => s.previewOn);
+  const notifications = useActivity((s) => s.unread);
   const vip = isVip(wallet);
   return (
     <div className={cn("flex items-center", className)}>
@@ -455,6 +457,9 @@ function LobbyHeader({ className, showPreviewToggle = true }: { className?: stri
       ) : null}
       <span className="mr-2">
         <RoundControl icon="emoji_events" size={40} onClick={() => router.push("/leaderboard")} ariaLabel="This week's top" />
+      </span>
+      <span className="mr-2">
+        <RoundControl icon="notifications" size={40} badge={notifications ? (notifications > 99 ? "99+" : String(notifications)) : undefined} onClick={() => router.push("/notifications")} ariaLabel={notifications ? `Notifications, ${notifications} new` : "Notifications"} />
       </span>
       <CoinChip coins={wallet.coins} glass onClick={() => router.push("/store")} />
     </div>

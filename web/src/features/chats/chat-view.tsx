@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
-import { ago, time } from "@/lib/format";
+import { presenceLabel, time } from "@/lib/format";
 import type { ChatMessage, Friend } from "@/lib/models";
 import { useCalls } from "@/stores/calls";
 import { useCatalog } from "@/stores/catalog";
@@ -199,7 +199,7 @@ export function ChatView({ friendId }: { friendId: string }) {
               <span className="type-title truncate text-[16px] font-semibold">{p.name}</span>
               {p.verified ? <Icon name="verified" size={15} className="ml-1 text-trust" label="Verified" /> : null}
             </span>
-            <span className={cn("type-label block text-[11.5px] font-medium", typing || f.online ? "text-ok" : "text-muted")}>{typing ? "typing…" : f.online ? "Online" : `Last seen ${ago(f.since)}`}</span>
+            <span className={cn("type-label block text-[11.5px] font-medium", typing || f.online ? "text-ok" : "text-muted")}>{typing ? "typing…" : (presenceLabel(f.online, f.lastSeenAt) ?? "")}</span>
           </span>
         </button>
         <StreakHeaderChip f={f} />

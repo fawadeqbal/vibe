@@ -1,3 +1,4 @@
+import '../../models/activity.dart';
 import '../../models/calls.dart';
 import '../../models/discover.dart';
 import '../../models/follows.dart';
@@ -122,6 +123,7 @@ class ApiMap {
     lastMessage: m['lastMessage'] as String?,
     unread: i(m['unread']),
     online: m['online'] as bool? ?? false,
+    lastSeenAt: date(m['lastSeenAt']),
     streak: m['streak'] is Map ? StreakView.fromJson(Map<String, dynamic>.from(m['streak'] as Map)) : StreakView.none,
     calls: callsView(m['calls']),
   );
@@ -172,8 +174,39 @@ class ApiMap {
       stats: stats is Map ? ProfileStats(matches: i(stats['matches']), likes: i(stats['likes']), gifts: i(stats['gifts'])) : null,
       statsHidden: stats == 'hidden',
       online: m['online'] as bool?,
+      lastSeenAt: date(m['lastSeenAt']),
+      met: m['met'] == true,
       level: i(m['level']),
       badges: [for (final b in (m['badges'] as List? ?? const [])) '$b'],
+    );
+  }
+
+  /// A line on the Notifications page (`GET /activity`, `activity:new`).
+  static ActivityItem activityItem(Map<String, dynamic> m) {
+    final rel = m['rel'] is Map ? Map<String, dynamic>.from(m['rel'] as Map) : null;
+    final data = m['data'] is Map ? Map<String, dynamic>.from(m['data'] as Map) : const <String, dynamic>{};
+    return ActivityItem(
+      id: '${m['id'] ?? ''}',
+      type: '${m['type'] ?? ''}',
+      title: '${m['title'] ?? ''}',
+      body: '${m['body'] ?? ''}',
+      data: {for (final e in data.entries) if (e.value is String) e.key: e.value as String},
+      actor: m['actor'] is Map ? profile(Map<String, dynamic>.from(m['actor'] as Map)) : null,
+      rel: rel == null
+          ? null
+          : ActivityRel(
+              friend: switch (rel['friend']) {
+                'friends' => FriendState.friends,
+                'requested' => FriendState.requested,
+                'incoming' => FriendState.incoming,
+                _ => FriendState.none,
+              },
+              follow: followState(rel['follow']),
+              followsYou: rel['followsYou'] == true,
+              followRequest: rel['followRequest'] == true,
+            ),
+      read: m['read'] == true,
+      at: date(m['createdAt']) ?? DateTime.now(),
     );
   }
 

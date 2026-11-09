@@ -92,12 +92,15 @@ class RemoteSocialProvider extends SocialProvider {
   }
 
   /// `{ userId, online }` — a friend came online or left.
+  /// `{ userId, online, lastSeenAt }` when a friend comes online or leaves.
   void _onPresence(Map<String, dynamic> e) {
     final id = (e['userId'] ?? e['friendId']) as String?;
     final online = e['online'];
     final f = id == null ? null : friend(id);
-    if (f == null || online is! bool || f.online == online) return;
-    _replace(f.copyWith(online: online));
+    if (f == null || online is! bool) return;
+    final left = online ? null : (DateTime.tryParse('${e['lastSeenAt']}')?.toLocal() ?? DateTime.now());
+    if (f.online == online && left == null) return;
+    _replace(f.copyWith(online: online, lastSeenAt: left));
     notifyListeners();
   }
 
@@ -161,6 +164,12 @@ class RemoteSocialProvider extends SocialProvider {
   @override
   Future<void> decline(String id) async {
     await _api.post('/friends/$id/decline');
+    await _reloadFriends();
+  }
+
+  @override
+  Future<void> cancel(String id) async {
+    await _api.post('/friends/$id/cancel');
     await _reloadFriends();
   }
 

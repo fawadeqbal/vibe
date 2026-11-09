@@ -48,6 +48,13 @@ export function ago(t: Date, now = Date.now()): string {
   return `${t.getDate()}/${t.getMonth() + 1}/${t.getFullYear()}`;
 }
 
+/** A friend's status line: "Online", "Last seen 5m ago", or null when we don't know (never "last seen" from the friendship date). */
+export function presenceLabel(online: boolean | null | undefined, lastSeenAt: Date | null | undefined, now = Date.now()): string | null {
+  if (online) return "Online";
+  if (!lastSeenAt) return null;
+  return `Last seen ${ago(lastSeenAt, now)}`;
+}
+
 /** Compact list timestamp: "now", "5m", "1h", "3d", "12/9". */
 export function agoShort(t: Date, now = Date.now()): string {
   const m = minutesSince(t, now);

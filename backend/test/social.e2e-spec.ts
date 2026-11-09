@@ -16,14 +16,24 @@ describe('friends, chat, blocks, likes', () => {
     await expect(requestFriend(t, a, b)).rejects.toMatchObject({ code: 'NEVER_MATCHED' });
   });
 
-  it('new requests only come from a call: REST refuses them but still accepts theirs', async () => {
+  it('friend requests can be sent from a profile to people you have met, and taken back', async () => {
     const a = await signUp(t);
     const b = await signUp(t);
+    const stranger = await signUp(t);
+    const never = await t.http.post(`/v1/friends/${stranger.id}/request`).set(a.auth).expect(403);
+    expect(never.body.error.code).toBe('NEVER_MATCHED');
+
     await met(a, b);
-    const res = await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(403);
-    expect(res.body.error.code).toBe('FRIEND_IN_CALL_ONLY');
-    expect(await t.prisma.friendship.count({ where: { requesterId: a.id } })).toBe(0);
+    const sent = await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(200);
+    expect(sent.body.state).toBe('requested');
+    expect((await t.http.get('/v1/friends').set(b.auth).expect(200)).body).toEqual([expect.objectContaining({ state: 'incoming', lastSeenAt: null })]);
+
+    await t.http.post(`/v1/friends/${b.id}/cancel`).set(a.auth).expect(200);
+    expect(await t.prisma.friendship.count()).toBe(0);
+    // Cancelling someone else's request does nothing.
     await requestFriend(t, b, a);
+    await t.http.post(`/v1/friends/${b.id}/cancel`).set(a.auth).expect(200);
+    expect(await t.prisma.friendship.count()).toBe(1);
     const back = await t.http.post(`/v1/friends/${b.id}/request`).set(a.auth).expect(200);
     expect(back.body).toMatchObject({ state: 'friends', paidCoins: 0 });
   });

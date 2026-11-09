@@ -14,6 +14,10 @@ export const ServerEvent = {
   AccountAppeal: 'account:appeal',
   Announcement: 'system:announcement',
   InboxMessage: 'inbox:message',
+  /** A new line on the Notifications page: `{ item, unread }`. */
+  ActivityNew: 'activity:new',
+  /** Notifications were read (on another device too): `{ unread }`. */
+  ActivityRead: 'activity:read',
   /** Staff changed prices or rules; re-read GET /catalog. */
   CatalogUpdated: 'catalog:updated',
 

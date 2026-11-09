@@ -8,6 +8,7 @@ const facts = (over: Partial<ProfileFacts> = {}): ProfileFacts => ({
   rel: NO_RELATIONSHIP,
   hideStats: false,
   online: true,
+  lastSeenAt: '2026-11-09T08:00:00.000Z',
   counts: { followers: 5, following: 2 },
   stats: { matches: 40, likes: 9, gifts: 3 },
   badges: ['first_vibes'],
@@ -20,7 +21,7 @@ describe('profile tiers', () => {
   });
 
   it('matched: the public profile and the relationship, nothing more', () => {
-    expect(buildProfileView(profile, facts())).toEqual({ profile, tier: 'matched', level: 3, badges: ['first_vibes'], rel: NO_RELATIONSHIP });
+    expect(buildProfileView(profile, facts())).toEqual({ profile, tier: 'matched', level: 3, badges: ['first_vibes'], rel: NO_RELATIONSHIP, met: true });
   });
 
   it('a pending follow request is still the matched tier', () => {
@@ -31,14 +32,19 @@ describe('profile tiers', () => {
     const v = buildProfileView(profile, facts({ rel: { ...NO_RELATIONSHIP, follow: 'following' } }));
     expect(v).toMatchObject({ tier: 'following', counts: { followers: 5, following: 2 }, stats: { matches: 40, likes: 9, gifts: 3 } });
     expect(v?.online).toBeUndefined();
+    expect(v?.lastSeenAt).toBeUndefined();
+  });
+
+  it('following someone you never met: no friend request from the profile', () => {
+    expect(buildProfileView(profile, facts({ met: false, rel: { ...NO_RELATIONSHIP, follow: 'following' } }))).toMatchObject({ tier: 'following', met: false });
   });
 
   it('friends: presence too, even without following', () => {
-    expect(buildProfileView(profile, facts({ rel: { ...NO_RELATIONSHIP, friend: 'friends' } }))).toMatchObject({ tier: 'friends', online: true, counts: { followers: 5 } });
+    expect(buildProfileView(profile, facts({ rel: { ...NO_RELATIONSHIP, friend: 'friends' } }))).toMatchObject({ tier: 'friends', online: true, lastSeenAt: '2026-11-09T08:00:00.000Z', counts: { followers: 5 } });
   });
 
   it('hidden stats are hidden from others but not from yourself', () => {
     expect(buildProfileView(profile, facts({ hideStats: true, rel: { ...NO_RELATIONSHIP, follow: 'following' } }))?.stats).toBe('hidden');
-    expect(buildProfileView(profile, facts({ hideStats: true, self: true }))).toMatchObject({ tier: 'self', stats: { matches: 40 } });
+    expect(buildProfileView(profile, facts({ hideStats: true, self: true }))).toMatchObject({ tier: 'self', stats: { matches: 40 }, met: false });
   });
 });

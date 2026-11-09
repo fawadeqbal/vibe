@@ -46,6 +46,7 @@ export class ProfilesService {
       met,
       rel,
       online,
+      lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
       hideStats: u.hideStats,
       counts: { followers: u.followersCount, following: u.followingCount },
       stats: { matches: u.matchesCount, likes: u.likesCount, gifts: u.giftsReceivedCount },

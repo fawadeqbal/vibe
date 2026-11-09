@@ -36,7 +36,7 @@ export class FriendsController {
 
   @Post(':userId/request')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Accepts their friend request if they asked first. New requests are only sent from a live call (match:friend); otherwise 403 FRIEND_IN_CALL_ONLY' })
+  @ApiOperation({ summary: 'Sends a friend request to someone you have met (call or Discover match), or accepts theirs if they asked first. 403 NEVER_MATCHED otherwise.' })
   request(@CurrentUser('id') me: string, @Param('userId') userId: string) {
     return this.friends.request(me, userId);
   }
@@ -45,6 +45,14 @@ export class FriendsController {
   @HttpCode(200)
   async accept(@CurrentUser('id') me: string, @Param('userId') userId: string) {
     await this.friends.accept(me, userId);
+    return OK;
+  }
+
+  @Post(':userId/cancel')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Take back a friend request you sent' })
+  async cancel(@CurrentUser('id') me: string, @Param('userId') userId: string) {
+    await this.friends.cancel(me, userId);
     return OK;
   }
 

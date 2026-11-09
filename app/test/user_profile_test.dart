@@ -58,11 +58,14 @@ class FakeFollows extends FollowsProvider {
 
 const sana = Profile(id: 'u2', name: 'Sana', age: 23, gender: Gender.female, country: Country('PK', 'Pakistan', '🇵🇰'), avatarUrl: '', bio: 'Coffee first', interests: ['Music', 'Travel']);
 
+late SocialProvider lastSocial;
+
 Future<FakeFollows> pump(WidgetTester tester, FakeFollows follows, Widget screen) async {
   SharedPreferences.setMockInitialValues({});
   final backend = MockBackend();
   final wallet = WalletProvider(backend);
   final social = SocialProvider(backend, wallet);
+  lastSocial = social;
   tester.view.physicalSize = const Size(412 * 3, 892 * 3);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -84,9 +87,9 @@ void main() {
     expect(find.text('Sana, 23'), findsOneWidget);
     expect(find.text('Coffee first'), findsOneWidget);
     expect(find.text('Follow'), findsOneWidget);
-    // Friend requests are only sent from a live call, never from a profile.
+    // Never met on a call: no friend request from the profile, and it says why.
     expect(find.text('Add friend'), findsNothing);
-    expect(find.textContaining('Friends are made on video calls'), findsOneWidget);
+    expect(find.textContaining('after you meet on a video call'), findsOneWidget);
     expect(find.text('Follow to see their stats'), findsOneWidget);
     expect(find.textContaining('follower'), findsNothing);
   });
@@ -136,5 +139,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(f.calls.last, 'remove u2');
     expect(find.text('No followers yet'), findsOneWidget);
+  });
+
+  testWidgets('met: Add friend sends a request, and Request sent can be taken back', (tester) async {
+    await pump(tester, FakeFollows({'u2': const ProfileView(profile: sana, tier: ProfileTier.matched, met: true)}), const UserProfileScreen(userId: 'u2'));
+    expect(find.textContaining('after you meet on a video call'), findsNothing);
+    await tester.tap(find.text('Add friend'));
+    await tester.pumpAndSettle();
+    expect(lastSocial.stateOf('u2'), FriendState.requested);
+    expect(find.text('Request sent'), findsOneWidget);
+
+    await tester.tap(find.text('Request sent'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancel your friend request?'), findsOneWidget);
+    await tester.tap(find.text('Cancel request'));
+    await tester.pumpAndSettle();
+    expect(lastSocial.stateOf('u2'), FriendState.none);
+    expect(find.text('Add friend'), findsOneWidget);
+    // Let the mock's "they answer later" timer run out.
+    await tester.pump(const Duration(seconds: 6));
+    expect(lastSocial.stateOf('u2'), FriendState.none);
+  });
+
+  testWidgets('incoming request: Accept, or Decline right on the profile', (tester) async {
+    await pump(tester, FakeFollows({'u2': const ProfileView(profile: sana, tier: ProfileTier.matched, met: true)}), const UserProfileScreen(userId: 'u2'));
+    lastSocial.receiveRequest(sana);
+    await tester.pumpAndSettle();
+    expect(find.text('Accept friend'), findsOneWidget);
+    expect(find.text('Sana wants to be friends.'), findsOneWidget);
+    await tester.tap(find.text('Decline'));
+    await tester.pumpAndSettle();
+    expect(lastSocial.stateOf('u2'), FriendState.none);
+  });
+
+  testWidgets('someone who follows you gets Follow back', (tester) async {
+    await pump(tester, FakeFollows({'u2': const ProfileView(profile: sana, tier: ProfileTier.matched, followsYou: true)}), const UserProfileScreen(userId: 'u2'));
+    expect(find.text('Follow back'), findsOneWidget);
+    expect(find.text('Follow'), findsNothing);
   });
 }

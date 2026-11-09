@@ -12,6 +12,7 @@ import 'core/api/client_header.dart';
 import 'core/api/realtime_client.dart';
 import 'core/config/integrations_config.dart';
 import 'core/mock/mock_backend.dart';
+import 'providers/activity_provider.dart';
 import 'providers/calls_provider.dart';
 import 'providers/catalog_provider.dart';
 import 'providers/discover_provider.dart';
@@ -79,6 +80,7 @@ Future<void> main() async {
   final SocialProvider social;
   final MatchProvider match;
   final InboxProvider inbox;
+  final ActivityProvider activity;
   final CatalogProvider catalog;
   final FollowsProvider follows;
   final EngagementProvider engagement;
@@ -93,6 +95,7 @@ Future<void> main() async {
     social = RemoteSocialProvider(api, realtime);
     match = RemoteMatchProvider(api, realtime, wallet, social, session);
     inbox = RemoteInboxProvider(api, realtime);
+    activity = RemoteActivityProvider(api, realtime);
     catalog = RemoteCatalogProvider(api, realtime);
     follows = RemoteFollowsProvider(api, realtime);
     engagement = RemoteEngagementProvider(api, realtime);
@@ -107,6 +110,7 @@ Future<void> main() async {
     social = SocialProvider(backend, wallet);
     match = MatchProvider(backend, wallet, social, session);
     inbox = InboxProvider();
+    activity = ActivityProvider();
     catalog = CatalogProvider();
     follows = FollowsProvider(backend, social);
     engagement = EngagementProvider(backend);
@@ -145,6 +149,7 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: follows),
         ChangeNotifierProvider.value(value: match),
         ChangeNotifierProvider.value(value: inbox),
+        ChangeNotifierProvider.value(value: activity),
         ChangeNotifierProvider.value(value: catalog),
         ChangeNotifierProvider.value(value: engagement),
         ChangeNotifierProvider.value(value: moments),

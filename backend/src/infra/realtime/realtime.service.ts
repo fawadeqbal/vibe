@@ -5,7 +5,6 @@ import { RedisService } from '../redis/redis.service';
 import { ServerEventName, userRoom } from './realtime.events';
 
 const ONLINE_ZSET = 'presence:online';
-const SOCKETS = (id: string) => `presence:sockets:${id}`;
 const STALE_MS = 90_000;
 
 /**
@@ -66,18 +65,40 @@ export class RealtimeService {
 
   // ── presence ──────────────────────────────────────────────────────────
 
-  async markConnected(userId: string): Promise<void> {
-    await this.redis.client.multi().incr(SOCKETS(userId)).expire(SOCKETS(userId), 86400).zadd(ONLINE_ZSET, Date.now(), userId).exec();
+  /**
+   * How many sockets this user has open right now, on every instance (the
+   * Redis adapter asks them all). Counting the live sockets — instead of a
+   * counter we add to and take from — can't drift: a restart or a crash used
+   * to leave the counter too high, so people stayed "online" and were never
+   * taken out of the matching queue.
+   */
+  async socketCount(userId: string): Promise<number> {
+    if (!this.server) return 0;
+    try {
+      return (await this.server.in(userRoom(userId)).fetchSockets()).length;
+    } catch (e) {
+      this.logger.warn(`socket count for ${userId} failed: ${(e as Error).message}`);
+      return 0;
+    }
   }
 
-  /** Returns true when that was the user's last socket. */
-  async markDisconnected(userId: string): Promise<boolean> {
-    const left = await this.redis.client.decr(SOCKETS(userId));
-    if (left <= 0) {
-      await this.redis.client.multi().del(SOCKETS(userId)).zrem(ONLINE_ZSET, userId).exec();
-      return true;
+  async markConnected(userId: string): Promise<void> {
+    await this.redis.client.zadd(ONLINE_ZSET, Date.now(), userId);
+  }
+
+  /** The user's last socket closed: they are offline straight away (not after the 90 s staleness window). */
+  async markOffline(userId: string): Promise<void> {
+    await this.redis.client.zrem(ONLINE_ZSET, userId);
+  }
+
+  /** User ids with a socket on this instance (the interval heartbeats and last-seen refreshes use it). */
+  localUserIds(): string[] {
+    const ids = new Set<string>();
+    for (const s of this.server?.sockets.sockets.values() ?? []) {
+      const u = s.data.user as { id?: string } | undefined;
+      if (u?.id) ids.add(u.id);
     }
-    return false;
+    return [...ids];
   }
 
   async heartbeat(userIds: string[]): Promise<void> {

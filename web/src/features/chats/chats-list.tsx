@@ -16,6 +16,7 @@ import { cn } from "@/lib/cn";
 import { agoShort, plural } from "@/lib/format";
 import type { Friend, Profile, TeamMessage } from "@/lib/models";
 import { useInbox } from "@/stores/inbox";
+import { useActivity } from "@/stores/activity";
 import { friendsOf, incomingOf, requestedOf, useSocial } from "@/stores/social";
 import { isVip, useWallet } from "@/stores/wallet";
 
@@ -28,6 +29,7 @@ import { useRestoreStreak } from "./streak";
  */
 export function ChatsList() {
   const router = useRouter();
+  const notifications = useActivity((s) => s.unread);
   const path = usePathname();
   const social = useSocial();
   const vip = useWallet((s) => isVip(s.wallet));
@@ -42,7 +44,22 @@ export function ChatsList() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
-      <PageHeader title="Chats" actions={<CircleIconButton icon="card_giftcard" label="Invite friends" iconSize={20} className="bg-surface2 text-gold" onClick={() => router.push("/invite")} />} />
+      <PageHeader
+        title="Chats"
+        actions={
+          <span className="flex items-center gap-2">
+            <span className="relative">
+              <CircleIconButton icon="notifications" label={notifications ? `Notifications, ${notifications} new` : "Notifications"} iconSize={21} className="bg-surface2 text-text" onClick={() => router.push("/notifications")} />
+              {notifications ? (
+                <span className="type-label pointer-events-none absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-[9px] border-2 border-bg bg-pink px-1 text-[10px] font-bold text-white">
+                  {notifications > 99 ? "99+" : notifications}
+                </span>
+              ) : null}
+            </span>
+            <CircleIconButton icon="card_giftcard" label="Invite friends" iconSize={20} className="bg-surface2 text-gold" onClick={() => router.push("/invite")} />
+          </span>
+        }
+      />
       {empty ? (
         <>
           <div className="px-5">

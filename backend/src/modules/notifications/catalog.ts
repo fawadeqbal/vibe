@@ -73,6 +73,12 @@ export interface NotificationType {
   channels: Record<Channel, boolean>;
   /** Push even when the app is open (the app's own banner usually covers it). */
   pushWhenOnline?: boolean;
+  /**
+   * Also kept on the Notifications page (NotificationFeed), whatever the channels:
+   * person = from someone (`data.userId` or `data.friendId` is who), system = from Vibe.
+   * Chats, live calls and reminders aren't: they have their own places.
+   */
+  feed?: 'person' | 'system';
   build: (p: P, ctx: BuildCtx) => Promise<Content | null> | Content | null;
 }
 
@@ -138,6 +144,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'call.missed',
+    feed: 'person',
     group: 'calls',
     label: 'Missed call',
     event: ServerEvent.CallEnded,
@@ -165,6 +172,7 @@ export const CATALOG: NotificationType[] = [
   // ── Friends and likes ────────────────────────────────────────────────
   {
     key: 'friend.request',
+    feed: 'person',
     group: 'friends',
     label: 'Friend request',
     event: ServerEvent.FriendRequest,
@@ -176,6 +184,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'friend.accepted',
+    feed: 'person',
     group: 'friends',
     label: 'Friend request accepted',
     event: ServerEvent.FriendAccepted,
@@ -188,6 +197,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'follow.new',
+    feed: 'person',
     group: 'friends',
     label: 'New follower',
     event: ServerEvent.FollowNew,
@@ -202,6 +212,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'follow.request',
+    feed: 'person',
     group: 'friends',
     label: 'Follow request',
     event: ServerEvent.FollowRequest,
@@ -209,11 +220,12 @@ export const CATALOG: NotificationType[] = [
     build: async (p, { once, userId }) => {
       const from = who(p.from);
       if (!(await once(`follow-req:${from.id}:${userId}`))) return null;
-      return { title: 'Follow request', body: `${from.name || 'Someone'} wants to follow you`, data: { route: 'follow-requests' } };
+      return { title: 'Follow request', body: `${from.name || 'Someone'} wants to follow you`, data: { route: 'follow-requests', userId: String(from.id ?? '') } };
     },
   },
   {
     key: 'follow.accepted',
+    feed: 'person',
     group: 'friends',
     label: 'Follow request accepted',
     event: ServerEvent.FollowAccepted,
@@ -225,6 +237,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'wave.new',
+    feed: 'person',
     group: 'friends',
     label: 'Wave',
     event: ServerEvent.WaveNew,
@@ -234,8 +247,8 @@ export const CATALOG: NotificationType[] = [
       if (!(await once(`wave:${from.id}:${userId}`))) return null;
       const name = first(from.name, 'Someone');
       return p.mutual
-        ? { title: `${name} waved back 👋`, body: "You're matched first when you're both looking. Open Vibe to meet.", data: { route: 'match' }, collapseKey: `wave:${from.id}` }
-        : { title: `${name} waved at you 👋`, body: "Wave back, and you're matched first when you're both on Vibe.", data: { route: 'match' }, collapseKey: `wave:${from.id}` };
+        ? { title: `${name} waved back 👋`, body: "You're matched first when you're both looking. Open Vibe to meet.", data: { route: 'match', userId: String(from.id ?? '') }, collapseKey: `wave:${from.id}` }
+        : { title: `${name} waved at you 👋`, body: "Wave back, and you're matched first when you're both on Vibe.", data: { route: 'match', userId: String(from.id ?? '') }, collapseKey: `wave:${from.id}` };
     },
   },
   {
@@ -251,6 +264,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'discover.match',
+    feed: 'person',
     group: 'friends',
     label: 'Discover match',
     event: ServerEvent.DiscoverMatch,
@@ -262,6 +276,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'discover.superLike',
+    feed: 'person',
     group: 'friends',
     label: 'Super Like',
     event: ServerEvent.DiscoverLiked,
@@ -269,11 +284,12 @@ export const CATALOG: NotificationType[] = [
     build: (p) => {
       const from = p.from ? who(p.from) : null;
       if (!p.superLike || !from) return null;
-      return { title: `${first(from.name, 'Someone')} Super Liked you ⭐`, body: 'Open Discover to see them first.', data: { route: 'discover' }, collapseKey: `discover-super:${from.id}` };
+      return { title: `${first(from.name, 'Someone')} Super Liked you ⭐`, body: 'Open Discover to see them first.', data: { route: 'discover', userId: String(from.id ?? '') }, collapseKey: `discover-super:${from.id}` };
     },
   },
   {
     key: 'discover.like',
+    feed: 'system',
     group: 'friends',
     label: 'Someone liked you (once a day)',
     event: ServerEvent.DiscoverLiked,
@@ -307,6 +323,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'referral.update',
+    feed: 'system',
     group: 'friends',
     label: 'Your invite: friend joined / rewarded',
     event: ServerEvent.ReferralUpdated,
@@ -324,6 +341,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'referral.milestone',
+    feed: 'system',
     group: 'friends',
     label: 'Invite milestone reached',
     event: ServerEvent.ReferralMilestone,
@@ -384,6 +402,7 @@ export const CATALOG: NotificationType[] = [
   // ── Money ────────────────────────────────────────────────────────────
   {
     key: 'payment.update',
+    feed: 'system',
     group: 'money',
     label: 'Payment done / not completed',
     event: ServerEvent.PaymentUpdated,
@@ -396,6 +415,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'cashout.update',
+    feed: 'system',
     group: 'money',
     label: 'Cash-out sent / returned',
     event: ServerEvent.CashoutUpdated,
@@ -408,6 +428,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'goal.reached',
+    feed: 'system',
     group: 'money',
     label: 'Gem goal reached',
     event: ServerEvent.GoalReached,
@@ -416,6 +437,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'partner.update',
+    feed: 'system',
     group: 'money',
     label: 'Creator partner news and payouts',
     event: ServerEvent.AffiliateUpdated,
@@ -434,6 +456,7 @@ export const CATALOG: NotificationType[] = [
   // ── Account and safety (always on) ───────────────────────────────────
   {
     key: 'account.warning',
+    feed: 'system',
     group: 'account',
     label: 'Warning from the Vibe team',
     event: ServerEvent.AccountWarning,
@@ -443,6 +466,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'account.paused',
+    feed: 'system',
     group: 'account',
     label: 'Account paused',
     event: ServerEvent.AccountBanned,
@@ -456,6 +480,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'account.appeal',
+    feed: 'system',
     group: 'account',
     label: 'Appeal answered',
     event: ServerEvent.AccountAppeal,
@@ -468,6 +493,7 @@ export const CATALOG: NotificationType[] = [
   },
   {
     key: 'account.verification',
+    feed: 'system',
     group: 'account',
     label: 'Selfie verification result',
     channels: ALL,

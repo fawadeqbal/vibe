@@ -384,11 +384,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ],
                     ),
                     Text(
-                      typing
-                          ? 'typing…'
-                          : f.online
-                          ? 'Online'
-                          : 'Last seen ${Fmt.ago(f.since)}',
+                      typing ? 'typing…' : (Fmt.presence(f.online, f.lastSeenAt) ?? ''),
                       style: VT.label(
                         11.5,
                         color: typing

@@ -74,6 +74,8 @@ export const Ev = {
   levelUp: "progress:level-up",
   goalReached: "wallet:goal-reached",
   inboxMessage: "inbox:message",
+  activityNew: "activity:new",
+  activityRead: "activity:read",
   catalogUpdated: "catalog:updated",
   referralUpdated: "referral:updated",
   referralMilestone: "referral:milestone",

@@ -11,12 +11,15 @@ import '../../models/follows.dart';
 import '../../models/models.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/social_provider.dart';
+import '../../providers/wallet_provider.dart';
 import '../match/report_sheet.dart';
 import '../social/chat_screen.dart';
+import '../store/store_screen.dart';
 import 'progress.dart';
 
 /// Someone else's profile. It opens up as you get closer: matched → following
-/// (counts, stats) → friends (online, Message).
+/// (counts, stats) → friends (online, last seen, Message). Anyone you've met
+/// can be sent a friend request from here.
 class UserProfileScreen extends StatelessWidget {
   const UserProfileScreen({super.key, required this.userId});
   final String userId;
@@ -121,11 +124,50 @@ class _UserProfileBodyState extends State<UserProfileBody> {
         if (!widget.inCall) await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: p.id)));
       case FriendState.incoming:
         await _run(() async => social.accept(p.id));
-      case FriendState.none:
       case FriendState.requested:
+        final ok = await _confirm('Cancel your friend request?', null, 'Cancel request', keep: 'Keep', danger: true);
+        if (ok && mounted) await _run(() => social.cancel(p.id));
+      case FriendState.none:
+        await _sendRequest(p);
       case FriendState.blocked:
         return;
     }
+  }
+
+  /// Same rules as the + on the call screen: free requests first, then coins.
+  Future<void> _sendRequest(Profile p) async {
+    final social = context.read<SocialProvider>();
+    if (context.read<WalletProvider>().freeFriendRequestsLeft == 0) {
+      final ok = await _confirm(
+        'Send ${p.name} a friend request?',
+        'Your ${Economy.freeFriendRequestsPerDay} free requests for today are used. This one costs ${Economy.friendRequestCost} coins.',
+        'Send for ${Economy.friendRequestCost}',
+      );
+      if (!ok || !mounted) return;
+    }
+    await _run(() async {
+      if (await social.sendRequest(p)) {
+        if (mounted) toast(context, 'Request sent to ${p.name}');
+      } else if (mounted) {
+        final go = await _confirm('Not enough coins', 'A friend request costs ${Economy.friendRequestCost} coins once your free ones are used.\n\nTop up, or earn free coins in the store.', 'Get coins', keep: 'Not now');
+        if (go && mounted) await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StoreScreen(asPage: true)));
+      }
+    });
+  }
+
+  Future<bool> _confirm(String title, String? body, String ok, {String keep = 'Cancel', bool danger = false}) async {
+    final r = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: body == null ? null : Text(body),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(keep, style: const TextStyle(color: V.text2))),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(ok, style: danger ? const TextStyle(color: V.bad) : null)),
+        ],
+      ),
+    );
+    return r == true;
   }
 
   Future<void> _menu(String action, ProfileView v) async {
@@ -154,6 +196,11 @@ class _UserProfileBodyState extends State<UserProfileBody> {
     final follow = context.select<FollowsProvider, FollowState>((f) => f.stateOf(widget.userId));
     final friend = context.select<SocialProvider, FriendState>((s) => s.stateOf(widget.userId));
     final streak = context.select<SocialProvider, StreakView>((s) => s.friend(widget.userId)?.streak ?? StreakView.none);
+    // Friends: live from the friends list (presence events), else what the profile said when it loaded.
+    final live = context.select<SocialProvider, (bool?, DateTime?)>((s) {
+      final f = s.friend(widget.userId);
+      return f == null || f.state != FriendState.friends ? (null, null) : (f.online, f.lastSeenAt);
+    });
     if (_loading) return const Padding(padding: EdgeInsets.symmetric(vertical: 80), child: Center(child: CircularProgressIndicator(color: V.pink)));
     final v = _view;
     if (v == null) {
@@ -192,7 +239,10 @@ class _UserProfileBodyState extends State<UserProfileBody> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text('${p.country.flag} ${p.country.name}${v.online == true ? ' · Online now' : ''}', style: VT.body(13, color: V.text2)),
+                  Builder(builder: (_) {
+                    final status = v.tier == ProfileTier.friends ? Fmt.presence(live.$1 ?? v.online, live.$2 ?? v.lastSeenAt) : null;
+                    return Text('${p.country.flag} ${p.country.name}${status == null ? '' : ' · ${status == 'Online' ? 'Online now' : status}'}', style: VT.body(13, color: V.text2));
+                  }),
                   if (friend == FriendState.friends && streak.count > 0)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
@@ -224,21 +274,32 @@ class _UserProfileBodyState extends State<UserProfileBody> {
           const SizedBox(height: 18),
           Row(
             children: [
-              Expanded(child: _followButton(p, follow)),
-              // Friend requests are only sent from a live call (the + button
-              // on the call screen); a profile can only accept or open chat.
-              if (friend != FriendState.none && friend != FriendState.blocked) ...[
+              Expanded(child: _followButton(p, follow, v.followsYou)),
+              // Friends: anyone you've met (call or Discover match). On a live call the + on the call screen does it.
+              if (friend != FriendState.blocked && (friend != FriendState.none || (v.met && !widget.inCall))) ...[
                 const SizedBox(width: 10),
                 Expanded(child: _friendButton(p, friend)),
               ],
             ],
           ),
-          if (friend == FriendState.none) ...[
+          if (friend == FriendState.incoming) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              const Icon(SolarIconsBold.userPlusRounded, size: 16, color: V.muted),
+              const SizedBox(width: 8),
+              Expanded(child: Text('${p.name.split(' ').first} wants to be friends.', style: VT.body(12.5, color: V.text2))),
+              TextButton(
+                onPressed: _busy ? null : () => _run(() => context.read<SocialProvider>().decline(p.id)),
+                child: Text('Decline', style: VT.label(12.5, color: V.text2)),
+              ),
+            ]),
+          ],
+          if (friend == FriendState.none && (widget.inCall || !v.met)) ...[
             const SizedBox(height: 10),
             Row(children: [
               const Icon(SolarIconsBold.videocamera, size: 16, color: V.muted),
               const SizedBox(width: 8),
-              Expanded(child: Text(widget.inCall ? 'Tap + on the call to add ${p.name} as a friend' : 'Friends are made on video calls. Match again to add ${p.name}.', style: VT.body(12.5, color: V.text2))),
+              Expanded(child: Text(widget.inCall ? 'Tap + on the call to add ${p.name} as a friend' : 'You can add ${p.name} as a friend after you meet on a video call.', style: VT.body(12.5, color: V.text2))),
             ]),
           ],
         ],
@@ -281,18 +342,18 @@ class _UserProfileBodyState extends State<UserProfileBody> {
     );
   }
 
-  Widget _followButton(Profile p, FollowState s) => switch (s) {
-        FollowState.none => GradientButton(label: 'Follow', icon: SolarIconsBold.userPlusRounded, height: 46, busy: _busy, onTap: _follow),
+  Widget _followButton(Profile p, FollowState s, bool followsYou) => switch (s) {
+        FollowState.none => GradientButton(label: followsYou ? 'Follow back' : 'Follow', icon: SolarIconsBold.userPlusRounded, height: 46, busy: _busy, onTap: _follow),
         FollowState.requested => GhostButton(label: 'Requested', icon: SolarIconsBold.hourglass, height: 46, expand: true, onTap: _busy ? null : () => _unfollow(p.name, s)),
         FollowState.following => GhostButton(label: 'Following', icon: Icons.check_rounded, height: 46, expand: true, onTap: _busy ? null : () => _unfollow(p.name, s)),
       };
 
   Widget _friendButton(Profile p, FriendState s) => switch (s) {
         FriendState.friends => GhostButton(label: 'Message', icon: SolarIconsOutline.chatRoundDots, height: 46, expand: true, onTap: widget.inCall ? null : () => _friendAction(p, s)),
-        FriendState.incoming => GhostButton(label: 'Accept friend', icon: SolarIconsBold.userCheckRounded, height: 46, expand: true, onTap: () => _friendAction(p, s)),
-        FriendState.requested => const GhostButton(label: 'Request sent', icon: SolarIconsBold.hourglass, height: 46, expand: true),
+        FriendState.incoming => GhostButton(label: 'Accept friend', icon: SolarIconsBold.userCheckRounded, height: 46, expand: true, onTap: _busy ? null : () => _friendAction(p, s)),
+        FriendState.requested => GhostButton(label: 'Request sent', icon: SolarIconsBold.hourglass, height: 46, expand: true, onTap: _busy ? null : () => _friendAction(p, s)),
         FriendState.blocked => const SizedBox.shrink(),
-        FriendState.none => const SizedBox.shrink(),
+        FriendState.none => GhostButton(label: 'Add friend', icon: SolarIconsBold.userPlusRounded, height: 46, expand: true, onTap: _busy ? null : () => _friendAction(p, s)),
       };
 }
 

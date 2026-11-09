@@ -95,6 +95,9 @@ abstract class SocialProvider extends ChangeNotifier {
   void receiveRequest(Profile p);
   Future<bool> accept(String id);
   Future<void> decline(String id);
+
+  /// Take back a friend request you sent.
+  Future<void> cancel(String id);
   Future<void> remove(String id);
   Future<void> block(Profile p);
   Future<void> unblock(String id);
