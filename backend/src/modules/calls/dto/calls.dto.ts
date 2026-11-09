@@ -22,9 +22,16 @@ export class RingDto {
 }
 
 export class CallVideoDto {
-  @ApiProperty({ enum: ['ask', 'yes', 'no'], description: 'Ask to turn on video in a voice call, or answer the ask' })
-  @IsIn(['ask', 'yes', 'no'])
-  action!: 'ask' | 'yes' | 'no';
+  @ApiProperty({ enum: ['ask', 'yes', 'no', 'off'], description: 'Ask to turn on video in a voice call, answer the ask, or switch a video call to voice only ("off", either side, no ask)' })
+  @IsIn(['ask', 'yes', 'no', 'off'])
+  action!: 'ask' | 'yes' | 'no' | 'off';
+}
+
+export class AcceptCallDto {
+  @ApiPropertyOptional({ enum: ['voice', 'video'], description: '"voice": pick up a video call as voice only (both cameras stay off)' })
+  @IsOptional()
+  @IsIn(['voice', 'video'])
+  media?: 'voice' | 'video';
 }
 
 export class DeclineCallDto {

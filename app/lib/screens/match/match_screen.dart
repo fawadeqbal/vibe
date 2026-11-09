@@ -34,22 +34,25 @@ import 'icebreakers.dart';
 import 'lobby_extras.dart';
 import 'match_sheets.dart';
 import 'call_states.dart';
+import '../calls/friend_call.dart';
 import 'report_sheet.dart';
 import 'safety_sheet.dart';
 import 'swipe.dart';
-import 'voice_call.dart';
 
 /// The app. Four looks on one screen: lobby (idle), searching, connected,
 /// ended. In the lobby your camera stays off until you ask for a preview
 /// (battery); then it fills the screen clearly (scrims, not a dim);
 /// during a match the partner takes the stage and you shrink to a corner.
 class MatchScreen extends StatefulWidget {
-  const MatchScreen({super.key, required this.onOpenStore, required this.onOpenChats, this.onOpenMe});
+  const MatchScreen({super.key, required this.onOpenStore, required this.onOpenChats, this.onOpenMe, this.onOpenChat});
   final VoidCallback onOpenStore;
   final VoidCallback onOpenChats;
 
   /// The avatar in the lobby's top bar: the Me tab.
   final VoidCallback? onOpenMe;
+
+  /// A friend call shrunk to the chat: open the chat with them.
+  final ValueChanged<String>? onOpenChat;
 
   @override
   State<MatchScreen> createState() => _MatchScreenState();
@@ -338,6 +341,19 @@ class _MatchScreenState extends State<MatchScreen> {
     }
   }
 
+  /// What the friend call screens can do from here.
+  FriendCallActions _friendActions(MatchProvider m) => FriendCallActions(
+    shrink: () {
+      final id = m.partner?.id;
+      if (id == null) return;
+      m.setMinimized(true);
+      widget.onOpenChat?.call(id);
+    },
+    gift: _gift,
+    report: _report,
+    play: _play,
+  );
+
   Future<void> _reconnect() async {
     final m = context.read<MatchProvider>();
     if (!await m.reconnect()) await _explainFailure(m, 'Reconnecting costs ${m.reconnectPrice} coins.');
@@ -406,7 +422,8 @@ class _MatchScreenState extends State<MatchScreen> {
           fit: StackFit.expand,
           children: [
             switch (m.state) {
-              MatchState.connected when m.voiceCall && m.partner != null => VoiceCallView(m: m, onReport: _report),
+              MatchState.connected when m.friendCall && m.partner != null && m.voiceCall => FriendVoiceCall(m: m, actions: _friendActions(m)),
+              MatchState.connected when m.friendCall && m.partner != null => FriendVideoCall(m: m, actions: _friendActions(m)),
               MatchState.connected => _Connected(m: m, onNext: _next, onGift: _gift, onAddFriend: _addFriend, onReport: _report, onPlay: _play, message: _message, chatScroll: _chatScroll),
               MatchState.searching => _Searching(m: m, onCallNow: _reconnect, onRestart: _start),
               _ when m.pausedUntil != null => AccountPausedView(m: m, until: m.pausedUntil!, onOpenChats: widget.onOpenChats),
@@ -1636,16 +1653,13 @@ class _Connected extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (m.friendCall)
-          stage
-        else
-          SwipeStage(
-            onNext: onNext,
-            onLike: () {
-              if (!m.likedPartner) m.like();
-            },
-            child: stage,
-          ),
+        SwipeStage(
+          onNext: onNext,
+          onLike: () {
+            if (!m.likedPartner) m.like();
+          },
+          child: stage,
+        ),
         Positioned(
           left: 0,
           right: 0,
@@ -1671,117 +1685,75 @@ class _Connected extends StatelessWidget {
           top: media.padding.top + 70,
           child: _SelfPip(m: m),
         ),
-        if (m.friendCall)
-          // A call with a friend from a chat: no Next, no like, no add — End.
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: bottom + 16,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (m.game != null) ...[GameCard(m: m, round: m.game!), const SizedBox(height: 10)],
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _ChatOverlay(m: m, controller: chatScroll, maxHeight: m.game != null ? 84 : 168),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    RoundControl(icon: SolarIconsBold.gift, onTap: onGift, label: 'Gift', color: V.gold),
-                    const SizedBox(width: 20),
-                    RoundControl(icon: SolarIconsBold.gamepadMinimalistic, onTap: onPlay, label: 'Play', color: m.game != null ? V.lavender : Colors.white, tint: m.game != null ? V.violet : null),
-                    const SizedBox(width: 20),
-                    RoundControl(icon: Icons.call_end_rounded, size: 64, onTap: m.stop, label: 'End', background: const Color(0xFFE11D48)),
-                    const SizedBox(width: 20),
-                    RoundControl(icon: SolarIconsBold.menuDots, onTap: () => _showCallOptions(context, m, onReport), label: 'More'),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                _Composer(m: m, controller: message),
-              ],
-            ),
-          )
-        else ...[
-          // The rail: everything you can do for this person, one thumb away.
-          Positioned(
-            right: 12,
-            bottom: bottom + 112,
-            child: Column(
-              children: [
-                RoundControl(
-                  size: 50,
-                  icon: m.likedPartner ? SolarIconsBold.heart : SolarIconsOutline.heart,
-                  color: m.likedPartner ? V.pink : Colors.white,
-                  tint: m.likedPartner ? V.pink : null,
-                  onTap: m.like,
-                  label: m.likedPartner ? 'Liked' : 'Like',
-                ),
-                const SizedBox(height: 14),
-                RoundControl(
-                  size: 50,
-                  icon: switch (friendState) {
-                    FriendState.friends => SolarIconsBold.userCheckRounded,
-                    FriendState.requested => SolarIconsBold.hourglass,
-                    _ => SolarIconsBold.userPlusRounded,
-                  },
-                  onTap: friendState == FriendState.none || friendState == FriendState.incoming ? onAddFriend : null,
-                  label: switch (friendState) {
-                    FriendState.friends => 'Friends',
-                    FriendState.requested => 'Sent',
-                    FriendState.incoming => 'Accept',
-                    _ => 'Add friend',
-                  },
-                  color: friendState == FriendState.friends ? V.ok : Colors.white,
-                  tint: friendState == FriendState.incoming ? V.violet : null,
-                ),
-                const SizedBox(height: 14),
-                RoundControl(size: 50, icon: SolarIconsBold.gift, onTap: onGift, label: 'Gift', color: V.gold),
-                const SizedBox(height: 14),
-                RoundControl(
-                  size: 50,
-                  icon: SolarIconsBold.gamepadMinimalistic,
-                  onTap: onPlay,
-                  label: 'Play',
-                  color: m.game != null ? V.lavender : Colors.white,
-                  tint: m.game != null ? V.violet : null,
-                ),
-                const SizedBox(height: 14),
-                RoundControl(size: 50, icon: SolarIconsBold.menuDots, onTap: () => _showCallOptions(context, m, onReport), label: 'More'),
-              ],
-            ),
+        // The rail: everything you can do for this person, one thumb away.
+        Positioned(
+          right: 12,
+          bottom: bottom + 112,
+          child: Column(
+            children: [
+              RoundControl(
+                size: 50,
+                icon: m.likedPartner ? SolarIconsBold.heart : SolarIconsOutline.heart,
+                color: m.likedPartner ? V.pink : Colors.white,
+                tint: m.likedPartner ? V.pink : null,
+                onTap: m.like,
+                label: m.likedPartner ? 'Liked' : 'Like',
+              ),
+              const SizedBox(height: 14),
+              RoundControl(
+                size: 50,
+                icon: switch (friendState) {
+                  FriendState.friends => SolarIconsBold.userCheckRounded,
+                  FriendState.requested => SolarIconsBold.hourglass,
+                  _ => SolarIconsBold.userPlusRounded,
+                },
+                onTap: friendState == FriendState.none || friendState == FriendState.incoming ? onAddFriend : null,
+                label: switch (friendState) {
+                  FriendState.friends => 'Friends',
+                  FriendState.requested => 'Sent',
+                  FriendState.incoming => 'Accept',
+                  _ => 'Add friend',
+                },
+                color: friendState == FriendState.friends ? V.ok : Colors.white,
+                tint: friendState == FriendState.incoming ? V.violet : null,
+              ),
+              const SizedBox(height: 14),
+              RoundControl(size: 50, icon: SolarIconsBold.gift, onTap: onGift, label: 'Gift', color: V.gold),
+              const SizedBox(height: 14),
+              RoundControl(size: 50, icon: SolarIconsBold.gamepadMinimalistic, onTap: onPlay, label: 'Play', color: m.game != null ? V.lavender : Colors.white, tint: m.game != null ? V.violet : null),
+              const SizedBox(height: 14),
+              RoundControl(size: 50, icon: SolarIconsBold.menuDots, onTap: () => _showCallOptions(context, m, onReport), label: 'More'),
+            ],
           ),
-          // Chat and a game, bottom left, clear of the rail.
-          Positioned(
-            left: 12,
-            right: 84,
-            bottom: bottom + 96,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (m.game != null) ...[GameCard(m: m, round: m.game!), const SizedBox(height: 10)],
-                _ChatOverlay(m: m, controller: chatScroll, maxHeight: m.game != null ? 84 : 168),
-              ],
-            ),
+        ),
+        // Chat and a game, bottom left, clear of the rail.
+        Positioned(
+          left: 12,
+          right: 84,
+          bottom: bottom + 96,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (m.game != null) ...[GameCard(m: m, round: m.game!), const SizedBox(height: 10)],
+              _ChatOverlay(m: m, controller: chatScroll, maxHeight: m.game != null ? 84 : 168),
+            ],
           ),
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: bottom + 22,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _Composer(m: m, controller: message),
-                ),
-                const SizedBox(width: 10),
-                _NextButton(m: m, onTap: onNext),
-              ],
-            ),
+        ),
+        Positioned(
+          left: 12,
+          right: 12,
+          bottom: bottom + 22,
+          child: Row(
+            children: [
+              Expanded(
+                child: _Composer(m: m, controller: message),
+              ),
+              const SizedBox(width: 10),
+              _NextButton(m: m, onTap: onNext),
+            ],
           ),
-        ],
+        ),
       ],
     );
   }

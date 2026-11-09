@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CallsService } from './calls.service';
-import { CallConsentDto, CallVideoDto, DeclineCallDto, RingDto } from './dto/calls.dto';
+import { CallConsentDto, AcceptCallDto, CallVideoDto, DeclineCallDto, RingDto } from './dto/calls.dto';
 
 @ApiTags('calls')
 @ApiBearerAuth()
@@ -52,8 +52,8 @@ export class CallsController {
   @Post('calls/:callId/accept')
   @HttpCode(200)
   @ApiOperation({ summary: 'Pick up' })
-  accept(@CurrentUser('id') me: string, @Param('callId') callId: string) {
-    return this.calls.accept(me, callId);
+  accept(@CurrentUser('id') me: string, @Param('callId') callId: string, @Body() dto: AcceptCallDto) {
+    return this.calls.accept(me, callId, dto?.media === 'voice');
   }
 
   @Post('calls/:callId/decline')

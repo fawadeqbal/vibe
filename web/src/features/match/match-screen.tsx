@@ -8,7 +8,7 @@ import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 
 import { Connected } from "./connected";
-import { VoiceCall } from "./voice-call";
+import { FriendVideoCall, FriendVoiceCall } from "@/features/calls/friend-call";
 import { Ended } from "./ended";
 import { GiftBurst } from "./gift-burst";
 import { Lobby } from "./lobby";
@@ -28,6 +28,7 @@ export function MatchScreen() {
   const status = useMatch((s) => s.status);
   const pausedUntil = useSession((s) => s.pausedUntil);
   const voiceCall = useMatch((s) => s.voiceCall);
+  const friendCall = useMatch((s) => s.friendCall);
   const hasLast = useMatch((s) => s.lastPartner != null);
   const chat = useMatch((s) => s.chat);
   const freeToMatch = useFilters((s) => filtersReady(s));
@@ -88,8 +89,10 @@ export function MatchScreen() {
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-bg lg:h-dvh">
-      {status === "connected" && voiceCall ? (
-        <VoiceCall onReport={() => void actions.report()} />
+      {status === "connected" && friendCall && voiceCall ? (
+        <FriendVoiceCall actions={{ gift: () => void actions.gift(), report: () => void actions.report() }} />
+      ) : status === "connected" && friendCall ? (
+        <FriendVideoCall actions={{ gift: () => void actions.gift(), report: () => void actions.report() }} />
       ) : status === "connected" ? (
         <Connected actions={{ next: () => void actions.next(), gift: () => void actions.gift(), addFriend: () => void actions.addFriend(), report: () => void actions.report() }} />
       ) : status === "searching" ? (

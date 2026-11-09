@@ -79,6 +79,11 @@ export class MediaDto {
 
   @IsBoolean()
   micOn!: boolean;
+
+  /** "Blur me": they see you blurred (their app blurs your video). */
+  @IsOptional()
+  @IsBoolean()
+  blur?: boolean;
 }
 
 export class SignalDto {

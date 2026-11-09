@@ -43,7 +43,12 @@ class RemoteMatchProvider extends MatchProvider {
       _rt.on(Ev.matchError).listen((e) => _fail(ApiException(e['code'] as String? ?? 'INTERNAL', e['message'] as String? ?? 'Could not start the match'))),
       _rt.on(Ev.rtcSignal).listen(_onSignal),
       _rt.on(Ev.callVideo).listen((e) {
-        if (e['matchId'] != _matchId || !voiceCall) return;
+        if (e['matchId'] != _matchId) return;
+        if (e['state'] == 'off') {
+          unawaited(turnOffVideo());
+          return;
+        }
+        if (!voiceCall) return;
         switch (e['state']) {
           case 'asked':
             setVideoAsk(VideoAsk.theirs);
@@ -69,6 +74,7 @@ class RemoteMatchProvider extends MatchProvider {
         if (e['matchId'] != _matchId) return;
         _partnerCamOn = e['camOn'] != false;
         _partnerMicOn = e['micOn'] != false;
+        _partnerBlur = e['blur'] == true;
         notifyListeners();
       }),
       _rt.on(Ev.matchRematchSoon).listen((e) {
@@ -96,17 +102,17 @@ class RemoteMatchProvider extends MatchProvider {
   Duration _iceReuse = const Duration(minutes: 30);
 
   /// What we last told this partner (camera:mic), so each change is sent once.
-  String _toldMedia = 'on:on';
+  String _toldMedia = 'on:on:';
   Timer? _statsTimer;
 
   @override
   void tellMedia() {
     if (_state != MatchState.connected || _matchId == null) return;
     final cam = camOn && !inBackground && !voiceCall;
-    final key = '${cam ? 'on' : 'off'}:${micOn ? 'on' : 'off'}';
+    final key = '${cam ? 'on' : 'off'}:${micOn ? 'on' : 'off'}:${blurMe ? 'blur' : ''}';
     if (key == _toldMedia) return;
     _toldMedia = key;
-    _rt.request('match:media', {'camOn': cam, 'micOn': micOn}).catchError((_) => null);
+    _rt.request('match:media', {'camOn': cam, 'micOn': micOn, if (blurMe) 'blur': true}).catchError((_) => null);
   }
 
   /// Their video should keep moving: no new frames for ~4 s (camera on) means a weak line.
@@ -807,6 +813,53 @@ class RemoteMatchProvider extends MatchProvider {
     setVideoAsk(VideoAsk.none);
     if (id == null) return;
     await _api.post('/calls/live/$id/video', {'action': yes ? 'yes' : 'no'}).catchError((_) => null);
+  }
+
+  @override
+  Future<void> switchToVoice() async {
+    final id = _matchId;
+    if (id == null || voiceCall || !friendCall) return;
+    await turnOffVideo();
+    await _api.post('/calls/live/$id/video', {'action': 'off'}).catchError((_) => null);
+  }
+
+  /// Voice only: stop the camera and send nothing on the video line.
+  @override
+  Future<void> turnOffVideo() async {
+    if (voiceCall || !friendCall) return;
+    final local = _localStream;
+    if (local != null) {
+      for (final t in [...local.getVideoTracks()]) {
+        await t.stop();
+        await local.removeTrack(t);
+      }
+    }
+    final pc = _pc;
+    if (pc != null) {
+      for (final t in await pc.getTransceivers()) {
+        if (t.receiver.track?.kind == 'video') {
+          await t.sender.replaceTrack(null);
+          break;
+        }
+      }
+    }
+    await super.turnOffVideo();
+    tellMedia();
+  }
+
+  @override
+  Future<double> partnerVoiceLevel() async {
+    final pc = _pc;
+    if (pc == null) return 0;
+    try {
+      for (final r in await pc.getStats()) {
+        if (r.type == 'inbound-rtp' && r.values['kind'] == 'audio') {
+          final l = r.values['audioLevel'];
+          if (l is num) return l.toDouble().clamp(0, 1);
+        }
+      }
+    } catch (_) {}
+    return 0;
   }
 
   /// Both said yes: open the camera and send it on the reserved video line.

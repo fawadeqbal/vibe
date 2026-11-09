@@ -25,6 +25,7 @@ import 'providers/wallet_provider.dart';
 import 'services/app_services.dart';
 import 'services/invite/invite_capture.dart';
 import 'services/payments/store_billing.dart';
+import 'screens/calls/call_layer.dart';
 import 'screens/home/home_shell.dart';
 import 'screens/onboarding/permissions_screen.dart';
 import 'screens/onboarding/profile_setup_screen.dart';
@@ -155,6 +156,8 @@ class _VibeAppState extends State<VibeApp> {
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: _messenger,
       navigatorObservers: [vibeRouteObserver],
+      // Friend calls over every page: the ringing banner, a call shrunk to the chat.
+      builder: (context, child) => CallLayer(child: child ?? const SizedBox.shrink()),
       theme: V.theme(),
       home: Consumer<SessionProvider>(
         // The animated splash stays up until boot is done and its entrance

@@ -12,12 +12,12 @@ class RemoteCallsProvider extends CallsProvider {
       }),
       _rt.on(Ev.callIncoming).listen((e) {
         if (e['from'] is! Map) return;
-        _incoming = IncomingCall(
+        setIncoming(IncomingCall(
           callId: '${e['callId']}',
           from: ApiMap.profile(Map<String, dynamic>.from(e['from'] as Map)),
           expiresAt: ApiMap.date(e['expiresAt']) ?? DateTime.now().add(Duration(seconds: Economy.callRingSeconds)),
           media: e['media'] == 'voice' ? CallMedia.voice : CallMedia.video,
-        );
+        ));
         notifyListeners();
       }),
       _rt.on(Ev.callRinging).listen((e) {
@@ -40,7 +40,7 @@ class RemoteCallsProvider extends CallsProvider {
   void _onEnded(Map<String, dynamic> e) {
     final id = '${e['callId']}';
     final reason = e['reason'] as String?;
-    if (_incoming?.callId == id) _incoming = null;
+    if (_incoming?.callId == id) setIncoming(null);
     final o = _outgoing;
     if (o != null && (o.callId == id || o.callId == null)) {
       _outgoing = switch (reason) {
@@ -83,13 +83,13 @@ class RemoteCallsProvider extends CallsProvider {
   }
 
   @override
-  Future<void> accept() async {
+  Future<void> accept([CallMedia? media]) async {
     final c = _incoming;
     if (c == null) return;
-    _incoming = null;
+    setIncoming(null);
     notifyListeners();
     try {
-      await _api.post('/calls/${c.callId}/accept');
+      await _api.post('/calls/${c.callId}/accept', media == CallMedia.voice ? {'media': 'voice'} : <String, dynamic>{});
     } on ApiException catch (_) {
       // Already over (they hung up): the chat shows the missed call.
     }
@@ -99,7 +99,7 @@ class RemoteCallsProvider extends CallsProvider {
   Future<void> decline([String? reply]) async {
     final c = _incoming;
     if (c == null) return;
-    _incoming = null;
+    setIncoming(null);
     notifyListeners();
     try {
       await _api.post('/calls/${c.callId}/decline', reply == null ? <String, dynamic>{} : {'reply': reply});
@@ -124,7 +124,8 @@ class RemoteCallsProvider extends CallsProvider {
       final c = _map(await _api.get('/calls/incoming'))['call'];
       if (c is Map) {
         final m = Map<String, dynamic>.from(c);
-        _incoming = IncomingCall(callId: '${m['callId']}', from: ApiMap.profile(_map(m['from'])), expiresAt: ApiMap.date(m['expiresAt']) ?? DateTime.now(), media: m['media'] == 'voice' ? CallMedia.voice : CallMedia.video);
+        // Ringing when the app opened (from a push): full screen straight away.
+        setIncoming(IncomingCall(callId: '${m['callId']}', from: ApiMap.profile(_map(m['from'])), expiresAt: ApiMap.date(m['expiresAt']) ?? DateTime.now(), media: m['media'] == 'voice' ? CallMedia.voice : CallMedia.video), full: true);
         notifyListeners();
       }
     } on ApiException catch (_) {}

@@ -42,7 +42,7 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
   const opener = shared.length ? `You both like ${shared.slice(0, 2).join(" · ")}` : p.interests.length ? `Into ${p.interests.slice(0, 2).join(" · ")}` : null;
   const likeText = mutualLike(m) ? "You both liked each other" : m.partnerLikedMe ? `${p.name} liked you` : null;
   // First call on this device: show how swiping works, once.
-  const [hint, setHint] = useState(() => !m.friendCall && !swipeHintSeen());
+  const [hint, setHint] = useState(() => !swipeHintSeen());
   const doneHint = () => {
     markSwipeHintSeen();
     setHint(false);
@@ -58,17 +58,10 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {m.friendCall ? (
-        <>
-          <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn && !m.voiceCall} />
-          <VideoScrims top={200} bottom={380} topAlpha={0.65} bottomAlpha={0.9} bottomMid={0.55} />
-        </>
-      ) : (
-        <SwipeStage onNext={swipeNext} onLike={doubleTapLike}>
-          <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn && !m.voiceCall} />
-          <VideoScrims top={200} bottom={380} topAlpha={0.65} bottomAlpha={0.9} bottomMid={0.55} />
-        </SwipeStage>
-      )}
+      <SwipeStage onNext={swipeNext} onLike={doubleTapLike}>
+        <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn && !m.voiceCall} />
+        <VideoScrims top={200} bottom={380} topAlpha={0.65} bottomAlpha={0.9} bottomMid={0.55} />
+      </SwipeStage>
 
       <CallTop partner={p} elapsed={m.elapsed} onReport={actions.report} />
 
@@ -81,62 +74,44 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
 
       <SelfPip />
 
-      {m.friendCall ? (
-        <div className="absolute inset-x-3 bottom-[calc(16px+env(safe-area-inset-bottom))] mx-auto max-w-[560px]">
-          <ChatOverlay partnerName={p.name} compact={!!m.game} />
-          {m.game ? (
-            <div className="mt-2.5">
-              <GameCard game={m.game} partnerName={p.name} />
-            </div>
-          ) : null}
-          <div className="mt-3.5 flex items-end justify-center gap-6 px-1">
-            <RoundControl icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
-            <RoundControl icon="casino" iconColor={m.game ? "lavender" : "white"} tint={m.game ? "violet" : undefined} onClick={() => void playGame()} label="Play" />
-            <button type="button" onClick={() => m.stop()} aria-label="End call" className="flex flex-col items-center">
-              <span className="flex size-[64px] items-center justify-center rounded-full bg-bad-deep text-white shadow-[0_10px_26px_rgb(225_29_72/0.4)] hover:brightness-110">
-                <Icon name="call_end" size={30} />
-              </span>
-              <span className="type-label mt-1.5 text-[11px] font-semibold text-white/85">End</span>
-            </button>
-            <RoundControl icon="more_horiz" onClick={() => void openCallOptions(actions)} label="More" />
-          </div>
-          <div className="mt-3.5">
-            <Composer partnerName={p.name} />
-          </div>
+      <>
+        {/* The rail: everything you can do for this person, one thumb away. */}
+        <div className="absolute right-3 flex flex-col gap-3.5 bottom-[calc(112px+env(safe-area-inset-bottom))]">
+          <RoundControl
+            size={50}
+            icon={m.likedPartner ? "favorite" : "favorite_border"}
+            iconColor={m.likedPartner ? "pink" : "white"}
+            tint={m.likedPartner ? "pink" : undefined}
+            onClick={m.like}
+            label={m.likedPartner ? "Liked" : "Like"}
+          />
+          <FriendControl state={friendState} onAdd={actions.addFriend} />
+          <RoundControl size={50} icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
+          <RoundControl
+            size={50}
+            icon="casino"
+            iconColor={m.game ? "lavender" : "white"}
+            tint={m.game ? "violet" : undefined}
+            onClick={() => void playGame()}
+            label="Play"
+          />
+          <RoundControl size={50} icon="more_horiz" onClick={() => void openCallOptions(actions)} label="More" />
         </div>
-      ) : (
-        <>
-          {/* The rail: everything you can do for this person, one thumb away. */}
-          <div className="absolute right-3 flex flex-col gap-3.5 bottom-[calc(112px+env(safe-area-inset-bottom))]">
-            <RoundControl
-              size={50}
-              icon={m.likedPartner ? "favorite" : "favorite_border"}
-              iconColor={m.likedPartner ? "pink" : "white"}
-              tint={m.likedPartner ? "pink" : undefined}
-              onClick={m.like}
-              label={m.likedPartner ? "Liked" : "Like"}
-            />
-            <FriendControl state={friendState} onAdd={actions.addFriend} />
-            <RoundControl size={50} icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
-            <RoundControl size={50} icon="casino" iconColor={m.game ? "lavender" : "white"} tint={m.game ? "violet" : undefined} onClick={() => void playGame()} label="Play" />
-            <RoundControl size={50} icon="more_horiz" onClick={() => void openCallOptions(actions)} label="More" />
-          </div>
 
-          {/* Chat and a game, bottom left, clear of the rail. */}
-          <div className="absolute left-3 flex flex-col gap-2.5 bottom-[calc(96px+env(safe-area-inset-bottom))]" style={{ right: 84 }}>
-            {m.game ? <GameCard game={m.game} partnerName={p.name} /> : null}
-            <ChatOverlay partnerName={p.name} compact={!!m.game} />
-          </div>
+        {/* Chat and a game, bottom left, clear of the rail. */}
+        <div className="absolute left-3 flex flex-col gap-2.5 bottom-[calc(96px+env(safe-area-inset-bottom))]" style={{ right: 84 }}>
+          {m.game ? <GameCard game={m.game} partnerName={p.name} /> : null}
+          <ChatOverlay partnerName={p.name} compact={!!m.game} />
+        </div>
 
-          <div className="absolute inset-x-3 flex items-center gap-2.5 bottom-[calc(22px+env(safe-area-inset-bottom))]">
-            <Composer partnerName={p.name} />
-            <NextButton onClick={actions.next} />
-          </div>
-        </>
-      )}
+        <div className="absolute inset-x-3 flex items-center gap-2.5 bottom-[calc(22px+env(safe-area-inset-bottom))]">
+          <Composer partnerName={p.name} />
+          <NextButton onClick={actions.next} />
+        </div>
+      </>
 
       {hint ? <SwipeHint onDone={doneHint} /> : null}
-      {m.mutual && m.current && !m.friendCall ? <MutualCelebration key={m.current.id} matchId={m.current.id} friendState={friendState} onAddFriend={actions.addFriend} /> : null}
+      {m.mutual && m.current ? <MutualCelebration key={m.current.id} matchId={m.current.id} friendState={friendState} onAddFriend={actions.addFriend} /> : null}
     </div>
   );
 }
@@ -145,7 +120,12 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
 function CallTop({ partner: p, elapsed, onReport }: { partner: Profile; elapsed: number; onReport: () => void }) {
   return (
     <div className="absolute inset-x-0 top-0 flex items-center gap-2 px-3 pt-[calc(12px+env(safe-area-inset-top))]">
-      <button type="button" aria-label={`Open ${p.name}'s profile`} onClick={() => void openUserProfileSheet(p.id, { inCall: true })} className="flex min-w-0 shrink text-left">
+      <button
+        type="button"
+        aria-label={`Open ${p.name}'s profile`}
+        onClick={() => void openUserProfileSheet(p.id, { inCall: true })}
+        className="flex min-w-0 shrink text-left"
+      >
         <Glass radius={999} blur={18} className="flex h-[46px] min-w-0 items-center gap-2 border-white/10 bg-bg2/52 py-0 pr-3.5 pl-1.5">
           <Avatar url={p.avatarUrl} name={p.name} size={34} />
           <span className="flex min-w-0 flex-col">
@@ -180,7 +160,7 @@ function CallTop({ partner: p, elapsed, onReport }: { partner: Profile; elapsed:
 }
 
 /** Play → pick a game → it opens for both of you. */
-async function playGame() {
+export async function playGame() {
   const g = await openGamePicker();
   if (!g) return;
   try {
@@ -227,7 +207,17 @@ function CameraOffCover({ partner }: { partner: Profile }) {
 }
 
 /** The partner's video, or their portrait while it connects (or for a dev bot). */
-function PartnerStage({ partner, remote, blurred, camOff = false }: { partner: Profile; remote: MediaStream | null; blurred: boolean; camOff?: boolean }) {
+export function PartnerStage({
+  partner,
+  remote,
+  blurred,
+  camOff = false,
+}: {
+  partner: Profile;
+  remote: MediaStream | null;
+  blurred: boolean;
+  camOff?: boolean;
+}) {
   const [failed, setFailed] = useState(false);
   return (
     <div className="absolute inset-0">
@@ -244,7 +234,10 @@ function PartnerStage({ partner, remote, blurred, camOff = false }: { partner: P
       {/* Over the video, not instead of it: their voice keeps playing. */}
       {camOff ? <CameraOffCover partner={partner} /> : null}
       <div
-        className={cn("absolute inset-0 flex items-center justify-center bg-black/10 transition-opacity duration-600", blurred ? "opacity-100" : "pointer-events-none opacity-0")}
+        className={cn(
+          "absolute inset-0 flex items-center justify-center bg-black/10 transition-opacity duration-600",
+          blurred ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
         style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}
       >
         <GlassPill label="Starts blurred · clearing in a moment" icon="blur_on" iconColor="trust" height={34} />
@@ -278,7 +271,12 @@ function SelfPip() {
       )}
       {blurred ? <span className="absolute inset-0" style={{ backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }} /> : null}
       {!micOn ? (
-        <button type="button" onClick={() => useMatch.getState().toggleMic()} aria-label="Unmute microphone" className="absolute bottom-1.5 left-1.5 flex size-6 items-center justify-center rounded-full bg-bg2/70">
+        <button
+          type="button"
+          onClick={() => useMatch.getState().toggleMic()}
+          aria-label="Unmute microphone"
+          className="absolute bottom-1.5 left-1.5 flex size-6 items-center justify-center rounded-full bg-bg2/70"
+        >
           <Icon name="mic_off" size={14} className="text-bad" />
         </button>
       ) : null}
@@ -361,7 +359,8 @@ function ChatOverlay({ partnerName, compact = false }: { partnerName: string; co
               WebkitBackdropFilter: "blur(14px)",
             }}
           >
-            <b className={cn("font-bold", c.fromMe ? "text-white" : "text-pink-soft")}>{c.fromMe ? "You" : partnerName}</b> {c.gift ? `${c.gift.emoji} ${c.text}` : c.text}
+            <b className={cn("font-bold", c.fromMe ? "text-white" : "text-pink-soft")}>{c.fromMe ? "You" : partnerName}</b>{" "}
+            {c.gift ? `${c.gift.emoji} ${c.text}` : c.text}
           </p>
           {c.hidden ? <HiddenNote className="text-white/80 [text-shadow:0_1px_3px_rgb(0_0_0/0.6)]" /> : null}
         </div>
@@ -386,9 +385,20 @@ function Composer({ partnerName }: { partnerName: string }) {
   return (
     <form onSubmit={send} className="relative min-w-0 flex-1">
       {quick ? (
-        <div role="menu" aria-label="Quick reactions" className="absolute bottom-[60px] left-0 flex gap-1 rounded-full border border-white/10 bg-bg2/80 p-1.5 backdrop-blur-[18px]">
+        <div
+          role="menu"
+          aria-label="Quick reactions"
+          className="absolute bottom-[60px] left-0 flex gap-1 rounded-full border border-white/10 bg-bg2/80 p-1.5 backdrop-blur-[18px]"
+        >
           {QUICK_REACTIONS.map((r) => (
-            <button key={r} type="button" role="menuitem" aria-label={`Send ${r}`} onClick={() => send(undefined, r)} className="flex size-10 items-center justify-center rounded-full text-[22px] hover:bg-white/10">
+            <button
+              key={r}
+              type="button"
+              role="menuitem"
+              aria-label={`Send ${r}`}
+              onClick={() => send(undefined, r)}
+              className="flex size-10 items-center justify-center rounded-full text-[22px] hover:bg-white/10"
+            >
               {r}
             </button>
           ))}
@@ -404,11 +414,21 @@ function Composer({ partnerName }: { partnerName: string }) {
           className="type-body min-w-0 flex-1 bg-transparent text-[15px] text-white outline-none placeholder:text-white/55"
         />
         {text.trim() ? (
-          <button type="submit" aria-label="Send" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-violet text-white transition-[filter] hover:brightness-110">
+          <button
+            type="submit"
+            aria-label="Send"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-violet text-white transition-[filter] hover:brightness-110"
+          >
             <Icon name="send" size={18} />
           </button>
         ) : (
-          <button type="button" aria-label="Quick reactions" aria-expanded={quick} onClick={() => setQuick((q) => !q)} className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/75 hover:text-white">
+          <button
+            type="button"
+            aria-label="Quick reactions"
+            aria-expanded={quick}
+            onClick={() => setQuick((q) => !q)}
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/75 hover:text-white"
+          >
             <Icon name="face" variant="outlined" size={22} />
           </button>
         )}
@@ -424,7 +444,11 @@ function openCallOptions(actions: ConnectedActions) {
 
 function OptionRow({ icon, title, subtitle, tone, onClick }: { icon: string; title: string; subtitle?: string; tone?: "bad"; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={cn("flex w-full items-center gap-3.5 rounded-2xl px-1 py-[13px] text-left hover:bg-white/[.03]", tone ? "text-bad" : "text-text")}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn("flex w-full items-center gap-3.5 rounded-2xl px-1 py-[13px] text-left hover:bg-white/[.03]", tone ? "text-bad" : "text-text")}
+    >
       <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", tone ? "bg-bad/12" : "bg-white/5")}>
         <Icon name={icon} size={21} className={tone ? "text-bad" : "text-text2"} />
       </span>
@@ -456,7 +480,9 @@ function CallOptions({ actions, onDone }: { actions: ConnectedActions; onDone: (
           onClick={run(m.toggleCam)}
         />
       )}
-      {m.partner ? <OptionRow icon="visibility" title={`See ${name}'s profile`} onClick={run(() => void openUserProfileSheet(m.partner!.id, { inCall: true }))} /> : null}
+      {m.partner ? (
+        <OptionRow icon="visibility" title={`See ${name}'s profile`} onClick={run(() => void openUserProfileSheet(m.partner!.id, { inCall: true }))} />
+      ) : null}
       <div className="my-1.5 h-px bg-line-soft" />
       <OptionRow icon="flag" title="Report" subtitle="Our team reviews every report" tone="bad" onClick={run(actions.report)} />
       <OptionRow icon="block" title="Block and end" subtitle="You won't be matched again" tone="bad" onClick={run(() => void m.blockPartner())} />

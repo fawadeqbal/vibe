@@ -70,7 +70,7 @@ export class MatchGateway {
   /** `{ camOn, micOn }` — the partner gets `match:media`. */
   @SubscribeMessage('match:media')
   async media(@ConnectedSocket() s: Socket, @MessageBody() dto: MediaDto) {
-    await this.matching.media(uid(s), dto.camOn, dto.micOn);
+    await this.matching.media(uid(s), dto.camOn, dto.micOn, dto.blur === true);
     return ok(null);
   }
 
