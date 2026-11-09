@@ -197,6 +197,23 @@ export const envSchema = z.object({
   AWS_ACCESS_KEY_ID: opt,
   AWS_SECRET_ACCESS_KEY: opt,
 
+  // ── Photo safety (chat photos, Moments, profile photos) ────────────
+  /** on = every photo is scored for nudity by vibe-face (POST /nsfw) before it's stored; off = only re-encoded. */
+  NSFW_FILTER: z.enum(['on', 'off']).default('on'),
+  /** Defaults to FACE_SERVICE_URL (the same container). */
+  NSFW_SERVICE_URL: z.string().url().optional(),
+  /** Score (0–1) at or above which a photo is refused, kept privately as evidence and counted as a strike. */
+  NSFW_BLOCK: z.coerce.number().min(0.5).max(1).default(0.85),
+  /** At or above this (below NSFW_BLOCK) it goes through, but moderators see it in admin → user → Photo flags. */
+  NSFW_REVIEW: z.coerce.number().min(0.2).max(1).default(0.6),
+  /** If the check can't be reached: block = refuse photos until it's back (safe); allow = let them through unchecked. */
+  NSFW_ON_ERROR: z.enum(['block', 'allow']).default('block'),
+  /** Blocked photos within NSFW_STRIKE_DAYS that pause the account (for autoBanHours, admin → Economy). 0 = never. */
+  NSFW_STRIKES: z.coerce.number().int().min(0).max(50).default(3),
+  NSFW_STRIKE_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  /** Longest side of a stored photo after re-encoding. */
+  IMAGE_MAX_SIDE: z.coerce.number().int().min(320).max(4096).default(1600),
+
   // ── Media ──────────────────────────────────────────────────────────
   /** local = disk + /media (one server); s3 = any S3-compatible store (our Garage container, AWS S3, Cloudflare R2, Backblaze B2, MinIO). */
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),

@@ -97,12 +97,20 @@ export async function signUp(
   await t.http.post('/v1/auth/otp/request').send({ email }).expect(200);
   const res = await t.http.post('/v1/auth/otp/verify').send({ email, code: '1234', inviteCode }).expect(200);
   const user: TestUser = { id: res.body.user.id, token: res.body.tokens.accessToken, refresh: res.body.tokens.refreshToken, auth: { Authorization: `Bearer ${res.body.tokens.accessToken}` } };
+  const { avatarUrl, ...rest } = profile;
   await t.http
     .patch('/v1/me')
     .set(user.auth)
-    .send({ name: 'Tester', age: 24, gender: 'female', countryCode: 'PK', ...profile })
+    .send({ name: 'Tester', age: 24, gender: 'female', countryCode: 'PK', ...rest })
     .expect(200);
+  // PATCH /me only takes a photo the person uploaded (POST /me/avatar); tests that just need "has a photo" set it directly.
+  if (avatarUrl !== undefined) await setAvatarUrl(t, user, avatarUrl);
   return user;
+}
+
+/** A profile photo as if it had been uploaded and checked (tests that only need "has a photo"). */
+export async function setAvatarUrl(t: TestApp, u: TestUser, avatarUrl: string): Promise<void> {
+  await t.prisma.user.update({ where: { id: u.id }, data: { avatarUrl } });
 }
 
 export function connect(t: TestApp, u: TestUser): Promise<Socket> {

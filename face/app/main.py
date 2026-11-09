@@ -3,6 +3,8 @@
 POST /analyze   multipart: `reference` (optional, the profile photo) and `frames`
                 (1–6 selfie frames, the first one looking straight at the camera).
                 Returns per-image face reports and the similarities the API needs.
+POST /nsfw      multipart: `image` (one photo). Returns {"nsfw": 0–1}, the chance it
+                is sexual / explicit. The API applies the thresholds.
 GET  /health    200 once the models are loaded.
 """
 
@@ -13,22 +15,28 @@ import os
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from .analysis import Analysis, BadImage, FaceEngine, decode
+from .nsfw import NsfwEngine
 
 MAX_FRAMES = 6
 MAX_BYTES = int(os.environ.get("FACE_MAX_BYTES", 8 * 1024 * 1024))
 
 app = FastAPI(title="vibe-face", docs_url=None, redoc_url=None, openapi_url=None)
 engine = FaceEngine(os.environ.get("FACE_MODEL_DIR", "/models"))
+nsfw = NsfwEngine(os.environ.get("FACE_MODEL_DIR", "/models"), threads=int(os.environ.get("NSFW_THREADS", 0)))
 
 
-def _read(upload: UploadFile, what: str) -> Analysis:
+def _image(upload: UploadFile, what: str):
     data = upload.file.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
         raise HTTPException(413, f"{what} is larger than {MAX_BYTES} bytes")
     try:
-        return engine.analyse(decode(data))
+        return decode(data)
     except BadImage:
         raise HTTPException(400, f"{what} is not an image") from None
+
+
+def _read(upload: UploadFile, what: str) -> Analysis:
+    return engine.analyse(_image(upload, what))
 
 
 def _report(a: Analysis) -> dict:
@@ -59,3 +67,8 @@ def analyze(frames: list[UploadFile] = File(...), reference: UploadFile | None =
         # Cosine similarity (SFace): same person usually ≥ 0.4, different people rarely above 0.3.
         "similarity": {"toReference": to_ref, "toFirst": to_first},
     }
+
+
+@app.post("/nsfw")
+def check_nsfw(image: UploadFile = File(...)) -> dict:
+    return {"nsfw": round(nsfw.score(_image(image, "image")), 4)}

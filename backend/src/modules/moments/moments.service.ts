@@ -11,6 +11,7 @@ import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { StorageProvider } from '../../infra/storage/storage.provider';
 import { ModerationService } from '../moderation/moderation.service';
+import { ImageSafetyService } from '../safety/image-safety.service';
 import { BlocksService } from '../social/blocks.service';
 import { PROFILE_INCLUDE, PublicProfile, toPublicProfile } from '../users/user.mapper';
 
@@ -52,6 +53,7 @@ export class MomentsService {
     private readonly blocks: BlocksService,
     private readonly moderation: ModerationService,
     private readonly clock: Clock,
+    private readonly images: ImageSafetyService,
   ) {}
 
   private dto(m: Moment, seen: boolean, own: boolean): MomentDto {
@@ -64,14 +66,16 @@ export class MomentsService {
 
   async create(userId: string, file: { buffer: Buffer; mimetype: string } | undefined, caption = ''): Promise<MomentDto> {
     if (!file) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Add a photo');
-    const ext = IMAGE_EXT[file.mimetype];
-    if (!ext) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Use a JPEG, PNG or WebP image', HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+    if (!IMAGE_EXT[file.mimetype]) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Use a JPEG, PNG or WebP image', HttpStatus.UNSUPPORTED_MEDIA_TYPE);
     await this.moderation.assertNotBanned(userId);
     const active = await this.prisma.moment.count({ where: { userId, ...this.live() } });
     if (active >= MAX_ACTIVE_MOMENTS) throw new AppError(ErrorCode.MOMENT_LIMIT, `You can have ${MAX_ACTIVE_MOMENTS} moments at a time`, HttpStatus.TOO_MANY_REQUESTS, { max: MAX_ACTIVE_MOMENTS });
     const now = this.clock.now();
-    const key = `moments/${userId}/${now.getTime()}.${ext}`;
-    const url = await this.storage.put(key, file.buffer, file.mimetype);
+    const key = `moments/${userId}/${now.getTime()}.jpg`;
+    // Real image bytes only, re-encoded (no GPS or hidden data) and checked for nudity before it's stored.
+    const photo = await this.images.screen(userId, 'moment', key, file.buffer);
+    const url = await this.storage.put(key, photo.buffer, photo.mime);
+    await this.images.noteStored(userId, 'moment', key, key, photo);
     const m = await this.prisma.moment.create({ data: { userId, mediaKey: key, mediaUrl: url, caption: caption.trim().slice(0, 120), createdAt: now, expiresAt: new Date(now.getTime() + LIFETIME_MS) } });
     await this.announce(userId);
     return this.dto(m, true, true);

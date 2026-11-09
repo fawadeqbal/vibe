@@ -23,6 +23,7 @@ import { format } from "@/lib/format";
 import { P } from "@/lib/permissions";
 
 import { reportKeys, useReportedPeople, useReports, useReportStats } from "./api";
+import { PhotoFlagsTable, useOpenPhotoFlags } from "./photo-flags";
 
 export const REASONS = ["NUDITY", "UNDERAGE", "HARASSMENT", "SCAM", "SPAM", "OTHER"];
 const DEFAULTS = { view: "people", q: "", status: ["OPEN"] as string[], reason: [] as string[], reportedId: "", from: "", to: "" };
@@ -31,6 +32,7 @@ export function ModerationPage() {
   const [f, setF, reset] = useUrlState(DEFAULTS);
   const stats = useReportStats();
   const s = stats.data;
+  const openPhotos = useOpenPhotoFlags();
 
   return (
     <div className="space-y-5">
@@ -45,6 +47,9 @@ export function ModerationPage() {
         <TabsList>
           <TabsTrigger value="people">By person</TabsTrigger>
           <TabsTrigger value="all">All reports</TabsTrigger>
+          <TabsTrigger value="photos" count={openPhotos.data || undefined}>
+            Flagged photos
+          </TabsTrigger>
         </TabsList>
         <div className="pt-4">
           <TabsContent value="people">
@@ -52,6 +57,9 @@ export function ModerationPage() {
           </TabsContent>
           <TabsContent value="all">
             <AllReports f={f} setF={setF} reset={reset} />
+          </TabsContent>
+          <TabsContent value="photos">
+            <PhotoFlagsTable />
           </TabsContent>
         </div>
       </Tabs>

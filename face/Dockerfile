@@ -1,5 +1,6 @@
 # vibe-face: face measurements for selfie verification (internal network only).
-# Models: OpenCV Zoo YuNet (MIT) + SFace (Apache-2.0), pinned by SHA-256.
+# Models: OpenCV Zoo YuNet (MIT) + SFace (Apache-2.0) for faces, and
+# AdamCodd/vit-base-nsfw-detector (Apache-2.0, int8) for nudity, pinned by SHA-256.
 
 FROM python:3.12-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 FACE_MODEL_DIR=/models
@@ -12,6 +13,8 @@ ADD --chmod=644 --checksum=sha256:8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4
     https://huggingface.co/opencv/face_detection_yunet/resolve/main/face_detection_yunet_2023mar.onnx /models/
 ADD --chmod=644 --checksum=sha256:0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79 \
     https://huggingface.co/opencv/face_recognition_sface/resolve/main/face_recognition_sface_2021dec.onnx /models/
+ADD --chmod=644 --checksum=sha256:432763a6899ebc418c55f784b98f90565e5fc694c778d2ffcb0294b12f6a7404 \
+    https://huggingface.co/AdamCodd/vit-base-nsfw-detector/resolve/8587de998f441aac03fdd57a85d2e4cb808c7d64/onnx/model_quantized.onnx /models/nsfw_vit_base_2024_int8.onnx
 
 # Runs the tests on the server's own CPU architecture before the image is made.
 FROM base AS test

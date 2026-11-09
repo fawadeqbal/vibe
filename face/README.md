@@ -36,6 +36,8 @@ app / web ──frames──▶ vibe-api ──POST /analyze (profile photo + fr
 
 `yaw` > 0 = nose toward the image's right; `roll` > 0 = the image-right eye is lower (degrees), in the camera's own (unmirrored) view. `GET /health` → `{"ok": true}`.
 
+`POST /nsfw` — multipart: `image` (one photo). Answer: `{"nsfw": 0.0189}`, the chance (0–1) the image is sexual or explicit. The API decides what to do with it (`NSFW_BLOCK`, `NSFW_REVIEW` in `backend/.env`); see `backend/src/modules/safety/image-safety.service.ts`. Used for chat photos, Moments and profile photos. ~0.3–1 s per image on CPU, ~350 MB extra RAM.
+
 ## Numbers behind the thresholds (LFW, 400 people)
 
 | | |
@@ -54,7 +56,10 @@ OpenCV Zoo, downloaded at build time and pinned by SHA-256 in the Dockerfile:
 - YuNet face detector 2023mar — MIT
 - SFace face recognizer 2021dec — Apache-2.0
 
-Both allow commercial use. (InsightFace's popular models do not, which is why they aren't used.)
+From Hugging Face, pinned by revision and SHA-256:
+- AdamCodd/vit-base-nsfw-detector, int8 ONNX — Apache-2.0 (ViT-B/16, 384 px)
+
+All allow commercial use. (InsightFace's popular models do not, and NudeNet is AGPL-3.0, which would oblige us to publish our server code; that's why they aren't used.)
 
 ## Develop
 
@@ -62,7 +67,7 @@ Both allow commercial use. (InsightFace's popular models do not, which is why th
 cd apps/vibe/face
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt -r requirements-test.txt
-mkdir -p models   # download the two .onnx files listed in the Dockerfile into it
+mkdir -p models   # download the three .onnx files listed in the Dockerfile into it (keep the names)
 FACE_MODEL_DIR=models pytest -q
 FACE_MODEL_DIR=models uvicorn app.main:app --port 8090   # then FACE_SERVICE_URL=http://localhost:8090 in backend/.env
 ```

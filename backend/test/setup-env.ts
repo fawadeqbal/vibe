@@ -13,3 +13,5 @@ process.env.TURN_URLS = 'turn:turn.test:3478?transport=udp,turns:turn.test:5349?
 process.env.TURN_SECRET = 'test-turn-secret-0123456789abcdef0123456789';
 // No calls to GitHub for the APK download count.
 process.env.APP_RELEASES_REPO = '';
+// No vibe-face in tests: photos are still re-encoded; photo-safety.e2e-spec stubs the nudity check.
+process.env.NSFW_FILTER = 'off';

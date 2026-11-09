@@ -7,7 +7,7 @@ import { MATCH_ENDED, MatchEndedEvent } from '../src/modules/matching/matching.s
 import { DevPushSender } from '../src/modules/push/push-sender';
 import { PushService } from '../src/modules/push/push.service';
 import { ReferralsService } from '../src/modules/referrals/referrals.service';
-import { connect, createTestApp, next, resetState, signUp, sleep, staffLogin, TestApp, TestUser } from './helpers';
+import { connect, createTestApp, next, resetState, setAvatarUrl, signUp, sleep, staffLogin, TestApp, TestUser } from './helpers';
 
 const HOUR = 3_600_000;
 const PHOTO = 'https://i.pravatar.cc/400?img=5';
@@ -58,7 +58,7 @@ describe('referrals v2', () => {
 
   /** Selfie verification (dev provider approves when there is a photo). */
   async function verify(u: TestUser) {
-    await t.http.patch('/v1/me').set(u.auth).send({ avatarUrl: PHOTO }).expect(200);
+    await setAvatarUrl(t, u, PHOTO);
     await t.http.post('/v1/me/verification').set(u.auth).attach('selfie', Buffer.from('selfie'), 'selfie.jpg').expect(200);
     await sleep(50);
   }
