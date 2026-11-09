@@ -15,7 +15,9 @@ import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { Switch } from "@/components/ui/switch";
 import { SectionTitle } from "@/components/ui/typography";
 import { useNow } from "@/hooks/use-now";
+import { errorMessage } from "@/lib/api/errors";
 import { alpha } from "@/lib/colors";
+import { config } from "@/lib/config";
 import { ago, duration, thousands } from "@/lib/format";
 import { type MatchRecord, matchLengthSeconds } from "@/lib/models";
 import { useFollows } from "@/stores/follows";
@@ -121,9 +123,28 @@ export function WellbeingPage() {
   );
 }
 
-/** Me → Account: sign-in methods, e-mail updates, terms, sign out. */
+/** Me → Account: sign-in methods, e-mail updates, legal pages, sign out, delete account. */
 export function AccountPage() {
   const emailUpdates = useSession((s) => s.emailUpdates);
+  const legal = (slug: string) => window.open(`${config.siteUrl}/${slug}/`, "_blank", "noopener");
+  const deleteAccount = async () => {
+    const first = await confirm({
+      title: "Delete your account?",
+      body: "Your profile, photos and name are removed and you're signed out. Unused coins, gems and VIP time are lost — cash out gems first. This can't be undone.",
+      ok: "Continue",
+      okTone: "bad",
+    });
+    if (!first) return;
+    const sure = await confirm({ title: "Delete it for good?", body: "Last check: your Vibe account will be deleted now.", ok: "Delete account", okTone: "bad" });
+    if (!sure) return;
+    try {
+      useMatch.getState().releaseCamera();
+      await useSession.getState().deleteAccount();
+      toast("Your account was deleted");
+    } catch (e) {
+      toast(errorMessage(e), { error: true });
+    }
+  };
   const signOut = async () => {
     const ok = await confirm({ title: "Sign out?", body: "You can sign back in with the same e-mail any time.", ok: "Sign out", okTone: "bad" });
     if (!ok) return;
@@ -151,8 +172,11 @@ export function AccountPage() {
             />
           }
         />
-        <GroupRow bare icon="description" iconVariant="outlined" title="Terms and privacy" trailing={<Icon name="chevron_right" className="text-muted" />} onClick={() => toast("The policy pages open here soon")} />
+        <GroupRow bare icon="description" iconVariant="outlined" title="Terms of Use" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => legal("terms")} />
+        <GroupRow bare icon="lock" iconVariant="outlined" title="Privacy Policy" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => legal("privacy")} />
+        <GroupRow bare icon="groups" iconVariant="outlined" title="Community guidelines" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => legal("guidelines")} />
         <GroupRow bare icon="logout" iconColor="bad" title="Sign out" titleColor="bad" onClick={() => void signOut()} />
+        <GroupRow bare icon="delete" iconVariant="outlined" iconColor="bad" title="Delete account" titleColor="bad" onClick={() => void deleteAccount()} />
       </GroupCard>
     </MeSection>
   );

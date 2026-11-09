@@ -64,8 +64,12 @@ export class UsersService {
   async create(input: NewUserInput, tx?: Tx): Promise<User> {
     const deviceHash = input.deviceId ? hmacSha256Hex(this.config.devicePepper, input.deviceId) : null;
     const user = await this.prisma.tx(async (t) => {
+      // Signing up means agreeing to the Terms shown at sign-up: remember which version.
+      const terms = await t.legalDocument.findUnique({ where: { slug: 'terms' }, select: { version: true } });
       const created = await t.user.create({
         data: {
+          termsVersion: terms?.version ?? null,
+          termsAcceptedAt: this.clock.now(),
           email: input.email,
           name: input.name ?? '',
           inviteCode: await this.uniqueInviteCode(t),

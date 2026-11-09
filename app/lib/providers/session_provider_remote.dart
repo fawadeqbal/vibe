@@ -221,6 +221,20 @@ class RemoteSessionProvider extends SessionProvider {
   void bumpStats({int matches = 0, int likes = 0}) => refreshMe();
 
   @override
+  Future<void> deleteAccount() async {
+    await _api.delete('/me');
+    await _runSignOutHooks();
+    await _api.clearSession();
+    _me = null;
+    _onboarded = false;
+    _verification = VerificationState.none;
+    _wellbeing = const WellbeingSettings();
+    _invitedBy = null;
+    _referralClaimable = false;
+    notifyListeners();
+  }
+
+  @override
   Future<void> signOut() async {
     await _runSignOutHooks();
     final t = await _api.tokens.read();

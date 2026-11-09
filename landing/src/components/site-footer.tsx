@@ -21,6 +21,9 @@ export function SiteFooter() {
   const legal = [
     { href: site.links.terms, label: "Terms" },
     { href: site.links.privacy, label: "Privacy" },
+    { href: "/guidelines/", label: "Community guidelines" },
+    { href: "/child-safety/", label: "Child safety" },
+    { href: "/delete-account/", label: "Delete account" },
     { href: site.links.support, label: "Support" },
   ];
   const cols = [
