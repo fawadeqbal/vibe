@@ -7,7 +7,10 @@ import { filtersReady, useFilters } from "@/stores/filters";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 
+import { useIsDesktop } from "@/hooks/use-media-query";
+
 import { Connected } from "./connected";
+import { DesktopConnected } from "./connected-desktop";
 import { FriendVideoCall, FriendVoiceCall } from "@/features/calls/friend-call";
 import { Ended } from "./ended";
 import { GiftBurst } from "./gift-burst";
@@ -34,6 +37,7 @@ export function MatchScreen() {
   const freeToMatch = useFilters((s) => filtersReady(s));
   const [burst, setBurst] = useState<{ gift: Gift; received: boolean; bonusGems?: number; seq: number } | null>(null);
   const seen = useRef(0);
+  const desktop = useIsDesktop();
   const actions = useMatchActions((g) => setBurst((b) => ({ gift: g, received: false, seq: (b?.seq ?? 0) + 1 })));
 
   // The lobby camera may only run while this page is open (the store also
@@ -87,6 +91,8 @@ export function MatchScreen() {
     if (g) setBurst((b) => ({ gift: g, received: true, bonusGems: last?.bonusGems, seq: (b?.seq ?? 0) + 1 }));
   }, [chat]);
 
+  const callActions = { next: () => void actions.next(), gift: () => void actions.gift(), addFriend: () => void actions.addFriend(), report: () => void actions.report() };
+
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-bg lg:h-dvh">
       {status === "connected" && friendCall && voiceCall ? (
@@ -94,7 +100,11 @@ export function MatchScreen() {
       ) : status === "connected" && friendCall ? (
         <FriendVideoCall actions={{ gift: () => void actions.gift(), report: () => void actions.report() }} />
       ) : status === "connected" ? (
-        <Connected actions={{ next: () => void actions.next(), gift: () => void actions.gift(), addFriend: () => void actions.addFriend(), report: () => void actions.report() }} />
+        desktop ? (
+          <DesktopConnected actions={callActions} />
+        ) : (
+          <Connected actions={callActions} />
+        )
       ) : status === "searching" ? (
         <>
           <Searching onRestart={() => void actions.start()} onReconnect={() => void actions.reconnect()} />
