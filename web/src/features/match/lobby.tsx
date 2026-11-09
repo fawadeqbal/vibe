@@ -9,7 +9,7 @@ import { Glass, RoundControl } from "@/components/ui/glass";
 import { Icon } from "@/components/ui/icon";
 import { OnlineDot } from "@/components/ui/misc";
 import { CoinChip } from "@/components/ui/money";
-import { thousands } from "@/lib/format";
+import { compact } from "@/lib/format";
 import { useActivity } from "@/stores/activity";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
@@ -132,7 +132,7 @@ function WhoIsOn({ availability }: { availability: Availability | null }) {
   return (
     <Glass radius={17} className="flex h-[34px] min-w-0 items-center gap-2 bg-bg2/50 py-0 pr-3 pl-2.5">
       <OnlineDot tone={quiet ? "warn" : undefined} />
-      <span role="status" className="type-label truncate text-[13px] text-white">{quiet ? "Quiet right now" : `${thousands(availability.online)} on now`}</span>
+      <span role="status" className="type-label truncate text-[13px] text-white">{quiet ? "Quiet right now" : `${compact(availability.online)} on now`}</span>
     </Glass>
   );
 }

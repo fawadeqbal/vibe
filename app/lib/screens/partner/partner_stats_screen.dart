@@ -63,10 +63,10 @@ class _PartnerStatsScreenState extends State<PartnerStatsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _grid([
-                      PartnerFigure(label: 'Clicks', value: Fmt.thousands(stats.totals.clicks)),
-                      PartnerFigure(label: 'Sign-ups', value: Fmt.thousands(stats.totals.signups)),
-                      PartnerFigure(label: 'Active users', value: Fmt.thousands(stats.totals.qualified)),
-                      PartnerFigure(label: 'Paying users', value: Fmt.thousands(stats.totals.payingUsers)),
+                      PartnerFigure(label: 'Clicks', value: Fmt.compact(stats.totals.clicks)),
+                      PartnerFigure(label: 'Sign-ups', value: Fmt.compact(stats.totals.signups)),
+                      PartnerFigure(label: 'Active users', value: Fmt.compact(stats.totals.qualified)),
+                      PartnerFigure(label: 'Paying users', value: Fmt.compact(stats.totals.payingUsers)),
                       PartnerFigure(label: 'Their purchases', value: formatUsd(stats.totals.revenueUsdCents)),
                       PartnerFigure(label: 'You earned', value: formatUsd(stats.totals.earnedUsdCents), gold: true),
                     ]),
@@ -141,7 +141,7 @@ class _ChannelRow extends StatelessWidget {
                   Text(partnerSourceLabel(c.channel), style: VT.title(14.5, weight: FontWeight.w600)),
                   const SizedBox(height: 2),
                   Text(
-                    '${Fmt.thousands(c.clicks)} clicks · ${Fmt.thousands(c.signups)} sign-ups · ${Fmt.thousands(c.qualified)} active',
+                    '${Fmt.compact(c.clicks)} clicks · ${Fmt.compact(c.signups)} sign-ups · ${Fmt.compact(c.qualified)} active',
                     style: VT.body(12, color: V.text2),
                   ),
                 ],

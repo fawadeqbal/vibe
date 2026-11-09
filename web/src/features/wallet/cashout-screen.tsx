@@ -15,7 +15,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { SectionTitle } from "@/components/ui/typography";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import type { Tone } from "@/lib/colors";
-import { ago, gemsAsUsd, thousands, usd } from "@/lib/format";
+import { ago, figure, gemsAsUsd, thousands, usd } from "@/lib/format";
 import { paymentMethodLabel } from "@/lib/models";
 import { type Cashout, cashoutStatusLabel, type PayoutAccount } from "@/lib/payments";
 import { useCatalog } from "@/stores/catalog";
@@ -127,7 +127,7 @@ export function CashoutScreen() {
       <Panel gradient="walletGems" className="border-gem/30">
         <p className="type-label text-[12px] text-text2">Available</p>
         <p className="mt-1 flex items-baseline">
-          <span className="type-number-lg text-[30px] text-gem">{thousands(gems)}</span>
+          <span className="type-number-lg text-[30px] text-gem" title={`${thousands(gems)} gems`}>{figure(gems)}</span>
           <span className="type-body ml-2 text-[14px] text-text2">
             gems ≈ Rs {thousands(estimatePkr)} ({gemsAsUsd(gems, e.usdPerGem)})
           </span>
@@ -154,7 +154,7 @@ export function CashoutScreen() {
       )}
 
       <div className="mt-5">
-        <GradientButton label={can ? `Cash out ${thousands(gems)} gems` : "Not enough gems yet"} tone="gem" busy={busy} onClick={can && selected ? () => void submit() : undefined} />
+        <GradientButton label={can ? `Cash out ${figure(gems)} gems` : "Not enough gems yet"} tone="gem" busy={busy} onClick={can && selected ? () => void submit() : undefined} />
       </div>
       <p className="type-body mt-2 text-center text-[11.5px] text-muted">Paid within 3 business days. Identity check (selfie) above the monthly limit.</p>
 

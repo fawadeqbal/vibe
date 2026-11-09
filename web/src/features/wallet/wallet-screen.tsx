@@ -13,7 +13,7 @@ import { Panel } from "@/components/ui/panel";
 import { SectionTitle } from "@/components/ui/typography";
 import { useNow } from "@/hooks/use-now";
 import { alpha, color, type Tone } from "@/lib/colors";
-import { ago, gemsAsUsd, thousands, usd } from "@/lib/format";
+import { ago, compact, figure, thousands, usdCompact } from "@/lib/format";
 import { paymentMethodLabel, type Transaction, type TxKind } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
 import { useWallet } from "@/stores/wallet";
@@ -40,7 +40,7 @@ export function WalletScreen() {
             <CoinIcon size={16} />
             <span className="type-label ml-1.5 text-[12px] text-text2">Coins</span>
           </p>
-          <p className="type-number-lg mt-2 text-[28px] text-gold">{thousands(wallet.coins)}</p>
+          <p className="type-number-lg mt-2 text-[28px] text-gold" title={`${thousands(wallet.coins)} coins`}>{figure(wallet.coins)}</p>
           <div className="mt-2.5">
             <GhostButton label="Buy" height={36} onClick={() => router.push("/store")} />
           </div>
@@ -50,8 +50,8 @@ export function WalletScreen() {
             <GemIcon size={16} />
             <span className="type-label ml-1.5 text-[12px] text-text2">Gems</span>
           </p>
-          <p className="type-number-lg mt-2 text-[28px] text-gem">{thousands(wallet.gems)}</p>
-          <p className="type-body text-[11px] text-text2">≈ {gemsAsUsd(wallet.gems, usdPerGem)}</p>
+          <p className="type-number-lg mt-2 text-[28px] text-gem" title={`${thousands(wallet.gems)} gems`}>{figure(wallet.gems)}</p>
+          <p className="type-body text-[11px] text-text2">≈ {usdCompact(wallet.gems * usdPerGem)}</p>
           <div className="mt-1">
             <GhostButton label="Cash out" height={36} onClick={() => router.push("/wallet/cashout")} />
           </div>
@@ -102,9 +102,9 @@ function TxRow({ t }: { t: Transaction }) {
         </span>
       </span>
       <span className="flex flex-col items-end">
-        {t.coins !== 0 ? <span className={t.coins > 0 ? "type-title text-[14px] text-ok" : "type-title text-[14px] text-text"}>{`${t.coins > 0 ? "+" : ""}${thousands(t.coins)}`}</span> : null}
-        {t.gems !== 0 ? <span className="type-label text-[12px] text-gem">{`${t.gems > 0 ? "+" : ""}${thousands(t.gems)} gems`}</span> : null}
-        {t.usd > 0 ? <span className="type-body text-[11px] text-muted">{usd(t.usd)}</span> : null}
+        {t.coins !== 0 ? <span className={t.coins > 0 ? "type-title text-[14px] text-ok" : "type-title text-[14px] text-text"}>{`${t.coins > 0 ? "+" : ""}${compact(t.coins)}`}</span> : null}
+        {t.gems !== 0 ? <span className="type-label text-[12px] text-gem">{`${t.gems > 0 ? "+" : ""}${compact(t.gems)} gems`}</span> : null}
+        {t.usd > 0 ? <span className="type-body text-[11px] text-muted">{usdCompact(t.usd)}</span> : null}
       </span>
     </Panel>
   );

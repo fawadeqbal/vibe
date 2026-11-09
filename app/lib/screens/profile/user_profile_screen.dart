@@ -306,10 +306,10 @@ class _UserProfileBodyState extends State<UserProfileBody> {
         if (v.followers != null) ...[
           const SizedBox(height: 16),
           Text.rich(TextSpan(children: [
-            TextSpan(text: Fmt.thousands(v.followers!), style: VT.number(15, weight: FontWeight.w600)),
+            TextSpan(text: Fmt.compact(v.followers!), style: VT.number(15, weight: FontWeight.w600)),
             TextSpan(text: v.followers == 1 ? ' follower' : ' followers', style: VT.body(13.5, color: V.text2)),
             TextSpan(text: '  ·  ', style: VT.body(13.5, color: V.muted)),
-            TextSpan(text: Fmt.thousands(v.following ?? 0), style: VT.number(15, weight: FontWeight.w600)),
+            TextSpan(text: Fmt.compact(v.following ?? 0), style: VT.number(15, weight: FontWeight.w600)),
             TextSpan(text: ' following', style: VT.body(13.5, color: V.text2)),
           ])),
         ],
@@ -367,7 +367,7 @@ class _StatsBlock extends StatelessWidget {
     final s = view.stats;
     if (s != null) {
       Widget cell(int n, String label) => Expanded(
-            child: Column(children: [Text(Fmt.thousands(n), style: VT.number(20)), const SizedBox(height: 2), Text(label, style: VT.body(11, color: V.muted, height: 1.2))]),
+            child: Column(children: [Text(Fmt.compact(n), style: VT.number(20), semanticsLabel: Fmt.thousands(n)), const SizedBox(height: 2), Text(label, style: VT.body(11, color: V.muted, height: 1.2))]),
           );
       return Panel(padding: const EdgeInsets.symmetric(vertical: 16), child: Row(children: [cell(s.matches, 'Matches'), cell(s.likes, 'Likes'), cell(s.gifts, 'Gifts')]));
     }

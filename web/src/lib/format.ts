@@ -11,8 +11,64 @@ export function thousands(n: number): string {
   return n < 0 ? `-${out}` : out;
 }
 
-/** 1234 → "1,234"; 1200000 → "1.2M". */
-export const coins = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : thousands(n));
+/*
+ * How amounts are written (coins, gems, money, counts) — the same rule as the
+ * app's `Fmt`:
+ *
+ *  - compact(n): chips, tiles, list rows, counts. Never more than 5
+ *    characters: 9,999 · 12.4K · 999K · 1.25M · 45.6M · 3.4B · 1.2T.
+ *    It rounds DOWN, so a balance is never shown as more than it is.
+ *    Pair it with a fixed-width slot (`AMOUNT_SLOT`) so a growing number
+ *    never moves anything around it.
+ *  - figure(n): the one big number on a screen (wallet balance, cash out,
+ *    a coin pack). Exact up to 999,999, compact from a million.
+ *  - thousands(n): sentences, receipts and history, where the exact value
+ *    matters and the text can wrap.
+ *
+ * Wherever a short form is shown, the exact value goes in the accessible
+ * label (or tooltip): "1,234,567 coins".
+ */
+const UNITS: [number, string][] = [
+  [1e12, "T"],
+  [1e9, "B"],
+  [1e6, "M"],
+  [1e3, "K"],
+];
+
+const floorTo = (v: number, places: number) => {
+  const f = 10 ** places;
+  // A hair of tolerance so 1.15 isn't floored to 1.14 by float error.
+  return Math.floor(v * f + 1e-9) / f;
+};
+const trim = (s: string) => (s.includes(".") ? s.replace(/\.?0+$/, "") : s);
+
+/** 9,999 · 12.4K · 999K · 1.25M · 3.4B — at most 5 characters (plus a minus sign). */
+export function compact(n: number): string {
+  const a = Math.abs(Math.trunc(n));
+  const sign = n < 0 ? "-" : "";
+  if (a < 10_000) return sign + thousands(a);
+  for (const [size, unit] of UNITS) {
+    if (a < size) continue;
+    const v = a / size;
+    if (v >= 1000) return `${sign}999${unit}+`;
+    const s = v < 10 ? trim(floorTo(v, 2).toFixed(2)) : v < 100 ? trim(floorTo(v, 1).toFixed(1)) : String(Math.floor(v));
+    return `${sign}${s}${unit}`;
+  }
+  return sign + thousands(a);
+}
+
+/** The one big number on a screen: exact up to 999,999, then compact. */
+export const figure = (n: number) => (Math.abs(n) < 1_000_000 ? thousands(n) : compact(n));
+
+/** @deprecated the old name: coins in a chip are `compact`. */
+export const coins = compact;
+
+/** Width of a 5-character amount slot (tabular figures): `style={{ width: AMOUNT_SLOT }}`. */
+export const AMOUNT_SLOT = "5ch";
+
+/** Money in a tight spot: "Rs 9,999" · "Rs 12.4K" · "$12.50" · "$1.25M". */
+export const pkrCompact = (rupees: number) => `Rs ${compact(Math.round(rupees))}`;
+export const usdCompact = (v: number) => (Math.abs(v) < 10_000 ? usd(v) : `$${compact(v)}`);
 
 export const usd = (v: number) => `$${v.toFixed(2)}`;
 

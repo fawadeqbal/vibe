@@ -386,8 +386,33 @@ class GroupRow extends StatelessWidget {
   }
 }
 
+/// A short amount ([Fmt.compact]) in a fixed 5-character slot with tabular
+/// figures, so 30, 9,999, 12.4K and 1.25M all take the same room and nothing
+/// beside it moves. (web: AmountSlot in components/ui/money.tsx)
+class AmountSlot extends StatelessWidget {
+  const AmountSlot(this.n, {super.key, required this.style});
+  final int n;
+  final TextStyle style;
+
+  /// Width of five figures in [style]: the widest a compact amount gets.
+  static double widthFor(TextStyle style, TextScaler scaler) {
+    final tp = TextPainter(text: TextSpan(text: '00000', style: style), textDirection: TextDirection.ltr, textScaler: scaler, maxLines: 1)..layout();
+    return tp.width.ceilToDouble() + 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return SizedBox(
+      width: widthFor(style, scaler),
+      child: Text(Fmt.compact(n), style: style, textAlign: TextAlign.center, maxLines: 1, softWrap: false, overflow: TextOverflow.visible),
+    );
+  }
+}
+
 /// Coins balance chip — lives in most headers so the number is always in
-/// sight. With [onTap] it shows a "+" bubble (top up).
+/// sight. With [onTap] it shows a "+" bubble (top up). Always the same width:
+/// the number sits in an [AmountSlot] and goes short past 9,999.
 class CoinChip extends StatelessWidget {
   const CoinChip({super.key, required this.coins, this.onTap, this.compact = false, this.glass = false, this.showPlus = true});
   final int coins;
@@ -404,7 +429,7 @@ class CoinChip extends StatelessWidget {
     final h = glass ? 36.0 : 34.0;
     final content = Container(
       height: h,
-      padding: EdgeInsets.only(left: 10, right: plus ? 6 : 12),
+      padding: EdgeInsets.only(left: 10, right: plus ? 6 : 8),
       decoration: BoxDecoration(
         color: glass ? V.glass : V.gold.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(h / 2),
@@ -414,8 +439,8 @@ class CoinChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           CoinIcon(size: glass ? 18 : 16),
-          const SizedBox(width: 6),
-          Text(Fmt.coins(coins), style: VT.number(glass ? 14 : 13.5, color: V.gold)),
+          const SizedBox(width: 4),
+          AmountSlot(coins, style: VT.number(glass ? 14 : 13.5, color: V.gold)),
           if (plus) ...[
             const SizedBox(width: 6),
             Container(
@@ -429,8 +454,9 @@ class CoinChip extends StatelessWidget {
       ),
     );
     final framed = glass ? ClipRRect(borderRadius: BorderRadius.circular(h / 2), child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), child: content)) : content;
-    if (onTap == null) return framed;
-    return Semantics(button: true, label: '${Fmt.coins(coins)} coins. Top up', child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: framed));
+    final label = '${Fmt.thousands(coins)} coins';
+    if (onTap == null) return Semantics(label: label, excludeSemantics: true, child: framed);
+    return Semantics(button: true, label: plus ? '$label. Top up' : label, excludeSemantics: true, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: framed));
   }
 }
 
@@ -444,19 +470,20 @@ class GemChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final chip = Container(
       height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.only(left: 10, right: 8),
       decoration: BoxDecoration(color: V.gem.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(17)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const GemIcon(size: 16),
-          const SizedBox(width: 5),
-          Text(Fmt.coins(gems), style: VT.number(13.5, color: V.gem)),
+          const SizedBox(width: 4),
+          AmountSlot(gems, style: VT.number(13.5, color: V.gem)),
         ],
       ),
     );
-    if (onTap == null) return chip;
-    return GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: chip);
+    final label = '${Fmt.thousands(gems)} gems';
+    if (onTap == null) return Semantics(label: label, excludeSemantics: true, child: chip);
+    return Semantics(button: true, label: label, excludeSemantics: true, child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: chip));
   }
 }
 
@@ -486,7 +513,7 @@ class GemIcon extends StatelessWidget {
   }
 }
 
-/// A small coin amount: gold disc + number ("● 20").
+/// A small coin amount: gold disc + number ("● 20", "● 12.4K").
 class CoinAmount extends StatelessWidget {
   const CoinAmount(this.amount, {super.key, this.size = 12, this.color = V.gold, this.locked = false});
   final int amount;
@@ -501,7 +528,7 @@ class CoinAmount extends StatelessWidget {
       children: [
         if (locked) Icon(SolarIconsBold.lockKeyhole, size: size + 1, color: V.muted) else CoinIcon(size: size, plain: true),
         const SizedBox(width: 4),
-        Text(Fmt.thousands(amount), style: VT.number(size, color: locked ? V.muted : color)),
+        Text(Fmt.compact(amount), style: VT.number(size, color: locked ? V.muted : color), semanticsLabel: amount >= 10000 ? '${Fmt.thousands(amount)} coins' : null),
       ],
     );
   }

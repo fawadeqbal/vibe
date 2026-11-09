@@ -20,7 +20,7 @@ import { SectionTitle } from "@/components/ui/typography";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { streakDays } from "@/lib/engagement";
-import { presenceLabel, thousands } from "@/lib/format";
+import { compact, presenceLabel, thousands } from "@/lib/format";
 import { type FollowState, type FriendState, intentInfo, type ProfileView } from "@/lib/models";
 import { economy } from "@/stores/catalog";
 import { followStateOf, useFollows } from "@/stores/follows";
@@ -224,9 +224,9 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
 
       {view.counts ? (
         <p className="type-body mt-4 text-[13.5px] text-text2">
-          <span className="type-number text-[15px] font-semibold text-text">{thousands(view.counts.followers)}</span> {view.counts.followers === 1 ? "follower" : "followers"}
+          <span className="type-number text-[15px] font-semibold text-text">{compact(view.counts.followers)}</span> {view.counts.followers === 1 ? "follower" : "followers"}
           <span className="mx-2 text-muted">·</span>
-          <span className="type-number text-[15px] font-semibold text-text">{thousands(view.counts.following)}</span> following
+          <span className="type-number text-[15px] font-semibold text-text">{compact(view.counts.following)}</span> following
         </p>
       ) : null}
 
@@ -286,7 +286,7 @@ function StatsBlock({ view }: { view: ProfileView }) {
   if (s && s !== "hidden") {
     const cell = (n: number, label: string) => (
       <span className="flex flex-1 flex-col items-center">
-        <span className="type-number text-[20px]">{thousands(n)}</span>
+        <span className="type-number text-[20px]" title={n >= 10_000 ? thousands(n) : undefined}>{compact(n)}</span>
         <span className="type-body mt-0.5 text-[11px] leading-[1.2] text-muted">{label}</span>
       </span>
     );

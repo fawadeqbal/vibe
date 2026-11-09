@@ -11,7 +11,7 @@ import { ProgressBar } from "@/components/ui/misc";
 import { Panel } from "@/components/ui/panel";
 import { SectionTitle } from "@/components/ui/typography";
 import { levelFraction, xpToNext } from "@/lib/engagement";
-import { thousands } from "@/lib/format";
+import { compact } from "@/lib/format";
 import type { Badge } from "@/lib/models";
 import { useEngagement } from "@/stores/engagement";
 import { openSheet } from "@/stores/ui";
@@ -41,8 +41,8 @@ export function ProgressCard() {
           <div className="ml-4 min-w-0 flex-1">
             <p className="type-title text-[16px]">Level {p.level}</p>
             <p className="type-body mt-0.5 text-[12.5px] text-text2">
-              {thousands(xpToNext(p))} XP to Level {p.level + 1}
-              {progress ? ` · ${thousands(progress.weekXp)} this week` : ""}
+              {compact(xpToNext(p))} XP to Level {p.level + 1}
+              {progress ? ` · ${compact(progress.weekXp)} this week` : ""}
             </p>
             <div className="mt-2.5">
               <ProgressBar value={levelFraction(p)} tone="violet" />
@@ -91,7 +91,7 @@ function BadgesSheet({ badges }: { badges: Badge[] }) {
             <span className="ml-3 min-w-0 flex-1">
               <span className="flex items-center">
                 <span className={`type-title flex-1 text-[14.5px] font-semibold ${b.earned ? "text-text" : "text-text2"}`}>{b.name}</span>
-                {b.earned ? <Icon name="check_circle" size={18} className="text-ok" label="Earned" /> : <span className="type-number text-[12px] text-muted">{`${thousands(b.progress)}/${thousands(b.target)}`}</span>}
+                {b.earned ? <Icon name="check_circle" size={18} className="text-ok" label="Earned" /> : <span className="type-number text-[12px] text-muted">{`${compact(b.progress)}/${compact(b.target)}`}</span>}
               </span>
               {!b.earned ? (
                 <span className="mt-1.5 block">

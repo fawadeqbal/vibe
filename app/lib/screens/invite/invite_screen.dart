@@ -373,13 +373,13 @@ class _Totals extends StatelessWidget {
       child: IntrinsicHeight(
         child: Row(
           children: [
-            cell(Fmt.thousands(stats.joined), 'Joined'),
+            cell(Fmt.compact(stats.joined), 'Joined'),
             const VerticalDivider(width: 1, color: V.lineSoft),
-            cell(Fmt.thousands(stats.pending), 'On their way'),
+            cell(Fmt.compact(stats.pending), 'On their way'),
             const VerticalDivider(width: 1, color: V.lineSoft),
-            cell(Fmt.thousands(stats.rewarded), 'Active'),
+            cell(Fmt.compact(stats.rewarded), 'Active'),
             const VerticalDivider(width: 1, color: V.lineSoft),
-            cell(Fmt.thousands(stats.coinsEarned), 'Coins earned', color: V.gold),
+            cell(Fmt.compact(stats.coinsEarned), 'Coins earned', color: V.gold),
           ],
         ),
       ),

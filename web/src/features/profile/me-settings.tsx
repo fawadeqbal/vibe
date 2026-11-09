@@ -11,7 +11,7 @@ import { SectionTitle } from "@/components/ui/typography";
 import { type AffiliateStatus } from "@/lib/affiliate";
 import { alpha, type Tone } from "@/lib/colors";
 import { androidDownloadUrl } from "@/lib/config";
-import { thousands, until } from "@/lib/format";
+import { compact, until } from "@/lib/format";
 import { useAffiliate } from "@/stores/affiliate";
 import { useCatalog } from "@/stores/catalog";
 import { useDiscover } from "@/stores/discover";
@@ -102,11 +102,11 @@ export function SettingsMenuPage() {
             key: "follows",
             icon: "people_alt",
             title: "Followers & friends",
-            subtitle: `${thousands(follows.followers)} ${follows.followers === 1 ? "follower" : "followers"} · ${thousands(friends)} ${friends === 1 ? "friend" : "friends"}`,
+            subtitle: `${compact(follows.followers)} ${follows.followers === 1 ? "follower" : "followers"} · ${compact(friends)} ${friends === 1 ? "friend" : "friends"}`,
             words: "following requests",
             href: "/me/follows",
           },
-          { key: "progress", icon: "emoji_events", tone: "lavender", title: "Progress & badges", subtitle: level ? `Level ${level.level} · ${thousands(level.xp)} XP` : "Your level and badges", words: "xp level streak", href: "/me/progress" },
+          { key: "progress", icon: "emoji_events", tone: "lavender", title: "Progress & badges", subtitle: level ? `Level ${level.level} · ${compact(level.xp)} XP` : "Your level and badges", words: "xp level streak", href: "/me/progress" },
           { key: "leaderboard", icon: "leaderboard", tone: "lavender", title: "Leaderboard", subtitle: "This week's top people", words: "ranking top", href: "/leaderboard" },
         ],
       },
@@ -171,7 +171,7 @@ export function SettingsMenuPage() {
       {
         title: "Wallet & invites",
         items: [
-          { key: "wallet", icon: "account_balance_wallet", tone: "gold", title: "Wallet", subtitle: `${thousands(wallet.coins)} coins · ${thousands(wallet.gems)} gems`, words: "coins gems buy money", href: "/wallet" },
+          { key: "wallet", icon: "account_balance_wallet", tone: "gold", title: "Wallet", subtitle: `${compact(wallet.coins)} coins · ${compact(wallet.gems)} gems`, words: "coins gems buy money", href: "/wallet" },
           { key: "vip", icon: "workspace_premium", tone: "gold", title: vip ? "You are VIP" : "Get VIP", subtitle: vip ? until(wallet.vipUntil!) : "Free filters, no ads, see who liked you", words: "premium subscription", href: "/vip" },
           { key: "cashout", icon: "payments", tone: "gem", title: "Cash out gems", subtitle: "JazzCash, Easypaisa or bank", words: "withdraw money payout", href: "/wallet/cashout" },
           { key: "invite", icon: "card_giftcard", tone: "gold", title: "Invite friends", subtitle: `Give ${economy.inviteeRewardCoins}, get ${economy.inviteRewardCoins} coins`, words: "referral code share", href: "/invite" },

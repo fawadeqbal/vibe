@@ -42,7 +42,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
   String? _openedFor; // purchase whose hosted page was opened
 
   double get _usd => widget.pack?.usd ?? widget.plan!.usd;
-  String get _title => widget.pack != null ? '${Fmt.coins(widget.pack!.coins)} coins' : 'VIP ${widget.plan!.label.toLowerCase()}';
+  String get _title => widget.pack != null ? '${Fmt.thousands(widget.pack!.coins)} coins' : 'VIP ${widget.plan!.label.toLowerCase()}';
 
   @override
   void initState() {
@@ -479,7 +479,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> with WidgetsBindingObse
           Text(widget.pack != null ? 'Coins added' : 'You are VIP', style: VT.display(28), textAlign: TextAlign.center),
           const SizedBox(height: 8),
           Text(
-            widget.pack != null ? 'Your balance is now ${Fmt.coins(wallet.coins)} coins.' : 'Filters are free, ads are gone, and ${Economy.vipMonthlyBonusCoins} bonus coins just landed.',
+            widget.pack != null ? 'Your balance is now ${Fmt.thousands(wallet.coins)} coins.' : 'Filters are free, ads are gone, and ${Economy.vipMonthlyBonusCoins} bonus coins just landed.',
             textAlign: TextAlign.center,
             style: VT.body(15, color: V.text2),
           ),

@@ -174,7 +174,7 @@ class _HeroPack extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(Fmt.thousands(pack.coins), style: VT.number(30)),
+                    Text(Fmt.figure(pack.coins), style: VT.number(30)),
                     const SizedBox(height: 2),
                     Text('${pack.name} · ${Fmt.usd(pack.usdPer100)} per 100', style: VT.body(12.5, color: V.text2)),
                   ],
@@ -214,7 +214,7 @@ class _PackCard extends StatelessWidget {
                 child: Row(children: [const CoinIcon(size: 22), const SizedBox(width: 8), if (tag != null) Expanded(child: Align(alignment: Alignment.centerRight, child: FittedBox(fit: BoxFit.scaleDown, child: tag)))]),
               ),
               const SizedBox(height: 10),
-              Text(Fmt.thousands(pack.coins), style: VT.number(22)),
+              Text(Fmt.figure(pack.coins), style: VT.number(22)),
               const SizedBox(height: 2),
               Text('${pack.name} · ${Fmt.usd(pack.usdPer100)}/100', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: V.muted)),
               const Spacer(),

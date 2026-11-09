@@ -56,7 +56,7 @@ class ProfileScreen extends StatelessWidget {
                       _Shortcut(
                         icon: SolarIconsBold.wallet,
                         title: 'Wallet',
-                        subtitle: '${Fmt.thousands(wallet.coins)} coins · ${Fmt.thousands(wallet.gems)} gems',
+                        subtitle: '${Fmt.compact(wallet.coins)} coins · ${Fmt.compact(wallet.gems)} gems',
                         onTap: () => push(const WalletScreen()),
                       ),
                       _Shortcut(

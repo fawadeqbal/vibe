@@ -4,6 +4,7 @@
  * Unit-tested in lib/__tests__/engagement.test.ts.
  */
 import type { GameId, Leaderboard, LevelProgress, StreakView, VibeHour } from "./models";
+import { compact } from "./format";
 
 // ── friend streaks ────────────────────────────────────────────────────────
 
@@ -107,9 +108,9 @@ export function leaderboardMe(b: Leaderboard, myId: string | null | undefined): 
   return { rank: b.me.rank, score: b.me.score, inTop: false };
 }
 
-/** "340 XP" / "1,250 gems". */
+/** "340 XP" / "1,250 gems" / "12.4K XP" (a leaderboard row is a tight spot). */
 export function boardScore(board: Leaderboard["board"], score: number): string {
-  const n = Math.round(score).toLocaleString("en-US");
+  const n = compact(Math.round(score));
   return board === "xp" ? `${n} XP` : `${n} ${score === 1 ? "gem" : "gems"}`;
 }
 
