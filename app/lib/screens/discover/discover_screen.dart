@@ -375,9 +375,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       ),
                     ),
                   ),
+                if (!resting) ...[const SizedBox(width: 8), FilterButton(onOpen: _editFilters)],
               ]),
             ),
-            if (!resting) Padding(padding: const EdgeInsets.only(bottom: 12), child: FilterChips(onOpen: _editFilters)),
+            if (!resting) FilterTags(onOpen: _editFilters, bottom: 12),
             if (status != null && !resting && status.likedYouCount > 0) _LikedYouStrip(status: status, likedYou: d.likedYou),
             if (status != null && status.likesLeft == 0 && showCards) OutOfLikesBanner(resetsAt: status.resetsAt, packSize: status.packSize, packCost: status.packCost, onMore: _outOfLikes),
             if (status != null && !resting && !status.visible && (status.hasPhoto || _lookAround))

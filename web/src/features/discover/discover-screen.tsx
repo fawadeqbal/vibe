@@ -14,7 +14,7 @@ import { asMap } from "@/lib/api/mappers";
 import { api } from "@/stores/services";
 import { toast } from "@/stores/ui";
 
-import { FilterChips } from "@/features/filters/filter-chips";
+import { FilterButton, FilterTags } from "@/features/filters/filter-chips";
 
 import { DiscoverCardView } from "./discover-card";
 import { DiscoverProfile } from "./discover-profile";
@@ -303,12 +303,9 @@ export function DiscoverScreen() {
               <Icon name={vip ? "all_inclusive" : "favorite"} size={15} /> {likesPill}
             </button>
           ) : null}
+          {resting ? null : <FilterButton />}
         </header>
-        {resting ? null : (
-          <div className="shrink-0 px-4 pb-3">
-            <FilterChips />
-          </div>
-        )}
+        {resting ? null : <FilterTags className="shrink-0 px-4 pb-3" />}
 
         {likedYou && likedYou.count > 0 && !resting ? (
           <Link

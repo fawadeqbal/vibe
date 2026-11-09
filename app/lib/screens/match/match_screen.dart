@@ -540,12 +540,12 @@ class _Lobby extends StatelessWidget {
                   const _AvailabilityPoller(),
                   _LobbyTop(m: m, onOpenMe: onOpenMe),
                   const _LobbyBanners(),
-                  if (camLive)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (camLive)
                           Glass(
                             radius: 15,
                             height: 30,
@@ -560,9 +560,12 @@ class _Lobby extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const Spacer(),
-                          Column(
-                            children: [
+                        const Spacer(),
+                        Column(
+                          children: [
+                            FilterButton(glass: true, size: 42, onOpen: () => showFiltersSheet(context)),
+                            if (camLive) ...[
+                              const SizedBox(height: 10),
                               Tooltip(
                                 message: 'Turn camera preview off',
                                 child: RoundControl(icon: Icons.videocam_off_rounded, size: 42, onTap: m.stopPreview),
@@ -573,10 +576,11 @@ class _Lobby extends StatelessWidget {
                                 child: RoundControl(icon: SolarIconsBold.cameraRotate, size: 42, onTap: () => m.switchCamera()),
                               ),
                             ],
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
                     ),
+                  ),
                   Expanded(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(minHeight: 88),
@@ -595,7 +599,7 @@ class _Lobby extends StatelessWidget {
                       ),
                     ),
                   ),
-                  FilterChips(glass: true, onOpen: () => showFiltersSheet(context)),
+                  FilterTags(glass: true, onOpen: () => showFiltersSheet(context)),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                     child: Column(
