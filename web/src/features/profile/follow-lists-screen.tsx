@@ -7,13 +7,16 @@ import { Screen } from "@/components/layout/screen";
 import { confirm } from "@/components/shared/dialogs";
 import { Avatar } from "@/components/ui/avatar";
 import { GhostButton, GradientButton, TextButton } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { MenuButton } from "@/components/ui/menu";
 import { EmptyState } from "@/components/ui/misc";
+import { GroupCard } from "@/components/ui/panel";
 import { AppBar } from "@/components/ui/page-header";
-import { Tabs } from "@/components/ui/tabs";
+import { PillTabs } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/api/errors";
-import { ago } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { ago, compact } from "@/lib/format";
 import type { FollowEntry, FollowList } from "@/lib/models";
 import { useFollows } from "@/stores/follows";
 import { toast } from "@/stores/ui";
@@ -32,10 +35,19 @@ export function FollowListsScreen({ initialTab }: { initialTab: FollowList }) {
   const tabs: FollowList[] = isPrivate ? ["followers", "following", "requests"] : ["followers", "following"];
   const [tab, setTab] = useState<FollowList>(initialTab);
   const shown = tabs.includes(tab) ? tab : "followers";
+  const settings = useFollows((s) => s.settings);
+  const count = (x: FollowList) => (x === "followers" ? settings.followers : x === "following" ? settings.following : null);
   return (
     <Screen header={<AppBar title="Followers" onBack={() => (history.length > 1 ? router.back() : router.push("/me/settings"))} />}>
-      <Tabs className="mb-2" tabs={tabs.map((x) => ({ value: x, label: LABEL[x] }))} value={shown} onChange={setTab} />
+      <PillTabs
+        className="mb-3"
+        label="Lists"
+        tabs={tabs.map((x) => ({ value: x, label: count(x) ? `${LABEL[x]} · ${compact(count(x)!)}` : LABEL[x] }))}
+        value={shown}
+        onChange={setTab}
+      />
       <FollowListTab key={shown} which={shown} />
+      <p className="type-body mt-3 px-1 text-[12px] text-muted">Only you can see these lists.</p>
     </Screen>
   );
 }
@@ -46,6 +58,7 @@ function FollowListTab({ which }: { which: FollowList }) {
   const [cursor, setCursor] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
   const [followedBack, setFollowedBack] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -94,7 +107,11 @@ function FollowListTab({ which }: { which: FollowList }) {
     }
   };
   const unfollow = async (e: FollowEntry) => {
-    if (await confirm({ title: `Unfollow ${e.profile.name}?`, ok: "Unfollow", cancel: "Keep", okTone: "bad" })) await act(() => useFollows.getState().unfollow(e.profile.id), () => drop(e.profile.id));
+    if (await confirm({ title: `Unfollow ${e.profile.name}?`, ok: "Unfollow", cancel: "Keep", okTone: "bad" }))
+      await act(
+        () => useFollows.getState().unfollow(e.profile.id),
+        () => drop(e.profile.id),
+      );
   };
 
   if (items === null)
@@ -113,46 +130,119 @@ function FollowListTab({ which }: { which: FollowList }) {
     if (which === "requests")
       return (
         <span className="ml-2 flex shrink-0 items-center gap-1">
-          <TextButton onClick={() => void act(() => useFollows.getState().decline(id), () => drop(id))}>Decline</TextButton>
-          <GradientButton label="Accept" height={36} expand={false} onClick={() => void act(() => useFollows.getState().accept(id), () => drop(id))} />
+          <TextButton
+            onClick={() =>
+              void act(
+                () => useFollows.getState().decline(id),
+                () => drop(id),
+              )
+            }
+          >
+            Decline
+          </TextButton>
+          <GradientButton
+            label="Accept"
+            height={36}
+            expand={false}
+            onClick={() =>
+              void act(
+                () => useFollows.getState().accept(id),
+                () => drop(id),
+              )
+            }
+          />
         </span>
       );
-    if (which === "following") return <GhostButton label="Following" height={34} className="ml-2 shrink-0" onClick={() => void unfollow(e)} />;
+    if (which === "following") return <Pill label="Following" onClick={() => void unfollow(e)} />;
     return (
       <span className="ml-2 flex shrink-0 items-center gap-1">
         {!e.followsBack && !followedBack.includes(id) ? (
-          <GhostButton label="Follow back" height={34} onClick={() => void act(() => useFollows.getState().follow(id), () => setFollowedBack((x) => [...x, id]))} />
+          <Pill
+            label="Follow back"
+            strong
+            onClick={() =>
+              void act(
+                () => useFollows.getState().follow(id),
+                () => setFollowedBack((x) => [...x, id]),
+              )
+            }
+          />
         ) : null}
-        <MenuButton label="More" items={[{ label: "Remove follower", tone: "bad", onSelect: () => void act(() => useFollows.getState().removeFollower(id), () => drop(id)) }]} />
+        <MenuButton
+          label="More"
+          items={[
+            {
+              label: "Remove follower",
+              tone: "bad",
+              onSelect: () =>
+                void act(
+                  () => useFollows.getState().removeFollower(id),
+                  () => drop(id),
+                ),
+            },
+          ]}
+        />
       </span>
     );
   };
 
+  const q = query.trim().toLowerCase();
+  const shown = q ? items.filter((e) => e.profile.name.toLowerCase().includes(q)) : items;
+  const verb = which === "followers" ? "Followed you" : which === "following" ? "You followed" : "Asked";
   return (
     <div>
-      {items.map((e) => (
-        <div key={e.profile.id} className="flex items-center border-b border-line-soft py-3">
-          <button type="button" className="flex min-w-0 flex-1 items-center text-left" onClick={() => router.push(`/u/${e.profile.id}`)}>
-            <Avatar url={e.profile.avatarUrl} name={e.profile.name} size={44} />
-            <span className="ml-3.5 min-w-0">
-              <span className="type-title block truncate text-[15px] font-semibold">
-                {e.profile.name}, {e.profile.age} {e.profile.country.flag}
-              </span>
-              <span className="type-body block text-[12px] text-text2">{ago(e.since)}</span>
-            </span>
-          </button>
-          {actions(e)}
-        </div>
-      ))}
+      <label className="mb-3 flex h-12 items-center gap-2.5 rounded-full border border-line bg-surface px-4">
+        <Icon name="search" variant="outlined" size={20} className="shrink-0 text-muted" />
+        <input
+          type="search"
+          value={query}
+          onChange={(ev) => setQuery(ev.target.value)}
+          placeholder={`Search ${LABEL[which].toLowerCase()}`}
+          aria-label={`Search ${LABEL[which].toLowerCase()}`}
+          className="type-body min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-muted"
+        />
+      </label>
+      {shown.length ? (
+        <GroupCard dividerInset={74}>
+          {shown.map((e) => (
+            <div key={e.profile.id} className="flex items-center px-4 py-3">
+              <button type="button" className="flex min-w-0 flex-1 items-center text-left" onClick={() => router.push(`/u/${e.profile.id}`)}>
+                <Avatar url={e.profile.avatarUrl} name={e.profile.name} size={44} />
+                <span className="ml-3.5 min-w-0">
+                  <span className="type-title block truncate text-[15px] font-semibold">{e.profile.name}</span>
+                  <span className="type-body block text-[12px] text-text2">
+                    {verb} {ago(e.since)}
+                  </span>
+                </span>
+              </button>
+              {actions(e)}
+            </div>
+          ))}
+        </GroupCard>
+      ) : (
+        <p className="type-body px-1 text-[13.5px] text-muted">Nobody called “{query.trim()}”.</p>
+      )}
       {cursor ? (
         <div className="mt-4 flex justify-center">
-          <GhostButton
-            label={fetching ? "Loading…" : "Show more"}
-            disabled={fetching}
-            onClick={() => void more(cursor)}
-          />
+          <GhostButton label={fetching ? "Loading…" : "Show more"} disabled={fetching} onClick={() => void more(cursor)} />
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** "Follow back" (filled) or "Following" (outlined) — the row's one action. */
+function Pill({ label, strong = false, onClick }: { label: string; strong?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "type-label h-[34px] shrink-0 rounded-full px-3.5 text-[13px] font-semibold transition-colors",
+        strong ? "bg-white/10 text-text hover:bg-white/14" : "border border-white/12 text-text2 hover:text-text",
+      )}
+    >
+      {label}
+    </button>
   );
 }

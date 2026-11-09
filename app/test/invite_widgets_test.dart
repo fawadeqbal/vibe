@@ -131,7 +131,6 @@ void main() {
     final first = local.view!.people.first.firstName;
     await scrollTo(t, find.text('Coins earned'));
     expect(find.text('200'), findsOneWidget);
-    await scrollTo(t, find.text('YOUR INVITES · 6'));
     await scrollTo(t, find.text(first));
     expect(find.text('Verified ✓ · 2/3 calls'), findsOneWidget);
     expect(find.text('Not verified yet · 0/3 calls'), findsOneWidget);

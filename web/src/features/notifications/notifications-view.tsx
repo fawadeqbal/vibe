@@ -6,10 +6,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { TeamAvatar } from "@/components/shared/team-avatar";
 import { Avatar } from "@/components/ui/avatar";
-import { GhostButton, GradientButton } from "@/components/ui/button";
+import { CircleIconButton, GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { EmptyState } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
+import { PillTabs } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
@@ -46,7 +47,14 @@ export function NotificationsView() {
     const a = useActivity.getState();
     void (a.loaded ? a.refresh() : a.load()).then(() => {
       if (!alive) return;
-      setFreshIds(new Set(useActivity.getState().items.filter((i) => !i.read).map((i) => i.id)));
+      setFreshIds(
+        new Set(
+          useActivity
+            .getState()
+            .items.filter((i) => !i.read)
+            .map((i) => i.id),
+        ),
+      );
       void useActivity.getState().markAllRead();
     });
     return () => {
@@ -62,37 +70,83 @@ export function NotificationsView() {
     return () => io.disconnect();
   }, [hasMore]);
 
+  const [tab, setTab] = useState<"all" | "requests" | "calls">("all");
+  const isCall = (i: ActivityItem) => i.type.startsWith("call");
+  const listed = tab === "calls" ? items.filter(isCall) : tab === "requests" ? [] : items;
   const isNew = (i: ActivityItem) => !i.read || freshIds.has(i.id);
-  const fresh = items.filter(isNew);
-  const earlier = items.filter((i) => !isNew(i));
+  const fresh = listed.filter(isNew);
+  const earlier = listed.filter((i) => !isNew(i));
+  const requestCount = incoming.length + sent.length;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)] lg:h-dvh">
-      <AppBar title="Notifications" onBack={() => router.back()} />
+      <AppBar
+        title="Notifications"
+        onBack={() => router.back()}
+        actions={<CircleIconButton icon="settings" label="Notification settings" onClick={() => router.push("/me/notifications")} />}
+      />
       {!loaded ? (
         <div className="flex flex-1 justify-center py-20">
           <Spinner />
         </div>
       ) : !items.length && !incoming.length && !sent.length ? (
-        <EmptyState className="flex-1" icon="notifications" iconVariant="outlined" title="Nothing " accent="yet" body="Friend requests, new followers, matches and news about your coins show up here." />
+        <EmptyState
+          className="flex-1"
+          icon="notifications"
+          iconVariant="outlined"
+          title="Nothing "
+          accent="yet"
+          body="Friend requests, new followers, matches and news about your coins show up here."
+        />
       ) : (
-        <div className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-8">
-          {incoming.length ? (
+        <div className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-8">
+          <PillTabs
+            label="Show"
+            className="mb-1"
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { value: "all", label: "All" },
+              { value: "requests", label: requestCount ? `Requests · ${requestCount}` : "Requests" },
+              { value: "calls", label: "Calls" },
+            ]}
+          />
+          {tab !== "calls" && incoming.length ? (
             <RequestSection title={`Friend requests · ${incoming.length}`}>
               {incoming.map((f) => (
                 <RequestRow key={f.profile.id} f={f} incoming />
               ))}
             </RequestSection>
           ) : null}
-          {sent.length ? (
+          {tab !== "calls" && sent.length ? (
             <RequestSection title={`Sent requests · ${sent.length}`}>
               {sent.map((f) => (
                 <RequestRow key={f.profile.id} f={f} incoming={false} />
               ))}
             </RequestSection>
           ) : null}
-          {fresh.length ? <Section title="New" items={fresh} isNew /> : null}
-          {earlier.length ? <Section title={fresh.length ? "Earlier" : "All"} items={earlier} /> : null}
+          {fresh.length ? (
+            <Section
+              title="New"
+              items={fresh}
+              isNew
+              action={{
+                label: "Mark all as read",
+                onClick: () => {
+                  setFreshIds(new Set());
+                  void useActivity.getState().markAllRead();
+                },
+              }}
+            />
+          ) : null}
+          {earlier.length ? <Section title={fresh.length ? "Earlier" : tab === "calls" ? "Calls" : "All"} items={earlier} /> : null}
+          {tab === "requests" && !requestCount ? (
+            <p className="type-body px-1 pt-6 text-center text-[13.5px] text-muted">No friend requests right now.</p>
+          ) : null}
+          {tab === "calls" && !listed.length ? <p className="type-body px-1 pt-6 text-center text-[13.5px] text-muted">No calls yet.</p> : null}
+          {tab !== "requests" && !hasMore && listed.length ? (
+            <p className="type-body pt-4 text-center text-[12px] text-muted">We keep notifications for 90 days.</p>
+          ) : null}
           {hasMore ? (
             <div ref={end} className="flex justify-center p-4">
               <Spinner size={22} stroke={2} />
@@ -106,9 +160,9 @@ export function NotificationsView() {
 
 function RequestSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mb-2">
-      <h2 className="type-label px-2 pt-3 pb-1.5 text-[13px] font-semibold text-text2">{title}</h2>
-      <ul className="flex flex-col">{children}</ul>
+    <section>
+      <h2 className="type-overline px-1 pt-[22px] pb-2.5">{title}</h2>
+      <ul className="flex flex-col divide-y divide-line-soft overflow-hidden rounded-[22px] border border-line bg-surface px-2">{children}</ul>
     </section>
   );
 }
@@ -144,21 +198,57 @@ function RequestRow({ f, incoming }: { f: Friend; incoming: boolean }) {
       </button>
       {incoming ? (
         <span className="flex shrink-0 gap-1.5">
-          <GhostButton label="Decline" height={34} className="px-3 text-text2 [&>span]:text-[13px]" disabled={busy} onClick={() => void act(() => useSocial.getState().decline(p.id))} />
-          <GradientButton label="Accept" height={34} expand={false} className={SMALL} busy={busy} onClick={() => void act(() => useSocial.getState().accept(p.id), `You and ${first} are friends now`)} />
+          <GhostButton
+            label="Decline"
+            height={34}
+            className="px-3 text-text2 [&>span]:text-[13px]"
+            disabled={busy}
+            onClick={() => void act(() => useSocial.getState().decline(p.id))}
+          />
+          <GradientButton
+            label="Accept"
+            height={34}
+            expand={false}
+            className={SMALL}
+            busy={busy}
+            onClick={() => void act(() => useSocial.getState().accept(p.id), `You and ${first} are friends now`)}
+          />
         </span>
       ) : (
-        <GhostButton label="Cancel" height={34} className="shrink-0 px-3 text-text2 [&>span]:text-[13px]" disabled={busy} onClick={() => void act(() => useSocial.getState().cancel(p.id))} />
+        <GhostButton
+          label="Cancel"
+          height={34}
+          className="shrink-0 px-3 text-text2 [&>span]:text-[13px]"
+          disabled={busy}
+          onClick={() => void act(() => useSocial.getState().cancel(p.id))}
+        />
       )}
     </li>
   );
 }
 
-function Section({ title, items, isNew = false }: { title: string; items: ActivityItem[]; isNew?: boolean }) {
+function Section({
+  title,
+  items,
+  isNew = false,
+  action,
+}: {
+  title: string;
+  items: ActivityItem[];
+  isNew?: boolean;
+  action?: { label: string; onClick: () => void };
+}) {
   return (
-    <section className="mb-2">
-      <h2 className="type-label px-2 pt-3 pb-1.5 text-[13px] font-semibold text-text2">{title}</h2>
-      <ul className="flex flex-col">
+    <section>
+      <div className="flex items-center px-1 pt-[22px] pb-2.5">
+        <h2 className="type-overline flex-1">{title}</h2>
+        {action ? (
+          <button type="button" onClick={action.onClick} className="type-label text-[12.5px] text-pink-soft">
+            {action.label}
+          </button>
+        ) : null}
+      </div>
+      <ul className="flex flex-col divide-y divide-line-soft overflow-hidden rounded-[22px] border border-line bg-surface px-2">
         {items.map((i) => (
           <Row key={i.id} item={i} isNew={isNew} />
         ))}
@@ -187,7 +277,7 @@ function Row({ item, isNew }: { item: ActivityItem; isNew: boolean }) {
   };
 
   return (
-    <li className={cn("flex items-center gap-3 rounded-2xl px-2 py-2.5", isNew && "bg-pink/6")}>
+    <li className="flex items-center gap-3 px-2 py-3">
       <button type="button" onClick={() => router.push(notificationPath(item.data))} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className="relative shrink-0">
           {a ? <Avatar url={a.avatarUrl} name={a.name} size={48} /> : <TeamAvatar size={48} />}
@@ -226,11 +316,28 @@ function Actions({ item, busy, act }: { item: ActivityItem; busy: boolean; act: 
     </span>
   );
 
-  if (item.type === "friend.request" && rel.friend === "incoming") return pair(() => useSocial.getState().accept(a.id), () => useSocial.getState().decline(a.id), `You and ${first} are friends now`);
-  if (item.type === "follow.request" && rel.followRequest) return pair(() => useFollows.getState().accept(a.id), () => useFollows.getState().decline(a.id), `${first} can see your profile now`);
+  if (item.type === "friend.request" && rel.friend === "incoming")
+    return pair(
+      () => useSocial.getState().accept(a.id),
+      () => useSocial.getState().decline(a.id),
+      `You and ${first} are friends now`,
+    );
+  if (item.type === "follow.request" && rel.followRequest)
+    return pair(
+      () => useFollows.getState().accept(a.id),
+      () => useFollows.getState().decline(a.id),
+      `${first} can see your profile now`,
+    );
   if (item.type === "follow.new" && rel.follow === "none")
     return (
-      <GradientButton label={rel.followsYou ? "Follow back" : "Follow"} height={34} expand={false} className={cn(SMALL, "shrink-0")} busy={busy} onClick={() => void act(() => useFollows.getState().follow(a.id))} />
+      <GradientButton
+        label={rel.followsYou ? "Follow back" : "Follow"}
+        height={34}
+        expand={false}
+        className={cn(SMALL, "shrink-0")}
+        busy={busy}
+        onClick={() => void act(() => useFollows.getState().follow(a.id))}
+      />
     );
   if ((item.type === "friend.accepted" || item.type === "discover.match" || item.type === "friend.request") && rel.friend === "friends")
     return <GhostButton label="Message" height={34} className="shrink-0 px-3.5 [&>span]:text-[13px]" onClick={() => router.push(`/chats/${a.id}`)} />;

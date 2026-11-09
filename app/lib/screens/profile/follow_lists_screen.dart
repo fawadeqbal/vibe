@@ -12,7 +12,7 @@ import 'user_profile_screen.dart';
 
 /// Your followers, who you follow, and (private accounts) waiting requests.
 /// Only you can see these lists.
-class FollowListsScreen extends StatelessWidget {
+class FollowListsScreen extends StatefulWidget {
   const FollowListsScreen({super.key, this.initial = FollowList.followers});
   final FollowList initial;
 
@@ -23,34 +23,40 @@ class FollowListsScreen extends StatelessWidget {
       };
 
   @override
+  State<FollowListsScreen> createState() => _FollowListsScreenState();
+}
+
+class _FollowListsScreenState extends State<FollowListsScreen> {
+  late FollowList _tab = widget.initial;
+
+  @override
   Widget build(BuildContext context) {
-    final private = context.select<FollowsProvider, bool>((f) => f.settings.privateAccount);
-    final tabs = [FollowList.followers, FollowList.following, if (private) FollowList.requests];
-    return DefaultTabController(
-      key: ValueKey(tabs.length),
-      length: tabs.length,
-      initialIndex: tabs.contains(initial) ? tabs.indexOf(initial) : 0,
-      child: Scaffold(
-        appBar: AppBar(
-          leading: Center(child: CircleIconButton(icon: SolarIconsOutline.arrowLeft, tooltip: 'Back', onTap: () => Navigator.of(context).maybePop())),
-          leadingWidth: 64,
-          title: Text('Followers', style: VT.title(17, weight: FontWeight.w600)),
-          bottom: TabBar(
-            indicatorColor: V.pink,
-            labelColor: V.text,
-            unselectedLabelColor: V.muted,
-            dividerColor: V.lineSoft,
-            tabs: [for (final t in tabs) Tab(text: _label(t))],
+    final settings = context.select<FollowsProvider, FollowSettings>((f) => f.settings);
+    final tabs = [FollowList.followers, FollowList.following, if (settings.privateAccount) FollowList.requests];
+    final shown = tabs.contains(_tab) ? _tab : FollowList.followers;
+    int? count(FollowList t) => switch (t) { FollowList.followers => settings.followers, FollowList.following => settings.following, FollowList.requests => null };
+    return Scaffold(
+      appBar: vibeAppBar(context, 'Followers'),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: PillTabs<FollowList>(
+              value: shown,
+              onChanged: (v) => setState(() => _tab = v),
+              tabs: [for (final t in tabs) (t, (count(t) ?? 0) > 0 ? '${FollowListsScreen._label(t)} · ${Fmt.compact(count(t)!)}' : FollowListsScreen._label(t))],
+            ),
           ),
-        ),
-        body: TabBarView(children: [for (final t in tabs) _FollowListTab(which: t)]),
+          Expanded(child: _FollowListTab(key: ValueKey(shown), which: shown)),
+        ],
       ),
     );
   }
 }
 
 class _FollowListTab extends StatefulWidget {
-  const _FollowListTab({required this.which});
+  const _FollowListTab({super.key, required this.which});
   final FollowList which;
 
   @override
@@ -58,6 +64,7 @@ class _FollowListTab extends StatefulWidget {
 }
 
 class _FollowListTabState extends State<_FollowListTab> with AutomaticKeepAliveClientMixin {
+  String _query = '';
   final List<FollowEntry> _items = [];
   final Set<String> _followedBack = {};
   String? _cursor;
@@ -153,41 +160,78 @@ class _FollowListTabState extends State<_FollowListTab> with AutomaticKeepAliveC
         FollowList.requests => const EmptyState(icon: SolarIconsOutline.inbox, title: 'No requests', body: 'While your account is private, new followers wait here.'),
       };
     }
+    final q = _query.trim().toLowerCase();
+    final items = q.isEmpty ? _items : _items.where((e) => e.profile.name.toLowerCase().contains(q)).toList();
+    final verb = switch (widget.which) { FollowList.followers => 'Followed you', FollowList.following => 'You followed', FollowList.requests => 'Asked' };
+    final label = FollowListsScreen._label(widget.which).toLowerCase();
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
         if (n.metrics.extentAfter < 400) _more();
         return false;
       },
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(20, 8, 12, 32),
-        itemCount: _items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1, color: V.lineSoft),
-        itemBuilder: (context, i) {
-          final e = _items[i];
-          return InkWell(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: e.profile.id))),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Row(
-                children: [
-                  VAvatar(url: e.profile.avatarUrl, name: e.profile.name, size: 44),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${e.profile.name}, ${e.profile.age} ${e.profile.country.flag}', overflow: TextOverflow.ellipsis, style: VT.title(15, weight: FontWeight.w600)),
-                        const SizedBox(height: 1),
-                        Text(Fmt.ago(e.since), style: VT.body(12, color: V.text2)),
-                      ],
-                    ),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+        children: [
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: V.line)),
+            child: Row(
+              children: [
+                const Icon(Icons.search_rounded, size: 21, color: V.muted),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    onChanged: (v) => setState(() => _query = v),
+                    style: VT.body(15),
+                    cursorColor: V.pink,
+                    decoration: InputDecoration(hintText: 'Search $label', hintStyle: VT.body(15, color: V.muted), filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
                   ),
-                  _trailing(e),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (items.isEmpty)
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text('Nobody called “${_query.trim()}”.', style: VT.body(13.5, color: V.muted)))
+          else
+            Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: V.line)),
+              child: Column(
+                children: [
+                  for (final (i, e) in items.indexed) ...[
+                    if (i > 0) const Divider(height: 1, indent: 74, color: V.lineSoft),
+                    InkWell(
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: e.profile.id))),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                        child: Row(
+                          children: [
+                            VAvatar(url: e.profile.avatarUrl, name: e.profile.name, size: 44),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(e.profile.name, overflow: TextOverflow.ellipsis, style: VT.title(15, weight: FontWeight.w600)),
+                                  const SizedBox(height: 1),
+                                  Text('$verb ${Fmt.ago(e.since)}', style: VT.body(12, color: V.text2)),
+                                ],
+                              ),
+                            ),
+                            _trailing(e),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-          );
-        },
+          const SizedBox(height: 12),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text('Only you can see these lists.', style: VT.body(12, color: V.muted))),
+        ],
       ),
     );
   }
