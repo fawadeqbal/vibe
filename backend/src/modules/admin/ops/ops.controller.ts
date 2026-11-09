@@ -95,16 +95,21 @@ export class OpsController {
   @ApiOperation({ summary: 'Right now: online, searching, and the live calls (poll every few seconds)' })
   async live(@Query() q: LiveQuery) {
     const since = new Date(this.clock.now().getTime() - 6 * MS.hour);
-    const [counts, calls, callCount] = await Promise.all([
+    const [counts, calls, callCount, live] = await Promise.all([
       this.matching.onlineCount(),
       this.prisma.match.findMany({ where: { endedAt: null, startedAt: { gt: since } }, orderBy: { startedAt: 'desc' }, take: q.limit }),
       this.prisma.match.count({ where: { endedAt: null, startedAt: { gt: since } } }),
+      this.realtime.onlineClients(),
     ]);
+    // Who is on what right now (someone on both counts in both).
+    const onlineBy = { android: 0, ios: 0, web: 0 };
+    for (const set of live.values()) for (const c of set) if (c in onlineBy) onlineBy[c as keyof typeof onlineBy]++;
     const ids = [...new Set(calls.flatMap((c) => [c.userAId, c.userBId]))];
     const people = new Map((await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, avatarUrl: true, countryCode: true, isBot: true, verified: true } })).map((u) => [u.id, u]));
     return {
       at: this.clock.now().toISOString(),
       online: counts.online,
+      onlineBy,
       searching: counts.searching,
       inCalls: callCount,
       calls: calls.map((c) => ({ id: c.id, startedAt: c.startedAt.toISOString(), a: people.get(c.userAId) ?? null, b: people.get(c.userBId) ?? null, coinsSpent: c.coinsSpentA + c.coinsSpentB })),

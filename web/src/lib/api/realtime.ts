@@ -117,7 +117,8 @@ export class RealtimeClient {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 8000,
-      auth: (cb) => cb({ token: this.api.accessToken }),
+      // `client`: browsers can't set headers on a WebSocket, so say which Vibe this is here (admin → who is on the web).
+      auth: (cb) => cb({ token: this.api.accessToken, client: "web" }),
     });
     s.on("connect", () => this.setConnected(true));
     s.on("disconnect", () => this.setConnected(false));

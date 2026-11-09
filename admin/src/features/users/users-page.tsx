@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { Coins, Gems, Time, UserCell } from "@/components/common/bits";
+import { ClientCell } from "@/components/common/client-chip";
 import { PageHeader } from "@/components/common/page";
 import { DataTable, type Column } from "@/components/data-table/data-table";
 import { BulkBar, DateRange, FilterBar, FilterBool, FilterSelect, ResetFilters, SearchInput } from "@/components/data-table/filters";
@@ -19,7 +20,7 @@ import { P } from "@/lib/permissions";
 
 import { useUserCountries, useUsers } from "./api";
 
-const DEFAULTS = { q: "", status: "", banned: "", verified: "", vip: "", gender: "", country: "", bots: "", sort: "newest", from: "", to: "" };
+const DEFAULTS = { q: "", status: "", banned: "", verified: "", vip: "", gender: "", country: "", client: "", online: "", bots: "", sort: "newest", from: "", to: "" };
 
 export function userStateBadges(u: Pick<UserSummary, "status" | "bannedUntil" | "vipUntil" | "openReports">) {
   return (
@@ -35,6 +36,7 @@ export function userStateBadges(u: Pick<UserSummary, "status" | "bannedUntil" | 
 const columns: Column<UserSummary>[] = [
   { id: "user", header: "User", cell: (u) => <UserCell user={u} sub={u.email ?? (u.age ? `${u.age} · ${format.enum(u.gender)}` : format.enum(u.gender))} />, className: "min-w-56" },
   { id: "state", header: "State", cell: userStateBadges, className: "hidden md:table-cell" },
+  { id: "client", header: "Uses", cell: (u) => <ClientCell onlineOn={u.onlineOn ?? []} lastClient={u.lastClient} />, className: "hidden md:table-cell" },
   { id: "coins", header: "Coins", cell: (u) => <Coins value={u.coins} />, align: "right", className: "hidden sm:table-cell" },
   { id: "gems", header: "Gems", cell: (u) => <Gems value={u.gems} />, align: "right", className: "hidden lg:table-cell" },
   { id: "matches", header: "Matches", cell: (u) => <span className="tabular">{format.number(u.matchesCount)}</span>, align: "right", className: "hidden lg:table-cell" },
@@ -92,6 +94,27 @@ export function UsersPage() {
               <FilterBool label="VIP" value={f.vip} onChange={(vip) => setF({ vip })} />
               <FilterSelect label="Gender" value={f.gender} onChange={(gender) => setF({ gender })} options={["FEMALE", "MALE", "OTHER"].map((g) => ({ value: g, label: format.enum(g) }))} />
               <FilterSelect label="Country" value={f.country} onChange={(country) => setF({ country })} options={countryOptions(countries.data, { include: [f.country] })} />
+              <FilterSelect
+                label="Uses"
+                value={f.client}
+                onChange={(client) => setF({ client })}
+                options={[
+                  { value: "app", label: "Phone app" },
+                  { value: "web", label: "Website" },
+                  { value: "android", label: "Android app" },
+                  { value: "ios", label: "iPhone app" },
+                ]}
+              />
+              <FilterSelect
+                label="Online now"
+                value={f.online}
+                onChange={(online) => setF({ online })}
+                options={[
+                  { value: "any", label: "Online (anywhere)" },
+                  { value: "app", label: "On the app now" },
+                  { value: "web", label: "On the website now" },
+                ]}
+              />
               <FilterBool label="Dev bots" value={f.bots} onChange={(bots) => setF({ bots })} yes="Include" no="Hide" />
               <DateRange from={f.from} to={f.to} onChange={(r) => setF(r)} />
               <ResetFilters show={filtered} onReset={reset} />
