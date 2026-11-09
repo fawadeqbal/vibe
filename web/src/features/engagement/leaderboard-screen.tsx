@@ -9,7 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs } from "@/components/ui/tabs";
+import { PillTabs } from "@/components/ui/tabs";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { boardScore, leaderboardMe } from "@/lib/engagement";
@@ -71,7 +71,7 @@ export function LeaderboardScreen() {
       bodyClassName="pb-28"
       footer={data && me ? <MeRow board={data} rank={mine!.rank} score={mine!.score} name={me.name} avatarUrl={me.avatarUrl} /> : null}
     >
-      <Tabs tabs={TABS} value={board} onChange={setBoard} label="Leaderboard" />
+      <PillTabs tabs={TABS} value={board} onChange={setBoard} label="Leaderboard" />
       <p className="type-body mt-3 text-[12.5px] text-muted">{board === "xp" ? "XP from good calls, likes, gifts and streaks." : "Gems received from gifts."} Resets Monday.</p>
       {!data ? (
         failed === board ? (

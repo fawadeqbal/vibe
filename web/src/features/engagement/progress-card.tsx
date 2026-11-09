@@ -8,11 +8,13 @@ import { openShareCard } from "@/components/shared/share-card";
 import { CircleIconButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { ProgressBar } from "@/components/ui/misc";
-import { Panel } from "@/components/ui/panel";
+import { GroupCard, GroupRow, Panel } from "@/components/ui/panel";
 import { SectionTitle } from "@/components/ui/typography";
 import { levelFraction, xpToNext } from "@/lib/engagement";
+import { alpha, type Tone } from "@/lib/colors";
 import { compact } from "@/lib/format";
 import type { Badge } from "@/lib/models";
+import { useCatalog } from "@/stores/catalog";
 import { useEngagement } from "@/stores/engagement";
 import { openSheet } from "@/stores/ui";
 
@@ -48,19 +50,34 @@ export function ProgressCard() {
               <ProgressBar value={levelFraction(p)} tone="violet" />
             </div>
           </div>
-          <CircleIconButton icon="ios_share" label="Share my level" iconSize={18} size={36} className="ml-3 self-start bg-surface2" onClick={() => void openShareCard({ kind: "level", level: p.level })} />
+          <CircleIconButton
+            icon="ios_share"
+            label="Share my level"
+            iconSize={18}
+            size={36}
+            className="ml-3 self-start bg-surface2"
+            onClick={() => void openShareCard({ kind: "level", level: p.level })}
+          />
         </div>
         <div className="px-4 pt-4 pb-4">
           {earned.length ? (
             <BadgeRow ids={earned.map((b) => b.id)} max={7} />
           ) : next ? (
             <p className="type-body text-[12.5px] text-text2">
-              Next badge: <span className="text-text">{next.emoji} {next.name}</span> · {next.progress}/{next.target}
+              Next badge:{" "}
+              <span className="text-text">
+                {next.emoji} {next.name}
+              </span>{" "}
+              · {next.progress}/{next.target}
             </p>
           ) : null}
         </div>
         <div className="h-px bg-line-soft" />
-        <button type="button" onClick={() => router.push("/leaderboard")} className="flex w-full items-center px-4 py-3.5 text-left transition-colors hover:bg-white/3">
+        <button
+          type="button"
+          onClick={() => router.push("/leaderboard")}
+          className="flex w-full items-center px-4 py-3.5 text-left transition-colors hover:bg-white/3"
+        >
           <Icon name="emoji_events" size={20} className="text-text2" />
           <span className="type-title ml-3 flex-1 text-[14.5px] font-semibold">This week&apos;s top</span>
           <span className="type-body mr-1 text-[12px] text-muted">Resets Monday</span>
@@ -85,13 +102,20 @@ function BadgesSheet({ badges }: { badges: Badge[] }) {
       <div className="mt-4 flex flex-col gap-2">
         {badges.map((b) => (
           <div key={b.id} className="flex items-center rounded-[18px] border border-line-soft bg-surface2 px-3.5 py-3">
-            <span className={`flex size-11 shrink-0 items-center justify-center rounded-[14px] text-[22px] ${b.earned ? "bg-violet/18" : "bg-white/5 opacity-45 grayscale"}`} aria-hidden>
+            <span
+              className={`flex size-11 shrink-0 items-center justify-center rounded-[14px] text-[22px] ${b.earned ? "bg-violet/18" : "bg-white/5 opacity-45 grayscale"}`}
+              aria-hidden
+            >
               {b.emoji}
             </span>
             <span className="ml-3 min-w-0 flex-1">
               <span className="flex items-center">
                 <span className={`type-title flex-1 text-[14.5px] font-semibold ${b.earned ? "text-text" : "text-text2"}`}>{b.name}</span>
-                {b.earned ? <Icon name="check_circle" size={18} className="text-ok" label="Earned" /> : <span className="type-number text-[12px] text-muted">{`${compact(b.progress)}/${compact(b.target)}`}</span>}
+                {b.earned ? (
+                  <Icon name="check_circle" size={18} className="text-ok" label="Earned" />
+                ) : (
+                  <span className="type-number text-[12px] text-muted">{`${compact(b.progress)}/${compact(b.target)}`}</span>
+                )}
               </span>
               {!b.earned ? (
                 <span className="mt-1.5 block">
@@ -103,5 +127,58 @@ function BadgesSheet({ badges }: { badges: Badge[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Badges as a grid of round tiles (the first eight); earned ones lit. (Design: Progress & badges.) */
+export function BadgeGrid() {
+  const progress = useEngagement((s) => s.progress);
+  if (!progress?.badges.length) return null;
+  const badges = [...progress.badges].sort((a, b) => Number(b.earned) - Number(a.earned)).slice(0, 8);
+  const earned = progress.badges.filter((b) => b.earned).length;
+  return (
+    <>
+      <SectionTitle
+        text={`Badges · ${earned} of ${progress.badges.length}`}
+        top={26}
+        bottom={10}
+        action="All badges"
+        onAction={() => void openBadgesSheet(progress.badges)}
+      />
+      <Panel className="grid grid-cols-4 gap-y-4 px-2 py-4">
+        {badges.map((b) => (
+          <span key={b.id} className="flex flex-col items-center gap-1.5 text-center" title={b.earned ? b.name : `${b.name} · ${b.progress}/${b.target}`}>
+            <span
+              className={`flex size-[54px] items-center justify-center rounded-full text-[24px] ${b.earned ? "bg-violet/18" : "bg-white/5 opacity-45 grayscale"}`}
+              aria-hidden
+            >
+              {b.emoji}
+            </span>
+            <span className={`type-label text-[12px] ${b.earned ? "text-text" : "text-muted"}`}>{b.name}</span>
+          </span>
+        ))}
+      </Panel>
+    </>
+  );
+}
+
+/** Where XP comes from, with the live numbers. */
+export function HowToEarnXp() {
+  const e = useCatalog((s) => s.economy);
+  const rows: [string, Tone, string, string][] = [
+    ["videocam", "pink", "Good calls", `Calls that last over a minute · +${e.xpPerGoodCall} XP`],
+    ["favorite", "pink", "Likes you get", `+${e.xpPerLikeReceived} XP each`],
+    ["redeem", "gold", "Gifts", `Gifts you receive · +${e.xpPerGiftReceived} XP`],
+    ["local_fire_department", "pink-soft", "Streaks", `Talk with a friend every day · +${e.xpPerStreakDay} XP`],
+  ];
+  return (
+    <>
+      <SectionTitle text="How to earn XP" top={26} bottom={10} />
+      <GroupCard>
+        {rows.map(([icon, tone, title, sub]) => (
+          <GroupRow key={title} icon={icon} iconColor={tone} iconBg={alpha(tone, 0.13)} title={title} subtitle={sub} />
+        ))}
+      </GroupCard>
+    </>
   );
 }

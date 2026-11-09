@@ -73,11 +73,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: V.line)),
-              child: Row(children: [_tab('Top talkers', Board.xp), _tab('Most gifted', Board.gems)]),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: PillTabs<Board>(value: _board, onChanged: _pick, tabs: const [(Board.xp, 'Top talkers'), (Board.gems, 'Most gifted')]),
             ),
           ),
           Expanded(
@@ -102,30 +100,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     );
   }
 
-  Widget _tab(String label, Board b) {
-    final on = _board == b;
-    return Expanded(
-      child: Semantics(
-        selected: on,
-        button: true,
-        child: GestureDetector(
-          onTap: () => _pick(b),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            decoration: BoxDecoration(color: on ? V.surfaceSel : Colors.transparent, borderRadius: BorderRadius.circular(18)),
-            alignment: Alignment.center,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (b == Board.gems) ...[GemIcon(size: 15), const SizedBox(width: 5)] else ...[Icon(Icons.mic_rounded, size: 16, color: on ? V.level : V.muted), const SizedBox(width: 5)],
-                Text(label, style: VT.label(13, color: on ? V.text : V.text2)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _Podium extends StatelessWidget {

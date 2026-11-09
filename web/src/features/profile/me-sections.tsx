@@ -18,7 +18,7 @@ import { useSession } from "@/stores/session";
 import { toast } from "@/stores/ui";
 
 import { NotifyChoices } from "@/features/engagement/notify-choices";
-import { ProgressCard } from "@/features/engagement/progress-card";
+import { BadgeGrid, HowToEarnXp, ProgressCard } from "@/features/engagement/progress-card";
 import { WellbeingSection } from "@/features/engagement/wellbeing-section";
 
 import { SignInMethodsCard } from "./sign-in-methods";
@@ -45,6 +45,8 @@ export function ProgressPage() {
   return (
     <MeSection title="Progress & badges" footer="Good calls, likes, gifts and streaks earn XP. Badges stay on your profile.">
       <ProgressCard />
+      <BadgeGrid />
+      <HowToEarnXp />
     </MeSection>
   );
 }

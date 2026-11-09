@@ -49,7 +49,7 @@ class ProgressSectionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      const MeSectionScaffold(title: 'Progress & badges', footer: 'Good calls, likes, gifts and streaks earn XP. Badges stay on your profile.', children: [ProgressCard()]);
+      const MeSectionScaffold(title: 'Progress & badges', footer: 'Good calls, likes, gifts and streaks earn XP. Badges stay on your profile.', children: [ProgressCard(), BadgeGrid(), HowToEarnXp()]);
 }
 
 /// Settings → Notifications: for each kind of news, which of phone, inbox and e-mail it reaches.
