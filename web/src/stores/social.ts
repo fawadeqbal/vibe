@@ -37,6 +37,8 @@ interface SocialState {
   sendRequest: (p: Profile) => Promise<boolean>;
   accept: (id: string) => Promise<void>;
   decline: (id: string) => Promise<void>;
+  /** Take back a friend request you sent. */
+  cancel: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
   block: (p: Profile) => Promise<void>;
   unblock: (id: string) => Promise<void>;
@@ -152,6 +154,11 @@ export const useSocial = create<SocialState>()((set, get) => {
 
     async decline(id) {
       await api.post(`/friends/${id}/decline`);
+      await reloadFriends();
+    },
+
+    async cancel(id) {
+      await api.post(`/friends/${id}/cancel`);
       await reloadFriends();
     },
 
@@ -356,9 +363,11 @@ realtime.on(Ev.matchEnded, reload);
 realtime.on(Ev.streak, (d) => {
   if (typeof d.friendId === "string") setStreak(d.friendId, mapStreak(asMap(d.streak)));
 });
-// Presence: `{ userId, online }` (only if the server sends it; GET /friends carries it too).
+// Presence: `{ userId, online, lastSeenAt }` when a friend comes online or leaves (GET /friends carries it too).
 realtime.on(Ev.presence, (d) => {
   const id = typeof d.userId === "string" ? d.userId : typeof d.friendId === "string" ? d.friendId : null;
   if (!id || typeof d.online !== "boolean") return;
-  useSocial.setState((s) => ({ all: s.all.map((f) => (f.profile.id === id ? { ...f, online: d.online === true } : f)) }));
+  const online = d.online === true;
+  const left = typeof d.lastSeenAt === "string" ? new Date(d.lastSeenAt) : null;
+  useSocial.setState((s) => ({ all: s.all.map((f) => (f.profile.id === id ? { ...f, online, lastSeenAt: online ? f.lastSeenAt : (left ?? new Date()) } : f)) }));
 });

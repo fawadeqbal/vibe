@@ -30,6 +30,8 @@ class ProfileView {
     this.stats,
     this.statsHidden = false,
     this.online,
+    this.lastSeenAt,
+    this.met = false,
     this.level = 0,
     this.badges = const [],
   });
@@ -44,6 +46,12 @@ class ProfileView {
   final ProfileStats? stats;
   final bool statsHidden;
   final bool? online;
+
+  /// Friends only: when they were last in the app.
+  final DateTime? lastSeenAt;
+
+  /// You've been on a call or matched in Discover: a friend request can be sent from the profile.
+  final bool met;
 
   /// "Lv 7"; 0 = unknown.
   final int level;

@@ -41,6 +41,14 @@ class Fmt {
     return '${t.day}/${t.month}/${t.year}';
   }
 
+  /// A friend's status line: "Online", "Last seen 5m ago", or null when we don't know
+  /// (never from the friendship date).
+  static String? presence(bool? online, DateTime? lastSeenAt) {
+    if (online == true) return 'Online';
+    if (lastSeenAt == null) return null;
+    return 'Last seen ${ago(lastSeenAt)}';
+  }
+
   /// Compact list timestamp: "now", "5m", "1h", "3d", "12/9".
   static String agoShort(DateTime t) {
     final diff = DateTime.now().difference(t);

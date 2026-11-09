@@ -23,7 +23,9 @@ export const SOCKET_DISCONNECTED = 'socket.disconnected';
 export interface SocketLifecycleEvent {
   userId: string;
   socketId: string;
-  /** Disconnect only: no sockets left for this user anywhere. */
+  /** Connect only: this is the user's only socket (they just came online). */
+  firstSocket?: boolean;
+  /** Disconnect only: no sockets left for this user anywhere (they just went offline). */
   lastSocket?: boolean;
 }
 
@@ -52,14 +54,17 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     if (!user) return void socket.disconnect(true);
     await socket.join(userRoom(user.id));
     await this.realtime.markConnected(user.id);
-    this.events.emit(SOCKET_CONNECTED, { userId: user.id, socketId: socket.id } satisfies SocketLifecycleEvent);
+    const firstSocket = (await this.realtime.socketCount(user.id)) <= 1;
+    this.events.emit(SOCKET_CONNECTED, { userId: user.id, socketId: socket.id, firstSocket } satisfies SocketLifecycleEvent);
   }
 
   async handleDisconnect(socket: Socket): Promise<void> {
     const user = socket.data.user as AuthUser | undefined;
     if (!user) return;
     try {
-      const lastSocket = await this.realtime.markDisconnected(user.id);
+      // This socket has already left its rooms, so only the person's other tabs and devices are counted.
+      const lastSocket = (await this.realtime.socketCount(user.id)) === 0;
+      if (lastSocket) await this.realtime.markOffline(user.id);
       this.events.emit(SOCKET_DISCONNECTED, { userId: user.id, socketId: socket.id, lastSocket } satisfies SocketLifecycleEvent);
     } catch (e) {
       // Shutting down (Redis already closed) — nothing left to clean up.
@@ -76,12 +81,6 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
   @Interval(30_000)
   async refreshPresence(): Promise<void> {
-    if (!this.server) return;
-    const ids = new Set<string>();
-    for (const s of this.server.sockets.sockets.values()) {
-      const u = s.data.user as AuthUser | undefined;
-      if (u) ids.add(u.id);
-    }
-    await this.realtime.heartbeat([...ids]);
+    await this.realtime.heartbeat(this.realtime.localUserIds());
   }
 }

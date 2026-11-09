@@ -61,7 +61,7 @@ export enum ErrorCode {
   BLOCKED = 'BLOCKED',
   NOT_FRIENDS = 'NOT_FRIENDS',
   NEVER_MATCHED = 'NEVER_MATCHED',
-  /** Friend requests are only sent from a live call (`match:friend`); REST can only accept one. */
+  /** No longer returned (friend requests can be sent from a profile to people you've met); kept for old clients. */
   FRIEND_IN_CALL_ONLY = 'FRIEND_IN_CALL_ONLY',
   /** Too many new follows today (economy rule maxFollowsPerDay). */
   FOLLOW_LIMIT = 'FOLLOW_LIMIT',

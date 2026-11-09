@@ -30,9 +30,13 @@ export interface ProfileView {
   /** Earned badge ids (users/badges.ts), at every tier. */
   badges: string[];
   rel: Relationship;
+  /** You have been on a video call or matched in Discover with them: a friend request can be sent from the profile. */
+  met: boolean;
   counts?: ProfileCounts;
   stats?: ProfileStats | 'hidden';
   online?: boolean;
+  /** Friends only: when they were last in the app (null = never / unknown). */
+  lastSeenAt?: string | null;
 }
 
 /** Everything the rules need to decide; gathered by ProfilesService. */
@@ -42,6 +46,7 @@ export interface ProfileFacts {
   rel: Relationship;
   hideStats: boolean;
   online: boolean;
+  lastSeenAt: string | null;
   counts: ProfileCounts;
   stats: ProfileStats;
   /** Earned badge ids. */
@@ -60,16 +65,19 @@ export function resolveTier(f: Pick<ProfileFacts, 'self' | 'met' | 'rel'>): Prof
 
 /**
  * The profile opens up as the relationship grows: matched → public profile;
- * following → + counts and stats; friends → + online. Bio and interests are
+ * following → + counts and stats; friends → + online and last seen. Bio and interests are
  * public because the live-match card already shows them.
  */
 export function buildProfileView(profile: PublicProfile, f: ProfileFacts): ProfileView | null {
   const tier = resolveTier(f);
   if (!tier) return null;
-  const view: ProfileView = { profile, tier, level: profile.level, badges: f.badges, rel: f.rel };
+  const view: ProfileView = { profile, tier, level: profile.level, badges: f.badges, rel: f.rel, met: f.met && !f.self };
   if (tier === 'matched') return view;
   view.counts = f.counts;
   view.stats = f.hideStats && tier !== 'self' ? 'hidden' : f.stats;
-  if (tier === 'friends') view.online = f.online;
+  if (tier === 'friends') {
+    view.online = f.online;
+    view.lastSeenAt = f.lastSeenAt;
+  }
   return view;
 }

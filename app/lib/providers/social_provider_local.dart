@@ -77,6 +77,12 @@ class LocalSocialProvider extends SocialProvider {
   }
 
   @override
+  Future<void> cancel(String id) async {
+    _friends.removeWhere((f) => f.profile.id == id && f.state == FriendState.requested);
+    await _persist();
+  }
+
+  @override
   Future<void> remove(String id) async {
     _friends.removeWhere((f) => f.profile.id == id);
     _chats.remove(id);

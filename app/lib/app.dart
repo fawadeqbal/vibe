@@ -8,6 +8,7 @@ import 'core/api/realtime_client.dart';
 import 'core/api/system_notices.dart';
 import 'core/theme/vibe_theme.dart';
 import 'models/payments.dart';
+import 'providers/activity_provider.dart';
 import 'providers/calls_provider.dart';
 import 'providers/catalog_provider.dart';
 import 'providers/discover_provider.dart';
@@ -129,6 +130,8 @@ class _VibeAppState extends State<VibeApp> {
     await context.read<MatchProvider>().load();
     if (!mounted) return;
     await context.read<InboxProvider>().load();
+    if (!mounted) return;
+    await context.read<ActivityProvider?>()?.load();
     if (!mounted) return;
     await context.read<EngagementProvider>().load();
     if (!mounted) return;

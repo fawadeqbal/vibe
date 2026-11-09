@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Screen } from "@/components/layout/screen";
-import { confirm } from "@/components/shared/dialogs";
+import { confirm, useNeedCoins } from "@/components/shared/dialogs";
 import { BadgeRow, LevelChip } from "@/components/shared/level-chip";
 import { pickReport } from "@/components/shared/report-sheet";
 import { Avatar } from "@/components/ui/avatar";
@@ -20,11 +20,13 @@ import { SectionTitle } from "@/components/ui/typography";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { streakDays } from "@/lib/engagement";
-import { thousands } from "@/lib/format";
+import { presenceLabel, thousands } from "@/lib/format";
 import { type FollowState, type FriendState, intentInfo, type ProfileView } from "@/lib/models";
+import { economy } from "@/stores/catalog";
 import { followStateOf, useFollows } from "@/stores/follows";
 import { friendStateOf, useSocial } from "@/stores/social";
 import { openSheet, toast } from "@/stores/ui";
+import { freeFriendRequestsLeft, useWallet } from "@/stores/wallet";
 
 /**
  * Someone else's profile. It opens up as you get closer: matched → following
@@ -35,10 +37,12 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
   const router = useRouter();
   const follow = useFollows((s) => followStateOf(s, userId));
   const friend = useSocial((s) => friendStateOf(s, userId));
-  const streak = useSocial((s) => s.all.find((f) => f.profile.id === userId && f.state === "friends")?.streak ?? null);
+  const asFriend = useSocial((s) => s.all.find((f) => f.profile.id === userId && f.state === "friends"));
+  const streak = asFriend?.streak ?? null;
   /** undefined = loading, null = may not see it. */
   const [view, setView] = useState<ProfileView | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const needCoins = useNeedCoins();
   /** Bumped after an action to re-read the profile (the tier may have changed). */
   const [version, setVersion] = useState(0);
 
@@ -70,6 +74,8 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
 
   const p = view.profile;
   const self = view.tier === "self";
+  // Friends: live from the friends list (presence events), else what the profile said when it loaded.
+  const status = view.tier === "friends" ? presenceLabel(asFriend?.online ?? view.online, asFriend?.lastSeenAt ?? view.lastSeenAt) : null;
 
   /** Runs an action, then re-reads the profile (the tier may have changed). */
   const run = async (action: () => Promise<unknown>) => {
@@ -102,7 +108,29 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
       return;
     }
     if (friend === "incoming") return run(() => useSocial.getState().accept(userId));
+    if (friend === "requested") {
+      const ok = await confirm({ title: "Cancel your friend request?", ok: "Cancel request", cancel: "Keep", okTone: "bad" });
+      if (ok) await run(() => useSocial.getState().cancel(userId));
+      return;
+    }
+    if (friend === "none" && view.met) {
+      const e = economy();
+      if (freeFriendRequestsLeft(useWallet.getState()) === 0) {
+        const ok = await confirm({
+          title: `Send ${p.name} a friend request?`,
+          body: `Your ${e.freeFriendRequestsPerDay} free requests for today are used. This one costs ${e.friendRequestCost} coins.`,
+          ok: `Send for ${e.friendRequestCost}`,
+        });
+        if (!ok) return;
+      }
+      await run(async () => {
+        if (await useSocial.getState().sendRequest(p)) toast(`Request sent to ${p.name}`);
+        else await needCoins(`A friend request costs ${e.friendRequestCost} coins once your free ones are used.`);
+      });
+    }
   };
+
+  const onDecline = () => run(() => useSocial.getState().decline(userId));
 
   const onReport = async () => {
     const choice = await pickReport(p.name);
@@ -147,7 +175,7 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
           </span>
           <span className="type-body mt-1 block text-[13px] text-text2">
             {p.country.flag} {p.country.name}
-            {view.online ? " · Online now" : ""}
+            {status ? ` · ${status === "Online" ? "Online now" : status}` : ""}
           </span>
           {streak && streak.count > 0 ? (
             <span className="type-label mt-1 flex items-center text-[13px]" style={{ color: streak.today ? "var(--color-flame)" : streak.atRisk ? "var(--color-warn)" : "var(--color-text2)" }}>
@@ -168,20 +196,29 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
       {!self ? (
         <div className="mt-[18px] flex gap-2.5">
           <span className="flex-1">
-            <FollowButton state={follow} busy={busy} onFollow={() => void onFollow()} onUndo={() => void onUnfollow()} />
+            <FollowButton state={follow} followsYou={view.followsYou} busy={busy} onFollow={() => void onFollow()} onUndo={() => void onUnfollow()} />
           </span>
-          {/* Friend requests are only sent from a live call (the + on the call screen); a profile can only accept or open chat. */}
-          {friend !== "none" && friend !== "blocked" ? (
+          {/* Friends: anyone you've met (call or Discover match). On a live call the + on the call screen does it. */}
+          {friend !== "blocked" && (friend !== "none" || (view.met && !inCall)) ? (
             <span className="flex-1">
-              <FriendButton state={friend} inCall={inCall} onClick={() => void onFriend()} />
+              <FriendButton state={friend} inCall={inCall} busy={busy} onClick={() => void onFriend()} />
             </span>
           ) : null}
         </div>
       ) : null}
-      {!self && friend === "none" ? (
+      {!self && friend === "incoming" ? (
+        <p className="type-body mt-2.5 flex items-center gap-2 text-[12.5px] text-text2">
+          <Icon name="person_add" size={16} className="text-muted" />
+          <span className="flex-1">{p.name.split(" ")[0]} wants to be friends.</span>
+          <button type="button" disabled={busy} onClick={() => void onDecline()} className="type-label rounded-full px-3 py-1 text-[12.5px] font-semibold text-text2 hover:bg-surface2 hover:text-text">
+            Decline
+          </button>
+        </p>
+      ) : null}
+      {!self && friend === "none" && (inCall || !view.met) ? (
         <p className="type-body mt-2.5 flex items-center gap-2 text-[12.5px] text-text2">
           <Icon name="videocam" size={16} className="text-muted" />
-          {inCall ? `Tap + on the call to add ${p.name} as a friend` : `Friends are made on video calls. Match again to add ${p.name}.`}
+          {inCall ? `Tap + on the call to add ${p.name} as a friend` : `You can add ${p.name} as a friend after you meet on a video call.`}
         </p>
       ) : null}
 
@@ -230,16 +267,16 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
   );
 }
 
-function FollowButton({ state, busy, onFollow, onUndo }: { state: FollowState; busy: boolean; onFollow: () => void; onUndo: () => void }) {
-  if (state === "none") return <GradientButton label="Follow" icon="person_add_alt_1" height={46} busy={busy} onClick={onFollow} />;
+function FollowButton({ state, followsYou, busy, onFollow, onUndo }: { state: FollowState; followsYou: boolean; busy: boolean; onFollow: () => void; onUndo: () => void }) {
+  if (state === "none") return <GradientButton label={followsYou ? "Follow back" : "Follow"} icon="person_add_alt_1" height={46} busy={busy} onClick={onFollow} />;
   return <GhostButton label={state === "requested" ? "Requested" : "Following"} icon={state === "requested" ? "hourglass_top" : "check"} height={46} expand disabled={busy} onClick={onUndo} />;
 }
 
-function FriendButton({ state, inCall, onClick }: { state: FriendState; inCall: boolean; onClick: () => void }) {
+function FriendButton({ state, inCall, busy, onClick }: { state: FriendState; inCall: boolean; busy: boolean; onClick: () => void }) {
   if (state === "friends") return <GhostButton label="Message" icon="chat_bubble_outline" height={46} expand disabled={inCall} onClick={onClick} />;
-  if (state === "incoming") return <GhostButton label="Accept friend" icon="how_to_reg" height={46} expand onClick={onClick} />;
-  if (state === "requested") return <GhostButton label="Request sent" icon="hourglass_top" height={46} expand disabled />;
-  if (state === "blocked") return null;
+  if (state === "incoming") return <GhostButton label="Accept friend" icon="how_to_reg" height={46} expand disabled={busy} onClick={onClick} />;
+  if (state === "requested") return <GhostButton label="Request sent" icon="hourglass_top" height={46} expand disabled={busy} onClick={onClick} />;
+  if (state === "none") return <GhostButton label="Add friend" icon="person_add" height={46} expand disabled={busy} onClick={onClick} />;
   return null;
 }
 

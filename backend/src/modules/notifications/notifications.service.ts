@@ -11,6 +11,7 @@ import { RedisService } from '../../infra/redis/redis.service';
 import { MailTemplatesService } from '../messaging/mail-templates.service';
 import { unsubscribeUrl } from '../messaging/unsubscribe';
 import { PushService } from '../push/push.service';
+import { ActivityFeedService } from './activity-feed.service';
 import { BuildCtx, CATALOG, CATALOG_BY_KEY, Channel, CHANNELS, Content, GROUP_PUSH, GROUPS, NotificationType, NotifyGroup, TYPES_BY_EVENT, webPath } from './catalog';
 
 /** Staff changes per type: Admin → Configuration → Notifications. */
@@ -62,6 +63,7 @@ export class NotificationsService implements OnModuleInit {
     private readonly templates: MailTemplatesService,
     private readonly config: AppConfig,
     private readonly clock: Clock,
+    private readonly feed: ActivityFeedService,
   ) {}
 
   onModuleInit(): void {
@@ -93,7 +95,7 @@ export class NotificationsService implements OnModuleInit {
 
   private async deliver(userId: string, type: NotificationType, data: Record<string, unknown>, opts: { online?: boolean }): Promise<NotifyResult> {
     const on = await this.channelsFor(type);
-    if (!on.push && !on.inApp && !on.email) return NOTHING;
+    if (!on.push && !on.inApp && !on.email && !type.feed) return NOTHING;
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true, isBot: true, name: true, email: true, marketingEmails: true, notifyPrefs: true } });
     if (!user || user.isBot || user.status !== UserStatus.ACTIVE) return NOTHING;
     const prefs = userChannels(user.notifyPrefs, type.group);
@@ -104,10 +106,13 @@ export class NotificationsService implements OnModuleInit {
     const online = needsOnline ? (opts.online ?? (await this.realtime.isOnline(userId))) : false;
     if (online && !type.pushWhenOnline) want.push = false;
     if (want.email && !TRANSACTIONAL.has(type.group) && (online || !user.marketingEmails)) want.email = false;
-    if (!want.push && !want.inApp && !want.email) return NOTHING;
+    // The Notifications page keeps feed types even when no channel goes out (e.g. no push while you're in the app).
+    if (!want.push && !want.inApp && !want.email && !type.feed) return NOTHING;
 
     const content = await type.build(data, this.ctx(userId));
     if (!content) return NOTHING;
+    if (type.feed) await this.feed.record(userId, type, content);
+    if (!want.push && !want.inApp && !want.email) return NOTHING;
 
     const result: NotifyResult = { push: 0, inApp: false, email: false };
     if (want.push) {

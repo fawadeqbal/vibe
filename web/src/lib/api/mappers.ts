@@ -1,6 +1,7 @@
 import { country } from "../catalog";
 import { asIntent } from "../models";
 import type {
+  ActivityItem,
   Badge,
   Board,
   CallGame,
@@ -127,6 +128,7 @@ export function friend(m: Json): Friend {
     lastMessage: optStr(m.lastMessage),
     unread: int(m.unread),
     online: bool(m.online),
+    lastSeenAt: date(m.lastSeenAt),
     streak: streak(asMap(m.streak)),
     calls: callsOf(asMap(m.calls)),
   };
@@ -218,6 +220,8 @@ export function profileView(m: Json): ProfileView {
     counts: counts ? { followers: int(counts.followers), following: int(counts.following) } : null,
     stats: stats === "hidden" ? "hidden" : stats && typeof stats === "object" ? { matches: int(asMap(stats).matches), likes: int(asMap(stats).likes), gifts: int(asMap(stats).gifts) } : null,
     online: typeof m.online === "boolean" ? m.online : null,
+    lastSeenAt: date(m.lastSeenAt),
+    met: bool(m.met),
     level: Math.max(1, int(m.level ?? asMap(m.profile).level)),
     badges: asList(m.badges).filter((x): x is string => typeof x === "string"),
   };
@@ -313,4 +317,24 @@ export function applyGameAnswer(g: CallGame, m: Json): CallGame {
   // `mine` is null for an open question even once answered; the server only says so through `revealed`/our own ack.
   const mine = choice(m.mine, revealed) ?? g.mine;
   return { ...g, mine, theirs: revealed ? choice(m.theirs, true) : null, partnerAnswered, revealed };
+}
+
+const ACTIVITY_FRIEND = ["none", "friends", "requested", "incoming"] as const;
+
+export function activityItem(m: Json): ActivityItem {
+  const rel = m.rel && typeof m.rel === "object" ? asMap(m.rel) : null;
+  const data = asMap(m.data);
+  return {
+    id: String(m.id ?? ""),
+    type: String(m.type ?? ""),
+    title: String(m.title ?? ""),
+    body: String(m.body ?? ""),
+    data: Object.fromEntries(Object.entries(data).filter((e): e is [string, string] => typeof e[1] === "string")),
+    actor: m.actor && typeof m.actor === "object" ? profile(asMap(m.actor)) : null,
+    rel: rel
+      ? { friend: ACTIVITY_FRIEND.find((x) => x === rel.friend) ?? "none", follow: followState(rel.follow), followsYou: bool(rel.followsYou), followRequest: bool(rel.followRequest) }
+      : null,
+    read: bool(m.read),
+    at: date(m.createdAt) ?? new Date(),
+  };
 }

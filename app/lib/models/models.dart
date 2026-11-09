@@ -332,17 +332,22 @@ class CallsView {
 }
 
 class Friend {
-  const Friend({required this.profile, required this.state, required this.since, this.lastMessage, this.unread = 0, this.online = false, this.streak = StreakView.none, this.calls = CallsView.off});
+  const Friend({required this.profile, required this.state, required this.since, this.lastMessage, this.unread = 0, this.online = false, this.lastSeenAt, this.streak = StreakView.none, this.calls = CallsView.off});
   final Profile profile;
   final FriendState state;
+
+  /// When you became friends (or the request was sent) — not when they were last online.
   final DateTime since;
   final String? lastMessage;
   final int unread;
   final bool online;
+
+  /// When they were last in the app (friends only; null = unknown).
+  final DateTime? lastSeenAt;
   final StreakView streak;
   final CallsView calls;
 
-  Friend copyWith({FriendState? state, String? lastMessage, int? unread, bool? online, StreakView? streak, CallsView? calls}) {
+  Friend copyWith({FriendState? state, String? lastMessage, int? unread, bool? online, DateTime? lastSeenAt, StreakView? streak, CallsView? calls}) {
     return Friend(
       profile: profile,
       state: state ?? this.state,
@@ -350,6 +355,7 @@ class Friend {
       lastMessage: lastMessage ?? this.lastMessage,
       unread: unread ?? this.unread,
       online: online ?? this.online,
+      lastSeenAt: lastSeenAt ?? this.lastSeenAt,
       streak: streak ?? this.streak,
       calls: calls ?? this.calls,
     );

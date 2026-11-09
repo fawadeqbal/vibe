@@ -1,6 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 
 import { PushModule } from '../push/push.module';
+import { ActivityFeedService } from './activity-feed.service';
+import { ActivityController } from './activity.controller';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 
@@ -8,8 +10,8 @@ import { NotificationsService } from './notifications.service';
 @Global()
 @Module({
   imports: [PushModule],
-  controllers: [NotificationsController],
-  providers: [NotificationsService],
-  exports: [NotificationsService],
+  controllers: [NotificationsController, ActivityController],
+  providers: [NotificationsService, ActivityFeedService],
+  exports: [NotificationsService, ActivityFeedService],
 })
 export class NotificationsModule {}

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../notifications/notifications_screen.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
@@ -41,6 +42,8 @@ class ChatsScreen extends StatelessWidget {
             PageHeader(
               'Chats',
               actions: [
+                const NotificationsBell(),
+                const SizedBox(width: 8),
                 CircleIconButton(
                   icon: SolarIconsBold.userPlusRounded,
                   iconSize: 20,

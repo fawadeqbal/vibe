@@ -2,6 +2,7 @@ import { ApiError } from "@/lib/api/errors";
 import { browserStorage } from "@/lib/referrals";
 import { captureVisit, clearVisit, readVisit } from "@/lib/site-visit";
 
+import { useActivity } from "./activity";
 import { useAffiliate } from "./affiliate";
 import { useCalls } from "./calls";
 import { useCatalog } from "./catalog";
@@ -36,6 +37,7 @@ async function loadAll() {
     useFollows.getState().load(),
     useMatch.getState().load(),
     useInbox.getState().load(),
+    useActivity.getState().load(),
     useEngagement.getState().load(),
     useMoments.getState().load(),
     useSession.getState().syncTimezone(),
@@ -60,6 +62,7 @@ function onSessionChanged(signedIn: boolean) {
     useSocial.getState().reset();
     useFollows.getState().reset();
     useInbox.getState().reset();
+    useActivity.getState().reset();
     useEngagement.getState().reset();
     useMoments.getState().reset();
     useReferrals.getState().reset();

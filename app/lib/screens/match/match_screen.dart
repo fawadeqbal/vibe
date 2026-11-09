@@ -27,6 +27,7 @@ import '../invite/share_cards.dart';
 import '../profile/leaderboard_screen.dart';
 import '../profile/progress.dart';
 import '../profile/user_profile_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../store/store_screen.dart';
 import '../store/vip_screen.dart';
 import 'filters_sheet.dart';
@@ -611,6 +612,7 @@ class _Lobby extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const Padding(padding: EdgeInsets.only(right: 8), child: NotificationsBell(glass: true)),
                     CoinChip(coins: wallet.coins, onTap: onOpenStore, glass: true),
                   ],
                 ),

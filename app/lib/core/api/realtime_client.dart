@@ -58,6 +58,12 @@ class Ev {
   static const levelUp = 'progress:level-up';
   static const goalReached = 'wallet:goal-reached';
   static const inboxMessage = 'inbox:message';
+
+  /// A new line on the Notifications page: `{ item, unread }`.
+  static const activityNew = 'activity:new';
+
+  /// Notifications were read (maybe on another device): `{ unread }`.
+  static const activityRead = 'activity:read';
   static const catalogUpdated = 'catalog:updated';
   static const referralUpdated = 'referral:updated';
   static const referralMilestone = 'referral:milestone';

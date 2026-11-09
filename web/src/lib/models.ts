@@ -168,6 +168,8 @@ export interface Friend {
   lastMessage: string | null;
   unread: number;
   online: boolean;
+  /** When they were last in the app (friends only; null = unknown). */
+  lastSeenAt: Date | null;
   streak: StreakView;
   /** Calls in this chat: each side's "allow" and whether it includes video. Both allow = voice calls; both video too = video calls. */
   calls: { mine: boolean; theirs: boolean; mineVideo: boolean; theirsVideo: boolean };
@@ -290,6 +292,10 @@ export interface ProfileView {
   counts: { followers: number; following: number } | null;
   stats: ProfileStats | "hidden" | null;
   online: boolean | null;
+  /** Friends only: when they were last in the app. */
+  lastSeenAt: Date | null;
+  /** You've been on a call or matched in Discover: a friend request can be sent from the profile. */
+  met: boolean;
   level: number;
   /** Earned badge ids. */
   badges: string[];
@@ -412,4 +418,29 @@ export interface MePrefs {
   quietHoursEnd: number | null;
   tzOffsetMinutes: number;
   breakReminderMinutes: number | null;
+}
+
+/** Where you stand with the person a notification is from (decides its button). */
+export interface ActivityRel {
+  friend: "none" | "friends" | "requested" | "incoming";
+  follow: FollowState;
+  followsYou: boolean;
+  /** They asked to follow you and it's still waiting. */
+  followRequest: boolean;
+}
+
+/** One line on the Notifications page. */
+export interface ActivityItem {
+  id: string;
+  /** Notification type, e.g. "friend.request", "follow.new", "payment.update". */
+  type: string;
+  title: string;
+  body: string;
+  /** Where a tap leads: `route` + ids. */
+  data: Record<string, string>;
+  /** Who it's from; null for Vibe's own (money, account) or if they're gone. */
+  actor: Profile | null;
+  rel: ActivityRel | null;
+  read: boolean;
+  at: Date;
 }
