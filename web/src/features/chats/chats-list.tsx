@@ -4,9 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { StreakChip } from "@/components/shared/streak-chip";
-import { TeamAvatar } from "@/components/shared/team-avatar";
 import { Avatar, FaceStack } from "@/components/ui/avatar";
-import { CircleIconButton, GhostButton, GradientButton } from "@/components/ui/button";
+import { CircleIconButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { EmptyState } from "@/components/ui/misc";
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,18 +13,18 @@ import { SectionTitle } from "@/components/ui/typography";
 import { useNow } from "@/hooks/use-now";
 import { cn } from "@/lib/cn";
 import { agoShort, plural } from "@/lib/format";
-import type { Friend, Profile, TeamMessage } from "@/lib/models";
-import { useInbox } from "@/stores/inbox";
+import type { Friend, Profile } from "@/lib/models";
 import { useActivity } from "@/stores/activity";
-import { friendsOf, incomingOf, requestedOf, useSocial } from "@/stores/social";
+import { friendsOf, useSocial } from "@/stores/social";
 import { isVip, useWallet } from "@/stores/wallet";
 
 import { MomentsBar } from "./moments-bar";
 import { useRestoreStreak } from "./streak";
 
 /**
- * Friends you made in matches. Requests on top with labelled Accept/Decline,
- * the "liked you" teaser for free users, then a calm, unboxed conversation list.
+ * Your chats, and only chats: the "liked you" teaser for free users, then a
+ * calm, unboxed conversation list. Friend requests, sent requests and
+ * Messages from Vibe live on the Notifications page (the bell).
  */
 export function ChatsList() {
   const router = useRouter();
@@ -33,14 +32,10 @@ export function ChatsList() {
   const path = usePathname();
   const social = useSocial();
   const vip = useWallet((s) => isVip(s.wallet));
-  const latest = useInbox((s) => s.messages[0] ?? null);
-  const teamUnread = useInbox((s) => s.unread);
   const restore = useRestoreStreak();
   useNow(60_000);
   const friends = friendsOf(social);
-  const incoming = incomingOf(social);
-  const requested = requestedOf(social);
-  const empty = !friends.length && !incoming.length && !requested.length && !latest;
+  const empty = !friends.length;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
@@ -77,37 +72,12 @@ export function ChatsList() {
       ) : (
         <div className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-8">
           <MomentsBar />
-          {latest ? <TeamRow latest={latest} unread={teamUnread} active={path === "/chats/inbox"} /> : null}
-          {incoming.length ? (
-            <>
-              <SectionTitle text={`Requests · ${incoming.length}`} top={latest ? 18 : 4} />
-              {incoming.map((f) => (
-                <RequestCard key={f.profile.id} f={f} />
-              ))}
-            </>
-          ) : null}
           {!vip && social.likedYouCount > 0 ? (
-            <div className={incoming.length ? "mt-2.5" : "mt-1"}>
+            <div className="mt-1">
               <LikedTeaser people={social.likedYou} count={social.likedYouCount} />
             </div>
           ) : null}
-          {requested.length ? (
-            <div className="mt-3.5">
-              {requested.map((f) => (
-                <div key={f.profile.id} className="flex items-center px-0.5 py-1">
-                  <span className="opacity-80">
-                    <Avatar url={f.profile.avatarUrl} name={f.profile.name} size={24} />
-                  </span>
-                  <p className="type-body ml-2.5 flex-1 text-[12.5px] text-muted">
-                    Waiting for <span className="font-semibold text-text2">{f.profile.name}</span> to accept
-                  </p>
-                  <Icon name="hourglass_top" size={16} className="text-muted" />
-                </div>
-              ))}
-            </div>
-          ) : null}
-          <SectionTitle text={`Friends · ${friends.length}`} top={26} bottom={4} />
-          {!friends.length ? <p className="type-body px-0.5 py-3 text-[13px] text-text2">Nobody has accepted yet.</p> : null}
+          <SectionTitle text={`Friends · ${friends.length}`} top={!vip && social.likedYouCount > 0 ? 26 : 4} bottom={4} />
           {friends.map((f, i) => (
             <FriendRow key={f.profile.id} f={f} last={i === friends.length - 1} active={path === `/chats/${f.profile.id}`} onRestore={() => void restore(f)} />
           ))}
@@ -117,34 +87,6 @@ export function ChatsList() {
   );
 }
 
-function RequestCard({ f }: { f: Friend }) {
-  const p = f.profile;
-  const { accept, decline } = useSocial.getState();
-  return (
-    <div className="mb-2.5 rounded-card border border-pink/32 bg-surface p-3.5">
-      <div className="flex items-center">
-        <Avatar url={p.avatarUrl} name={p.name} size={52} ring gapColor="var(--color-surface)" />
-        <div className="ml-3 min-w-0 flex-1">
-          <p className="flex items-center">
-            <span className="type-title truncate text-[16px] font-semibold">
-              {p.name}, {p.age}
-            </span>
-            {p.verified ? <Icon name="verified" size={16} className="ml-1 text-trust" label="Verified" /> : null}
-          </p>
-          <p className="type-body mt-px truncate text-[12.5px] text-text2">
-            {p.country.flag} {p.country.name} · wants to be friends
-          </p>
-        </div>
-      </div>
-      <div className="mt-3 flex gap-2">
-        <GhostButton label="Decline" height={42} expand className="flex-1 text-text2" onClick={() => void decline(p.id)} />
-        <div className="flex-1">
-          <GradientButton label="Accept" height={42} onClick={() => void accept(p.id)} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function LikedTeaser({ people, count }: { people: Profile[]; count: number }) {
   return (
@@ -224,29 +166,3 @@ function FriendRow({ f, last, active, onRestore }: { f: Friend; last: boolean; a
 }
 
 /** Pinned row for "Messages from Vibe" (the team's messages), above friend requests. */
-function TeamRow({ latest, unread, active }: { latest: TeamMessage; unread: number; active: boolean }) {
-  const hasUnread = unread > 0;
-  return (
-    <Link
-      href="/chats/inbox"
-      aria-label={hasUnread ? `Messages from Vibe, ${unread} new` : "Messages from Vibe"}
-      className={cn(
-        "flex items-center rounded-card border bg-surface p-3 transition-[filter] hover:brightness-110",
-        hasUnread ? "border-pink/32" : "border-line",
-        active && "brightness-125",
-      )}
-    >
-      <TeamAvatar size={46} />
-      <span className="ml-3 min-w-0 flex-1">
-        <span className="flex items-center">
-          <span className="type-title flex-1 truncate text-[15px] font-semibold">Messages from Vibe</span>
-          <span className={cn("type-label text-[12px]", hasUnread ? "font-semibold text-pink-soft" : "font-normal text-muted")}>{agoShort(latest.at)}</span>
-        </span>
-        <span className="mt-0.5 flex items-center">
-          <span className={cn("type-body min-w-0 flex-1 truncate text-[13.5px]", hasUnread ? "font-medium text-text" : "text-text2")}>{latest.title}</span>
-          {hasUnread ? <UnreadBadge n={unread} /> : null}
-        </span>
-      </span>
-    </Link>
-  );
-}

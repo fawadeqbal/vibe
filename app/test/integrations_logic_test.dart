@@ -279,7 +279,10 @@ void main() {
     test('notification data → where to go', () {
       expect(PushRoute.fromData({'route': 'chat', 'friendId': 'u1', 'category': 'messages'}), const PushRoute(PushTarget.chat, friendId: 'u1'));
       expect(PushRoute.fromData({'route': 'chat'}), const PushRoute(PushTarget.friends));
-      expect(PushRoute.fromData({'route': 'friends', 'userId': 'u2'}), const PushRoute(PushTarget.friends));
+      // A friend request opens the person's profile (Accept / Decline there); requests no longer live in Chats.
+      expect(PushRoute.fromData({'route': 'friends', 'userId': 'u2'}), const PushRoute(PushTarget.profile, userId: 'u2'));
+      expect(PushRoute.fromData({'route': 'friends'}), const PushRoute(PushTarget.notifications));
+      expect(PushRoute.fromData({'route': 'notifications'}), const PushRoute(PushTarget.notifications));
       expect(PushRoute.fromData({'route': 'inbox'})!.target, PushTarget.inbox);
       expect(PushRoute.fromData({'route': 'wallet', 'cashoutId': 'c1'}), const PushRoute(PushTarget.wallet, cashoutId: 'c1'));
       expect(PushRoute.fromData({'route': 'store', 'purchaseId': 'p1'})!.purchaseId, 'p1');

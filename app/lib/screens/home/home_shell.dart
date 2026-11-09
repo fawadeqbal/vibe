@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../notifications/notifications_screen.dart';
 import '../../core/theme/vibe_dock.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -14,7 +15,6 @@ import '../../providers/calls_provider.dart';
 import '../../providers/discover_provider.dart';
 import '../../providers/engagement_provider.dart';
 import '../../providers/follows_provider.dart';
-import '../../providers/inbox_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/referrals_provider.dart';
 import '../../providers/session_provider.dart';
@@ -77,6 +77,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   String? _incomingShown;
   bool _outgoingShown = false;
   StreamSubscription<PushRoute>? _taps;
+  StreamSubscription<PushRoute>? _links;
   StreamSubscription<FollowNotice>? _followNotices;
   StreamSubscription<int>? _levelUps;
   StreamSubscription<int>? _goals;
@@ -295,6 +296,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     });
     final push = context.read<AppServices>().push;
     _taps = push.taps.listen(_open);
+    _links = DeepLinks.stream.listen(_open);
     final launch = push.takeLaunchRoute();
     if (launch != null) WidgetsBinding.instance.addPostFrameCallback((_) => _open(launch));
     _followNotices = context.read<FollowsProvider>().notices.listen((n) {
@@ -325,6 +327,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   @override
   void dispose() {
     _taps?.cancel();
+    _links?.cancel();
     _followNotices?.cancel();
     _levelUps?.cancel();
     _goals?.cancel();
@@ -358,29 +361,37 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   void _open(PushRoute r) {
     if (!mounted) return;
     final nav = Navigator.of(context);
+    // A tab: close whatever is on top (the Notifications page, a profile…) so the tab shows.
+    void tab(int i) {
+      nav.popUntil((route) => route.isFirst);
+      go(i);
+    }
+
     switch (r.target) {
       case PushTarget.chat:
-        go(Tabs.chats);
-        if (context.read<SocialProvider>().friend(r.friendId!) != null) nav.push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: r.friendId!)));
+        if (context.read<SocialProvider>().friend(r.friendId!) != null) {
+          nav.push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: r.friendId!)));
+        } else {
+          tab(Tabs.chats);
+        }
       case PushTarget.friends:
-        go(Tabs.chats);
+        tab(Tabs.chats);
+      case PushTarget.notifications:
+        nav.push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
       case PushTarget.inbox:
-        go(Tabs.chats);
         nav.push(MaterialPageRoute(builder: (_) => const InboxScreen()));
       case PushTarget.wallet:
         nav.push(MaterialPageRoute(builder: (_) => const WalletScreen()));
       case PushTarget.store:
-        go(Tabs.store);
+        tab(Tabs.store);
       case PushTarget.discover:
-        nav.popUntil((route) => route.isFirst);
-        go(Tabs.discover);
+        tab(Tabs.discover);
       case PushTarget.call:
         // The ring itself comes over the socket; make sure we have it.
         unawaited(_calls.checkIncoming());
       case PushTarget.match:
         // Vibe Hour started: the lobby, with the banner.
-        nav.popUntil((route) => route.isFirst);
-        go(0);
+        tab(Tabs.match);
       case PushTarget.profile:
         nav.push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: r.userId!)));
       case PushTarget.followRequests:
@@ -394,8 +405,8 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
-    final unread = context.select<SocialProvider, int>((s) => s.unreadTotal + s.incoming.length);
-    final teamUnread = context.select<InboxProvider, int>((i) => i.unread);
+    // Chats counts unread messages only; requests and news are on the bell (Notifications).
+    final unread = context.select<SocialProvider, int>((s) => s.unreadTotal);
     final live = context.select<MatchProvider, bool>((m) => m.isConnected || m.isSearching);
     final likes = context.select<DiscoverProvider, int>((d) => d.badge);
     final discoverOn = context.select<DiscoverProvider, bool>((d) => d.enabled);
@@ -437,7 +448,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
                     badge: likes,
                     glyph: _webGlyph('discover'),
                   ),
-                VibeDockItem(icon: SolarIconsOutline.chatRoundDots, activeIcon: SolarIconsBold.chatRoundDots, label: 'Chats', badge: unread + teamUnread, glyph: _webGlyph('chats')),
+                VibeDockItem(icon: SolarIconsOutline.chatRoundDots, activeIcon: SolarIconsBold.chatRoundDots, label: 'Chats', badge: unread, glyph: _webGlyph('chats')),
                 VibeDockItem(icon: SolarIconsOutline.bagSmile, activeIcon: SolarIconsBold.bagSmile, label: 'Store', glyph: _webGlyph('store')),
                 VibeDockItem(icon: SolarIconsOutline.userRounded, activeIcon: SolarIconsBold.userRounded, label: 'Me', glyph: _webGlyph('me')),
               ],

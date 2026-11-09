@@ -12,12 +12,9 @@ import '../../models/models.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/social_provider.dart';
-import '../invite/invite_screen.dart';
-import '../profile/follow_lists_screen.dart';
-import '../profile/user_profile_screen.dart';
+import '../../services/push/push_route.dart';
 import '../social/chat_screen.dart';
-import '../social/inbox_screen.dart';
-import '../store/wallet_screen.dart';
+import '../social/inbox_screen.dart' show TeamAvatar;
 
 /// Notifications: friend and follow requests (answer them right here), new
 /// followers (follow back), matches and accepted requests (say hi), missed
@@ -62,7 +59,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final a = context.watch<ActivityProvider>();
-    final items = a.items;
+    final social = context.watch<SocialProvider>();
+    final incoming = social.incoming;
+    final sent = social.requested;
+    // Waiting friend requests have their own section on top (Accept / Decline); their history line shows once answered.
+    final waiting = {for (final f in incoming) f.profile.id};
+    final items = [for (final i in a.items) if (!(i.type == 'friend.request' && waiting.contains(i.actor?.id))) i];
     bool isNew(ActivityItem i) => !i.read || _freshIds.contains(i.id);
     final fresh = [for (final i in items) if (isNew(i)) i];
     final earlier = [for (final i in items) if (!isNew(i)) i];
@@ -70,7 +72,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: vibeAppBar(context, 'Notifications'),
       body: !a.loaded
           ? const Center(child: CircularProgressIndicator(color: V.pink))
-          : items.isEmpty
+          : items.isEmpty && incoming.isEmpty && sent.isEmpty
           ? const EmptyState(icon: SolarIconsOutline.bell, title: 'Nothing ', accent: 'yet', body: 'Friend requests, new followers, matches and news about your coins show up here.')
           : RefreshIndicator(
               color: V.pink,
@@ -79,6 +81,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 controller: _scroll,
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 32),
                 children: [
+                  if (incoming.isNotEmpty) ...[_header('Friend requests · ${incoming.length}'), for (final f in incoming) _RequestRow(friend: f, incoming: true)],
+                  if (sent.isNotEmpty) ...[_header('Sent requests · ${sent.length}'), for (final f in sent) _RequestRow(friend: f, incoming: false)],
                   if (fresh.isNotEmpty) ...[_header('New'), for (final i in fresh) ActivityRow(item: i, isNew: true)],
                   if (earlier.isNotEmpty) ...[_header(fresh.isEmpty ? 'All' : 'Earlier'), for (final i in earlier) ActivityRow(item: i)],
                   if (a.hasMore)
@@ -93,6 +97,73 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _header(String text) => Padding(padding: const EdgeInsets.fromLTRB(8, 14, 8, 6), child: Text(text, style: VT.label(13)));
+}
+
+/// A friend request still waiting: theirs (Accept / Decline) or yours (Cancel).
+class _RequestRow extends StatefulWidget {
+  const _RequestRow({required this.friend, required this.incoming});
+  final Friend friend;
+  final bool incoming;
+
+  @override
+  State<_RequestRow> createState() => _RequestRowState();
+}
+
+class _RequestRowState extends State<_RequestRow> {
+  bool _busy = false;
+
+  Future<void> _act(Future<void> Function() fn, [String? done]) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await fn();
+      if (mounted && done != null) toast(context, done);
+    } on ApiException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.friend.profile;
+    final social = context.read<SocialProvider>();
+    final first = p.name.split(' ').first;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => DeepLinks.open({'route': 'profile', 'userId': p.id}),
+              child: Row(
+                children: [
+                  VAvatar(url: p.avatarUrl, name: p.name, size: 44),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${p.name}, ${p.age}', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(14, weight: FontWeight.w600)),
+                        Text(widget.incoming ? 'Wants to be friends' : 'Waiting for $first to accept', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(12.5, color: V.text2)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (widget.incoming) ...[
+            TextButton(onPressed: _busy ? null : () => _act(() => social.decline(p.id)), child: Text('Decline', style: VT.label(12.5, color: V.text2))),
+            SizedBox(width: 84, child: GradientButton(label: 'Accept', height: 34, busy: _busy, onTap: () => _act(() async => social.accept(p.id), 'You and $first are friends now'))),
+          ] else
+            TextButton(onPressed: _busy ? null : () => _act(() => social.cancel(p.id)), child: Text('Cancel', style: VT.label(12.5, color: V.text2))),
+        ],
+      ),
+    );
+  }
 }
 
 /// One notification: who / what, when, and the button that fits now.
@@ -124,27 +195,8 @@ class _ActivityRowState extends State<ActivityRow> {
     }
   }
 
-  /// Same places a tapped push opens (see `PushRoute`); tab destinations go back to the tabs.
-  void _open() {
-    final d = widget.item.data;
-    final nav = Navigator.of(context);
-    final user = d['userId'];
-    final friendId = d['friendId'];
-    Widget? page = switch (d['route']) {
-      'chat' || 'call' when friendId != null && context.read<SocialProvider>().friend(friendId) != null => ChatScreen(friendId: friendId),
-      'friends' || 'profile' when user != null => UserProfileScreen(userId: user),
-      'follow-requests' => const FollowListsScreen(initial: FollowList.requests),
-      'wallet' => const WalletScreen(),
-      'invite' => const InviteScreen(),
-      'inbox' => const InboxScreen(),
-      _ => null,
-    };
-    if (page != null) {
-      nav.push(MaterialPageRoute(builder: (_) => page));
-    } else {
-      nav.maybePop();
-    }
-  }
+  /// Exactly where its push would have taken you (the home shell opens it, see `PushRoute`).
+  void _open() => DeepLinks.open(widget.item.data);
 
   @override
   Widget build(BuildContext context) {
@@ -187,6 +239,7 @@ class _ActivityRowState extends State<ActivityRow> {
                           Text.rich(
                             TextSpan(children: [
                               TextSpan(text: i.title, style: VT.body(13.5, weight: FontWeight.w600)),
+                              if (i.count > 1) TextSpan(text: ' · ${i.count} new', style: VT.body(13.5, color: V.pinkSoft, weight: FontWeight.w600)),
                               if (i.body.isNotEmpty) TextSpan(text: ' ${i.body}', style: VT.body(13.5, color: V.text2)),
                             ]),
                             maxLines: 2,

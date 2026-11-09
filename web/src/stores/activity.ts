@@ -89,7 +89,8 @@ export const useActivity = create<ActivityState>()((set, get) => ({
 realtime.on(Ev.activityNew, (d) => {
   const item = d.item && typeof d.item === "object" ? activityItem(asMap(d.item)) : null;
   useActivity.setState((s) => ({
-    items: item && !s.items.some((x) => x.id === item.id) ? [item, ...s.items] : s.items,
+    // A collapsed line (one per chat) comes back with the same id: move it to the top with its new text.
+    items: item ? [item, ...s.items.filter((x) => x.id !== item.id)] : s.items,
     unread: typeof d.unread === "number" ? d.unread : s.unread + (item ? 1 : 0),
   }));
 });

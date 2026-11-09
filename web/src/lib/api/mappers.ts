@@ -335,6 +335,7 @@ export function activityItem(m: Json): ActivityItem {
       ? { friend: ACTIVITY_FRIEND.find((x) => x === rel.friend) ?? "none", follow: followState(rel.follow), followsYou: bool(rel.followsYou), followRequest: bool(rel.followRequest) }
       : null,
     read: bool(m.read),
+    count: Math.max(1, int(m.count)),
     at: date(m.createdAt) ?? new Date(),
   };
 }

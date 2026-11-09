@@ -1,7 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 /// Where a tapped notification should take you, from its `data`
-/// (`route`: chat + friendId | friends | inbox | wallet | store | match | profile + userId | follow-requests | invite | partner | discover | call).
+/// (`route`: chat + friendId | friends (+ userId) | inbox | wallet | store | match | profile + userId | follow-requests | invite | partner | discover | call | notifications).
 @immutable
 class PushRoute {
   const PushRoute(this.target, {this.friendId, this.userId, this.purchaseId, this.cashoutId});
@@ -24,7 +26,9 @@ class PushRoute {
     return switch (s('route')) {
       // A chat without a friend id still lands on the friends list.
       'chat' => s('friendId') != null ? PushRoute(PushTarget.chat, friendId: s('friendId')) : const PushRoute(PushTarget.friends),
-      'friends' => const PushRoute(PushTarget.friends),
+      // A friend request: their profile (Accept / Decline); without a person, the Notifications page.
+      'friends' => s('userId') != null ? PushRoute(PushTarget.profile, userId: s('userId')) : const PushRoute(PushTarget.notifications),
+      'notifications' => const PushRoute(PushTarget.notifications),
       'inbox' => const PushRoute(PushTarget.inbox),
       'wallet' => PushRoute(PushTarget.wallet, purchaseId: s('purchaseId'), cashoutId: s('cashoutId')),
       'store' => PushRoute(PushTarget.store, purchaseId: s('purchaseId')),
@@ -52,7 +56,23 @@ class PushRoute {
   String toString() => 'PushRoute($target${friendId != null ? ', $friendId' : ''})';
 }
 
-enum PushTarget { chat, friends, inbox, wallet, store, match, profile, followRequests, invite, partner, discover, call }
+enum PushTarget { chat, friends, inbox, wallet, store, match, profile, followRequests, invite, partner, discover, call, notifications }
+
+/// In-app deep links: the Notifications page (and anything else) asks the home
+/// shell to open a route, exactly as if its push had been tapped.
+class DeepLinks {
+  DeepLinks._();
+  static final _links = StreamController<PushRoute>.broadcast();
+  static Stream<PushRoute> get stream => _links.stream;
+
+  /// Opens where [data] (a notification's `route` + ids) leads. False when the app doesn't know the route.
+  static bool open(Map<String, dynamic> data) {
+    final r = PushRoute.fromData(data);
+    if (r == null) return false;
+    _links.add(r);
+    return true;
+  }
+}
 
 /// Android notification channels (ids = the server's `category`).
 const pushChannels = <String, String>{

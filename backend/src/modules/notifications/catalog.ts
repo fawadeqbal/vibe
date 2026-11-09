@@ -74,11 +74,14 @@ export interface NotificationType {
   /** Push even when the app is open (the app's own banner usually covers it). */
   pushWhenOnline?: boolean;
   /**
-   * Also kept on the Notifications page (NotificationFeed), whatever the channels:
+   * On the Notifications page (ActivityFeedService) whatever the channels:
    * person = from someone (`data.userId` or `data.friendId` is who), system = from Vibe.
-   * Chats, live calls and reminders aren't: they have their own places.
+   * Types without it (chat messages, reminders, "someone's looking") are kept
+   * there only when a push actually went out — the page is every push you
+   * got — and chat lines collapse to one per chat. `never`: the live ring of
+   * a call (a missed call has its own line).
    */
-  feed?: 'person' | 'system';
+  feed?: 'person' | 'system' | 'never';
   build: (p: P, ctx: BuildCtx) => Promise<Content | null> | Content | null;
 }
 
@@ -133,6 +136,7 @@ export const CATALOG: NotificationType[] = [
   // ── Calls ────────────────────────────────────────────────────────────
   {
     key: 'call.incoming',
+    feed: 'never',
     group: 'calls',
     label: 'A friend is calling',
     event: ServerEvent.CallIncoming,
@@ -507,6 +511,7 @@ export const CATALOG: NotificationType[] = [
   // ── News from Vibe ───────────────────────────────────────────────────
   {
     key: 'team.message',
+    feed: 'system',
     group: 'team',
     label: 'Message from the Vibe team (Messages)',
     event: ServerEvent.InboxMessage,
@@ -526,7 +531,10 @@ export function webPath(data: Record<string, string>): string {
     case 'call':
       return data.friendId ? `/chats/${data.friendId}` : '/chats';
     case 'friends':
-      return '/chats';
+      // A friend request: their profile (Accept / Decline); requests live on the Notifications page, not in Chats.
+      return data.userId ? `/u/${data.userId}` : '/notifications';
+    case 'notifications':
+      return '/notifications';
     case 'inbox':
       return '/chats/inbox';
     case 'wallet':

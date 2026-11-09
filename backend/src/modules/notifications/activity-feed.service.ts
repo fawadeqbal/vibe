@@ -31,6 +31,8 @@ export interface ActivityView {
   actor: PublicProfile | null;
   rel: ActivityRel | null;
   read: boolean;
+  /** How many notifications this line stands for (e.g. 3 messages from one chat). */
+  count: number;
   createdAt: string;
 }
 
@@ -50,15 +52,23 @@ export class ActivityFeedService {
     private readonly clock: Clock,
   ) {}
 
-  /** Called by NotificationsService. Never throws. */
+  /**
+   * Called by NotificationsService. Never throws. Lines with a collapse key
+   * (one per chat, one per call…) replace that chat's unread line instead of
+   * adding another: "Sara · 3 new messages" stays one line.
+   */
   async record(userId: string, type: NotificationType, c: Content): Promise<void> {
-    if (!type.feed) return;
+    if (type.feed === 'never') return;
     try {
-      const actorId = type.feed === 'person' ? c.data.userId || c.data.friendId || null : null;
+      const who = c.data.userId || c.data.friendId || null;
+      const actorId = type.feed === 'system' ? null : who;
       if (actorId === userId) return;
-      const row = await this.prisma.activityItem.create({
-        data: { userId, type: type.key, actorId, title: c.title.slice(0, 200), body: (c.detail ?? c.body).slice(0, 500), data: c.data as Prisma.InputJsonObject },
-      });
+      const collapseKey = c.collapseKey ? `${type.key}:${c.collapseKey}`.slice(0, 120) : null;
+      const fields = { type: type.key, actorId, title: c.title.slice(0, 200), body: (c.detail ?? c.body).slice(0, 500), data: c.data as Prisma.InputJsonObject };
+      const open = collapseKey ? await this.prisma.activityItem.findFirst({ where: { userId, collapseKey, readAt: null }, orderBy: { createdAt: 'desc' } }) : null;
+      const row = open
+        ? await this.prisma.activityItem.update({ where: { id: open.id }, data: { ...fields, count: { increment: 1 }, createdAt: this.clock.now() } })
+        : await this.prisma.activityItem.create({ data: { userId, collapseKey, ...fields } });
       const [item] = await this.views(userId, [row]);
       this.realtime.toUser(userId, ServerEvent.ActivityNew, { item, unread: await this.unread(userId) });
     } catch (e) {
@@ -90,7 +100,7 @@ export class ActivityFeedService {
   }
 
   /** Lines with the person as they are now, and where you stand with them (for Accept / Follow back / Message). */
-  private async views(me: string, rows: { id: string; type: string; actorId: string | null; title: string; body: string; data: Prisma.JsonValue; readAt: Date | null; createdAt: Date }[]): Promise<ActivityView[]> {
+  private async views(me: string, rows: { id: string; type: string; actorId: string | null; title: string; body: string; data: Prisma.JsonValue; readAt: Date | null; count: number; createdAt: Date }[]): Promise<ActivityView[]> {
     const ids = [...new Set(rows.map((r) => r.actorId).filter((x): x is string => !!x))];
     const [users, friendships, mine, theirs] = ids.length
       ? await Promise.all([
@@ -118,7 +128,7 @@ export class ActivityFeedService {
           followRequest: theyFollow.get(actor.id) === FollowStatus.PENDING,
         };
       }
-      return { id: r.id, type: r.type, title: r.title, body: r.body, data: (r.data ?? {}) as Record<string, string>, actor, rel, read: !!r.readAt, createdAt: r.createdAt.toISOString() };
+      return { id: r.id, type: r.type, title: r.title, body: r.body, data: (r.data ?? {}) as Record<string, string>, actor, rel, read: !!r.readAt, count: r.count, createdAt: r.createdAt.toISOString() };
     });
   }
 
