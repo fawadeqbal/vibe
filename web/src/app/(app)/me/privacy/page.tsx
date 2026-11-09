@@ -1,7 +1,6 @@
-import { PrivacyPage } from "@/features/profile/me-sections";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Followers & privacy" };
-
+/** Old link: these settings now live in Settings and activity. */
 export default function Page() {
-  return <PrivacyPage />;
+  redirect("/me/settings");
 }

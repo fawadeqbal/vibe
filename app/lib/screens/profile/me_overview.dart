@@ -11,19 +11,22 @@ import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/models.dart';
 import '../../models/payments.dart';
-import '../../providers/follows_provider.dart';
+import '../../providers/engagement_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../services/app_services.dart';
+import '../invite/invite_share.dart';
 import '../onboarding/profile_setup_screen.dart';
 import 'me_sections.dart';
+import 'user_profile_screen.dart';
 import 'verification_flow.dart';
 
 // The top of Me, the same as the web (web/src/features/profile/me-overview.tsx):
-// the card others see, what's left to fill in, where verification stands and
-// your numbers.
+// your photo and three numbers, name and bio, Edit / Share / Preview, what's
+// left to fill in and your last matches. The full card others see opens from
+// the eye button.
 
 void _openEdit(BuildContext context) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileSetupScreen(editing: true)));
 
@@ -364,22 +367,229 @@ List<ProfileStep> profileSteps(Profile me) {
   ];
 }
 
-/// How far along you are, what's left, one button for the next step, and
-/// the coin bonus when it's waiting. Hidden once everything's done and the
-/// bonus is claimed.
-class ProfileProgress extends StatefulWidget {
-  const ProfileProgress({super.key, required this.me});
+// ── Profile header ────────────────────────────────────────────────────────
+
+/// The top of Me, laid out like the profile pages people already know:
+/// photo with the brand ring, your three numbers beside it, then name, a
+/// line about where you're from and your bio, and Edit / Share / Preview.
+class ProfileHeader extends StatefulWidget {
+  const ProfileHeader({super.key, required this.me});
   final Profile me;
 
-  /// False once everything's done and the bonus is claimed (the card is then left out).
-  static bool shows(Profile me, {required bool bonusClaimed}) => profileSteps(me).any((s) => !s.done) || (!bonusClaimed && me.isComplete);
-
   @override
-  State<ProfileProgress> createState() => _ProfileProgressState();
+  State<ProfileHeader> createState() => _ProfileHeaderState();
 }
 
-class _ProfileProgressState extends State<ProfileProgress> {
+class _ProfileHeaderState extends State<ProfileHeader> {
+  bool _uploading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final me = widget.me;
+    final friends = context.select<SocialProvider, int>((s) => s.friends.length);
+    final level = context.select<EngagementProvider, int>((e) => e.level.level);
+    final vip = context.select<WalletProvider, bool>((w) => w.isVip);
+    final hasPhoto = me.avatarUrl.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Semantics(
+              button: true,
+              label: hasPhoto ? 'See how others see you' : 'Add a profile photo',
+              child: GestureDetector(
+                onTap: hasPhoto ? () => previewProfile(context, me, vip: vip) : (_uploading ? null : () => changeProfilePhoto(context, (b) => mounted ? setState(() => _uploading = b) : null)),
+                child: SizedBox(
+                  width: 92,
+                  height: 92,
+                  child: Stack(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(shape: BoxShape.circle, gradient: V.brand),
+                        child: Container(
+                          decoration: BoxDecoration(shape: BoxShape.circle, color: V.surface2, border: Border.all(color: V.bg, width: 3)),
+                          clipBehavior: Clip.antiAlias,
+                          child: hasPhoto
+                              ? Image.network(me.avatarUrl, fit: BoxFit.cover, width: 92, height: 92, errorBuilder: (_, _, _) => const SizedBox.shrink())
+                              : Center(
+                                  child: _uploading
+                                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3, color: V.pinkSoft))
+                                      : const Icon(SolarIconsBold.cameraAdd, size: 30, color: V.text2),
+                                ),
+                        ),
+                      ),
+                      if (me.verified)
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: V.trust, border: Border.all(color: V.bg, width: 3)),
+                            child: const Icon(Icons.check_rounded, size: 16, color: V.onGem, semanticLabel: 'Verified'),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Row(
+                children: [
+                  _Stat(value: me.matches, label: 'Matches', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RecentMatchesScreen()))),
+                  _Stat(value: me.likes, label: 'Likes'),
+                  _Stat(value: friends, label: 'Friends'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            Text('${me.name}, ${me.age}', style: VT.title(17)),
+            if (vip) const _Chip(label: 'VIP', color: V.gold, icon: SolarIconsBold.crown),
+            me.verified ? const _Chip(label: 'Verified', color: V.trust, icon: SolarIconsBold.verifiedCheck) : const _Chip(label: 'Not verified'),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text('${me.country.flag} ${me.country.name} · ${me.gender.label} · Level $level', style: VT.body(13, color: V.text2)),
+        if (me.bio.trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(me.bio, maxLines: 3, overflow: TextOverflow.ellipsis, style: VT.body(14)),
+        ],
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(child: GhostButton(label: 'Edit profile', height: 40, expand: true, onTap: () => _openEdit(context))),
+            const SizedBox(width: 8),
+            Expanded(child: GhostButton(label: 'Share profile', height: 40, expand: true, onTap: () => _share(context, me))),
+            const SizedBox(width: 8),
+            Semantics(
+              button: true,
+              label: 'See how others see you',
+              child: Material(
+                color: Colors.white.withValues(alpha: 0.06),
+                shape: StadiumBorder(side: BorderSide(color: Colors.white.withValues(alpha: 0.10))),
+                child: InkWell(
+                  customBorder: const StadiumBorder(),
+                  onTap: () => previewProfile(context, me, vip: vip),
+                  child: const SizedBox(width: 40, height: 40, child: Icon(SolarIconsBold.eye, size: 19, color: V.text)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _share(BuildContext context, Profile me) async {
+    final share = context.read<AppServices>().share;
+    final link = inviteLinkFor(context, channel: 'profile');
+    final text = "I'm on Vibe, free video chat with real people. Come say hi${me.name.isNotEmpty ? ' to ${me.name}' : ''}: $link";
+    if (await share.shareText(text)) return;
+    if (context.mounted) await copyInvite(context, text: text);
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.value, required this.label, this.onTap});
+  final int value;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              children: [
+                Text(Fmt.thousands(value), style: VT.number(20)),
+                const SizedBox(height: 2),
+                Text(label, style: VT.label(12, color: V.text2)),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, this.color, this.icon});
+  final String label;
+  final Color? color;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 22,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(color: color?.withValues(alpha: 0.14) ?? Colors.white.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(11)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[Icon(icon, size: 13, color: color ?? V.text2), const SizedBox(width: 4)],
+            Text(label, style: VT.label(11, color: color ?? V.text2)),
+          ],
+        ),
+      );
+}
+
+/// "How others see you": the full profile card in a sheet.
+Future<void> previewProfile(BuildContext context, Profile me, {required bool vip}) => showVibeSheet<void>(
+      context,
+      child: Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 16), child: ProfileCard(me: me, vip: vip)),
+    );
+
+// ── Complete your profile ─────────────────────────────────────────────────
+
+class _Todo {
+  const _Todo(this.id, this.icon, this.color, this.title, this.body, this.action, {this.onTap, this.busy = false, this.gold = false});
+  final String id;
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String body;
+
+  /// The button ('' = no button, e.g. in review).
+  final String action;
+  final VoidCallback? onTap;
+  final bool busy;
+  final bool gold;
+}
+
+/// What's left, as small cards you swipe through (photo, bio, interests,
+/// here for, verification, then the coin bonus). Gone once everything's done.
+class CompleteProfile extends StatefulWidget {
+  const CompleteProfile({super.key, required this.me});
+  final Profile me;
+
+  @override
+  State<CompleteProfile> createState() => _CompleteProfileState();
+}
+
+class _CompleteProfileState extends State<CompleteProfile> {
   bool _claiming = false;
+  bool _uploading = false;
+  bool _verifying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(context.read<SessionProvider>().loadVerification());
+  }
 
   Future<void> _claim() async {
     setState(() => _claiming = true);
@@ -391,122 +601,12 @@ class _ProfileProgressState extends State<ProfileProgress> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final me = widget.me;
-    final bonusClaimed = context.select<WalletProvider, bool>((w) => w.wallet.profileBonusClaimed);
-    final bonus = Economy.profileCompleteCoins;
-    final steps = profileSteps(me);
-    final done = steps.where((s) => s.done).length;
-    final next = steps.where((s) => !s.done).firstOrNull;
-    // A missing photo has its own prompt on the card above, so the button here moves on to the next gap.
-    final action = steps.where((s) => !s.done && s.id != 'photo').firstOrNull;
-    final bonusReady = !bonusClaimed && me.isComplete;
-    if (next == null && !bonusReady) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(V.r), border: Border.all(color: V.line)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Expanded(child: Text(next != null ? 'Finish your profile' : 'Profile complete', style: VT.title(15, weight: FontWeight.w600))),
-              Text('$done of ${steps.length}', style: VT.number(13, color: V.text2)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Semantics(
-            label: 'Profile progress, $done of ${steps.length}',
-            child: Row(
-              children: [
-                for (var i = 0; i < steps.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 4),
-                  Expanded(
-                    child: Container(height: 6, decoration: BoxDecoration(color: steps[i].done ? V.pink : V.surface3, borderRadius: BorderRadius.circular(3))),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 14,
-            runSpacing: 6,
-            children: [
-              for (final s in steps)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(s.done ? SolarIconsBold.checkCircle : Icons.radio_button_unchecked_rounded, size: 15, color: s.done ? V.ok : V.muted),
-                    const SizedBox(width: 4),
-                    Text(s.label, style: VT.label(12.5, color: s.done ? V.text2 : V.muted)),
-                  ],
-                ),
-            ],
-          ),
-          if (!bonusClaimed) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(SolarIconsBold.dollar, size: 15, color: V.gold),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      style: VT.body(12.5, color: V.text2),
-                      children: bonusReady
-                          ? [const TextSpan(text: 'Your '), TextSpan(text: '+$bonus coins', style: const TextStyle(color: V.gold)), const TextSpan(text: ' bonus is ready.')]
-                          : [const TextSpan(text: 'Photo, bio and 3 interests earn '), TextSpan(text: '+$bonus coins', style: const TextStyle(color: V.gold)), const TextSpan(text: '.')],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          if (bonusReady) ...[
-            const SizedBox(height: 14),
-            GradientButton(label: 'Claim +$bonus coins', gradient: V.goldGrad, foreground: V.onGold, glow: V.gold, height: 46, busy: _claiming, onTap: _claim),
-          ] else if (action != null) ...[
-            const SizedBox(height: 14),
-            GradientButton(label: action.action, height: 46, onTap: () => _openEdit(context)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── Verification ──────────────────────────────────────────────────────────
-
-/// Where you stand on the selfie check, always in view on Me, with the one
-/// thing to do next: verify, add a photo first, retry, or nothing (verified).
-class VerificationCard extends StatefulWidget {
-  const VerificationCard({super.key, required this.me});
-  final Profile me;
-
-  @override
-  State<VerificationCard> createState() => _VerificationCardState();
-}
-
-class _VerificationCardState extends State<VerificationCard> {
-  bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(context.read<SessionProvider>().loadVerification());
-  }
-
   Future<void> _verify() async {
-    setState(() => _busy = true);
+    setState(() => _verifying = true);
     try {
       await startSelfieVerification(context);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _verifying = false);
     }
   }
 
@@ -514,248 +614,132 @@ class _VerificationCardState extends State<VerificationCard> {
   Widget build(BuildContext context) {
     final me = widget.me;
     final v = context.select<SessionProvider, VerificationState>((s) => s.verification);
-    if (me.verified) {
-      return GestureDetector(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SafetySectionScreen())),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: V.trust.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(V.r),
-            border: Border.all(color: V.trust.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            children: [
-              const Icon(SolarIconsBold.verifiedCheck, size: 22, color: V.trust),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("You're verified", style: VT.title(14, weight: FontWeight.w600, color: V.trust)),
-                    Text('Your badge shows on calls, and people matching "verified only" can meet you.', style: VT.body(12, color: V.text2)),
-                  ],
-                ),
-              ),
-              const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
-            ],
+    final bonusClaimed = context.select<WalletProvider, bool>((w) => w.wallet.profileBonusClaimed);
+    final bonus = Economy.profileCompleteCoins;
+    final steps = profileSteps(me);
+    final bonusLine = bonusClaimed ? '' : ' · part of +$bonus coins';
+    final todos = <_Todo>[
+      if (!bonusClaimed && me.isComplete) _Todo('bonus', SolarIconsBold.dollar, V.gold, '+$bonus coins', 'Your profile bonus is ready', 'Claim', onTap: _claim, busy: _claiming, gold: true),
+      for (final s in steps.where((s) => !s.done))
+        switch (s.id) {
+          'photo' => _Todo('photo', SolarIconsBold.cameraAdd, V.pink, 'Add a photo', 'A clear face photo gets more matches', 'Add',
+              busy: _uploading, onTap: () => changeProfilePhoto(context, (b) => mounted ? setState(() => _uploading = b) : null)),
+          'bio' => _Todo('bio', SolarIconsBold.penNewSquare, V.lavender, 'Write a bio', 'One line about you$bonusLine', 'Write', onTap: () => _openEdit(context)),
+          'interests' => _Todo('interests', SolarIconsBold.widget, V.pink, 'Add interests', '${s.action}$bonusLine', 'Add', onTap: () => _openEdit(context)),
+          _ => _Todo('intent', SolarIconsBold.handHeart, V.lavender, "Why you're here", 'Friends, dating or just chat', 'Add', onTap: () => _openEdit(context)),
+        },
+      if (!me.verified)
+        v.status == VerificationStatus.pending
+            ? const _Todo('verify', SolarIconsBold.hourglass, V.trust, 'Selfie in review', 'A person is checking it now', '')
+            : _Todo('verify', SolarIconsBold.shieldCheck, V.trust, v.status == VerificationStatus.rejected ? 'Try verifying again' : 'Get verified',
+                me.avatarUrl.isNotEmpty ? 'Quick selfie, get the badge' : 'Add a photo first', 'Verify',
+                busy: _verifying, onTap: me.avatarUrl.isNotEmpty ? _verify : null),
+    ];
+    if (todos.isEmpty) return const SizedBox.shrink();
+    final total = steps.length + 1;
+    final done = steps.where((s) => s.done).length + (me.verified || v.status == VerificationStatus.pending ? 1 : 0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionTitle('Complete your profile · $done of $total', top: 26, bottom: 10),
+        SizedBox(
+          height: 196,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: todos.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (_, i) => _TodoCard(t: todos[i]),
           ),
         ),
-      );
-    }
-
-    final hasPhoto = me.avatarUrl.isNotEmpty;
-    final pending = v.status == VerificationStatus.pending;
-    final rejected = v.status == VerificationStatus.rejected;
-    final title = pending
-        ? 'Your selfie is in review'
-        : rejected
-        ? "Verification didn't go through"
-        : hasPhoto
-        ? 'Get verified'
-        : 'Verification needs a photo';
-    final reason = (v.reason ?? "We couldn't match your selfie to your photo.").replaceFirst(RegExp(r'\.?$'), '.');
-    final body = pending
-        ? "A person is checking it against your profile photo. We'll let you know."
-        : rejected
-        ? '$reason Try again in good light.'
-        : hasPhoto
-        ? 'A quick selfie check, compared with your photo. You get a badge, and people who only meet verified profiles can match with you.'
-        : 'We compare a quick selfie with your profile photo. Add a photo of your face above, then verify here.';
-    final quiet = pending || !hasPhoto;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: quiet ? V.surface : V.trust.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(V.r),
-        border: Border.all(color: quiet ? V.line : V.trust.withValues(alpha: 0.35)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: V.trust.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(12)),
-                child: Icon(
-                  pending
-                      ? SolarIconsBold.hourglass
-                      : rejected
-                      ? Icons.gpp_maybe_rounded
-                      : SolarIconsBold.shieldCheck,
-                  size: 22,
-                  color: V.trust,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        Text(title, style: VT.title(15, weight: FontWeight.w600)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: pending ? V.warn.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(pending ? 'In review' : 'Not verified', style: VT.label(10.5, color: pending ? V.warn : V.text2, weight: FontWeight.w700)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(body, style: VT.body(12.5, color: V.text2, height: 1.45)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (!quiet) ...[
-            const SizedBox(height: 14),
-            GradientButton(
-              label: rejected ? 'Try again' : 'Verify now',
-              icon: SolarIconsBold.cameraMinimalistic,
-              gradient: V.gemGrad,
-              foreground: V.onGem,
-              glow: V.gem,
-              height: 46,
-              busy: _busy,
-              onTap: _verify,
-            ),
-          ],
-        ],
-      ),
+      ],
     );
   }
 }
 
-// ── Your numbers ──────────────────────────────────────────────────────────
+class _TodoCard extends StatelessWidget {
+  const _TodoCard({required this.t});
+  final _Todo t;
 
-/// Your numbers, each with what it counts. Average call and skip rate come
-/// from your recent calls, and the card says how many.
-class StatsCard extends StatelessWidget {
-  const StatsCard({super.key, required this.me});
-  final Profile me;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 152,
+        padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+        decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(V.r), border: Border.all(color: V.line)),
+        child: Column(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: t.color.withValues(alpha: 0.14)),
+              child: Icon(t.icon, size: 24, color: t.color),
+            ),
+            const SizedBox(height: 10),
+            Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.title(14)),
+            const SizedBox(height: 2),
+            Expanded(child: Text(t.body, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: VT.body(12, color: V.text2, height: 1.35))),
+            if (t.action.isEmpty)
+              SizedBox(height: 34, child: Center(child: Text('In review', style: VT.label(12.5, color: V.warn))))
+            else
+              Opacity(
+                opacity: t.onTap == null ? 0.45 : 1,
+                child: GradientButton(
+                  label: t.action,
+                  height: 34,
+                  gradient: t.gold ? V.goldGrad : V.brand,
+                  foreground: t.gold ? V.onGold : Colors.white,
+                  busy: t.busy,
+                  onTap: t.onTap,
+                ),
+              ),
+          ],
+        ),
+      );
+}
+
+// ── Recent matches ────────────────────────────────────────────────────────
+
+/// The people from your last calls, like a row of stories; tap one for their profile.
+class RecentMatches extends StatelessWidget {
+  const RecentMatches({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final friends = context.select<SocialProvider, int>((s) => s.friends.length);
-    final match = context.watch<MatchProvider>();
-    final hideStats = context.select<FollowsProvider, bool>((f) => f.settings.hideStats);
-    final history = match.history;
-    final ended = history.where((r) => r.endedAt != null).length;
-
-    Widget big(String value, String label, String caption) => Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Column(
-          children: [
-            Text(value, style: VT.number(20)),
-            const SizedBox(height: 2),
-            Text(label, textAlign: TextAlign.center, style: VT.label(12, color: V.text)),
-            const SizedBox(height: 2),
-            Text(caption, textAlign: TextAlign.center, style: VT.body(11, color: V.muted, height: 1.3)),
-          ],
-        ),
-      ),
-    );
-    Widget small(String value, String label, String caption) => Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Column(
-          children: [
-            Text(value, style: VT.number(15, weight: FontWeight.w600)),
-            const SizedBox(height: 2),
-            Text(label, textAlign: TextAlign.center, style: VT.label(11.5, color: V.text2)),
-            const SizedBox(height: 2),
-            Text(caption, textAlign: TextAlign.center, style: VT.body(10.5, color: V.muted, height: 1.3)),
-          ],
-        ),
-      ),
-    );
-
-    return Container(
-      decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(V.r), border: Border.all(color: V.line)),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-            child: Row(
-              children: [
-                Text('YOUR NUMBERS', style: VT.overline()),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FollowersSectionScreen())),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Icon(hideStats ? SolarIconsBold.eyeClosed : SolarIconsBold.eye, size: 13, color: V.muted),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            hideStats ? 'Only you see these' : 'Matches & likes are on your profile',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: VT.body(11.5, color: V.muted),
-                          ),
-                        ),
-                      ],
-                    ),
+    final history = context.select<MatchProvider, List<MatchRecord>>((m) => m.history);
+    final seen = <String>{};
+    final people = [for (final r in history) if (seen.add(r.partner.id)) r.partner].take(8).toList();
+    if (people.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionTitle('Recent matches', action: 'See all', onAction: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RecentMatchesScreen())), top: 26, bottom: 10),
+        SizedBox(
+          height: 82,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: people.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (_, i) {
+              final p = people[i];
+              return GestureDetector(
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: p.id))),
+                child: SizedBox(
+                  width: 64,
+                  child: Column(
+                    children: [
+                      VAvatar(url: p.avatarUrl, name: p.name, size: 58),
+                      const SizedBox(height: 6),
+                      Text(p.name.split(' ').first, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(12, color: V.text2)),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  big(Fmt.thousands(me.matches), 'Matches', "Video calls you've had"),
-                  const VerticalDivider(width: 1, color: V.lineSoft),
-                  big(Fmt.thousands(me.likes), 'Likes', 'People who liked you on a call'),
-                  const VerticalDivider(width: 1, color: V.lineSoft),
-                  big(Fmt.thousands(friends), 'Friends', "Friends you've made on Vibe"),
-                ],
-              ),
-            ),
-          ),
-          const Divider(height: 1, color: V.lineSoft),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                small('${match.matchesToday}', 'Today', 'Calls since midnight'),
-                small(ended > 0 ? Fmt.duration(match.averageLength) : '–', 'Avg call', 'How long calls last'),
-                small(history.isNotEmpty ? '${(match.skipRate * 100).round()}%' : '–', 'Skip rate', 'Ended within 10 s'),
-              ],
-            ),
-          ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: V.lineSoft))),
-            child: Text(
-              history.isNotEmpty
-                  ? 'Today, avg call and skip rate use your last ${history.length} ${history.length == 1 ? 'call' : 'calls'}.'
-                  : 'Today, avg call and skip rate fill in after your first call.',
-              textAlign: TextAlign.center,
-              style: VT.body(11, color: V.muted),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

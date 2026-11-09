@@ -19,7 +19,7 @@ import { toggleVibeHourReminder } from "./vibe-hour-invite";
 const TRUST = { iconColor: "trust" as const, iconBg: alpha("trust", 0.12) };
 
 /**
- * Me → Notifications & wellbeing: quiet hours (no social or reminder pushes
+ * Me → ☰ → Time & wellbeing: quiet hours (no social or reminder pushes
  * in that window; messages and payments still come through) and the break
  * reminder. Teal: these look after you.
  */

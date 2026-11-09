@@ -33,7 +33,7 @@ export function FollowListsScreen({ initialTab }: { initialTab: FollowList }) {
   const [tab, setTab] = useState<FollowList>(initialTab);
   const shown = tabs.includes(tab) ? tab : "followers";
   return (
-    <Screen header={<AppBar title="Followers" onBack={() => router.push("/me")} />}>
+    <Screen header={<AppBar title="Followers" onBack={() => (history.length > 1 ? router.back() : router.push("/me/settings"))} />}>
       <Tabs className="mb-2" tabs={tabs.map((x) => ({ value: x, label: LABEL[x] }))} value={shown} onChange={setTab} />
       <FollowListTab key={shown} which={shown} />
     </Screen>
