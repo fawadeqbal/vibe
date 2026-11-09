@@ -31,8 +31,6 @@ class CatalogProvider extends ChangeNotifier {
     int i(String k, int fallback) => (e[k] as num?)?.toInt() ?? fallback;
     double d(String k, double fallback) => (e[k] as num?)?.toDouble() ?? fallback;
 
-    Economy.genderFilterCost = i('genderFilterCost', Economy.genderFilterCost);
-    Economy.regionFilterCost = i('regionFilterCost', Economy.regionFilterCost);
     Economy.reconnectCost = i('reconnectCost', Economy.reconnectCost);
     Economy.friendRequestCost = i('friendRequestCost', Economy.friendRequestCost);
     Economy.freeFriendRequestsPerDay = i('freeFriendRequestsPerDay', Economy.freeFriendRequestsPerDay);

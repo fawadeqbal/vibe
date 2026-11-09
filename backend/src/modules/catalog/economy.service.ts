@@ -19,14 +19,13 @@ import {
   EconomyRules,
   EconomySection,
   EconomySnapshot,
-  filterCost,
+  withoutRetiredRules,
   gemsFor,
   gemsToUsdCents,
   Gift,
   GiftsSchema,
   INTERESTS,
   isEconomySection,
-  MatchFilterInput,
   packTotalCoins,
   PacksSchema,
   PlansSchema,
@@ -110,7 +109,6 @@ export class EconomyService implements OnModuleInit, OnModuleDestroy {
   findGift = (id: string): Gift | undefined => this.snap.gifts.find((g) => g.id === id);
   gemsFor = (gift: Pick<Gift, 'coins'>): number => gemsFor(gift, this.snap.rules);
   gemsToUsdCents = (gems: number): number => gemsToUsdCents(gems, this.snap.rules);
-  filterCost = (f: MatchFilterInput, vip: boolean): number => filterCost(f, vip, this.snap.rules);
   packTotalCoins = packTotalCoins;
 
   /** Changes whenever any section is saved; the app compares it to skip re-rendering. */
@@ -170,9 +168,9 @@ export class EconomyService implements OnModuleInit, OnModuleDestroy {
       const current = this.snap[section];
       let next: unknown;
       if (section === 'rules') {
-        const patch = this.parse(RulesPatchSchema, value) as Partial<EconomyRules>;
+        const patch = this.parse(RulesPatchSchema, withoutRetiredRules(value)) as Partial<EconomyRules>;
         if (base !== undefined) {
-          const seen = this.parse(RulesPatchSchema, base) as Partial<EconomyRules>;
+          const seen = this.parse(RulesPatchSchema, withoutRetiredRules(base)) as Partial<EconomyRules>;
           const stale = Object.keys(patch).filter((k) => k in seen && !isDeepStrictEqual(seen[k as keyof EconomyRules], this.snap.rules[k as keyof EconomyRules]));
           if (stale.length) throw this.conflict();
         }
@@ -215,7 +213,7 @@ export class EconomyService implements OnModuleInit, OnModuleDestroy {
         this.meta[s] = { custom: !!row, updatedAt: row?.updatedAt.toISOString() ?? null, updatedById: row?.updatedById ?? null };
         if (!row) continue;
         // Rules saved before a new rule existed pick up its default.
-        const parsed = s === 'rules' ? RulesSchema.safeParse({ ...DEFAULT_RULES, ...(row.value as object) }) : LIST_SCHEMA[s].safeParse(row.value);
+        const parsed = s === 'rules' ? RulesSchema.safeParse({ ...DEFAULT_RULES, ...withoutRetiredRules(row.value) }) : LIST_SCHEMA[s].safeParse(row.value);
         if (parsed.success) (snap as unknown as Record<string, unknown>)[s] = parsed.data;
         else this.logger.warn(`Stored economy section "${s}" is invalid; using defaults`);
       }

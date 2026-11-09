@@ -45,3 +45,6 @@ export function searchClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/** Trust controls (verified only, blur): teal, shared by the filters and safety sheets. */
+export const TRUST_ROW = { iconColor: "trust" as const, iconBg: "color-mix(in srgb, var(--color-trust) 12%, transparent)" };

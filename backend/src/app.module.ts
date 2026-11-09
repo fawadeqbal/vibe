@@ -43,6 +43,7 @@ import { LegalModule } from './modules/legal/legal.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SocialModule } from './modules/social/social.module';
 import { CallsModule } from './modules/calls/calls.module';
+import { FiltersModule } from './modules/filters/filters.module';
 import { DiscoverModule } from './modules/discover/discover.module';
 import { WavesModule } from './modules/waves/waves.module';
 import { UsersModule } from './modules/users/users.module';
@@ -112,6 +113,7 @@ function canPrettyPrint(): boolean {
     SocialModule,
     WavesModule,
     DiscoverModule,
+    FiltersModule,
     ModerationModule,
     MatchingModule,
     CallsModule,

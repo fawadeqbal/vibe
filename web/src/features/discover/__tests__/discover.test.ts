@@ -21,18 +21,18 @@ describe("discover labels", () => {
   });
 });
 
-describe("discover filters", () => {
-  it("knows which filters need VIP or a pass (age never does)", () => {
+describe("discover filters (shared with random matches)", () => {
+  it("knows which filters need VIP or a pass (age and verified only never do)", () => {
     const base = DEFAULT_DISCOVER_FILTERS;
     expect(usesExtraFilters({ ...base, minAge: 25, maxAge: 30 })).toBe(false);
+    expect(usesExtraFilters({ ...base, verifiedOnly: true })).toBe(false);
     expect(usesExtraFilters({ ...base, gender: "women" })).toBe(true);
     expect(usesExtraFilters({ ...base, countryCode: "PK" })).toBe(true);
-    expect(usesExtraFilters({ ...base, onlineOnly: true })).toBe(true);
-    expect(usesExtraFilters({ ...base, verifiedOnly: true })).toBe(true);
   });
 
-  it("keeps only age when the pass runs out", () => {
-    const f = freeOnly({ gender: "men", minAge: 22, maxAge: 28, countryCode: "AE", onlineOnly: true, verifiedOnly: true });
-    expect(f).toEqual({ ...DEFAULT_DISCOVER_FILTERS, minAge: 22, maxAge: 28 });
+  it("the free part keeps age and verified only", () => {
+    const f = freeOnly({ gender: "men", minAge: 22, maxAge: 28, countryCode: "AE", verifiedOnly: true });
+    expect(f).toEqual({ ...DEFAULT_DISCOVER_FILTERS, minAge: 22, maxAge: 28, verifiedOnly: true });
   });
 });
+

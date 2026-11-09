@@ -12,6 +12,7 @@ import 'core/api/client_header.dart';
 import 'core/api/realtime_client.dart';
 import 'core/config/integrations_config.dart';
 import 'core/mock/mock_backend.dart';
+import 'providers/filters_provider.dart';
 import 'providers/activity_provider.dart';
 import 'providers/calls_provider.dart';
 import 'providers/catalog_provider.dart';
@@ -89,6 +90,7 @@ Future<void> main() async {
   final PartnerProvider partner;
   final DiscoverProvider discover;
   final CallsProvider calls;
+  final FiltersProvider filters;
   if (api != null && realtime != null) {
     session = RemoteSessionProvider(api, invites: invites);
     wallet = RemoteWalletProvider(api, realtime);
@@ -104,6 +106,7 @@ Future<void> main() async {
     partner = RemotePartnerProvider(api, realtime);
     discover = RemoteDiscoverProvider(api, realtime, social);
     calls = RemoteCallsProvider(api, realtime, social, match);
+    filters = RemoteFiltersProvider(api);
   } else {
     session = SessionProvider(backend, invites: invites);
     wallet = WalletProvider(backend);
@@ -119,7 +122,9 @@ Future<void> main() async {
     partner = PartnerProvider(verified: () => session.me?.verified == true);
     discover = DiscoverProvider(social, wallet);
     calls = CallsProvider(social, match);
+    filters = FiltersProvider(wallet);
   }
+  wireSharedFilters(filters, match, discover);
   invites.signedIn = () => session.signedIn;
 
   final services = _buildServices(config, api: api, backend: backend, wallet: wallet);
@@ -135,6 +140,7 @@ Future<void> main() async {
   session.addSignOutHook(() async => partner.clear());
   session.addSignOutHook(() async => discover.clear());
   session.addSignOutHook(() async => calls.clear());
+  session.addSignOutHook(() async => filters.clear());
 
   runApp(
     MultiProvider(
@@ -157,6 +163,7 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: partner),
         ChangeNotifierProvider.value(value: discover),
         ChangeNotifierProvider.value(value: calls),
+        ChangeNotifierProvider<FiltersProvider>.value(value: filters),
         ChangeNotifierProvider.value(value: invites),
       ],
       child: VibeApp(realtime: realtime),

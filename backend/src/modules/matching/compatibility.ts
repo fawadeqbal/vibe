@@ -7,6 +7,7 @@ export function accepts(a: Ticket, b: Ticket): boolean {
   if (p.gender === 'MEN' && b.gender !== 'MALE') return false;
   if (p.countryCode && b.countryCode !== p.countryCode) return false;
   if (p.safeMode && !b.verified) return false;
+  if (b.age != null && ((p.minAge != null && b.age < p.minAge) || (p.maxAge != null && b.age > p.maxAge))) return false;
   return true;
 }
 

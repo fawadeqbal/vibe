@@ -4,6 +4,7 @@ import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
+import '../../providers/filters_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
@@ -53,7 +54,7 @@ class _SafetySheet extends StatelessWidget {
                 iconBg: V.trust.withValues(alpha: 0.12),
                 title: 'Verified only',
                 subtitle: 'Only match with selfie-verified people. Free.',
-                trailing: Switch(value: m.filters.safeMode, onChanged: (v) => m.setFilters(m.filters.copyWith(safeMode: v))),
+                trailing: Switch(value: m.filters.safeMode, onChanged: (v) => context.read<FiltersProvider>().save(context.read<FiltersProvider>().filters.copyWith(verifiedOnly: v))),
               ),
               GroupRow(
                 icon: SolarIconsBold.radialBlur,

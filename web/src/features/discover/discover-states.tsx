@@ -22,9 +22,8 @@ export interface ActiveFilter {
 export function activeFilters(f: DiscoverFilters): ActiveFilter[] {
   const d = DEFAULT_DISCOVER_FILTERS;
   const out: ActiveFilter[] = [];
-  if (f.onlineOnly) out.push({ key: "online", label: "Online now", without: { ...f, onlineOnly: false } });
   if (f.countryCode)
-    out.push({ key: "country", label: COUNTRIES.find((c) => c.code === f.countryCode)?.name ?? f.countryCode, without: { ...f, countryCode: "" } });
+    out.push({ key: "country", label: COUNTRIES.find((c) => c.code === f.countryCode)?.name ?? f.countryCode, without: { ...f, countryCode: null } });
   if (f.gender !== "anyone") out.push({ key: "gender", label: f.gender === "women" ? "Women" : "Men", without: { ...f, gender: "anyone" } });
   if (f.verifiedOnly) out.push({ key: "verified", label: "Verified only", without: { ...f, verifiedOnly: false } });
   if (f.minAge !== d.minAge || f.maxAge !== d.maxAge)

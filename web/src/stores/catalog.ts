@@ -46,8 +46,6 @@ export const useCatalog = create<CatalogState>()((set, get) => ({
     const n = (k: string, fallback: number) => (typeof e[k] === "number" ? (e[k] as number) : fallback);
     const economy: Economy = {
       ...prev,
-      genderFilterCost: n("genderFilterCost", prev.genderFilterCost),
-      regionFilterCost: n("regionFilterCost", prev.regionFilterCost),
       reconnectCost: n("reconnectCost", prev.reconnectCost),
       friendRequestCost: n("friendRequestCost", prev.friendRequestCost),
       freeFriendRequestsPerDay: n("freeFriendRequestsPerDay", prev.freeFriendRequestsPerDay),

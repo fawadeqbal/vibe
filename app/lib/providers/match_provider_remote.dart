@@ -164,7 +164,8 @@ class RemoteMatchProvider extends MatchProvider {
   void _fail(ApiException e) {
     if (e.code == 'ACCOUNT_BANNED') _pausedUntil = DateTime.tryParse('${e.details['until'] ?? ''}')?.toLocal() ?? _pausedUntil;
     _needsCoins = e.isInsufficientCoins;
-    _lastError = e.isInsufficientCoins ? 'Not enough coins for these filters.' : e.message;
+    _filtersLocked = e.code == 'FILTERS_LOCKED';
+    _lastError = e.isInsufficientCoins ? 'Not enough coins for that.' : e.message;
     if (_state == MatchState.searching) _state = MatchState.idle;
     notifyListeners();
   }
@@ -239,12 +240,15 @@ class RemoteMatchProvider extends MatchProvider {
     'countryCode': _filters.countryCode,
     'safeMode': _filters.safeMode,
     'autoBlur': _autoBlur,
+    'minAge': _filters.minAge,
+    'maxAge': _filters.maxAge,
   };
 
   @override
   Future<bool> start() async {
     if (_state == MatchState.searching || _state == MatchState.connected) return true;
     _needsCoins = false;
+    _filtersLocked = false;
     _lastError = null;
     _endReason = null;
     _setState(MatchState.searching);

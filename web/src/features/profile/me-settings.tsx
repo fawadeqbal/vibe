@@ -14,6 +14,7 @@ import { androidDownloadUrl } from "@/lib/config";
 import { thousands, until } from "@/lib/format";
 import { useAffiliate } from "@/stores/affiliate";
 import { useCatalog } from "@/stores/catalog";
+import { useDiscover } from "@/stores/discover";
 import { useEngagement } from "@/stores/engagement";
 import { useFollows } from "@/stores/follows";
 import { useMatch } from "@/stores/match";
@@ -64,6 +65,7 @@ export function SettingsMenuPage() {
   const level = useEngagement((s) => s.level);
   const follows = useFollows((s) => s.settings);
   const autoBlur = useMatch((s) => s.autoBlur);
+  const showInDiscover = useDiscover((s) => s.status?.showInDiscover ?? true);
   const history = useMatch((s) => s.history);
   const blocked = useSocial((s) => s.blocked);
   const friends = useSocial((s) => friendsOf(s).length);
@@ -144,6 +146,25 @@ export function SettingsMenuPage() {
             words: "safety video",
             trailing: <Switch checked={autoBlur} label="Blur the first 3 seconds" onChange={(x) => useMatch.getState().setAutoBlur(x)} />,
           },
+          {
+            key: "discover",
+            icon: "visibility",
+            title: "Show me in Discover",
+            subtitle: "Off: nobody new sees your card",
+            words: "hide visible discover card",
+            trailing: (
+              <Switch
+                checked={showInDiscover}
+                label="Show me in Discover"
+                onChange={(on) =>
+                  void useDiscover
+                    .getState()
+                    .setVisible(on)
+                    .catch(() => toast("Couldn't save that, try again", { error: true }))
+                }
+              />
+            ),
+          },
           { key: "blocked", icon: "block", title: "Blocked", subtitle: blocked.length ? `${blocked.length} blocked · tap to unblock` : "Nobody blocked", words: "unblock block", onClick: () => void openBlockedPeople() },
         ],
       },
@@ -178,7 +199,7 @@ export function SettingsMenuPage() {
         ],
       },
     ];
-  }, [me, wallet, session.verificationState, session.busy, economy, level, follows, autoBlur, history.length, blocked.length, friends, partner, androidApp]);
+  }, [me, wallet, session.verificationState, session.busy, economy, level, follows, autoBlur, showInDiscover, history.length, blocked.length, friends, partner, androidApp]);
 
   if (!me) return null;
   const needle = q.trim().toLowerCase();

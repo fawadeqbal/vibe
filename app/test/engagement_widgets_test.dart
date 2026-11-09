@@ -9,6 +9,7 @@ import 'package:solar_icons/solar_icons.dart';
 import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/theme/vibe_theme.dart';
 import 'package:vibe_app/models/models.dart';
+import 'package:vibe_app/providers/filters_provider.dart';
 import 'package:vibe_app/providers/engagement_provider.dart';
 import 'package:vibe_app/providers/follows_provider.dart';
 import 'package:vibe_app/providers/inbox_provider.dart';
@@ -42,6 +43,7 @@ class H {
   late InboxProvider inbox;
   late EngagementProvider engagement;
   late MomentsProvider moments;
+  late FiltersProvider filters;
   DateTime now = DateTime.utc(2026, 10, 6, 16, 20); // 21:20 in Pakistan: Vibe Hour
 
   Future<void> init({List<Friend> friends = const []}) async {
@@ -56,6 +58,8 @@ class H {
     inbox = InboxProvider();
     engagement = EngagementProvider(backend, clock: () => now);
     moments = MomentsProvider(backend, session);
+    filters = FiltersProvider(wallet);
+    match.extraFiltersOpen = () => filters.access.unlocked;
     await wallet.load();
     await social.load();
     await session.signIn(method: 'email');
@@ -74,6 +78,7 @@ class H {
           ChangeNotifierProvider.value(value: follows),
           ChangeNotifierProvider.value(value: engagement),
           ChangeNotifierProvider.value(value: moments),
+          ChangeNotifierProvider<FiltersProvider>.value(value: filters),
         ],
         child: MaterialApp(theme: V.theme(), home: home),
       );
@@ -444,9 +449,8 @@ void main() {
     h.wallet.debugSet(h.wallet.wallet.copyWith(freeBoosts: 1));
     await h.engagement.load();
     await t.pump();
-    // "Free" sits on the filter that would cost coins (women only), as on the web.
-    expect(find.text('Free'), findsOneWidget);
-    expect(h.match.filterCost, 0);
+    // Vibe Hour opens gender and country for everyone.
+    expect(h.match.extraFiltersOpen?.call() ?? true, isTrue);
     expect(find.text('Free boost'), findsOneWidget);
     await t.tap(find.byTooltip("This week's top"));
     await t.pumpAndSettle();

@@ -114,7 +114,6 @@ abstract class WalletProvider extends ChangeNotifier implements CheckoutBackend 
 
   /// Free 30-minute boosts waiting (used before coins).
   int get freeBoosts => _wallet.freeBoosts;
-  int filterCost(MatchFilters f) => f.costFor(vip: isVip);
 
   /// True when the server is the source of truth (invites pay automatically,
   /// ads are verified, etc.).

@@ -366,7 +366,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      !status.hasPhoto ? 'Nobody can see you yet. Add a photo to appear in Discover.' : "You're hidden from Discover. Turn it on in filters.",
+                      !status.hasPhoto ? 'Nobody can see you yet. Add a photo to appear in Discover.' : "You're hidden from Discover. Turn it on in Me › Settings › Privacy & safety.",
                       style: VT.body(12.5, color: V.warn),
                     ),
                   ),

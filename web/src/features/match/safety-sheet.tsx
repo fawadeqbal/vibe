@@ -5,18 +5,19 @@ import { Icon } from "@/components/ui/icon";
 import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { Switch } from "@/components/ui/switch";
 import { Headline, SectionTitle } from "@/components/ui/typography";
+import { saveMatchFilters, useMatchFilters } from "@/stores/filters";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { openSheet, toast } from "@/stores/ui";
 import { isVip, useWallet } from "@/stores/wallet";
 
-import { TRUST_ROW } from "./filters-sheet";
+import { TRUST_ROW } from "./labels";
 
 /** The lobby's Safety shortcut: every trust control in one place, in teal. */
 export const openSafetySheet = () => openSheet<void>(() => <SafetySheet />);
 
 function SafetySheet() {
-  const filters = useMatch((s) => s.filters);
+  const filters = useMatchFilters();
   const autoBlur = useMatch((s) => s.autoBlur);
   const me = useSession((s) => s.me);
   const busy = useSession((s) => s.busy);
@@ -42,7 +43,7 @@ function SafetySheet() {
           {...TRUST_ROW}
           title="Verified only"
           subtitle="Only match with selfie-verified people. Free."
-          trailing={<Switch checked={filters.safeMode} onChange={(v) => useMatch.getState().setFilters({ ...filters, safeMode: v })} label="Verified only" />}
+          trailing={<Switch checked={filters.safeMode} onChange={(v) => void saveMatchFilters({ ...filters, safeMode: v })} label="Verified only" />}
         />
         <GroupRow
           icon="blur_on"

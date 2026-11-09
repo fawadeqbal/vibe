@@ -174,30 +174,43 @@ describe('matching over sockets', () => {
     await expect(emit(sa, 'match:media', { camOn: 'no' })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
-  it('paid filters are charged when the match happens, and only for compatible people', async () => {
+  it('gender, country and verified filters need the filter pass (shared with Discover); with it, matches cost nothing more', async () => {
     const a = await signUp(t, { gender: 'female' });
     const man = await signUp(t, { gender: 'male' });
     const woman = await signUp(t, { gender: 'female' });
     const sa = await online(a);
     const sw = await online(woman);
     const sm = await online(man);
+    await expect(emit(sa, 'match:join', { gender: 'MEN' })).rejects.toMatchObject({ code: 'FILTERS_LOCKED', details: { passCost: 25, passHours: 24 } });
+    for (const u of [a, woman]) await t.http.post('/v1/filters/pass').set(u.auth).expect(200);
+    expect((await t.http.get('/v1/wallet').set(a.auth)).body.coins).toBe(5);
     await emit(sa, 'match:join', { gender: 'MEN' });
-    // She only wants women, so the man can only be paired with Ayesha (never a coin flip with her).
+    // She only wants women, so the man can only be paired with Ayesha.
     await emit(sw, 'match:join', { gender: 'WOMEN' });
-    await sleep(300);
-    expect((await t.http.get('/v1/wallet').set(a.auth)).body.coins).toBe(30); // nobody suitable yet: no charge
     const found = next(sa, 'match:found');
     await emit(sm, 'match:join', {});
     expect((await found).partner.id).toBe(man.id);
     await sleep(100);
-    expect((await t.http.get('/v1/wallet').set(a.auth)).body.coins).toBe(20);
+    expect((await t.http.get('/v1/wallet').set(a.auth)).body.coins).toBe(5);
   });
 
-  it('a filter you cannot afford is refused up front', async () => {
-    const u = await signUp(t);
-    await t.prisma.wallet.update({ where: { userId: u.id }, data: { coins: 5 } });
-    const s = await online(u);
-    await expect(emit(s, 'match:join', { gender: 'WOMEN' })).rejects.toMatchObject({ code: 'INSUFFICIENT_COINS' });
+  it('the age range is free and keeps people outside it apart', async () => {
+    const a = await signUp(t);
+    const old = await signUp(t);
+    const young = await signUp(t);
+    await t.prisma.user.update({ where: { id: a.id }, data: { age: 25 } });
+    await t.prisma.user.update({ where: { id: old.id }, data: { age: 45 } });
+    await t.prisma.user.update({ where: { id: young.id }, data: { age: 27 } });
+    const sa = await online(a);
+    const so = await online(old);
+    const sy = await online(young);
+    await emit(sa, 'match:join', { minAge: 20, maxAge: 30 });
+    await emit(so, 'match:join', {});
+    await sleep(300);
+    const found = next(sa, 'match:found');
+    await emit(sy, 'match:join', {});
+    expect((await found).partner.id).toBe(young.id);
+    expect((await t.http.get('/v1/wallet').set(a.auth)).body.coins).toBe(30);
   });
 
   it('reconnect calls the last partner again for 20 coins', async () => {

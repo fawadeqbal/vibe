@@ -1,14 +1,13 @@
-import { DEFAULT_GIFTS, DEFAULT_PACKS, DEFAULT_PLANS, DEFAULT_RULES, feeShareFor, filterCost, gemsFor, gemsToUsdCents, GiftsSchema, PacksSchema, PlansSchema, publicRules, RULE_FIELDS, RULE_GROUPS, RulesPatchSchema, RulesSchema } from './economy';
+import { DEFAULT_GIFTS, DEFAULT_PACKS, DEFAULT_PLANS, DEFAULT_RULES, feeShareFor, gemsFor, gemsToUsdCents, GiftsSchema, PacksSchema, PlansSchema, publicRules, RULE_FIELDS, RULE_GROUPS, RulesPatchSchema, RulesSchema, withoutRetiredRules } from './economy';
 
 const gift = (id: string) => DEFAULT_GIFTS.find((g) => g.id === id)!;
 
 describe('economy', () => {
-  it('filter costs follow BUSINESS.md', () => {
-    expect(filterCost({ gender: 'ANYONE' }, false, DEFAULT_RULES)).toBe(0);
-    expect(filterCost({ gender: 'MEN' }, false, DEFAULT_RULES)).toBe(DEFAULT_RULES.genderFilterCost);
-    expect(filterCost({ gender: 'WOMEN', countryCode: 'US' }, false, DEFAULT_RULES)).toBe(DEFAULT_RULES.genderFilterCost + DEFAULT_RULES.regionFilterCost);
-    expect(filterCost({ gender: 'WOMEN', countryCode: 'US' }, true, DEFAULT_RULES)).toBe(0);
-    expect(filterCost({ gender: 'MEN' }, false, { genderFilterCost: 25, regionFilterCost: 0 })).toBe(25);
+  it('stored rules that no longer exist are dropped, not fatal', () => {
+    const stored = { genderFilterCost: 10, regionFilterCost: 5, boostCost: 70 };
+    const parsed = RulesSchema.safeParse({ ...DEFAULT_RULES, ...withoutRetiredRules(stored) });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.boostCost).toBe(70);
   });
 
   it('gifts pay the receiver half as gems', () => {

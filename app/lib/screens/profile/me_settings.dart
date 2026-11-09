@@ -8,6 +8,8 @@ import '../../core/util/format.dart';
 import '../../models/models.dart';
 import '../../models/partner.dart';
 import '../../models/payments.dart';
+import '../../core/api/api_exception.dart';
+import '../../providers/discover_provider.dart';
 import '../../providers/engagement_provider.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
@@ -87,6 +89,7 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
     final follows = followsP.settings;
     final social = context.watch<SocialProvider>();
     final partner = context.watch<PartnerProvider?>();
+    final discover = context.watch<DiscoverProvider>();
     final me = session.me;
     if (me == null) return const SizedBox.shrink();
 
@@ -169,6 +172,22 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
             subtitle: 'Both videos start blurred',
             words: 'safety video',
             trailing: Switch(value: match.autoBlur, onChanged: match.setAutoBlur),
+          ),
+          _Item(
+            icon: SolarIconsOutline.eye,
+            title: 'Show me in Discover',
+            subtitle: 'Off: nobody new sees your card',
+            words: 'hide visible discover card',
+            trailing: Switch(
+              value: discover.status?.showInDiscover ?? true,
+              onChanged: (on) async {
+                try {
+                  await discover.setVisible(on);
+                } on ApiException catch (_) {
+                  if (context.mounted) toast(context, "Couldn't save that, try again", error: true);
+                }
+              },
+            ),
           ),
           _Item(
             icon: SolarIconsBold.forbiddenCircle,

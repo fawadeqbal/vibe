@@ -50,14 +50,10 @@ export function DiscoverScreen() {
   const filtersExpired = useDiscover((x) => x.filtersExpired);
   useEffect(() => {
     if (!filtersExpired) return;
-    toast("Your filter pass ended, so only age is on now");
+    toast("Your filter pass ended, so only age and verified only are on now");
     useDiscover.getState().clearFiltersExpired();
   }, [filtersExpired]);
-  const editFilters = async () => {
-    const r = await openDiscoverFilters();
-    if (r === "vip") router.push("/vip");
-    if (r === "coins") await needCoins(`A filter pass costs ${useDiscover.getState().status?.filters.passCost ?? 25} coins. VIP gets every filter free.`);
-  };
+  const editFilters = () => openDiscoverFilters();
   const deck = useDiscover((s) => s.deck);
   const loading = useDiscover((s) => s.loading);
   const failed = useDiscover((s) => s.failed);
@@ -347,7 +343,7 @@ export function DiscoverScreen() {
                 to appear in Discover.
               </span>
             ) : (
-              <span>You&apos;re hidden from Discover. Turn it on in filters.</span>
+              <span>You&apos;re hidden from Discover. Turn it on in Me › Settings › Privacy &amp; safety.</span>
             )}
           </p>
         ) : null}
