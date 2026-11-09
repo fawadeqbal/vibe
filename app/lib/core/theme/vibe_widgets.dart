@@ -24,6 +24,7 @@ class GradientButton extends StatelessWidget {
     this.expand = true,
     this.foreground = Colors.white,
     this.glow,
+    this.softGlow = false,
   });
 
   final String label;
@@ -44,6 +45,9 @@ class GradientButton extends StatelessWidget {
   /// Shadow colour; defaults to pink for the brand gradient.
   final Color? glow;
 
+  /// A tighter glow, for a button that sits right above the tab bar.
+  final bool softGlow;
+
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null && !busy;
@@ -57,7 +61,9 @@ class GradientButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: gradient ?? V.brand,
           borderRadius: BorderRadius.circular(height / 2),
-          boxShadow: enabled ? [BoxShadow(color: (glow ?? V.pink).withValues(alpha: 0.32), blurRadius: 30, offset: const Offset(0, 10))] : null,
+          boxShadow: enabled
+              ? [softGlow ? BoxShadow(color: (glow ?? V.pink).withValues(alpha: 0.26), blurRadius: 18, offset: const Offset(0, 6)) : BoxShadow(color: (glow ?? V.pink).withValues(alpha: 0.32), blurRadius: 30, offset: const Offset(0, 10))]
+              : null,
         ),
         child: Row(
           mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,

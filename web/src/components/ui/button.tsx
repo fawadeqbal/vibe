@@ -40,6 +40,7 @@ export function GradientButton({
   height = 56,
   tone = "brand",
   expand = true,
+  softGlow = false,
   className,
   disabled,
   onClick,
@@ -55,6 +56,8 @@ export function GradientButton({
   height?: number;
   tone?: ButtonTone;
   expand?: boolean;
+  /** A tighter glow, for a button that sits right above the tab bar. */
+  softGlow?: boolean;
 }) {
   const t = TONES[tone];
   const enabled = !!onClick && !disabled && !busy;
@@ -72,7 +75,7 @@ export function GradientButton({
         enabled ? "hover:brightness-110 active:brightness-95" : busy ? "" : "opacity-45",
         className,
       )}
-      style={{ height, boxShadow: enabled ? `0 10px 35.6px ${t.glow}` : undefined }}
+      style={{ height, boxShadow: enabled ? (softGlow ? `0 6px 18px ${t.glow}` : `0 10px 35.6px ${t.glow}`) : undefined }}
       {...rest}
     >
       <GradientFill gradient={t.gradient} className="-z-10" />
