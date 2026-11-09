@@ -13,6 +13,7 @@ import '../../models/models.dart';
 import '../../models/calls.dart';
 import '../../providers/calls_provider.dart';
 import '../../providers/follows_provider.dart';
+import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
 import '../../services/app_services.dart';
 import '../match/report_sheet.dart';
@@ -20,6 +21,7 @@ import '../match/gift_sheet.dart';
 import '../profile/user_profile_screen.dart';
 import '../store/store_screen.dart';
 import 'chat_calls.dart';
+import 'chat_sheets.dart';
 import 'chat_tools.dart';
 import 'streaks.dart';
 
@@ -44,6 +46,9 @@ class _ChatScreenState extends State<ChatScreen> {
   ChatMessage? _replyTo;
   bool _emoji = false;
   bool _recording = false;
+
+  /// The + tools grid under the composer.
+  bool _tools = false;
   int _recSeconds = 0;
   Timer? _recTimer;
   int _lastCount = -1;
@@ -184,45 +189,17 @@ class _ChatScreenState extends State<ChatScreen> {
     await _sendMedia(MessageKind.voice, clip.bytes, clip.contentType, seconds: clip.seconds.clamp(1, Economy.chatVoiceNoteMaxSeconds));
   }
 
-  Future<void> _plus(String name) async {
-    FocusScope.of(context).unfocus();
-    final pick = await showVibeSheet<String>(
-      context,
-      child: Builder(
-        builder: (ctx) {
-          Widget row(String v, IconData icon, Color tint, String label, String sub) => ListTile(
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: tint.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(14)),
-              child: Icon(icon, size: 20, color: tint),
-            ),
-            title: Text(label, style: VT.title(15, weight: FontWeight.w600)),
-            subtitle: Text(sub, style: VT.body(12, color: V.muted)),
-            onTap: () => Navigator.of(ctx).pop(v),
-          );
-          return Material(
-            type: MaterialType.transparency,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (Economy.chatPhotosEnabled) ...[
-                    row('gallery', SolarIconsBold.gallery, V.pinkSoft, 'Photo', 'From your gallery'),
-                    row('camera', SolarIconsBold.camera, V.lavender, 'Camera', 'Take a photo now'),
-                  ],
-                  if (Economy.chatVoiceNotesEnabled) row('voice', Icons.mic_rounded, const Color(0xFF60A5FA), 'Voice message', 'Up to ${Economy.chatVoiceNoteMaxSeconds} seconds'),
-                  row('gift', SolarIconsBold.gift, V.gold, 'Gift', 'They earn gems from it'),
-                  row('emoji', SolarIconsBold.smileCircle, V.warn, 'Emoji', 'Add emoji to your message'),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-    if (!mounted || pick == null) return;
+  /// Your interests, for "you both like …" (none when there's no session, e.g. in tests).
+  List<String> _myInterests(BuildContext context) {
+    try {
+      return context.read<SessionProvider>().me?.interests ?? const [];
+    } on ProviderNotFoundException {
+      return const [];
+    }
+  }
+
+  Future<void> _tool(String pick, String name) async {
+    setState(() => _tools = false);
     switch (pick) {
       case 'gallery':
         await _photo(camera: false);
@@ -232,8 +209,6 @@ class _ChatScreenState extends State<ChatScreen> {
         await _startRecording();
       case 'gift':
         await _gift(name);
-      case 'emoji':
-        setState(() => _emoji = true);
     }
   }
 
@@ -374,7 +349,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         if (f.streak.count > 0)
                           Padding(
                             padding: const EdgeInsets.only(left: 6),
-                            child: StreakChip(streak: f.streak, showEndsTonight: false, onTap: () => showStreakSheet(context, f)),
+                            child: StreakFlame(streak: f.streak, onTap: () => showStreakSheet(context, f)),
                           ),
                         if (f.streak.restorable)
                           Padding(
@@ -388,7 +363,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       style: VT.label(
                         11.5,
                         color: typing
-                            ? V.pinkSoft
+                            ? V.ok
                             : f.online
                             ? V.ok
                             : V.muted,
@@ -403,35 +378,13 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           if (f.state == FriendState.friends) CallButton(friend: f),
-          PopupMenuButton<String>(
+          IconButton(
+            tooltip: 'More',
             icon: const Icon(SolarIconsBold.menuDots),
-            onSelected: (v) async {
-              if (v.startsWith('calls')) {
-                await callsMenuItems(context, f)[int.parse(v.substring(5))].$2();
-                return;
-              }
-              if (v == 'remove') {
-                await social.remove(widget.friendId);
-              } else if (v == 'block') {
-                await social.block(f.profile);
-              }
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            itemBuilder: (_) {
-              final callItems = callsMenuItems(context, f);
-              return [
-                if (f.state == FriendState.friends && context.read<CallsProvider>().enabled)
-                  for (final (i, (label, _, bad)) in callItems.indexed)
-                    PopupMenuItem(
-                      value: 'calls$i',
-                      child: Text(label, style: bad ? const TextStyle(color: V.bad) : null),
-                    ),
-                const PopupMenuItem(value: 'remove', child: Text('Remove friend')),
-                const PopupMenuItem(
-                  value: 'block',
-                  child: Text('Block', style: TextStyle(color: V.bad)),
-                ),
-              ];
+            onPressed: () async {
+              final calls = f.state == FriendState.friends && context.read<CallsProvider>().enabled ? callsMenuItems(context, f) : const <(String, Future<void> Function(), bool)>[];
+              final gone = await showChatMore(context, f: f, callItems: calls);
+              if (gone && context.mounted) Navigator.of(context).pop();
             },
           ),
         ],
@@ -440,7 +393,7 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: msgs.isEmpty
-                ? EmptyState(icon: SolarIconsBold.handShake, title: 'Say hi to ', accent: f.profile.name, body: 'You met in a match. ${f.profile.bio}')
+                ? ChatHello(friend: f.profile, myInterests: _myInterests(context), onSend: (t) => _social.sendMessage(widget.friendId, t))
                 : ListView.builder(
                     controller: _scroll,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -451,8 +404,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       if (m.isSystem) {
                         return SystemLine(m: m, onCallBack: f.calls.on ? (video) => context.read<CallsProvider>().ring(f.profile, video && f.calls.video ? CallMedia.video : CallMedia.voice) : null);
                       }
+                      final next = i + 1 < msgs.length ? msgs[i + 1] : null;
                       return _Bubble(
                         m: m,
+                        friend: f.profile,
+                        tail: next == null || next.isSystem || next.fromMe != m.fromMe,
                         friendName: f.profile.name,
                         seen: seen && i == lastMine,
                         onLongPress: () => _longPress(m, f),
@@ -485,13 +441,19 @@ class _ChatScreenState extends State<ChatScreen> {
                     Row(
                       children: [
                         CircleIconButton(
-                          icon: SolarIconsOutline.addCircle,
+                          icon: _tools ? Icons.close_rounded : Icons.add_rounded,
                           size: 48,
                           iconSize: 24,
-                          color: V.text2,
-                          background: V.surface2,
-                          tooltip: 'Photo, voice, gift',
-                          onTap: () => _plus(f.profile.name),
+                          color: _tools ? V.bg : V.text,
+                          background: _tools ? V.text : V.surface2,
+                          tooltip: _tools ? 'Close' : 'Photo, camera, voice note, gift',
+                          onTap: () {
+                            FocusScope.of(context).unfocus();
+                            setState(() {
+                              _tools = !_tools;
+                              _emoji = false;
+                            });
+                          },
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -559,6 +521,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       ],
                     ),
+                  if (_tools && !_recording) _ToolsPanel(name: f.profile.name.split(' ').first, onPick: (v) => _tool(v, f.profile.name)),
                 ],
               ),
             ),
@@ -572,8 +535,12 @@ class _ChatScreenState extends State<ChatScreen> {
 /// One message: text, gift, photo or voice note, with its reply quote,
 /// reaction, time and "Seen".
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.m, required this.friendName, required this.seen, required this.onLongPress, this.onReactionTap});
+  const _Bubble({required this.m, required this.friend, required this.tail, required this.friendName, required this.seen, required this.onLongPress, this.onReactionTap});
   final ChatMessage m;
+  final Profile friend;
+
+  /// The last of a run from one side: the corner tightens and their avatar shows.
+  final bool tail;
   final String friendName;
   final bool seen;
   final VoidCallback onLongPress;
@@ -589,19 +556,20 @@ class _Bubble extends StatelessWidget {
     final fg = plainMine ? Colors.white : V.text;
     final reactions = [?m.reactionTheirs, ?m.reactionMine];
     final bubble = Container(
-      padding: photo ? const EdgeInsets.all(4) : EdgeInsets.symmetric(horizontal: gift ? 14 : 12, vertical: gift ? 10 : 8),
+      padding: photo ? const EdgeInsets.all(4) : EdgeInsets.symmetric(horizontal: gift ? 14 : 13, vertical: gift ? 10 : 9),
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
       decoration: BoxDecoration(
         color: m.unsent
             ? Colors.transparent
             : gift
             ? V.gold.withValues(alpha: 0.12)
-            : (mine ? V.violet : V.surface2),
+            : (mine ? (photo ? V.violet : null) : V.surface2),
+        gradient: plainMine && !photo ? const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [V.violet, Color(0xFF7C3AED)]) : null,
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(18),
-          topRight: const Radius.circular(18),
-          bottomLeft: Radius.circular(mine ? 18 : 6),
-          bottomRight: Radius.circular(mine ? 6 : 18),
+          topLeft: const Radius.circular(20),
+          topRight: const Radius.circular(20),
+          bottomLeft: Radius.circular(!mine && tail ? 6 : 20),
+          bottomRight: Radius.circular(mine && tail ? 6 : 20),
         ),
         border: m.unsent
             ? Border.all(color: V.lineStrong)
@@ -636,20 +604,17 @@ class _Bubble extends StatelessWidget {
           else if (m.kind == MessageKind.voice)
             VoiceNoteBubble(m: m)
           else
-            Text(m.text, style: VT.body(15, color: fg)),
-          const SizedBox(height: 2),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: photo ? 6 : 0),
-            child: Text(
-              m.pending ? 'Sending…' : Fmt.time(m.at),
-              style: VT.label(10, color: plainMine ? Colors.white70 : V.muted, weight: FontWeight.w500),
+            Text(m.text, style: VT.body(14.5, color: fg, height: 1.4)),
+          if (m.pending)
+            Padding(
+              padding: EdgeInsets.fromLTRB(photo ? 6 : 0, 2, photo ? 6 : 0, 0),
+              child: Text('Sending…', style: VT.label(10, color: plainMine ? Colors.white70 : V.muted, weight: FontWeight.w500)),
             ),
-          ),
         ],
       ),
     );
     return Padding(
-      padding: EdgeInsets.only(bottom: reactions.isNotEmpty ? 16 : 6),
+      padding: EdgeInsets.only(bottom: reactions.isNotEmpty ? 16 : (tail ? 10 : 4), left: mine ? 0 : 34),
       child: Column(
         crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
@@ -659,6 +624,7 @@ class _Bubble extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 bubble,
+                if (!mine && tail) Positioned(left: -34, bottom: 0, child: ExcludeSemantics(child: VAvatar(url: friend.avatarUrl, name: friend.name, size: 26))),
                 if (reactions.isNotEmpty)
                   Positioned(
                     bottom: -14,
@@ -694,6 +660,64 @@ class _Bubble extends StatelessWidget {
                 style: VT.label(10.5, color: V.muted, weight: FontWeight.w600),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Under the composer after +: photo, camera, voice note, gift, and who sees
+/// them. (Design: Chat · tools; web: the same grid in chat-view.tsx.)
+class _ToolsPanel extends StatelessWidget {
+  const _ToolsPanel({required this.name, required this.onPick});
+  final String name;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget tile(String v, IconData icon, Color tint, String label) => Expanded(
+      child: Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onPick(v),
+          child: Column(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(color: tint.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(16)),
+                child: Icon(icon, size: 24, color: tint),
+              ),
+              const SizedBox(height: 6),
+              Text(label, style: VT.label(12, color: V.text2, weight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              if (Economy.chatPhotosEnabled) ...[
+                tile('gallery', SolarIconsBold.gallery, const Color(0xFF60A5FA), 'Photo'),
+                tile('camera', SolarIconsBold.camera, V.trust, 'Camera'),
+              ],
+              if (Economy.chatVoiceNotesEnabled) tile('voice', Icons.mic_rounded, V.pinkSoft, 'Voice note'),
+              tile('gift', SolarIconsBold.gift, V.gold, 'Gift'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Photos and voice notes go only to $name. You can unsend for ${Economy.chatUnsendMinutes} minutes.',
+            textAlign: TextAlign.center,
+            style: VT.body(12, color: V.muted),
+          ),
         ],
       ),
     );

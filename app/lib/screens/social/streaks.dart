@@ -14,6 +14,38 @@ import '../store/store_screen.dart';
 
 /// The 🔥 chip after a friend's name: grey until today counted, orange once
 /// it has, amber and breathing (+ "ends tonight") when it ends at midnight.
+/// The streak inline, no chip: a flame and the number in pink ("🔥5"),
+/// amber with "· ends tonight" when it's at risk. (Design: Chats rows.)
+class StreakFlame extends StatelessWidget {
+  const StreakFlame({super.key, required this.streak, this.onTap});
+  final StreakView streak;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = streak;
+    if (s.count <= 0) return const SizedBox.shrink();
+    final color = s.atRisk ? V.warn : V.pinkSoft;
+    return Semantics(
+      label: '${s.count}-day streak${s.atRisk ? ', ends tonight' : s.today ? '' : ', not counted yet today'}',
+      button: onTap != null,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(SolarIconsBold.fire, size: 13, color: color),
+            const SizedBox(width: 2),
+            Text(s.atRisk ? '${s.count} · ends tonight' : '${s.count}', style: VT.number(12, color: color, weight: FontWeight.w700)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class StreakChip extends StatefulWidget {
   const StreakChip({super.key, required this.streak, this.onTap, this.showEndsTonight = true});
   final StreakView streak;

@@ -3,10 +3,10 @@
 import { useCallback } from "react";
 
 import { confirm, useNeedCoins } from "@/components/shared/dialogs";
-import { StreakChip } from "@/components/shared/streak-chip";
 import { openShareCard } from "@/components/shared/share-card";
 import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/cn";
 import { CoinAmount } from "@/components/ui/money";
 import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { errorMessage } from "@/lib/api/errors";
@@ -26,7 +26,10 @@ export function useRestoreStreak() {
       const cost = s.restoreCost;
       const ok = await confirm({
         title: `Restore your ${s.lostCount}-day streak?`,
-        body: cost > 0 ? `It ended yesterday. Bring it back with ${f.profile.name} for ${cost} coins — then talk today to keep it going.` : `It ended yesterday. Free with VIP — then talk with ${f.profile.name} today to keep it going.`,
+        body:
+          cost > 0
+            ? `It ended yesterday. Bring it back with ${f.profile.name} for ${cost} coins — then talk today to keep it going.`
+            : `It ended yesterday. Free with VIP — then talk with ${f.profile.name} today to keep it going.`,
         ok: cost > 0 ? `Restore · ${cost}` : "Restore",
         cancel: "Not now",
         okTone: "gold",
@@ -44,7 +47,8 @@ export function useRestoreStreak() {
 }
 
 /** The flame chip's explainer (chat header): the rule, today's state, best, restore. */
-export const openStreakSheet = (friendId: string, onRestore: (f: Friend) => void) => openSheet<void>((close) => <StreakSheet friendId={friendId} onRestore={onRestore} onDone={() => close()} />);
+export const openStreakSheet = (friendId: string, onRestore: (f: Friend) => void) =>
+  openSheet<void>((close) => <StreakSheet friendId={friendId} onRestore={onRestore} onDone={() => close()} />);
 
 function StreakSheet({ friendId, onRestore, onDone }: { friendId: string; onRestore: (f: Friend) => void; onDone: () => void }) {
   const f = useSocial((s) => s.all.find((x) => x.profile.id === friendId));
@@ -69,9 +73,28 @@ function StreakSheet({ friendId, onRestore, onDone }: { friendId: string; onRest
         Message each other every day to keep it going — a call of a minute or more counts too. Every 7th day you both get {weekly} coins.
       </p>
       <GroupCard className="mt-4" dividerInset={16}>
-        <GroupRow bare icon={s.mineToday ? "check_circle" : "radio_button_unchecked"} iconColor={s.mineToday ? "ok" : "muted"} title="You today" subtitle={s.mineToday ? "Done" : "Send a message"} />
-        <GroupRow bare icon={s.theirsToday ? "check_circle" : "radio_button_unchecked"} iconColor={s.theirsToday ? "ok" : "muted"} title={`${name} today`} subtitle={s.theirsToday ? "Done" : "Not yet"} />
-        <GroupRow bare icon="emoji_events" iconVariant="outlined" iconColor="text2" title="Best" trailing={<span className="type-number text-[15px] text-text">{streakDays(Math.max(s.best, s.count))}</span>} />
+        <GroupRow
+          bare
+          icon={s.mineToday ? "check_circle" : "radio_button_unchecked"}
+          iconColor={s.mineToday ? "ok" : "muted"}
+          title="You today"
+          subtitle={s.mineToday ? "Done" : "Send a message"}
+        />
+        <GroupRow
+          bare
+          icon={s.theirsToday ? "check_circle" : "radio_button_unchecked"}
+          iconColor={s.theirsToday ? "ok" : "muted"}
+          title={`${name} today`}
+          subtitle={s.theirsToday ? "Done" : "Not yet"}
+        />
+        <GroupRow
+          bare
+          icon="emoji_events"
+          iconVariant="outlined"
+          iconColor="text2"
+          title="Best"
+          trailing={<span className="type-number text-[15px] text-text">{streakDays(Math.max(s.best, s.count))}</span>}
+        />
       </GroupCard>
       {s.count > 0 ? (
         <div className="mt-4">
@@ -91,7 +114,13 @@ function StreakSheet({ friendId, onRestore, onDone }: { friendId: string; onRest
           <GradientButton
             tone="gold"
             label={`Restore 🔥 ${s.lostCount}`}
-            trailing={s.restoreCost > 0 ? <CoinAmount amount={s.restoreCost} size={13} className="text-on-gold" /> : <span className="type-label text-[13px]">Free</span>}
+            trailing={
+              s.restoreCost > 0 ? (
+                <CoinAmount amount={s.restoreCost} size={13} className="text-on-gold" />
+              ) : (
+                <span className="type-label text-[13px]">Free</span>
+              )
+            }
             onClick={() => {
               onDone();
               onRestore(f);
@@ -107,10 +136,29 @@ function StreakSheet({ friendId, onRestore, onDone }: { friendId: string; onRest
 export function StreakHeaderChip({ f }: { f: Friend }) {
   const restore = useRestoreStreak();
   const open = () => void openStreakSheet(f.profile.id, (x) => void restore(x));
-  if (f.streak.count > 0) return <StreakChip streak={f.streak} onClick={open} className="ml-2" />;
+  if (f.streak.count > 0)
+    return (
+      <button
+        type="button"
+        onClick={open}
+        aria-label={`${f.streak.count}-day streak${f.streak.atRisk ? ", ends at midnight" : ""}. What streaks are`}
+        className={cn(
+          "ml-1.5 flex h-6 shrink-0 items-center gap-0.5 rounded-full px-1.5 text-[12px] font-bold hover:bg-white/6",
+          f.streak.atRisk ? "text-gold" : "text-pink-soft",
+        )}
+      >
+        <Icon name="local_fire_department" size={14} />
+        {f.streak.count}
+      </button>
+    );
   if (!f.streak.restorable) return null;
   return (
-    <button type="button" onClick={open} aria-label={`Streak lost. Restore ${f.streak.lostCount} days`} className="ml-2 flex h-[22px] shrink-0 items-center rounded-[11px] bg-gold/12 pr-2 pl-1.5 transition-[filter] hover:brightness-125">
+    <button
+      type="button"
+      onClick={open}
+      aria-label={`Streak lost. Restore ${f.streak.lostCount} days`}
+      className="ml-2 flex h-[22px] shrink-0 items-center rounded-[11px] bg-gold/12 pr-2 pl-1.5 transition-[filter] hover:brightness-125"
+    >
       <Icon name="local_fire_department" size={14} className="text-muted" />
       <span className="type-label ml-0.5 text-[11px] text-gold">Restore</span>
     </button>

@@ -31,9 +31,12 @@ const videoOn = (f: Friend) => callsOn(f) && f.calls.mineVideo && f.calls.theirs
 async function allow(f: Friend, video: boolean) {
   try {
     const st = await useCalls.getState().allow(f.profile.id, video);
-    toast(st.video ? "Voice and video calls are on" : st.on ? "Voice calls are on" : `Asked ${firstName(f)} to allow ${video ? "voice and video" : "voice"} calls`);
+    toast(
+      st.video ? "Voice and video calls are on" : st.on ? "Voice calls are on" : `Asked ${firstName(f)} to allow ${video ? "voice and video" : "voice"} calls`,
+    );
   } catch (e) {
-    if (e instanceof ApiError && e.code === "CALL_NEEDS_MESSAGES") toast("Say hi first — you both need to have written before asking for calls", { error: true });
+    if (e instanceof ApiError && e.code === "CALL_NEEDS_MESSAGES")
+      toast("Say hi first — you both need to have written before asking for calls", { error: true });
     else toast(errorMessage(e), { error: true });
   }
 }
@@ -70,7 +73,10 @@ function AskCallsSheet({ f, onDone }: { f: Friend; onDone: () => void }) {
       role="radio"
       aria-checked={on}
       onClick={() => setVideo(value)}
-      className={cn("flex w-full items-center gap-3 rounded-[20px] p-3.5 text-left transition-colors", on ? "border-[1.5px] border-pink bg-surface2" : "border border-line bg-surface hover:bg-surface2")}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-[20px] p-3.5 text-left transition-colors",
+        on ? "border-[1.5px] border-pink bg-surface2" : "border border-line bg-surface hover:bg-surface2",
+      )}
     >
       <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-[16px]", tint)}>
         <Icon name={icon} size={22} />
@@ -126,7 +132,7 @@ export function CallButtons({ f, state }: { f: Friend; state: CallState | null }
           aria-label={`Voice call ${f.profile.name}`}
           title="Voice call"
           onClick={() => void useCalls.getState().ring(f.profile, "voice")}
-          className="flex size-10 items-center justify-center rounded-full border border-white/12 bg-white/6 text-text hover:bg-white/12"
+          className="flex size-10 items-center justify-center rounded-full text-text hover:bg-white/8"
         >
           <Icon name="call" size={20} />
         </button>
@@ -136,22 +142,28 @@ export function CallButtons({ f, state }: { f: Friend; state: CallState | null }
             aria-label={`Video call ${f.profile.name}`}
             title="Video call"
             onClick={() => void useCalls.getState().ring(f.profile, "video")}
-            className="bg-brand flex size-10 items-center justify-center rounded-full text-white shadow-[0_8px_20px_rgb(255_61_143/0.3)] hover:brightness-110"
+            className="flex size-10 items-center justify-center rounded-full text-text hover:bg-white/8"
           >
             <Icon name="videocam" size={21} />
           </button>
         ) : null}
       </span>
     );
-  const label = f.calls.mine ? `Waiting for ${firstName(f)} to allow calls` : f.calls.theirs ? `${firstName(f)} wants to call` : "Calls are off — ask to allow them";
+  const label = f.calls.mine
+    ? `Waiting for ${firstName(f)} to allow calls`
+    : f.calls.theirs
+      ? `${firstName(f)} wants to call`
+      : "Calls are off — ask to allow them";
   const theyAsked = f.calls.theirs && !f.calls.mine;
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
-      onClick={() => (theyAsked ? toast(`${firstName(f)} asked — answer in the card below`) : !f.calls.mine && state?.canAsk !== false ? void openAskCalls(f) : toast(label))}
-      className={cn("relative flex size-10 items-center justify-center rounded-full border border-white/12 text-muted hover:text-text", theyAsked && "border-violet/50 text-lavender")}
+      onClick={() =>
+        theyAsked ? toast(`${firstName(f)} asked — answer in the card below`) : !f.calls.mine && state?.canAsk !== false ? void openAskCalls(f) : toast(label)
+      }
+      className={cn("relative flex size-10 items-center justify-center rounded-full text-muted hover:bg-white/8 hover:text-text", theyAsked && "text-lavender")}
     >
       <Icon name="phone_disabled" size={20} />
       {theyAsked ? <span className="absolute top-1 right-1 size-2 rounded-full bg-pink" /> : null}
@@ -170,7 +182,12 @@ export function callsMenuItems(f: Friend, state: CallState | null): MenuItem[] {
     ];
   }
   if (f.calls.mine) return [{ label: "Take back call request", onSelect: () => void turnOff(f, state) }];
-  return [{ label: f.calls.theirs ? "Answer call request…" : "Ask to allow calls", onSelect: () => (f.calls.theirs ? toast("Answer in the card above the message box") : void openAskCalls(f)) }];
+  return [
+    {
+      label: f.calls.theirs ? "Answer call request…" : "Ask to allow calls",
+      onSelect: () => (f.calls.theirs ? toast("Answer in the card above the message box") : void openAskCalls(f)),
+    },
+  ];
 }
 
 /**
@@ -199,7 +216,12 @@ export function CallsCard({ f, state }: { f: Friend; state: CallState | null }) 
         <div className="mx-3 mb-1 flex items-center gap-3 rounded-[18px] border border-violet/35 bg-surface px-3.5 py-2.5">
           <Icon name="videocam" size={18} className="shrink-0 text-lavender" />
           <span className="type-body min-w-0 flex-1 text-[12.5px] text-text2">{first} would like video calls too.</span>
-          <button type="button" disabled={busy} onClick={run(() => allow(f, true))} className="type-label h-8 shrink-0 rounded-full bg-ok px-3 text-[12px] font-bold text-bg">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={run(() => allow(f, true))}
+            className="type-label h-8 shrink-0 rounded-full bg-ok px-3 text-[12px] font-bold text-bg"
+          >
             Allow video
           </button>
           <button type="button" aria-label="Keep voice only" onClick={() => setHidden(true)} className="shrink-0 text-muted hover:text-text">
@@ -229,21 +251,36 @@ export function CallsCard({ f, state }: { f: Friend; state: CallState | null }) 
         <div className="mt-3 flex flex-col gap-2">
           {askedVideo ? (
             <>
-              <button type="button" disabled={busy} onClick={run(() => allow(f, true))} className={cn(pill, "flex items-center justify-center gap-2 bg-ok font-bold text-bg hover:brightness-105")}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={run(() => allow(f, true))}
+                className={cn(pill, "flex items-center justify-center gap-2 bg-ok font-bold text-bg hover:brightness-105")}
+              >
                 <Icon name="videocam" size={18} /> Allow voice and video
               </button>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" disabled={busy} onClick={run(() => allow(f, false))} className={cn(pill, "border border-info/40 bg-info/10 text-info")}>
                   Voice only
                 </button>
-                <button type="button" disabled={busy} onClick={run(() => turnOff(f, state))} className={cn(pill, "border border-white/12 bg-white/6 text-text hover:bg-white/10")}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={run(() => turnOff(f, state))}
+                  className={cn(pill, "border border-white/12 bg-white/6 text-text hover:bg-white/10")}
+                >
                   Not now
                 </button>
               </div>
             </>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" disabled={busy} onClick={run(() => turnOff(f, state))} className={cn(pill, "border border-white/12 bg-white/6 text-text hover:bg-white/10")}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={run(() => turnOff(f, state))}
+                className={cn(pill, "border border-white/12 bg-white/6 text-text hover:bg-white/10")}
+              >
                 Not now
               </button>
               <button type="button" disabled={busy} onClick={run(() => allow(f, false))} className={cn(pill, "bg-ok font-bold text-bg hover:brightness-105")}>
@@ -263,7 +300,12 @@ export function CallsCard({ f, state }: { f: Friend; state: CallState | null }) 
         <span className="type-body min-w-0 flex-1 text-[12.5px] text-text2">
           You asked to allow {f.calls.mineVideo ? "voice and video" : "voice"} calls. Waiting for {first}.
         </span>
-        <button type="button" disabled={busy} onClick={run(() => turnOff(f, state))} className="type-label h-8 shrink-0 rounded-full border border-white/14 px-3 text-[12px] font-semibold text-text hover:bg-white/6">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={run(() => turnOff(f, state))}
+          className="type-label h-8 shrink-0 rounded-full border border-white/14 px-3 text-[12px] font-semibold text-text hover:bg-white/6"
+        >
           Take back
         </button>
       </div>
@@ -282,7 +324,12 @@ export function CallsCard({ f, state }: { f: Friend; state: CallState | null }) 
             : "Calls are off. You both need to allow them."}
       </span>
       {!blocked ? (
-        <button type="button" disabled={busy} onClick={() => void openAskCalls(f)} className="type-label h-8 shrink-0 rounded-full bg-violet/24 px-3 text-[12px] font-semibold text-lavender hover:bg-violet/32">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void openAskCalls(f)}
+          className="type-label h-8 shrink-0 rounded-full bg-violet/24 px-3 text-[12px] font-semibold text-lavender hover:bg-violet/32"
+        >
           Ask
         </button>
       ) : null}

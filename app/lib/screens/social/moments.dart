@@ -18,7 +18,8 @@ import '../match/report_sheet.dart';
 /// then people with something new (gradient ring) before the ones you've
 /// seen (grey ring).
 class MomentsBar extends StatelessWidget {
-  const MomentsBar({super.key});
+  const MomentsBar({super.key, this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 10)});
+  final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +31,7 @@ class MomentsBar extends StatelessWidget {
       height: 98,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: padding,
         children: [
           _Bubble(
             key: const ValueKey('moment-mine'),
