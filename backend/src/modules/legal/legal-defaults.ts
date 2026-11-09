@@ -73,11 +73,7 @@ Vibe is provided "as is". As far as the law allows, we are not responsible for w
 
 You can stop using Vibe and delete your account at any time. We can suspend or close accounts that break these terms or put others at risk.
 
-## 13. Law
-
-These terms are governed by the laws of Pakistan, and disputes go to the courts of Pakistan, unless the law where you live gives you the right to use your local courts.
-
-## 14. Contact
+## 13. Contact
 
 Questions about these terms: {{email}}.
 `;
