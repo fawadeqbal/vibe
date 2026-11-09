@@ -362,17 +362,45 @@ export class MatchingService {
   /** Like the partner; if they already liked you in this call, both get `match:mutual`. */
   async like(userId: string): Promise<{ mutual: boolean }> {
     const { m, partnerId } = await this.requireMatch(userId);
-    const created = await this.prisma.matchLike.createMany({ data: [{ matchId: m.id, fromId: userId, toId: partnerId }], skipDuplicates: true });
-    if (!created.count) return { mutual: !!(await this.prisma.matchLike.findUnique({ where: { matchId_fromId: { matchId: m.id, fromId: partnerId } } })) };
+    return this.likeIn(m.id, userId, partnerId);
+  }
+
+  /** "Like back" on the ended card: a like on the call that just ended (same rules, same events). */
+  async likeLast(userId: string): Promise<{ mutual: boolean }> {
+    const { matchId, partnerId } = await this.requireLastMatch(userId);
+    return this.likeIn(matchId, userId, partnerId);
+  }
+
+  private async likeIn(matchId: string, userId: string, partnerId: string): Promise<{ mutual: boolean }> {
+    const created = await this.prisma.matchLike.createMany({ data: [{ matchId, fromId: userId, toId: partnerId }], skipDuplicates: true });
+    const theyLiked = async () => !!(await this.prisma.matchLike.findUnique({ where: { matchId_fromId: { matchId, fromId: partnerId } } }));
+    if (!created.count) return { mutual: await theyLiked() };
     await this.prisma.user.update({ where: { id: partnerId }, data: { likesCount: { increment: 1 } } });
-    this.realtime.toUser(partnerId, ServerEvent.MatchLiked, { matchId: m.id });
+    this.realtime.toUser(partnerId, ServerEvent.MatchLiked, { matchId });
     await this.progress.award(partnerId, this.economy.rules.xpPerLikeReceived, 'like');
-    const mutual = !!(await this.prisma.matchLike.findUnique({ where: { matchId_fromId: { matchId: m.id, fromId: partnerId } } }));
+    const mutual = await theyLiked();
     if (mutual) {
-      this.realtime.toUser(userId, ServerEvent.MatchMutual, { matchId: m.id });
-      this.realtime.toUser(partnerId, ServerEvent.MatchMutual, { matchId: m.id });
+      this.realtime.toUser(userId, ServerEvent.MatchMutual, { matchId });
+      this.realtime.toUser(partnerId, ServerEvent.MatchMutual, { matchId });
     }
     return { mutual };
+  }
+
+  /**
+   * The call you just left (the last partner is kept for an hour): for the
+   * ended card's Like back and Send a gift. Not while either of you blocked the other.
+   */
+  private async requireLastMatch(userId: string): Promise<{ matchId: string; partnerId: string }> {
+    const partnerId = await this.sessions.lastPartner(userId);
+    const gone = () => new AppError(ErrorCode.PARTNER_UNAVAILABLE, 'That call is too long ago', HttpStatus.CONFLICT);
+    if (!partnerId || (await this.blocks.eitherBlocked(userId, partnerId))) throw gone();
+    const m = await this.prisma.match.findFirst({
+      where: { endedAt: { not: null }, OR: [{ userAId: userId, userBId: partnerId }, { userAId: partnerId, userBId: userId }] },
+      orderBy: { startedAt: 'desc' },
+      select: { id: true },
+    });
+    if (!m) throw gone();
+    return { matchId: m.id, partnerId };
   }
 
   /** Camera / mic on or off: told to the partner ("Sara turned their camera off"). */
@@ -407,6 +435,17 @@ export class MatchingService {
     this.realtime.toUser(partnerId, ServerEvent.MatchGift, { ...payload, fromMe: false });
     this.events.emit(MATCH_ACTION, { matchId: m.id, from: userId, to: partnerId, action: 'gift', text: gift.name } satisfies MatchActionEvent);
     return { ...payload, fromMe: true };
+  }
+
+  /** "Send a gift" on the ended card: to the person you just left; they see it in their gifts and notifications. */
+  async giftLast(userId: string, giftId: string, idempotencyKey?: string) {
+    const gift = this.economy.findGift(giftId);
+    if (!gift) throw AppError.notFound('Gift');
+    const { matchId, partnerId } = await this.requireLastMatch(userId);
+    const names = await this.prisma.user.findMany({ where: { id: { in: [userId, partnerId] } }, select: { id: true, name: true } });
+    const name = (id: string) => names.find((n) => n.id === id)?.name || 'someone';
+    const sent = await this.wallet.sendGift(userId, partnerId, gift, { fromName: name(userId), toName: name(partnerId), matchId, idempotencyKey });
+    return { matchId, gift: { ...gift, gems: this.economy.gemsFor(gift) }, bonusGems: sent.bonusGems, fromMe: true };
   }
 
   async addFriend(userId: string) {

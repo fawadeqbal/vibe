@@ -255,7 +255,7 @@ class _ChatScreenState extends State<ChatScreen> {
           await _social.unsend(widget.friendId, m.id);
         case PlainAction(action: SimpleAction.report):
           final follows = context.read<FollowsProvider>();
-          final choice = await showReportSheet(context, name: f.profile.name);
+          final choice = await showReportSheet(context, name: f.profile.name, where: ReportContext.person);
           if (choice == null || !mounted) return;
           await follows.report(f.profile.id, choice.reason, note: choice.note, block: choice.block);
           if (choice.block) await _social.load();

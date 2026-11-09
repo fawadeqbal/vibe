@@ -353,7 +353,7 @@ class _MomentViewerScreenState extends State<MomentViewerScreen> with SingleTick
 
   Future<void> _report() => _paused(() async {
         final name = _group.author.name;
-        final choice = await showReportSheet(context, name: name);
+        final choice = await showReportSheet(context, name: name, where: ReportContext.moment);
         if (choice == null || !mounted) return;
         try {
           await context.read<MomentsProvider>().report(_moment.id, choice.reason, note: choice.note, block: choice.block);

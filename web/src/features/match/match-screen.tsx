@@ -100,7 +100,15 @@ export function MatchScreen() {
       ) : pausedUntil ? (
         <AccountPaused until={pausedUntil} />
       ) : status === "ended" && hasLast ? (
-        <Ended onReconnect={() => void actions.reconnect()} onFindAnother={() => void actions.start()} onReport={() => void actions.reportLast()} autoNext={freeToMatch} />
+        <Ended
+          onReconnect={() => void actions.reconnect()}
+          onFindAnother={() => void actions.start()}
+          onReport={() => void actions.reportLast()}
+          onLikeBack={() => void actions.likeLast()}
+          onAddFriend={() => void actions.addLastFriend()}
+          onGift={() => void actions.giftLast()}
+          autoNext={freeToMatch}
+        />
       ) : (
         <Lobby onStart={() => void actions.start()} />
       )}

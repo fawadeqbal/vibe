@@ -1,35 +1,41 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { openShareCard } from "@/components/shared/share-card";
 import { Avatar } from "@/components/ui/avatar";
-import { CircleIconButton, GhostButton, GradientButton, TextButton } from "@/components/ui/button";
-import { Glass } from "@/components/ui/glass";
+import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { VDivider } from "@/components/ui/misc";
-import { CoinAmount } from "@/components/ui/money";
 import { openUserProfileSheet } from "@/features/profile/user-profile";
 import { useNow } from "@/hooks/use-now";
 import { countdown, freeReconnectLeft } from "@/lib/engagement";
 import { duration } from "@/lib/format";
 import { matchLengthSeconds } from "@/lib/models";
+import { alpha, color } from "@/lib/colors";
 import { useCatalog } from "@/stores/catalog";
+import { friendStateOf, useSocial } from "@/stores/social";
 import { useMatch } from "@/stores/match";
 
 /**
- * A recap, not an alert: their portrait blurs behind, the numbers become a
- * readable row, and reporting stays reachable after the call.
+ * A recap, not an alert: their portrait blurs behind; a card with what
+ * happened and three things you can still do for them; then Next, Reconnect,
+ * Home, and Report, still reachable after the call.
  */
 export function Ended({
   onReconnect,
   onFindAnother,
   onReport,
+  onLikeBack,
+  onAddFriend,
+  onGift,
   autoNext = false,
 }: {
   onReconnect: () => void;
   onFindAnother: () => void;
   onReport: () => void;
+  onLikeBack: () => void;
+  onAddFriend: () => void;
+  onGift: () => void;
   /** They left and matching is free for you: carry on by yourself after a few seconds (never spends coins without a tap). */
   autoNext?: boolean;
 }) {
@@ -38,10 +44,11 @@ export function Ended({
   const last = useMatch((s) => (s.history.length ? s.history[s.history.length - 1] : null));
   const catalogCost = useCatalog((s) => s.economy.reconnectCost);
   const ended = useMatch((s) => s.ended);
+  const friendState = useSocial((s) => friendStateOf(s, p.id));
   const reconnectCost = ended?.reconnectCost ?? catalogCost;
   const now = useNow(1000, !!ended?.freeReconnectUntil);
   const freeLeft = freeReconnectLeft(ended?.freeReconnectUntil ?? null, now);
-  const mutualLike = ended?.mutualLike ?? (!!last?.liked && !!last?.likedMe);
+  const mutualLike = ended?.mutualLike || (!!last?.liked && !!last?.likedMe);
   const reported = endReason === "reported";
   const theyLeft = endReason === "partnerLeft";
   // They left: the next person comes by itself in a few seconds, unless you
@@ -57,134 +64,119 @@ export function Ended({
     }
   }, [autoAt, autoLeft, onFindAnother]);
   const stay = () => setAutoAt(null);
-  const why = theyLeft ? `${p.name} moved on` : endReason === "skipped" ? `You skipped ${p.name}` : endReason === "reported" ? "Reported" : "Call ended";
-  const like = mutualLike
-    ? { icon: "favorite", cls: "text-pink", label: "Both liked" }
-    : last?.likedMe
-    ? { icon: "favorite", cls: "text-pink", label: "Liked you" }
-    : last?.liked
-      ? { icon: "favorite", cls: "text-pink-soft", label: "You liked" }
-      : { icon: "favorite_border", cls: "text-muted", label: "No likes" };
-  const gifts = last?.giftsReceived ?? 0;
+  const length = last ? duration(matchLengthSeconds(last)) : null;
+  const why = theyLeft ? `${p.name} moved on` : endReason === "skipped" ? "You skipped" : reported ? "Reported" : "Call ended";
+  const chip = mutualLike ? "You liked each other" : last?.likedMe ? `${p.name} liked you` : last?.liked ? `You liked ${p.name}` : null;
+  const liked = !!last?.liked;
+  const friendLabel = friendState === "friends" ? "Friends" : friendState === "requested" ? "Request sent" : friendState === "incoming" ? "Accept friend" : "Add friend";
 
   return (
     <div className="absolute inset-0 overflow-hidden">
       <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(to bottom, #2B1B4D, #0B0A10)" }}>
         {p.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={p.avatarUrl} alt="" className="absolute inset-0 size-full scale-110 object-cover" style={{ filter: "blur(36px)" }} />
+          <img src={p.avatarUrl} alt="" className="absolute inset-0 size-full scale-[1.15] object-cover" style={{ filter: "brightness(0.3) blur(14px)" }} />
         ) : null}
       </div>
-      <div className="absolute inset-0 bg-bg/70" />
-      <div className="absolute inset-0 flex flex-col pt-[env(safe-area-inset-top)] pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0">
-        <div className="flex items-center px-4 pt-3">
-          <CircleIconButton icon="close" label="Close" onClick={() => useMatch.getState().dismissEnded()} />
-          <p className="type-overline flex-1 text-center text-[12px] tracking-[1.2px] text-text2">Call ended</p>
-          <span className="w-10" />
-        </div>
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 pt-4 pb-6" onPointerDownCapture={autoAt != null ? stay : undefined}>
-          <Glass radius={30} className="flex w-full max-w-[420px] flex-col items-center border-white/10 bg-surface/88 px-[22px] pt-7 pb-5">
-            <span className="relative">
+      <div
+        className="absolute inset-0 mx-auto flex max-w-[480px] flex-col px-4 pt-[calc(24px+env(safe-area-inset-top))] pb-[calc(30px+64px+env(safe-area-inset-bottom))] lg:pb-[30px]"
+        onPointerDownCapture={autoAt != null ? stay : undefined}
+      >
+        <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto">
+          <section aria-label="Call recap" className="flex flex-col items-center rounded-[28px] border border-line bg-surface/86 px-5 pt-[26px] pb-5 text-center">
+            <button type="button" onClick={() => void openUserProfileSheet(p.id)} aria-label={`Open ${p.name}'s profile`} className="relative rounded-full">
               <Avatar url={p.avatarUrl} name={p.name} size={92} ring gapColor="var(--color-surface)" />
               {p.verified ? (
                 <span className="absolute -right-0.5 bottom-0.5 flex size-[26px] items-center justify-center rounded-full bg-surface">
                   <Icon name="verified" size={20} className="text-trust" label="Verified" />
                 </span>
               ) : null}
-            </span>
-            <h2 className="type-display mt-4 text-center text-[26px] leading-[1.1]">{why}</h2>
-            {theyLeft ? <p className="type-body mt-1 text-center text-[13.5px] text-text2">It happens — it&apos;s not about you.</p> : null}
-            <p className="type-body mt-1 text-[13px] text-text2">
-              {p.country.flag} {p.country.name} · {p.age}
+            </button>
+            <h2 className="mt-3 mb-0.5 text-[22px] font-bold tracking-[-0.03em]">
+              {p.name}, {p.age}
+            </h2>
+            <p className="text-[13.5px] text-text2">
+              {why}
+              {length ? ` · ${length}` : ""}
             </p>
-            <TextButton icon="person" className="mt-1 text-[13px] font-medium text-text2" onClick={() => void openUserProfileSheet(p.id)}>
-              View profile
-            </TextButton>
-
-            {mutualLike ? (
-              <div className="mt-3 flex items-center gap-1.5">
-                <p className="type-label flex h-8 items-center rounded-full bg-pink/14 px-3.5 text-[13px] text-pink-soft">You liked each other 💞</p>
-                <button type="button" onClick={() => void openShareCard({ kind: "match" })} aria-label="Share" title="Share" className="flex size-8 items-center justify-center rounded-full bg-white/8 text-text2 transition-[filter] hover:brightness-125">
-                  <Icon name="ios_share" size={16} />
-                </button>
-              </div>
-            ) : null}
-
-            <div className="mt-[22px] flex w-full border-y border-line py-4">
-              <Stat label="Call length">
-                <span className="type-mono text-[18px] text-text">{last ? duration(matchLengthSeconds(last)) : "—"}</span>
-              </Stat>
-              <VDivider />
-              <Stat label={like.label}>
-                <Icon name={like.icon} size={22} className={like.cls} />
-              </Stat>
-              <VDivider />
-              <Stat label={gifts === 1 ? "Gift received" : "Gifts received"}>
-                <span className="flex items-center">
-                  <span className="type-number text-[18px] font-semibold">{gifts}</span>
-                  <Icon name="redeem" size={18} className={gifts > 0 ? "ml-1 text-gold" : "ml-1 text-muted"} />
+            {theyLeft ? <p className="mt-0.5 text-[12.5px] text-muted">It happens — it&apos;s not about you.</p> : null}
+            {chip ? (
+              <span className="mt-3 flex items-center gap-1.5">
+                <span className="flex h-[30px] items-center gap-1.5 rounded-full bg-pink/16 px-3 text-[12.5px] font-semibold text-pink-soft">
+                  <Icon name="favorite" size={14} />
+                  {chip}
                 </span>
-              </Stat>
-            </div>
-
-            <div className="mt-5 w-full">
-              <GradientButton label={autoAt != null ? "Next person now" : "Find someone else"} icon="videocam" onClick={onFindAnother} />
-            </div>
-            {autoAt != null ? (
-              <p role="status" className="type-body mt-2 flex items-center gap-1.5 text-[13px] text-text2">
-                Finding someone new in <span className="type-number font-semibold text-text tabular-nums">{autoLeft}s</span>
-                <button type="button" onClick={stay} className="type-label ml-1 rounded-full bg-white/8 px-2.5 py-1 text-[12px] font-semibold text-text hover:bg-white/12">
-                  Stay here
-                </button>
-              </p>
+                {mutualLike ? (
+                  <button type="button" onClick={() => void openShareCard({ kind: "match" })} aria-label="Share" title="Share" className="flex size-[30px] items-center justify-center rounded-full bg-white/8 text-text2 hover:brightness-125">
+                    <Icon name="ios_share" size={15} />
+                  </button>
+                ) : null}
+              </span>
             ) : null}
-            {!reported ? (
-              <>
-                <div className="mt-2.5 w-full">
-                  <GhostButton
-                    label={freeLeft > 0 ? "Reconnect" : `Reconnect with ${p.name}`}
-                    icon="replay"
-                    expand
-                    onClick={onReconnect}
-                    aria-label={freeLeft > 0 ? `Reconnect with ${p.name}, free for ${countdown(freeLeft)}` : `Reconnect with ${p.name}, ${reconnectCost} coins`}
-                    trailing={
-                      freeLeft > 0 ? (
-                        <span className="type-label flex h-[22px] items-center rounded-[11px] bg-ok/14 px-2 text-[12px] text-ok">
-                          Free for <span className="type-number ml-1 tabular-nums">{countdown(freeLeft)}</span>
-                        </span>
-                      ) : (
-                        <span className="flex h-[22px] items-center rounded-[11px] bg-gold/14 px-2">
-                          <CoinAmount amount={reconnectCost} size={12} />
-                        </span>
-                      )
-                    }
-                  />
-                </div>
-                <TextButton icon="outlined_flag" className="mt-1.5 text-[13px] font-medium text-text2" onClick={onReport}>
-                  Something wrong? Report {p.name}
-                </TextButton>
-              </>
-            ) : (
-              <div className="mt-4 mb-1 flex items-center justify-center">
+
+            {reported ? (
+              <p role="status" className="mt-[18px] flex items-center gap-1.5 text-[13px] font-medium text-text2">
                 <Icon name="check_circle" size={16} className="text-trust" />
-                <span className="type-label ml-1.5 text-[13px] font-medium text-text2">Thanks — our team reviews every report.</span>
+                Thanks — our team reviews every report.
+              </p>
+            ) : (
+              <div className="mt-[18px] grid w-full grid-cols-3 gap-2.5">
+                <CardAction icon="favorite" tone="pink" label={liked ? "Liked" : last?.likedMe ? "Like back" : "Like"} onClick={liked ? undefined : onLikeBack} />
+                <CardAction
+                  icon={friendState === "friends" ? "how_to_reg" : friendState === "requested" ? "hourglass_top" : "person_add"}
+                  tone="lavender"
+                  label={friendLabel}
+                  onClick={friendState === "none" || friendState === "incoming" ? onAddFriend : undefined}
+                />
+                <CardAction icon="redeem" tone="gold" label="Send a gift" onClick={onGift} />
               </div>
             )}
-          </Glass>
+          </section>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2.5">
+          <GradientButton label={autoAt != null ? `Next person in ${autoLeft}` : "Next person"} icon="skip_next" height={58} onClick={onFindAnother} />
+          {autoAt != null ? (
+            <button type="button" onClick={stay} className="-mt-1 self-center p-1 text-[12.5px] font-semibold text-text2">
+              Stay here
+            </button>
+          ) : null}
+          <div className={reported ? "" : "grid grid-cols-2 gap-2.5"}>
+            {reported ? null : (
+              <GhostButton
+                label={freeLeft > 0 ? `Reconnect · Free ${countdown(freeLeft)}` : `Reconnect · ${reconnectCost}`}
+                icon="replay"
+                height={48}
+                expand
+                onClick={onReconnect}
+                aria-label={freeLeft > 0 ? `Reconnect with ${p.name}, free for ${countdown(freeLeft)}` : `Reconnect with ${p.name}, ${reconnectCost} coins`}
+              />
+            )}
+            <GhostButton label="Home" icon="videocam" height={48} expand onClick={() => useMatch.getState().dismissEnded()} />
+          </div>
+          {reported ? null : (
+            <button type="button" onClick={onReport} className="flex items-center gap-1.5 self-center p-2 text-[13.5px] font-semibold text-bad">
+              <Icon name="flag" size={15} />
+              Report {p.name}
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-/** How long "they left" waits before finding the next person. */
-export const AUTO_NEXT_MS = 5000;
-
-function Stat({ label, children }: { label: string; children: ReactNode }) {
+/** One of the card's three: a tinted circle and a label. Disabled once done (Liked, Request sent). */
+function CardAction({ icon, tone, label, onClick }: { icon: string; tone: "pink" | "lavender" | "gold"; label: string; onClick?: () => void }) {
   return (
-    <div className="flex flex-1 flex-col items-center">
-      <span className="flex h-6 items-center justify-center">{children}</span>
-      <span className="type-body mt-1 text-[11px] leading-[1.2] text-muted">{label}</span>
-    </div>
+    <button type="button" onClick={onClick} disabled={!onClick} className="group flex flex-col items-center gap-1.5 disabled:opacity-60">
+      <span className="flex size-[52px] items-center justify-center rounded-full transition-[filter] group-enabled:group-hover:brightness-125" style={{ backgroundColor: alpha(tone, 0.14), color: color(tone) }}>
+        <Icon name={icon} size={24} />
+      </span>
+      <span className="text-[12.5px] font-semibold">{label}</span>
+    </button>
   );
 }
+
+/** How long "they left" waits before finding the next person. */
+export const AUTO_NEXT_MS = 5000;

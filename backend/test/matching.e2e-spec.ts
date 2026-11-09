@@ -94,6 +94,36 @@ describe('matching over sockets', () => {
     expect((await t.http.get('/v1/wallet').set(b.auth)).body.gems).toBe(10);
   });
 
+  it('after the call: Like back and Send a gift reach the person you just left', async () => {
+    const { a, b, sa, sb, fa } = await pair();
+    // Nothing to like back while nobody has left a call yet.
+    const c = await signUp(t, { name: 'Cyra' });
+    expect((await t.http.post('/v1/match/last/like').set(c.auth)).body.error.code).toBe('PARTNER_UNAVAILABLE');
+
+    const liked = next(sb, 'match:liked');
+    await emit(sa, 'match:like'); // A liked during the call
+    await liked;
+    const endedA = next(sa, 'match:ended');
+    await emit(sb, 'match:end', {});
+    await endedA;
+
+    const mutual = next(sa, 'match:mutual');
+    const r = await t.http.post('/v1/match/last/like').set(b.auth).expect(200);
+    expect(r.body).toEqual({ mutual: true });
+    expect((await mutual).matchId).toBe(fa.matchId);
+    // Liking again changes nothing.
+    expect((await t.http.post('/v1/match/last/like').set(b.auth).expect(200)).body).toEqual({ mutual: true });
+
+    expect((await t.http.post('/v1/match/last/gift').set(a.auth).send({ giftId: 'fireworks' })).status).toBe(402);
+    const g = await t.http.post('/v1/match/last/gift').set(a.auth).set('Idempotency-Key', randomUUID()).send({ giftId: 'heart' }).expect(200);
+    expect(g.body).toMatchObject({ matchId: fa.matchId, gift: { id: 'heart', gems: 10 }, fromMe: true });
+    expect((await t.http.get('/v1/wallet').set(b.auth)).body.gems).toBe(10);
+
+    // A block closes it.
+    await t.http.post(`/v1/blocks/${b.id}`).set(a.auth);
+    expect((await t.http.post('/v1/match/last/like').set(a.auth)).body.error.code).toBe('PARTNER_UNAVAILABLE');
+  });
+
   it('next ends the call for both and tells the partner they left', async () => {
     const { sa, sb } = await pair();
     const endedA = next(sa, 'match:ended');

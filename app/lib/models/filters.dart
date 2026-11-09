@@ -29,6 +29,18 @@ class SharedFilters {
   /// "Any age", "20–30", "25+".
   String get ageLabel => minAge == 18 && maxAge >= 99 ? 'Any age' : (maxAge >= 99 ? '$minAge+' : '$minAge–$maxAge');
 
+  /// "Women · 20–30 · Pakistan · Verified only" (the web's filterSummary).
+  String summary(String Function(String code) countryName) => [
+        switch (gender) {
+          WantedGender.women => 'Women',
+          WantedGender.men => 'Men',
+          _ => 'Anyone',
+        },
+        if (!(minAge == 18 && maxAge >= 99)) ageLabel,
+        countryCode != null ? countryName(countryCode!) : 'Anywhere',
+        if (verifiedOnly) 'Verified only',
+      ].join(' · ');
+
   SharedFilters copyWith({WantedGender? gender, int? minAge, int? maxAge, String? countryCode, bool clearCountry = false, bool? verifiedOnly}) => SharedFilters(
         gender: gender ?? this.gender,
         minAge: minAge ?? this.minAge,
