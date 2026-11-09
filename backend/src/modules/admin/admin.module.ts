@@ -40,6 +40,7 @@ import { AdminUsersService } from './users/admin-users.service';
 import { IntegrationsController } from './ops/integrations.controller';
 import { AdminVerificationsController } from './users/admin-verifications.controller';
 import { AdminGrowthController } from './growth/admin-growth.controller';
+import { SafetyModule } from '../safety/safety.module';
 
 /**
  * The back office, under /v1/admin. Each feature is a controller + service
@@ -47,7 +48,7 @@ import { AdminGrowthController } from './growth/admin-growth.controller';
  * same domain services the app uses — no second copy of business rules.
  */
 @Module({
-  imports: [AdminCoreModule, UsersModule, WalletModule, PaymentsModule, ModerationModule, MatchingModule, AnnouncementsModule, MessagingModule, ReferralsModule, PushModule, SiteModule],
+  imports: [AdminCoreModule, UsersModule, WalletModule, PaymentsModule, ModerationModule, MatchingModule, AnnouncementsModule, MessagingModule, ReferralsModule, PushModule, SiteModule, SafetyModule],
   controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, AdminPhotoFlagsController, AdminAppealsController, InsightsController, FinanceController, OpsController, AdminMailController, AdminPushController, AdminNotificationsController, AdminDownloadController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController, AdminGrowthController],
   providers: [StaffTokenService, StaffAuthService, TeamService, DashboardService, InsightsService, AdminUsersService, AdminReportsService, FinanceService],
 })

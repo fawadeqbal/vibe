@@ -11,7 +11,8 @@ import { StorageProvider } from '../../infra/storage/storage.provider';
 import { cleanImage, type CleanImage } from './clean-image';
 
 /** Where a photo is going. */
-export type ImagePlace = 'chat' | 'moment' | 'avatar';
+/** Where a photo is going (selfie = a verification photo staff may review). */
+export type ImagePlace = 'chat' | 'moment' | 'avatar' | 'selfie';
 
 /** A photo was refused by the nudity filter. Moderation counts these as strikes. */
 export const MEDIA_BLOCKED = 'safety.media-blocked';
@@ -94,6 +95,25 @@ export class ImageSafetyService {
     return { ...img, score, review: verdict === 'review' };
   }
 
+  /**
+   * Checks a photo that is already stored (photo sweeper). Same re-encoding,
+   * thresholds and evidence as `screen`, but never throws: the caller decides
+   * what to take down. `unavailable` = the check couldn't run (try later);
+   * `unreadable` = not an image we can open.
+   */
+  async judge(input: Buffer): Promise<{ verdict: NsfwVerdict | 'unreadable'; score: number | null; jpeg: Buffer | null }> {
+    // Filter off = the check isn't running (callers treat it like a short outage, never as "passed").
+    if (this.config.get('NSFW_FILTER') === 'off') return { verdict: 'unavailable', score: null, jpeg: null };
+    let jpeg: Buffer;
+    try {
+      jpeg = (await cleanImage(input, this.config.get('IMAGE_MAX_SIDE'))).buffer;
+    } catch {
+      return { verdict: 'unreadable', score: null, jpeg: null };
+    }
+    const score = await this.score(jpeg);
+    return { verdict: score == null ? 'unavailable' : decideNsfw(score, { ...this.thresholds, onError: 'block' }), score, jpeg };
+  }
+
   /** After storing a photo that came back with `review: true`: show it to moderators. */
   async noteStored(userId: string, place: ImagePlace, refId: string, key: string, img: ScreenedImage): Promise<void> {
     if (!img.review || img.score == null) return;
@@ -119,7 +139,8 @@ export class ImageSafetyService {
     }
   }
 
-  private async recordBlocked(userId: string, place: ImagePlace, refId: string, jpeg: Buffer, score: number): Promise<void> {
+  /** A refused photo: private evidence copy, a MediaFlag, and (unless `strike: false`) a strike. */
+  async recordBlocked(userId: string, place: ImagePlace, refId: string, jpeg: Buffer, score: number, opts: { strike?: boolean } = {}): Promise<void> {
     const key = `flags/${userId}/${this.clock.now().getTime()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
     const stored = await this.storage.put(key, jpeg, 'image/jpeg', { private: true }).then(
       () => key,
@@ -132,7 +153,7 @@ export class ImageSafetyService {
       .create({ data: { userId, place, refId, score, action: 'blocked', key: stored } })
       .catch((e: Error) => this.log.warn(`media flag not saved: ${e.message}`));
     this.log.warn(`Blocked a ${place} photo from ${userId} (nudity ${score.toFixed(2)})`);
-    this.events.emit(MEDIA_BLOCKED, { userId, place } satisfies MediaBlockedEvent);
+    if (opts.strike !== false) this.events.emit(MEDIA_BLOCKED, { userId, place } satisfies MediaBlockedEvent);
   }
 
   /** Blocked photos in the strike window (moderation pauses at NSFW_STRIKES). */

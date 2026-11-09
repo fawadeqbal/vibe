@@ -158,7 +158,10 @@ export class UsersService {
     const key = `avatars/${id}/${Date.now()}.jpg`;
     const url = await this.storage.put(key, photo.buffer, photo.mime);
     await this.images.noteStored(id, 'avatar', id, key, photo);
-    return this.update(id, { avatarUrl: url }, { trusted: true });
+    const me = await this.update(id, { avatarUrl: url }, { trusted: true });
+    // Checked just now: the photo sweeper can skip it (it re-checks anything else).
+    if (photo.score != null) await this.prisma.user.update({ where: { id }, data: { avatarCheckedUrl: url } });
+    return me;
   }
 
   async completeOnboarding(id: string): Promise<MeProfile> {

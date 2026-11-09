@@ -364,8 +364,8 @@ export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED";
 export interface PhotoFlag {
   id: string;
   user: PersonRef;
-  /** chat = a friend chat photo; moment; avatar = profile photo. */
-  place: "chat" | "moment" | "avatar";
+  /** chat = a friend chat photo; moment; avatar = profile photo; selfie = a verification photo. */
+  place: "chat" | "moment" | "avatar" | "selfie";
   /** Nudity score, 0–1. */
   score: number;
   /** blocked = refused and kept privately as evidence (a strike); review = sent, a person should look. */

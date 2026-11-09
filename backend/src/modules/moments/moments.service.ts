@@ -76,7 +76,9 @@ export class MomentsService {
     const photo = await this.images.screen(userId, 'moment', key, file.buffer);
     const url = await this.storage.put(key, photo.buffer, photo.mime);
     await this.images.noteStored(userId, 'moment', key, key, photo);
-    const m = await this.prisma.moment.create({ data: { userId, mediaKey: key, mediaUrl: url, caption: caption.trim().slice(0, 120), createdAt: now, expiresAt: new Date(now.getTime() + LIFETIME_MS) } });
+    const m = await this.prisma.moment.create({
+      data: { userId, mediaKey: key, mediaUrl: url, caption: caption.trim().slice(0, 120), createdAt: now, expiresAt: new Date(now.getTime() + LIFETIME_MS), checkedAt: photo.score != null ? now : null },
+    });
     await this.announce(userId);
     return this.dto(m, true, true);
   }

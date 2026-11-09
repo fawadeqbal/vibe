@@ -36,7 +36,7 @@ app / web ──frames──▶ vibe-api ──POST /analyze (profile photo + fr
 
 `yaw` > 0 = nose toward the image's right; `roll` > 0 = the image-right eye is lower (degrees), in the camera's own (unmirrored) view. `GET /health` → `{"ok": true}`.
 
-`POST /nsfw` — multipart: `image` (one photo). Answer: `{"nsfw": 0.0189}`, the chance (0–1) the image is sexual or explicit. The API decides what to do with it (`NSFW_BLOCK`, `NSFW_REVIEW` in `backend/.env`); see `backend/src/modules/safety/image-safety.service.ts`. Used for chat photos, Moments and profile photos. ~0.3–1 s per image on CPU, ~350 MB extra RAM.
+`POST /nsfw` — multipart: `image` (one photo). Answer: `{"nsfw": 0.0189}`, the chance (0–1) the image is sexual or explicit. The API decides what to do with it (`NSFW_BLOCK`, `NSFW_REVIEW` in `backend/.env`); see `backend/src/modules/safety/image-safety.service.ts`. Used for chat photos, Moments, profile photos and verification selfies on upload, and by the photo sweeper (`backend/src/modules/safety/photo-sweeper.service.ts`) for anything already up. ~0.3–1 s per image on CPU, ~350 MB extra RAM.
 
 ## Numbers behind the thresholds (LFW, 400 people)
 
