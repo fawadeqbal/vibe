@@ -13,6 +13,7 @@ import { RedisService } from '../../infra/redis/redis.service';
 import { StorageProvider } from '../../infra/storage/storage.provider';
 import { EconomyService } from '../catalog/economy.service';
 import { ChatSafetyService } from '../chat-safety/chat-safety.service';
+import { ImageSafetyService } from '../safety/image-safety.service';
 import { WalletService } from '../wallet/wallet.service';
 import { FriendsService } from './friends.service';
 import { StreakService } from './streak.service';
@@ -58,7 +59,6 @@ export interface MessageView {
 
 export type MediaKind = 'photo' | 'voice';
 
-const PHOTO_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const VOICE_TYPES: Record<string, string> = {
   'audio/webm': 'webm',
   'audio/ogg': 'ogg',
@@ -93,6 +93,7 @@ export class MessagesService {
     private readonly storage: StorageProvider,
     private readonly redis: RedisService,
     private readonly safety: ChatSafetyService,
+    private readonly images: ImageSafetyService,
   ) {}
 
   private get rules() {
@@ -163,7 +164,7 @@ export class MessagesService {
     return this.viewOf(m, me, friendId);
   }
 
-  /** A photo (JPEG/PNG/WebP) or a voice note, stored and sent as a message. */
+  /** A photo (JPEG/PNG/WebP in, a clean JPEG stored) or a voice note, sent as a message. */
   async sendMedia(
     me: string,
     friendId: string,
@@ -175,18 +176,20 @@ export class MessagesService {
     if (kind === 'photo' && !this.rules.chatPhotosEnabled) throw new AppError(ErrorCode.FEATURE_DISABLED, 'Photos in chat are off for now', HttpStatus.FORBIDDEN);
     if (kind === 'voice' && !this.rules.chatVoiceNotesEnabled) throw new AppError(ErrorCode.FEATURE_DISABLED, 'Voice notes are off for now', HttpStatus.FORBIDDEN);
     const mime = file.mimetype.split(';')[0].trim().toLowerCase();
-    const ext = (kind === 'photo' ? PHOTO_TYPES : VOICE_TYPES)[mime];
-    if (!ext) throw new AppError(ErrorCode.VALIDATION_FAILED, kind === 'photo' ? 'Use a JPEG, PNG or WebP photo' : 'That audio format is not supported', HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+    const voiceExt = VOICE_TYPES[mime];
+    if (kind === 'voice' && !voiceExt) throw new AppError(ErrorCode.VALIDATION_FAILED, 'That audio format is not supported', HttpStatus.UNSUPPORTED_MEDIA_TYPE);
     const seconds = Math.max(1, Math.round(info.seconds ?? 1));
     if (kind === 'voice' && seconds > this.rules.chatVoiceNoteMaxSeconds + 2)
       throw new AppError(ErrorCode.VALIDATION_FAILED, `Voice notes can be up to ${this.rules.chatVoiceNoteMaxSeconds} seconds`);
     const f = await this.friends.requireFriends(me, friendId);
     const reply = await this.replyTarget(f.id, info.replyToId);
+    // Photos: real image bytes only, re-encoded (no GPS or hidden data) and checked for nudity before anything is stored.
+    const photo = kind === 'photo' ? await this.images.screen(me, 'chat', f.id, file.buffer) : null;
     const now = this.clock.now();
-    const key = `chat/${f.id}/${now.getTime()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const url = await this.storage.put(key, file.buffer, mime);
-    const meta: Record<string, unknown> =
-      kind === 'photo' ? { url, key, ...(info.w && info.h ? { w: info.w, h: info.h } : {}) } : { url, key, seconds };
+    const key = `chat/${f.id}/${now.getTime()}-${Math.random().toString(36).slice(2, 8)}.${photo ? photo.ext : voiceExt}`;
+    const url = photo ? await this.storage.put(key, photo.buffer, photo.mime) : await this.storage.put(key, file.buffer, mime);
+    if (photo) await this.images.noteStored(me, 'chat', f.id, key, photo);
+    const meta: Record<string, unknown> = photo ? { url, key, w: photo.width, h: photo.height } : { url, key, seconds };
     const m = await this.prisma.$transaction(async (tx) => {
       const msg = await tx.message.create({
         data: { friendshipId: f.id, senderId: me, kind: kind === 'photo' ? MessageKind.PHOTO : MessageKind.VOICE, text: MEDIA_TEXT[kind], meta: meta as Prisma.InputJsonObject, replyToId: reply },

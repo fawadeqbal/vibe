@@ -1,14 +1,16 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Prisma, ReportReason } from '@prisma/client';
 
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { Clock, MS } from '../../common/utils/clock';
+import { AppConfig } from '../../config/app-config.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { ServerEvent } from '../../infra/realtime/realtime.events';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { EconomyService } from '../catalog/economy.service';
+import { MEDIA_BLOCKED, type MediaBlockedEvent } from '../safety/image-safety.service';
 import { BlocksService } from '../social/blocks.service';
 
 export const USER_BANNED = 'moderation.user-banned';
@@ -32,6 +34,7 @@ export class ModerationService {
     private readonly events: EventEmitter2,
     private readonly clock: Clock,
     private readonly economy: EconomyService,
+    private readonly config: AppConfig,
   ) {}
 
   async report(reporterId: string, input: { userId: string; reason: ReportReason; matchId?: string; note?: string; block?: boolean }) {
@@ -59,6 +62,16 @@ export class ModerationService {
     // Underage reports are urgent: one is enough to pull the account for review.
     const threshold = reason === ReportReason.UNDERAGE ? 1 : this.economy.rules.autoBanReports;
     if (reporters.length >= threshold) await this.ban(userId, this.economy.rules.autoBanHours, `auto: ${reporters.length} reports`);
+  }
+
+  /** Photos stopped by the nudity filter are strikes: NSFW_STRIKES within NSFW_STRIKE_DAYS pause the account (autoBanHours). */
+  @OnEvent(MEDIA_BLOCKED, { async: true, promisify: true })
+  async onMediaBlocked(e: MediaBlockedEvent): Promise<void> {
+    const strikes = this.config.get('NSFW_STRIKES');
+    if (!strikes) return;
+    const since = new Date(this.clock.now().getTime() - this.config.get('NSFW_STRIKE_DAYS') * MS.day);
+    const blocked = await this.prisma.mediaFlag.count({ where: { userId: e.userId, action: 'blocked', createdAt: { gte: since } } });
+    if (blocked >= strikes) await this.ban(e.userId, this.economy.rules.autoBanHours, `auto: ${blocked} photos blocked for nudity`);
   }
 
   async ban(userId: string, hours: number, why: string): Promise<Date> {

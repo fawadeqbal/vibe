@@ -89,3 +89,32 @@ def test_rejects_bad_input(face):
     assert analyze([b"not an image"]).status_code == 400
     assert analyze([jpg(face)] * 7).status_code == 400
     assert client.post("/analyze", files=[]).status_code == 422
+
+
+# ── Nudity score ─────────────────────────────────────────────────────────
+# Only safe images live in the repo. The model's own published evaluation
+# covers explicit images; here we check the wiring and that ordinary photos
+# stay far below the backend's review threshold (NSFW_REVIEW, 0.6 by default).
+
+
+def nsfw(data: bytes, name="p.jpg", mime="image/jpeg"):
+    return client.post("/nsfw", files={"image": (name, data, mime)})
+
+
+def test_nsfw_ordinary_photos_score_low(face):
+    for img in (face, cv2.imread(FIX + "no-face.jpg"), cv2.flip(face, 1)):
+        r = nsfw(jpg(img))
+        assert r.status_code == 200
+        assert 0 <= r.json()["nsfw"] < 0.3
+
+
+def test_nsfw_accepts_png_with_alpha_and_grey(face):
+    rgba = cv2.cvtColor(face, cv2.COLOR_BGR2BGRA)
+    assert nsfw(cv2.imencode(".png", rgba)[1].tobytes(), "p.png", "image/png").status_code == 200
+    grey = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+    assert nsfw(cv2.imencode(".png", grey)[1].tobytes(), "g.png", "image/png").status_code == 200
+
+
+def test_nsfw_rejects_non_images_and_huge_files():
+    assert nsfw(b"not an image").status_code == 400
+    assert nsfw(b"\xff" * (8 * 1024 * 1024 + 10)).status_code == 413

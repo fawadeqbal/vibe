@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { createTestApp, resetState, signUp, TestApp, payByCard } from './helpers';
+import { createTestApp, payByCard, resetState, setAvatarUrl, signUp, TestApp } from './helpers';
 
 describe('wallet, payments and VIP', () => {
   let t: TestApp;
@@ -46,7 +46,8 @@ describe('wallet, payments and VIP', () => {
     const u = await signUp(t, {}, me.body.inviteCode);
     const early = await t.http.post('/v1/wallet/rewards/profile').set(u.auth).expect(400);
     expect(early.body.error.code).toBe('PROFILE_INCOMPLETE');
-    await t.http.patch('/v1/me').set(u.auth).send({ bio: 'hi', interests: ['Music', 'Travel', 'Coffee'], avatarUrl: 'https://i.pravatar.cc/400?img=3' }).expect(200);
+    await setAvatarUrl(t, u, 'https://i.pravatar.cc/400?img=3');
+    await t.http.patch('/v1/me').set(u.auth).send({ bio: 'hi', interests: ['Music', 'Travel', 'Coffee'] }).expect(200);
     await t.http.post('/v1/wallet/rewards/profile').set(u.auth).expect(200);
     expect((await t.http.get('/v1/wallet').set(u.auth)).body.coins).toBe(80);
     await new Promise((r) => setTimeout(r, 300));

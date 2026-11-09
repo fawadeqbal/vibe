@@ -29,6 +29,7 @@ import { AdminPushController } from './ops/admin-push.controller';
 import { InsightsController } from './insights/insights.controller';
 import { InsightsService } from './insights/insights.service';
 import { AdminAppealsController } from './moderation/admin-appeals.controller';
+import { AdminPhotoFlagsController } from './moderation/admin-photo-flags.controller';
 import { AdminReportsController } from './moderation/admin-reports.controller';
 import { AdminReportsService } from './moderation/admin-reports.service';
 import { OpsController } from './ops/ops.controller';
@@ -47,7 +48,7 @@ import { AdminGrowthController } from './growth/admin-growth.controller';
  */
 @Module({
   imports: [AdminCoreModule, UsersModule, WalletModule, PaymentsModule, ModerationModule, MatchingModule, AnnouncementsModule, MessagingModule, ReferralsModule, PushModule, SiteModule],
-  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, AdminAppealsController, InsightsController, FinanceController, OpsController, AdminMailController, AdminPushController, AdminNotificationsController, AdminDownloadController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController, AdminGrowthController],
+  controllers: [StaffAuthController, TeamController, AuditController, DashboardController, AdminUsersController, AdminReportsController, AdminPhotoFlagsController, AdminAppealsController, InsightsController, FinanceController, OpsController, AdminMailController, AdminPushController, AdminNotificationsController, AdminDownloadController, AdminTemplatesController, AdminMessagesController, AdminEconomyController, IntegrationsController, AdminVerificationsController, AdminGrowthController],
   providers: [StaffTokenService, StaffAuthService, TeamService, DashboardService, InsightsService, AdminUsersService, AdminReportsService, FinanceService],
 })
 export class AdminModule {}

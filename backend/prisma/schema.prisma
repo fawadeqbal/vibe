@@ -1166,6 +1166,31 @@ model ContactFlag {
   @@index([createdAt])
 }
 
+/// A photo the nudity filter acted on (safety/image-safety). For moderators:
+/// who sends what. Blocked photos are never stored publicly; their copy
+/// (`key`, private storage) is evidence for review. Kept 30 days.
+model MediaFlag {
+  id         String    @id @default(cuid())
+  userId     String
+  /// chat = a friend chat photo; moment; avatar = profile photo.
+  place      String    @db.VarChar(8)
+  /// The friendship, moment key or user it belongs to.
+  refId      String
+  /// vibe-face nudity score, 0–1.
+  score      Float
+  /// blocked = refused (a strike); review = sent, but a person should look.
+  action     String    @db.VarChar(8)
+  /// Storage key: private for blocked photos, the public object for review ones.
+  key        String?
+  /// A moderator looked at it.
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
+}
+
 model StaffNote {
   id        String   @id @default(cuid())
   userId    String

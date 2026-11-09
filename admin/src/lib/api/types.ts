@@ -136,7 +136,7 @@ export interface UserDetail extends UserSummary {
     profileBonusClaimed: boolean;
   } | null;
   subscription: { planId: string; status: SubscriptionStatus; currentPeriodEnd: string; trialEndsAt: string | null } | null;
-  counts: { matches: number; friends: number; reportsGot: number; openReports: number; reportsMade: number; blockedBy: number; invitees: number; purchases: number; likes: number; hiddenMessages?: number };
+  counts: { matches: number; friends: number; reportsGot: number; openReports: number; reportsMade: number; blockedBy: number; invitees: number; purchases: number; likes: number; hiddenMessages?: number; photoFlags?: number };
   money: { spentUsd: number; giftsSent: number; giftsSentCoins: number; giftsReceived: number; giftsReceivedGems: number; cashedOutUsd: number };
   sessions: { id: string; userAgent: string | null; ip: string | null; createdAt: string; expiresAt: string }[];
 }
@@ -360,6 +360,21 @@ export type ReportReason = "NUDITY" | "HARASSMENT" | "UNDERAGE" | "SPAM" | "SCAM
 export type ReportStatus = "OPEN" | "ACTIONED" | "DISMISSED";
 
 /** A chat message whose contact details were hidden (chat safety; kept 30 days). */
+/** A photo the nudity filter acted on (admin/photo-flags). Kept 30 days. */
+export interface PhotoFlag {
+  id: string;
+  user: PersonRef;
+  /** chat = a friend chat photo; moment; avatar = profile photo. */
+  place: "chat" | "moment" | "avatar";
+  /** Nudity score, 0–1. */
+  score: number;
+  /** blocked = refused and kept privately as evidence (a strike); review = sent, a person should look. */
+  action: "blocked" | "review";
+  hasImage: boolean;
+  reviewedAt: string | null;
+  createdAt: string;
+}
+
 export interface HiddenMessage {
   id: string;
   /** match = in-call chat on a random call; chat = a friend chat. */

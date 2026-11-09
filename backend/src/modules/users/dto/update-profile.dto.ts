@@ -56,7 +56,7 @@ export class UpdateProfileDto {
   @IsBoolean()
   marketingEmails?: boolean;
 
-  @ApiPropertyOptional({ description: 'Use POST /me/avatar to upload; a URL is accepted for imports' })
+  @ApiPropertyOptional({ description: 'Upload with POST /me/avatar; only a URL it returned for you is accepted here' })
   @IsOptional()
   @IsUrl({ require_tld: false, require_protocol: true })
   avatarUrl?: string;

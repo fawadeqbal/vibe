@@ -72,6 +72,12 @@ export enum ErrorCode {
   /** Gone, expired, deleted or not visible to you (404). */
   MOMENT_NOT_FOUND = 'MOMENT_NOT_FOUND',
 
+  // safety
+  /** A photo was stopped by the nudity filter (422). Not sent, not stored publicly. */
+  CONTENT_BLOCKED = 'CONTENT_BLOCKED',
+  /** The photo check is down and photos aren't accepted unchecked (503): try again shortly. */
+  SAFETY_CHECK_UNAVAILABLE = 'SAFETY_CHECK_UNAVAILABLE',
+
   // referrals and affiliates
   /** No such invite / partner code (404). */
   INVITE_CODE_INVALID = 'INVITE_CODE_INVALID',

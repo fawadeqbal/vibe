@@ -1,6 +1,8 @@
 import { createServer, IncomingMessage, Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 
+import sharp from 'sharp';
+
 import { FaceServiceVerificationProvider } from '../src/modules/users/verification/face.provider';
 import { VerificationService } from '../src/modules/users/verification/verification.service';
 import { createTestApp, resetState, signUp, TestApp, TestUser } from './helpers';
@@ -55,7 +57,8 @@ describe('selfie verification with the pose challenge (face provider)', () => {
   /** A user whose profile photo is in our storage (the face service compares against it). */
   const withPhoto = async (): Promise<TestUser> => {
     const u = await signUp(t);
-    await t.http.post('/v1/me/avatar').set(u.auth).attach('file', Buffer.from('profile-photo-bytes'), { filename: 'me.jpg', contentType: 'image/jpeg' }).expect(201);
+    const jpeg = await sharp({ create: { width: 320, height: 320, channels: 3, background: '#c08060' } }).jpeg().toBuffer();
+    await t.http.post('/v1/me/avatar').set(u.auth).attach('file', jpeg, { filename: 'me.jpg', contentType: 'image/jpeg' }).expect(201);
     return u;
   };
   const challenge = async (u: TestUser) => (await t.http.post('/v1/me/verification/challenge').set(u.auth).expect(200)).body as { id: string; steps: string[]; frames: number; expiresAt: string };
@@ -80,7 +83,7 @@ describe('selfie verification with the pose challenge (face provider)', () => {
     expect(r.body).toMatchObject({ verified: true, verification: { status: 'APPROVED' } });
     // The profile photo and every frame went to the face service, in order.
     const sent = face.requests[0].body;
-    expect(sent).toContain('profile-photo-bytes');
+    expect(sent).toMatch(/name="reference"; filename="reference\.jpg"/);
     expect(sent.indexOf('frame-0')).toBeLessThan(sent.indexOf('frame-2'));
     const saved = await t.prisma.verificationRequest.findFirstOrThrow({ where: { userId: u.id } });
     expect(saved).toMatchObject({ provider: 'face', status: 'APPROVED', similarity: 66, selfieKey: null });

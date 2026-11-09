@@ -89,6 +89,7 @@ export class AdminUsersService {
         this.prisma.user.count({ where: { invitedById: id } }),
         this.prisma.purchase.count({ where: { userId: id } }),
         this.prisma.contactFlag.count({ where: { userId: id } }),
+        this.prisma.mediaFlag.count({ where: { userId: id } }),
       ]),
       this.prisma.purchase.aggregate({ where: { userId: id, status: PurchaseStatus.SUCCEEDED }, _sum: { usdCents: true } }),
       this.prisma.giftTransfer.aggregate({ where: { fromId: id }, _sum: { coins: true }, _count: true }),
@@ -97,7 +98,7 @@ export class AdminUsersService {
       this.prisma.session.findMany({ where: { userId: id, revokedAt: null, expiresAt: { gt: this.clock.now() } }, orderBy: { createdAt: 'desc' }, take: 20 }),
       this.prisma.subscription.findFirst({ where: { userId: id }, orderBy: { createdAt: 'desc' } }),
     ]);
-    const [matches, friends, reportsGot, openReports, reportsMade, blockedBy, invitees, purchases, hiddenMessages] = counts;
+    const [matches, friends, reportsGot, openReports, reportsMade, blockedBy, invitees, purchases, hiddenMessages, photoFlags] = counts;
     return {
       ...this.summary(staff, { ...u, _count: { reportsGot: openReports } }),
       online,
@@ -120,7 +121,7 @@ export class AdminUsersService {
         profileBonusClaimed: u.wallet.profileBonusClaimed,
       },
       subscription: sub && { planId: sub.planId, status: sub.status, currentPeriodEnd: sub.currentPeriodEnd.toISOString(), trialEndsAt: sub.trialEndsAt?.toISOString() ?? null },
-      counts: { matches, friends, reportsGot, openReports, reportsMade, blockedBy, invitees, purchases, likes: u.likesCount, hiddenMessages },
+      counts: { matches, friends, reportsGot, openReports, reportsMade, blockedBy, invitees, purchases, likes: u.likesCount, hiddenMessages, photoFlags },
       money: {
         spentUsd: (spent._sum.usdCents ?? 0) / 100,
         giftsSent: giftsSent._count,

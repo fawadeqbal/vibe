@@ -12,6 +12,7 @@ import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { StorageProvider } from '../../infra/storage/storage.provider';
 import { EconomyService } from '../catalog/economy.service';
+import { ImageSafetyService } from '../safety/image-safety.service';
 import { WalletService } from '../wallet/wallet.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { isProfileComplete, PRIVACY_OPENED, PrivacyOpenedEvent, PROFILE_COMPLETED, ProfileCompletedEvent, USER_ONBOARDED, UserOnboardedEvent, USER_SIGNED_UP, UserSignedUpEvent } from './profile.rules';
@@ -52,6 +53,7 @@ export class UsersService {
     private readonly realtime: RealtimeService,
     private readonly economy: EconomyService,
     private readonly config: AppConfig,
+    private readonly images: ImageSafetyService,
   ) {}
 
   /**
@@ -108,11 +110,17 @@ export class UsersService {
     return toPublicProfile(await this.findActive(id), this.clock.now());
   }
 
-  async update(id: string, dto: UpdateProfileDto): Promise<MeProfile> {
+  /** `trusted`: the avatar URL comes from our own upload (setAvatar), not from the client. */
+  async update(id: string, dto: UpdateProfileDto, opts: { trusted?: boolean } = {}): Promise<MeProfile> {
     if (dto.age !== undefined && dto.age < this.economy.rules.minAge) {
       throw new AppError(ErrorCode.UNDERAGE, `Vibe is for people ${this.economy.rules.minAge} and over`, HttpStatus.FORBIDDEN);
     }
     const before = await this.findActive(id);
+    // A new profile photo must be one this person uploaded through POST /me/avatar (and so passed the photo checks):
+    // an outside URL would skip them.
+    if (dto.avatarUrl && dto.avatarUrl !== before.avatarUrl && !opts.trusted && !this.storage.keyFromUrl(dto.avatarUrl)?.startsWith(`avatars/${id}/`)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, 'Upload your profile photo from the app', HttpStatus.BAD_REQUEST);
+    }
     const data: Prisma.UserUpdateInput = {
       name: dto.name,
       age: dto.age,
@@ -144,10 +152,13 @@ export class UsersService {
   }
 
   async setAvatar(id: string, file: { buffer: Buffer; mimetype: string }): Promise<MeProfile> {
-    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.mimetype];
-    if (!ext) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Use a JPEG, PNG or WebP image', HttpStatus.UNSUPPORTED_MEDIA_TYPE);
-    const url = await this.storage.put(`avatars/${id}/${Date.now()}.${ext}`, file.buffer, file.mimetype);
-    return this.update(id, { avatarUrl: url });
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Use a JPEG, PNG or WebP image', HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+    // Real image bytes only, re-encoded (no GPS or hidden data) and checked for nudity before it's stored.
+    const photo = await this.images.screen(id, 'avatar', id, file.buffer);
+    const key = `avatars/${id}/${Date.now()}.jpg`;
+    const url = await this.storage.put(key, photo.buffer, photo.mime);
+    await this.images.noteStored(id, 'avatar', id, key, photo);
+    return this.update(id, { avatarUrl: url }, { trusted: true });
   }
 
   async completeOnboarding(id: string): Promise<MeProfile> {

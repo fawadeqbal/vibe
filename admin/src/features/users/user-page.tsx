@@ -16,6 +16,7 @@ import { Avatar, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@/co
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { useCan } from "@/features/auth/session";
 import { UserReferralsTab } from "@/features/growth/user-referrals";
+import { PhotoFlagsTable } from "@/features/moderation/photo-flags";
 import { api } from "@/lib/api/client";
 import type { UserDetail } from "@/lib/api/types";
 import { flag, format } from "@/lib/format";
@@ -40,6 +41,7 @@ function UserView({ user }: { user: UserDetail }) {
     { id: "wallet", label: "Wallet", show: can(P.WalletView) },
     { id: "reports", label: "Reports", count: user.counts.reportsGot, show: can(P.ModerationView) },
     { id: "hidden", label: "Hidden messages", count: user.counts.hiddenMessages || undefined, show: can(P.ModerationView) },
+    { id: "photos", label: "Photo flags", count: user.counts.photoFlags || undefined, show: can(P.ModerationView) },
     { id: "purchases", label: "Purchases", count: user.counts.purchases, show: can(P.FinanceView) },
     { id: "cashouts", label: "Cash-outs", show: can(P.FinanceView) },
     { id: "referrals", label: "Referrals", count: user.counts.invitees || undefined, show: true },
@@ -113,6 +115,9 @@ function UserView({ user }: { user: UserDetail }) {
               </TabsContent>
               <TabsContent value="hidden">
                 <HiddenMessagesTab userId={user.id} />
+              </TabsContent>
+              <TabsContent value="photos">
+                <PhotoFlagsTable userId={user.id} />
               </TabsContent>
               <TabsContent value="purchases">
                 <PurchasesTab userId={user.id} />
