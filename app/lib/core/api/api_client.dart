@@ -26,6 +26,9 @@ class ApiClient {
   /// Sent with every request (e.g. `X-App-Store` on store builds).
   final Map<String, String> _defaultHeaders;
 
+  /// "android/0.1.5" or "ios/1.0.0" (the X-Client header), for the socket handshake; null in tests.
+  String? get clientName => _defaultHeaders['X-Client'];
+
   String? _access;
   String? _refresh;
   Future<bool>? _refreshing;

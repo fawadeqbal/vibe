@@ -17,6 +17,7 @@ import { WalletService } from '../../wallet/wallet.service';
 import { createdRange, emailFor, looksLikeId, pageArgs, toAdminPage } from '../core/admin-query';
 import type { StaffPrincipal } from '../core/staff.types';
 import { UpdateUserDto, UserListQuery, UserSort, WalletAdjustDto } from './admin-users.dto';
+import { isApp } from '../../platforms/client-kind';
 
 type UserRow = User & { wallet: Wallet | null; _count?: { reportsGot: number } };
 
@@ -53,6 +54,12 @@ export class AdminUsersService {
     if (q.q) and.push(this.search(q.q));
     if (q.banned !== undefined) and.push(q.banned ? { bannedUntil: { gt: now } } : { OR: [{ bannedUntil: null }, { bannedUntil: { lte: now } }] });
     if (q.vip !== undefined) and.push(q.vip ? { wallet: { vipUntil: { gt: now } } } : { wallet: { OR: [{ vipUntil: null }, { vipUntil: { lte: now } }] } });
+    if (q.client) and.push({ lastClient: q.client === 'app' ? { in: ['android', 'ios'] } : q.client });
+    const live = await this.realtime.onlineClients();
+    if (q.online) {
+      const ids = [...live.entries()].filter(([, on]) => q.online === 'any' || [...on].some((c) => (q.online === 'app' ? isApp(c) : c === 'web'))).map(([id]) => id);
+      and.push({ id: { in: ids } });
+    }
     const where: Prisma.UserWhereInput = {
       status: q.status,
       verified: q.verified,
@@ -69,14 +76,14 @@ export class AdminUsersService {
       orderBy: ORDER[q.sort],
     });
     const online = await this.realtime.onlineMap(rows.map((r) => r.id));
-    return toAdminPage(rows, q.limit, (u) => ({ ...this.summary(staff, u), online: !!online[u.id] }));
+    return toAdminPage(rows, q.limit, (u) => ({ ...this.summary(staff, u), online: !!online[u.id], onlineOn: onlineOn(live, u.id) }));
   }
 
   async get(staff: StaffPrincipal, id: string) {
     const u = await this.prisma.user.findUnique({ where: { id }, include: { wallet: true, invitedBy: { select: { id: true, name: true } }, identities: { select: { provider: true } } } });
     if (!u) throw AppError.notFound('User');
     const pair = { OR: [{ userAId: id }, { userBId: id }] };
-    const [online, inCall, counts, spent, giftsSent, giftsReceived, cashedOut, sessions, sub] = await Promise.all([
+    const [online, inCall, counts, spent, giftsSent, giftsReceived, cashedOut, sessions, sub, live, used] = await Promise.all([
       this.realtime.isOnline(id),
       this.matching.isInCall(id),
       this.prisma.$transaction([
@@ -97,12 +104,23 @@ export class AdminUsersService {
       this.prisma.cashout.aggregate({ where: { userId: id, status: CashoutStatus.PAID }, _sum: { usdCents: true } }),
       this.prisma.session.findMany({ where: { userId: id, revokedAt: null, expiresAt: { gt: this.clock.now() } }, orderBy: { createdAt: 'desc' }, take: 20 }),
       this.prisma.subscription.findFirst({ where: { userId: id }, orderBy: { createdAt: 'desc' } }),
+      this.realtime.onlineClients(),
+      this.prisma.clientActivity.groupBy({ by: ['client'], where: { userId: id }, _max: { day: true }, _count: { _all: true } }),
     ]);
     const [matches, friends, reportsGot, openReports, reportsMade, blockedBy, invitees, purchases, hiddenMessages, photoFlags] = counts;
     return {
       ...this.summary(staff, { ...u, _count: { reportsGot: openReports } }),
       online,
       inCall,
+      onlineOn: onlineOn(live, id),
+      /** Where they signed up, what they used last, and every Vibe they've used (last day, days active). */
+      clients: {
+        signup: u.signupClient,
+        last: u.lastClient,
+        used: used
+          .map((c) => ({ client: c.client, lastDay: c._max.day?.toISOString() ?? null, days: c._count._all }))
+          .sort((a, b) => (b.lastDay ?? '').localeCompare(a.lastDay ?? '')),
+      },
       bio: u.bio,
       interests: u.interests,
       signIn: { email: emailFor(staff, u.email), google: u.identities.some((i) => i.provider === 'GOOGLE'), apple: u.identities.some((i) => i.provider === 'APPLE'), facebook: u.identities.some((i) => i.provider === 'FACEBOOK') },
@@ -283,7 +301,13 @@ export class AdminUsersService {
       matchesCount: u.matchesCount,
       openReports: u._count?.reportsGot ?? 0,
       lastSeenAt: u.lastSeenAt?.toISOString() ?? null,
+      lastClient: u.lastClient,
       createdAt: u.createdAt.toISOString(),
     };
   }
+}
+
+/** The Vibes someone is connected on right now: app first, then web. */
+function onlineOn(live: Map<string, Set<string>>, id: string): string[] {
+  return [...(live.get(id) ?? [])].sort((a, b) => Number(isApp(b)) - Number(isApp(a)) || a.localeCompare(b));
 }

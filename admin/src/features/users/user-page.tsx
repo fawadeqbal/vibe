@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { Coins, Gems, IdChip, Time, UserCell } from "@/components/common/bits";
+import { ClientCell, clientLabel } from "@/components/common/client-chip";
 import { useConfirm } from "@/components/common/confirm";
 import { DescriptionList, ErrorState, PageHeader } from "@/components/common/page";
 import { StatusBadge } from "@/components/common/status";
@@ -63,7 +64,17 @@ function UserView({ user }: { user: UserDetail }) {
               </span>
               <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs font-normal text-muted">
                 <IdChip id={user.id} label="User id" />
-                {user.online ? <Badge tone="ok" dot>Online{user.inCall ? " · in a call" : ""}</Badge> : <span>Last active <Time iso={user.lastSeenAt} /></span>}
+                {user.online ? (
+                  <Badge tone="ok" dot>
+                    Online{user.onlineOn?.length ? ` on ${user.onlineOn.map(clientLabel).join(" + ")}` : ""}
+                    {user.inCall ? " · in a call" : ""}
+                  </Badge>
+                ) : (
+                  <span>
+                    Last active <Time iso={user.lastSeenAt} />
+                    {user.lastClient ? ` on ${clientLabel(user.lastClient)}` : ""}
+                  </span>
+                )}
               </span>
             </span>
           </span>
@@ -191,6 +202,25 @@ function UserView({ user }: { user: UserDetail }) {
                   { label: "Invited by", value: user.invitedBy ? <UserCell user={user.invitedBy} size={22} /> : "—" },
                   { label: "Invited", value: `${format.number(user.counts.invitees)} people` },
                   { label: "Active sessions", value: `${user.sessions.length} device${user.sessions.length === 1 ? "" : "s"}` },
+                  {
+                    label: "Uses",
+                    value: (
+                      <span className="flex flex-col gap-1.5">
+                        <ClientCell onlineOn={user.onlineOn ?? []} lastClient={user.clients?.last ?? user.lastClient} />
+                        {user.clients?.used.length ? (
+                          <span className="text-xs text-text-2">
+                            {user.clients.used.map((c, i) => (
+                              <span key={c.client}>
+                                {i > 0 ? " · " : ""}
+                                {clientLabel(c.client)}: {c.days} day{c.days === 1 ? "" : "s"}, last <Time iso={c.lastDay} mode="date" />
+                              </span>
+                            ))}
+                          </span>
+                        ) : null}
+                        <span className="text-xs text-muted">Signed up on {user.clients?.signup ? clientLabel(user.clients.signup) : "unknown"}</span>
+                      </span>
+                    ),
+                  },
                 ]}
               />
             </CardBody>

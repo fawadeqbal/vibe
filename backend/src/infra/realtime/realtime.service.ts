@@ -91,6 +91,33 @@ export class RealtimeService {
     await this.redis.client.zrem(ONLINE_ZSET, userId);
   }
 
+  private clientsCache: { at: number; map: Map<string, Set<string>> } | null = null;
+
+  /**
+   * Who is connected right now and on which Vibe (android / ios / web), from
+   * the live sockets on every instance. Someone on the app and the website
+   * at once has both. Cached a few seconds: it's for the admin panel.
+   */
+  async onlineClients(): Promise<Map<string, Set<string>>> {
+    if (this.clientsCache && Date.now() - this.clientsCache.at < 5_000) return this.clientsCache.map;
+    const map = new Map<string, Set<string>>();
+    if (this.server) {
+      try {
+        for (const s of await this.server.fetchSockets()) {
+          const id = (s.data.user as { id?: string } | undefined)?.id;
+          if (!id) continue;
+          const set = map.get(id) ?? new Set<string>();
+          set.add(typeof s.data.client === 'string' ? s.data.client : 'web');
+          map.set(id, set);
+        }
+      } catch (e) {
+        this.logger.warn(`listing sockets failed: ${(e as Error).message}`);
+      }
+    }
+    this.clientsCache = { at: Date.now(), map };
+    return map;
+  }
+
   /** User ids with a socket on this instance (the interval heartbeats and last-seen refreshes use it). */
   localUserIds(): string[] {
     const ids = new Set<string>();

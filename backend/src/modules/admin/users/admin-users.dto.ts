@@ -48,6 +48,16 @@ export class UserListQuery extends AdminListQuery {
   @Matches(/^[A-Z]{2}$/)
   country?: string;
 
+  @ApiPropertyOptional({ enum: ['app', 'web', 'android', 'ios'], description: 'The Vibe they used last: the phone app (android or ios) or the website' })
+  @IsOptional()
+  @IsIn(['app', 'web', 'android', 'ios'])
+  client?: 'app' | 'web' | 'android' | 'ios';
+
+  @ApiPropertyOptional({ enum: ['any', 'app', 'web'], description: 'Connected right now (on any Vibe, the app, or the website)' })
+  @IsOptional()
+  @IsIn(['any', 'app', 'web'])
+  online?: 'any' | 'app' | 'web';
+
   @ApiPropertyOptional({ enum: USER_SORTS })
   @IsOptional()
   @IsIn(USER_SORTS)

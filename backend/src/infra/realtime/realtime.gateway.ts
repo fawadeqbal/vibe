@@ -14,6 +14,7 @@ import type { Server, Socket } from 'socket.io';
 
 import { WsExceptionFilter } from '../../common/filters/ws-exception.filter';
 import type { AuthUser } from '../../common/types/auth-user';
+import { type ClientKind, socketClient } from '../../modules/platforms/client-kind';
 import { userRoom } from './realtime.events';
 import { RealtimeService } from './realtime.service';
 
@@ -25,6 +26,8 @@ export interface SocketLifecycleEvent {
   socketId: string;
   /** Connect only: this is the user's only socket (they just came online). */
   firstSocket?: boolean;
+  /** Connect only: which Vibe this socket is (android / ios / web). */
+  client?: ClientKind;
   /** Disconnect only: no sockets left for this user anywhere (they just went offline). */
   lastSocket?: boolean;
 }
@@ -52,10 +55,12 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   async handleConnection(socket: Socket): Promise<void> {
     const user = socket.data.user as AuthUser | undefined;
     if (!user) return void socket.disconnect(true);
+    const client = socketClient(socket.handshake);
+    socket.data.client = client;
     await socket.join(userRoom(user.id));
     await this.realtime.markConnected(user.id);
     const firstSocket = (await this.realtime.socketCount(user.id)) <= 1;
-    this.events.emit(SOCKET_CONNECTED, { userId: user.id, socketId: socket.id, firstSocket } satisfies SocketLifecycleEvent);
+    this.events.emit(SOCKET_CONNECTED, { userId: user.id, socketId: socket.id, firstSocket, client } satisfies SocketLifecycleEvent);
   }
 
   async handleDisconnect(socket: Socket): Promise<void> {
