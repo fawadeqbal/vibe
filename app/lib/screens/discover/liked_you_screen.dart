@@ -59,62 +59,90 @@ class _LikedYouScreenState extends State<LikedYouScreen> {
               ? const EmptyState(icon: SolarIconsBold.heart, title: 'No likes ', accent: 'waiting', body: "When someone likes you in Discover, they show up here. Like them back and it's a match.")
               : liked.unlocked
                   ? ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                       children: [
-                        Text("Like them back and it's a match — the chat opens right away.", style: VT.body(14, color: V.text2)),
-                        const SizedBox(height: 16),
+                        Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text("Like them back and it's a match: the chat opens right away.", style: VT.body(14, color: V.text2, height: 1.45))),
+                        const SizedBox(height: 14),
                         GridView.count(
                           crossAxisCount: 2,
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 3 / 4,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          mainAxisExtent: 200,
                           children: [for (final c in people) _LikedTile(card: c, onAnswer: (k) => _answer(c, k))],
                         ),
                       ],
                     )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  : Stack(
                       children: [
-                        GridView.count(
-                          crossAxisCount: 3,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 3 / 4,
+                        ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 220),
                           children: [
-                            for (final u in liked.previews.take(6))
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(18),
-                                child: Stack(fit: StackFit.expand, children: [
-                                  ImageFiltered(
-                                    imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                                    child: u.startsWith('http') ? Image.network(u, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: V.surface2)) : const ColoredBox(color: V.surface2),
-                                  ),
-                                  const Center(child: Icon(SolarIconsBold.lock, size: 20, color: Colors.white70)),
-                                ]),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                "${liked.count} ${liked.count == 1 ? 'person' : 'people'} liked you. Like them back in Discover and it's a match, or see who they are now.",
+                                style: VT.body(14, color: V.text2, height: 1.45),
                               ),
+                            ),
+                            const SizedBox(height: 14),
+                            GridView.count(
+                              crossAxisCount: 2,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              mainAxisSpacing: 10,
+                              crossAxisSpacing: 10,
+                              mainAxisExtent: 200,
+                              children: [
+                                for (final u in (liked.previews.isEmpty ? const [''] : liked.previews).take(liked.count.clamp(1, 6)))
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: Stack(fit: StackFit.expand, children: [
+                                      ImageFiltered(
+                                        imageFilter: ImageFilter.blur(sigmaX: 14, sigmaY: 14, tileMode: TileMode.decal),
+                                        child: Transform.scale(scale: 1.2, child: u.startsWith('http') ? Image.network(u, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: V.surface)) : const ColoredBox(color: V.surface)),
+                                      ),
+                                      const Align(
+                                        alignment: Alignment.bottomCenter,
+                                        child: SizedBox(height: 70, width: double.infinity, child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xCC0B0A10), Color(0x000B0A10)])))),
+                                      ),
+                                      const Positioned(top: 10, right: 10, child: Icon(SolarIconsBold.lock, size: 18, color: Colors.white70)),
+                                    ]),
+                                  ),
+                              ],
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 24),
-                        Text.rich(
-                          TextSpan(children: [
-                            TextSpan(text: '${liked.count} ${liked.count == 1 ? 'person likes' : 'people like'} ', style: VT.display(26)),
-                            TextSpan(text: 'you', style: VT.serif(30, color: V.gold)),
-                          ]),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text('With VIP you see who they are and can like them back — instant match. Or keep swiping: they may show up in your deck.', textAlign: TextAlign.center, style: VT.body(14, color: V.text2)),
-                        const SizedBox(height: 24),
-                        GradientButton(
-                          label: 'See who with VIP',
-                          icon: SolarIconsBold.crown,
-                          gradient: V.goldGrad,
-                          foreground: V.onGold,
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen())),
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: MediaQuery.of(context).padding.bottom + 24,
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(color: V.surface.withValues(alpha: 0.94), borderRadius: BorderRadius.circular(24), border: Border.all(color: V.gold.withValues(alpha: 0.3))),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(children: [
+                                  const Icon(SolarIconsBold.crown, size: 22, color: V.gold),
+                                  const SizedBox(width: 8),
+                                  Text('See who liked you', style: VT.title(16, weight: FontWeight.w700)),
+                                ]),
+                                const SizedBox(height: 10),
+                                Text('With VIP: see everyone who liked you, unlimited likes and free filters.', style: VT.body(13, color: V.text2)),
+                                const SizedBox(height: 10),
+                                GradientButton(
+                                  label: 'Get VIP',
+                                  height: 48,
+                                  gradient: V.goldGrad,
+                                  foreground: V.onGold,
+                                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen())),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -134,7 +162,7 @@ class _LikedTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       child: Stack(fit: StackFit.expand, children: [
         if (p.avatarUrl.startsWith('http')) Image.network(p.avatarUrl, fit: BoxFit.cover, errorBuilder: (_, _, _) => const DecoratedBox(decoration: BoxDecoration(gradient: V.brand))) else const DecoratedBox(decoration: BoxDecoration(gradient: V.brand)),
-        const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0.35, 1], colors: [Color(0x00000000), Color(0xE6000000)]))),
+        const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0.4, 1], colors: [Color(0x000B0A10), Color(0xE60B0A10)]))),
         if (card.superLikedMe)
           Positioned(
             top: 8,
@@ -142,17 +170,17 @@ class _LikedTile extends StatelessWidget {
             child: Container(
               height: 24,
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(color: V.violet, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: const Color(0xFF60A5FA), borderRadius: BorderRadius.circular(12)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.star_rounded, size: 14, color: Colors.white), const SizedBox(width: 4), Text('Super Like', style: VT.label(11, color: Colors.white))]),
             ),
           ),
         Positioned(
-          left: 12,
-          right: 12,
-          bottom: 12,
+          left: 10,
+          right: 10,
+          bottom: 10,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${p.name.split(' ').first}${p.age > 0 ? ', ${p.age}' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.title(16, color: Colors.white, weight: FontWeight.w600)),
-            Text('${p.country.flag} ${card.activeLabel}', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: Colors.white70)),
+            Text('${p.name.split(' ').first}${p.age > 0 ? ', ${p.age}' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.title(14, color: Colors.white, weight: FontWeight.w700)),
+            Text(card.activeLabel.isEmpty ? p.country.name : card.activeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: Colors.white70)),
             const SizedBox(height: 8),
             Row(children: [
               Expanded(

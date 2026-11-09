@@ -64,7 +64,7 @@ void main() {
       var looked = false;
       await t.pumpWidget(MaterialApp(theme: V.theme(), home: Scaffold(body: SizedBox(height: 760, child: NoPhotoPanel(onAddPhoto: () {}, onLookAround: () => looked = true)))));
       expect(find.text('Add a photo'), findsWidgets);
-      await t.tap(find.text('Just look around for now'));
+      await t.tap(find.text('Look around'));
       expect(looked, isTrue);
 
       var retried = false;
@@ -73,8 +73,9 @@ void main() {
       await t.tap(find.text('Try again'));
       expect(retried, isTrue);
 
-      await t.pumpWidget(_app(OutOfLikesBanner(resetsAt: DateTime.now().add(const Duration(hours: 3)), onMore: () {})));
-      expect(find.textContaining('3 hours'), findsOneWidget);
+      await t.pumpWidget(_app(OutOfLikesBanner(resetsAt: DateTime.now().add(const Duration(hours: 3)), packSize: 30, packCost: 20, onMore: () {})));
+      expect(find.textContaining('Out of likes until'), findsOneWidget);
+      expect(find.text('30 more for 20 coins, or unlimited with VIP'), findsOneWidget);
     });
 
     testWidgets('camera blocked sheet: steps, Try again', (t) async {

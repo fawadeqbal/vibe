@@ -13,6 +13,7 @@ import 'package:vibe_app/core/api/token_store.dart';
 import 'package:vibe_app/core/theme/vibe_theme.dart';
 import 'package:vibe_app/models/discover.dart';
 import 'package:vibe_app/providers/discover_provider.dart';
+import 'package:vibe_app/providers/filters_provider.dart';
 import 'package:vibe_app/providers/social_provider.dart';
 import 'package:vibe_app/screens/discover/discover_card.dart';
 import 'package:vibe_app/screens/discover/discover_screen.dart';
@@ -140,8 +141,8 @@ void main() {
       await t.runAsync(s.start);
       final d = s.d;
       await t.binding.setSurfaceSize(const Size(400, 860));
-      await t.pumpWidget(ChangeNotifierProvider<DiscoverProvider>.value(
-        value: d,
+      await t.pumpWidget(MultiProvider(
+        providers: [ChangeNotifierProvider<DiscoverProvider>.value(value: d), ChangeNotifierProvider<FiltersProvider>(create: (_) => FiltersProvider(null))],
         child: MaterialApp(theme: V.theme(), home: const DiscoverScreen()),
       ));
       await t.pump(const Duration(milliseconds: 500));

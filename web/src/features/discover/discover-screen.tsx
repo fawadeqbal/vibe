@@ -9,12 +9,15 @@ import { FaceStack } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
-import { DEFAULT_DISCOVER_FILTERS, type DiscoverCard, type SwipeKind, useDiscover, usesExtraFilters } from "@/stores/discover";
+import { type DiscoverCard, type SwipeKind, useDiscover } from "@/stores/discover";
 import { asMap } from "@/lib/api/mappers";
 import { api } from "@/stores/services";
 import { toast } from "@/stores/ui";
 
+import { FilterChips } from "@/features/filters/filter-chips";
+
 import { DiscoverCardView } from "./discover-card";
+import { DiscoverProfile } from "./discover-profile";
 import { openDiscoverFilters, openOutOfLikes } from "./discover-sheets";
 import { DeckEmpty, DeckOffline, DeckResting, DeckSkeleton, NoPhotoPanel, OutOfLikesBanner, openWelcomeBack } from "./discover-states";
 
@@ -44,9 +47,6 @@ let welcomeShown = false;
 export function DiscoverScreen() {
   const router = useRouter();
   const needCoins = useNeedCoins();
-  const filtersOn = useDiscover(
-    (x) => usesExtraFilters(x.filters) || x.filters.minAge !== DEFAULT_DISCOVER_FILTERS.minAge || x.filters.maxAge !== DEFAULT_DISCOVER_FILTERS.maxAge,
-  );
   const filtersExpired = useDiscover((x) => x.filtersExpired);
   useEffect(() => {
     if (!filtersExpired) return;
@@ -65,6 +65,7 @@ export function DiscoverScreen() {
   const returnedId = useDiscover((s) => s.returnedId);
   const refilling = useDiscover((s) => s.refilling);
   const [fly, setFly] = useState<Fly>(null);
+  const [profileOf, setProfileOf] = useState<string | null>(null);
   const [notifyOn, setNotifyOn] = useState<boolean | null>(null);
   const [drag, setDrag] = useState({ x: 0, y: 0, active: false });
   const start = useRef<{ x: number; y: number; id: number } | null>(null);
@@ -132,6 +133,7 @@ export function DiscoverScreen() {
   }, []);
 
   const top = deck[0];
+  const profileCard = profileOf ? deck.find((c) => c.profile.id === profileOf) : undefined;
   const vip = status?.vip ?? false;
   // What the deck area shows — one of these, and the buttons follow it:
   // the cards; the "add a photo" gate; a skeleton while people load; or a
@@ -277,62 +279,61 @@ export function DiscoverScreen() {
   const dragX = fly?.kind === "like" ? 1 : fly?.kind === "pass" ? -1 : Math.max(-1, Math.min(1, drag.x / SWIPE_X));
   const dragUp = fly?.kind === "super" ? 1 : Math.max(0, Math.min(1, -drag.y / SWIPE_UP));
 
-  const likesChip = status ? (status.likesLeft == null ? "Unlimited likes" : `${status.likesLeft} like${status.likesLeft === 1 ? "" : "s"} left`) : null;
   const likedYou = status?.likedYou;
-
   const resting = !!status && !status.enabled;
+  const outOfLikes = !!status && status.likesLeft === 0;
+  const likesPill = status ? (status.likesLeft == null ? "Unlimited likes" : `${status.likesLeft} like${status.likesLeft === 1 ? "" : "s"} left`) : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)] lg:flex-row lg:items-stretch">
       <div className="flex min-h-0 flex-1 flex-col lg:mx-auto lg:w-full lg:max-w-[460px]">
-        <header className="flex items-center gap-2 px-4 pt-4 pb-2.5">
-          <h1 className="type-display flex-1 text-[28px]">Discover</h1>
-          {likesChip && !resting ? (
-            <span
-              className={cn(
-                "type-label inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold",
-                vip ? "bg-gold/14 text-gold" : "bg-pink/14 text-pink-soft",
-              )}
-            >
-              <Icon name={vip ? "all_inclusive" : "favorite"} variant="filled" size={15} /> {likesChip}
-            </span>
-          ) : null}
-          {resting ? null : (
+        <header className="flex shrink-0 items-center gap-2 pt-2.5 pr-4 pb-2.5 pl-5">
+          <h1 className="flex-1 text-[30px] leading-[1.1] font-bold tracking-[-0.038em]">Discover</h1>
+          {likesPill && !resting ? (
             <button
               type="button"
-              onClick={() => void editFilters()}
-              aria-label={filtersOn ? "Filters (on)" : "Filters"}
-              className="relative flex size-10 items-center justify-center rounded-full bg-white/8 text-text hover:bg-white/12"
+              onClick={outOfLikes ? () => void moreLikes() : undefined}
+              aria-label={outOfLikes ? `${likesPill}: get more` : likesPill}
+              className={cn(
+                "inline-flex h-[34px] items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold",
+                vip ? "bg-gold/14 text-gold" : "bg-pink/14 text-pink-soft",
+                !outOfLikes && "cursor-default",
+              )}
             >
-              <Icon name="tune" size={20} />
-              {filtersOn ? <span aria-hidden className="absolute top-1.5 right-1.5 size-2 rounded-full bg-pink ring-2 ring-bg" /> : null}
+              <Icon name={vip ? "all_inclusive" : "favorite"} size={15} /> {likesPill}
             </button>
-          )}
+          ) : null}
         </header>
+        {resting ? null : (
+          <div className="shrink-0 px-4 pb-3">
+            <FilterChips />
+          </div>
+        )}
 
         {likedYou && likedYou.count > 0 && !resting ? (
           <Link
             href="/discover/liked-you"
-            className="mx-4 mb-2.5 flex items-center gap-3 rounded-[18px] border border-gold/30 bg-surface px-3.5 py-2.5 hover:bg-surface2 lg:hidden"
+            aria-label="See who liked you"
+            className="mx-4 mb-2.5 flex h-[54px] shrink-0 items-center rounded-[18px] border border-gold/25 bg-gold/8 px-3 hover:bg-gold/12 lg:hidden"
           >
             <LikedYouFaces />
-            <span className="min-w-0 flex-1">
-              <span className="type-title block text-[14px] font-semibold">
-                {likedYou.count} {likedYou.count === 1 ? "person likes" : "people like"} you
+            <span className="ml-2.5 flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-[14px] font-bold">
+                {likedYou.count} {likedYou.count === 1 ? "person" : "people"} liked you
               </span>
-              <span className="type-body block truncate text-[12px] text-muted">{vip ? "See who, and like back" : "VIP shows who they are"}</span>
+              <span className="truncate text-[12px] text-gold">{vip ? "Like them back to match" : "Like them back to match · VIP shows who"}</span>
             </span>
-            {likedYou.unseen > 0 ? (
-              <span className="type-label rounded-full bg-pink px-2 py-0.5 text-[11px] font-bold text-white">{likedYou.unseen} new</span>
-            ) : null}
-            <Icon name="chevron_right" size={20} className="text-muted" />
+            {likedYou.unseen > 0 ? <span className="mr-1 rounded-full bg-pink px-2 py-0.5 text-[11px] font-bold text-white">{likedYou.unseen} new</span> : null}
+            <Icon name="chevron_right" variant="outlined" size={20} className="text-gold" />
           </Link>
         ) : null}
 
-        {status && status.likesLeft === 0 && showCards ? <OutOfLikesBanner resetsAt={status.resetsAt} onMore={() => void moreLikes()} /> : null}
+        {status && outOfLikes && showCards ? (
+          <OutOfLikesBanner resetsAt={status.resetsAt} packSize={status.packSize} packCost={status.packCost} onMore={() => void moreLikes()} />
+        ) : null}
 
         {status && !resting && !status.visible && (status.hasPhoto || lookAround) ? (
-          <p className="type-body mx-4 mb-2.5 flex items-center gap-2 rounded-[14px] bg-warn/10 px-3 py-2 text-[12.5px] text-warn">
+          <p className="mx-4 mb-2.5 flex items-center gap-2 rounded-[14px] bg-warn/10 px-3 py-2 text-[12.5px] text-warn">
             <Icon name="visibility_off" size={16} />
             {!status.hasPhoto ? (
               <span>
@@ -371,7 +372,7 @@ export function DiscoverScreen() {
                     c={c}
                     drag={i === 0 ? dragX : 0}
                     up={i === 0 ? dragUp : 0}
-                    className={i === 0 ? "shadow-[0_20px_60px_rgb(0_0_0/0.45)]" : undefined}
+                    onInfo={i === 0 ? () => setProfileOf(c.profile.id) : undefined}
                     style={i === 0 && returnedId === c.profile.id ? { animation: "vibe-dialog-in 260ms var(--ease-spring, ease-out)" } : undefined}
                     onAnimationEnd={i === 0 && returnedId === c.profile.id ? () => useDiscover.getState().clearReturned() : undefined}
                   />
@@ -402,53 +403,101 @@ export function DiscoverScreen() {
         </div>
 
         {showActions ? (
-          <div className="flex items-center justify-center gap-4 px-4 pt-4 pb-[calc(14px+env(safe-area-inset-bottom))] lg:pb-6">
-            <RoundAction
-              label={status?.undoCost ? `Undo (${status.undoCost} coins)` : "Undo"}
-              icon="undo"
-              size={48}
-              className="border-gold/40 bg-gold/12 text-gold"
-              disabled={!lastPassed || !!fly || (!showCards && !refilling)}
-              onClick={() => void undo()}
-            />
-            <RoundAction
-              label="Pass"
-              icon="close"
-              size={64}
-              iconSize={30}
-              className="border-white/16 bg-surface text-text"
-              disabled={!showCards || !!fly}
-              onClick={() => top && void doSwipe(top, "pass")}
-            />
-            <RoundAction
-              label={status && status.freeSuperLikesLeft > 0 ? "Super Like (free)" : `Super Like (${status?.superLikeCost ?? 10} coins)`}
-              icon="star"
-              filled
-              size={48}
-              className="border-lavender/45 bg-violet/18 text-lavender"
-              disabled={!showCards || !!fly}
-              onClick={() => top && void doSwipe(top, "super")}
-            />
-            <RoundAction
-              label={status?.likesLeft === 0 ? "Like (no likes left today)" : "Like"}
-              icon={status?.likesLeft === 0 ? "lock" : "favorite"}
-              filled
-              size={64}
-              iconSize={30}
-              className="bg-brand border-transparent text-white shadow-[0_10px_30px_rgb(255_61_143/0.4)]"
-              disabled={!showCards || !!fly}
-              onClick={() => top && void doSwipe(top, "like")}
-            />
-          </div>
+          <DeckActions
+            className="pt-3.5 pb-[calc(14px+env(safe-area-inset-bottom))] lg:pb-6"
+            disabled={!showCards || !!fly}
+            canUndo={!!lastPassed && !fly && (showCards || refilling)}
+            onUndo={() => void undo()}
+            onPass={() => top && void doSwipe(top, "pass")}
+            onSuper={() => top && void doSwipe(top, "super")}
+            onLike={() => top && void doSwipe(top, "like")}
+            onLive={() => router.push("/match")}
+          />
         ) : (
           <div aria-hidden className="pb-[calc(14px+env(safe-area-inset-bottom))] lg:pb-6" />
         )}
-        {showCards ? (
-          <p className="type-body hidden pb-5 text-center text-[12px] text-muted lg:block">← pass · → like · ↑ Super Like · Backspace undo</p>
-        ) : null}
+        {showCards ? <p className="hidden pb-5 text-center text-[12px] text-muted lg:block">← pass · → like · ↑ Super Like · Backspace undo</p> : null}
       </div>
 
       <LikedYouPanel />
+      {profileCard ? (
+        <DiscoverProfile
+          c={profileCard}
+          onClose={() => setProfileOf(null)}
+          actions={
+            <DeckActions
+              disabled={!!fly}
+              canUndo={!!lastPassed && !fly}
+              onUndo={() => void undo()}
+              onPass={() => {
+                setProfileOf(null);
+                void doSwipe(profileCard, "pass");
+              }}
+              onSuper={() => {
+                setProfileOf(null);
+                void doSwipe(profileCard, "super");
+              }}
+              onLike={() => {
+                setProfileOf(null);
+                void doSwipe(profileCard, "like");
+              }}
+              onLive={() => router.push("/match")}
+            />
+          }
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Under the card: undo (gold), pass, Super Like (blue), like (the big pink
+ * one; muted when today's likes are used up), and meet someone live.
+ */
+function DeckActions({
+  className,
+  disabled,
+  canUndo,
+  onUndo,
+  onPass,
+  onSuper,
+  onLike,
+  onLive,
+}: {
+  className?: string;
+  disabled: boolean;
+  canUndo: boolean;
+  onUndo: () => void;
+  onPass: () => void;
+  onSuper: () => void;
+  onLike: () => void;
+  onLive: () => void;
+}) {
+  const status = useDiscover((s) => s.status);
+  const outOfLikes = status?.likesLeft === 0;
+  return (
+    <div className={cn("flex items-center justify-center gap-4", className)}>
+      <RoundAction label={status?.undoCost && !status.vip ? `Undo (${status.undoCost} coins)` : "Undo"} icon="undo" size={44} color="var(--color-gold)" disabled={!canUndo} onClick={onUndo} />
+      <RoundAction label="Pass" icon="close" size={60} iconSize={28} color="var(--color-text)" disabled={disabled} onClick={onPass} />
+      <RoundAction
+        label={status && status.freeSuperLikesLeft > 0 ? "Super Like (free)" : `Super Like · ${status?.superLikeCost ?? 10} coins`}
+        icon="star"
+        size={52}
+        color="#60a5fa"
+        disabled={disabled}
+        onClick={onSuper}
+      />
+      <RoundAction
+        label={outOfLikes ? "Like (no likes left today)" : "Like"}
+        icon="favorite"
+        size={64}
+        iconSize={30}
+        color={outOfLikes ? "var(--color-muted)" : "#fff"}
+        brand={!outOfLikes}
+        disabled={disabled}
+        onClick={onLike}
+      />
+      <RoundAction label="Meet someone live" icon="videocam" size={44} color="var(--color-pink-soft)" onClick={onLive} />
     </div>
   );
 }
@@ -457,9 +506,9 @@ function RoundAction({
   label,
   icon,
   size,
-  iconSize = 22,
-  filled,
-  className,
+  iconSize,
+  color,
+  brand = false,
   disabled,
   onClick,
 }: {
@@ -467,8 +516,8 @@ function RoundAction({
   icon: string;
   size: number;
   iconSize?: number;
-  filled?: boolean;
-  className?: string;
+  color: string;
+  brand?: boolean;
   disabled?: boolean;
   onClick: () => void;
 }) {
@@ -480,12 +529,12 @@ function RoundAction({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full border transition-[filter,transform,opacity,box-shadow] hover:brightness-115 active:scale-95 disabled:pointer-events-none disabled:opacity-35 disabled:shadow-none disabled:grayscale",
-        className,
+        "flex shrink-0 items-center justify-center rounded-full border border-white/10 transition-[filter,transform,opacity] hover:brightness-115 active:scale-95 disabled:pointer-events-none disabled:opacity-40",
+        brand ? "bg-brand shadow-[0_10px_30px_rgb(255_61_143/0.4)]" : "bg-surface2",
       )}
-      style={{ width: size, height: size }}
+      style={{ width: size, height: size, color }}
     >
-      <Icon name={icon} variant={filled ? "filled" : undefined} size={iconSize} />
+      <Icon name={icon} size={iconSize ?? Math.round(size * 0.44)} />
     </button>
   );
 }
@@ -498,11 +547,11 @@ function LikedYouFaces() {
   const urls = liked ? (liked.unlocked ? liked.people.slice(0, 3).map((p) => p.profile.avatarUrl) : liked.previews.slice(0, 3)) : [];
   if (!urls.length)
     return (
-      <span className="flex size-10 items-center justify-center rounded-full bg-gold/14 text-gold">
-        <Icon name="favorite" variant="filled" size={20} />
+      <span className="flex size-[34px] items-center justify-center rounded-full bg-gold/14 text-gold">
+        <Icon name="favorite" size={18} />
       </span>
     );
-  return <FaceStack urls={urls} size={36} overlap={12} blur={liked?.unlocked ? 0 : 3} />;
+  return <FaceStack urls={urls} size={34} overlap={10} blur={liked?.unlocked ? 0 : 4} />;
 }
 
 /** Wide screens: who liked you, next to the deck. */

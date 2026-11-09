@@ -13,7 +13,9 @@ import '../../providers/discover_provider.dart';
 import '../onboarding/profile_setup_screen.dart';
 import '../store/store_screen.dart';
 import '../store/vip_screen.dart';
+import '../filters/filter_chips.dart';
 import 'discover_card.dart';
+import 'discover_profile.dart';
 import 'discover_sheets.dart';
 import 'discover_states.dart';
 import 'liked_you_screen.dart';
@@ -197,6 +199,40 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
 
+  /// ⓘ: the whole profile, with the deck's buttons acting on this card.
+  void _openProfile(DiscoverProvider d, DiscoverCard c) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (ctx) => DiscoverProfileScreen(
+        card: c,
+        actions: ListenableBuilder(
+          listenable: d,
+          builder: (_, _) {
+            void act(SwipeKind k) {
+              Navigator.of(ctx).pop();
+              unawaited(_swipe(c, k));
+            }
+
+            return _DeckActions(
+              status: d.status,
+              disabled: _fly != null,
+              canUndo: d.lastPassed != null && _fly == null,
+              onUndo: _undo,
+              onPass: () => act(SwipeKind.pass),
+              onSuper: () => act(SwipeKind.superLike),
+              onLike: () => act(SwipeKind.like),
+              onLive: widget.onOpenMatch == null
+                  ? null
+                  : () {
+                      Navigator.of(ctx).pop();
+                      widget.onOpenMatch!();
+                    },
+            );
+          },
+        ),
+      ),
+    ));
+  }
+
   void _onPanEnd(DiscoverCard top) {
     if (_drag.dx > _swipeX) {
       unawaited(_swipe(top, SwipeKind.like));
@@ -256,7 +292,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 curve: VMotion.out,
                 onEnd: returned ? d.clearReturned : null,
                 builder: (_, t, child) => Opacity(opacity: t, child: Transform.scale(scale: 0.92 + 0.08 * t, child: child)),
-                child: DiscoverCardView(card: c, drag: top ? dragX : 0, up: top ? dragUp : 0, shadow: top),
+                child: DiscoverCardView(card: c, drag: top ? dragX : 0, up: top ? dragUp : 0, shadow: top, onInfo: top ? () => _openProfile(d, c) : null),
               ),
             ),
           ),
@@ -317,45 +353,33 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              padding: const EdgeInsets.fromLTRB(20, 10, 16, 10),
               child: Row(children: [
-                Expanded(child: Text('Discover', style: VT.display(28))),
+                Expanded(child: Semantics(header: true, child: Text('Discover', style: VT.title(30, weight: FontWeight.w700)))),
                 if (likesChip != null && !resting)
-                  Container(
-                    height: 32,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(color: (vip ? V.gold : V.pink).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(16)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(vip ? Icons.all_inclusive_rounded : SolarIconsBold.heart, size: 15, color: vip ? V.gold : V.pinkSoft),
-                      const SizedBox(width: 6),
-                      Text(likesChip, style: VT.label(12.5, color: vip ? V.gold : V.pinkSoft)),
-                    ]),
-                  ),
-                if (!resting) const SizedBox(width: 8),
-                // A dot when any filter is on.
-                if (!resting)
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    CircleIconButton(icon: SolarIconsOutline.tuning, tooltip: d.filters.anyOn ? 'Filters (on)' : 'Filters', onTap: _editFilters),
-                    if (d.filters.anyOn)
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: IgnorePointer(
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(shape: BoxShape.circle, color: V.pink, border: Border.all(color: V.bg, width: 2)),
-                          ),
-                        ),
+                  Semantics(
+                    button: status?.likesLeft == 0,
+                    label: status?.likesLeft == 0 ? '$likesChip: get more' : likesChip,
+                    excludeSemantics: true,
+                    child: GestureDetector(
+                      onTap: status?.likesLeft == 0 ? _outOfLikes : null,
+                      child: Container(
+                        height: 34,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(color: (vip ? V.gold : V.pink).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(999)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(vip ? Icons.all_inclusive_rounded : SolarIconsBold.heart, size: 15, color: vip ? V.gold : V.pinkSoft),
+                          const SizedBox(width: 6),
+                          Text(likesChip, style: VT.label(13, color: vip ? V.gold : V.pinkSoft, weight: FontWeight.w600)),
+                        ]),
                       ),
-                  ],
-                ),
+                    ),
+                  ),
               ]),
             ),
+            if (!resting) Padding(padding: const EdgeInsets.only(bottom: 12), child: FilterChips(onOpen: _editFilters)),
             if (status != null && !resting && status.likedYouCount > 0) _LikedYouStrip(status: status, likedYou: d.likedYou),
-            if (status != null && status.likesLeft == 0 && showCards) OutOfLikesBanner(resetsAt: status.resetsAt, onMore: _outOfLikes),
+            if (status != null && status.likesLeft == 0 && showCards) OutOfLikesBanner(resetsAt: status.resetsAt, packSize: status.packSize, packCost: status.packCost, onMore: _outOfLikes),
             if (status != null && !resting && !status.visible && (status.hasPhoto || _lookAround))
               Container(
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -419,36 +443,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               SizedBox(height: media.padding.bottom + 13)
             else
             Padding(
-              // Same as the web: 14px above the page's bottom edge, which is the
-              // tab bar's top (its hairline is 1px of padding.bottom).
-              padding: EdgeInsets.fromLTRB(16, 16, 16, media.padding.bottom + 13),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _RoundAction(
-                    icon: SolarIconsBold.undoLeftRound,
-                    size: 48,
-                    color: V.gold,
-                    fill: V.gold.withValues(alpha: 0.12),
-                    border: V.gold.withValues(alpha: 0.4),
-                    label: status != null && status.undoCost > 0 ? 'Undo (${status.undoCost} coins)' : 'Undo',
-                    onTap: d.lastPassed == null || _fly != null || (!showCards && !d.refilling) ? null : _undo,
-                  ),
-                  const SizedBox(width: 16),
-                  _RoundAction(icon: Icons.close_rounded, size: 64, iconSize: 30, color: V.text, fill: V.surface, border: Colors.white.withValues(alpha: 0.16), label: 'Pass', onTap: !showCards || _fly != null ? null : () => _swipe(top, SwipeKind.pass)),
-                  const SizedBox(width: 16),
-                  _RoundAction(
-                    icon: Icons.star_rounded,
-                    size: 48,
-                    color: V.lavender,
-                    fill: V.violet.withValues(alpha: 0.18),
-                    border: V.lavender.withValues(alpha: 0.45),
-                    label: status != null && status.freeSuperLikesLeft > 0 ? 'Super Like (free)' : 'Super Like (${status?.superLikeCost ?? 10} coins)',
-                    onTap: !showCards || _fly != null ? null : () => _swipe(top, SwipeKind.superLike),
-                  ),
-                  const SizedBox(width: 16),
-                  _RoundAction(icon: SolarIconsBold.heart, size: 64, iconSize: 30, color: Colors.white, gradient: V.brand, glow: true, label: status?.likesLeft == 0 ? 'Like (no likes left today)' : 'Like', onTap: !showCards || _fly != null ? null : () => _swipe(top, SwipeKind.like)),
-                ],
+              // 14px above the page's bottom edge, which is the tab bar's top.
+              padding: EdgeInsets.fromLTRB(16, 14, 16, media.padding.bottom + 13),
+              child: _DeckActions(
+                status: status,
+                disabled: !showCards || _fly != null,
+                canUndo: d.lastPassed != null && _fly == null && (showCards || d.refilling),
+                onUndo: _undo,
+                onPass: () => _swipe(top!, SwipeKind.pass),
+                onSuper: () => _swipe(top!, SwipeKind.superLike),
+                onLike: () => _swipe(top!, SwipeKind.like),
+                onLive: widget.onOpenMatch,
               ),
             ),
           ],
@@ -458,18 +463,49 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 }
 
+/// Under the card: undo (gold), pass, Super Like (blue), like (the big pink
+/// one; muted when today's likes are used up), and meet someone live.
+class _DeckActions extends StatelessWidget {
+  const _DeckActions({required this.status, required this.disabled, required this.canUndo, required this.onUndo, required this.onPass, required this.onSuper, required this.onLike, this.onLive});
+  final DiscoverStatus? status;
+  final bool disabled;
+  final bool canUndo;
+  final VoidCallback onUndo;
+  final VoidCallback onPass;
+  final VoidCallback onSuper;
+  final VoidCallback onLike;
+  final VoidCallback? onLive;
+
+  @override
+  Widget build(BuildContext context) {
+    final st = status;
+    final out = st?.likesLeft == 0;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _RoundAction(icon: SolarIconsBold.undoLeftRound, size: 44, color: V.gold, label: st != null && st.undoCost > 0 && !st.vip ? 'Undo (${st.undoCost} coins)' : 'Undo', onTap: canUndo ? onUndo : null),
+        const SizedBox(width: 16),
+        _RoundAction(icon: Icons.close_rounded, size: 60, iconSize: 28, color: V.text, label: 'Pass', onTap: disabled ? null : onPass),
+        const SizedBox(width: 16),
+        _RoundAction(icon: Icons.star_rounded, size: 52, color: superBlue, label: st != null && st.freeSuperLikesLeft > 0 ? 'Super Like (free)' : 'Super Like · ${st?.superLikeCost ?? 10} coins', onTap: disabled ? null : onSuper),
+        const SizedBox(width: 16),
+        _RoundAction(icon: SolarIconsBold.heart, size: 64, iconSize: 30, color: out ? V.muted : Colors.white, brand: !out, label: out ? 'Like (no likes left today)' : 'Like', onTap: disabled ? null : onLike),
+        const SizedBox(width: 16),
+        _RoundAction(icon: SolarIconsBold.videocamera, size: 44, color: V.pinkSoft, label: 'Meet someone live', onTap: onLive),
+      ],
+    );
+  }
+}
+
 class _RoundAction extends StatelessWidget {
-  const _RoundAction({required this.icon, required this.size, required this.label, required this.onTap, this.iconSize = 22, this.color = V.text, this.fill, this.border, this.gradient, this.glow = false});
+  const _RoundAction({required this.icon, required this.size, required this.label, required this.onTap, this.iconSize, this.color = V.text, this.brand = false});
   final IconData icon;
   final double size;
-  final double iconSize;
+  final double? iconSize;
   final String label;
   final VoidCallback? onTap;
   final Color color;
-  final Color? fill;
-  final Color? border;
-  final Gradient? gradient;
-  final bool glow;
+  final bool brand;
 
   @override
   Widget build(BuildContext context) {
@@ -480,10 +516,9 @@ class _RoundAction extends StatelessWidget {
       excludeSemantics: true,
       child: Tooltip(
         message: label,
-        // Disabled looks the same for every button: dimmed, grey, no glow.
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 200),
-          opacity: onTap == null ? 0.35 : 1,
+          opacity: onTap == null ? 0.4 : 1,
           child: GestureDetector(
             onTap: onTap,
             child: Container(
@@ -491,12 +526,12 @@ class _RoundAction extends StatelessWidget {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: gradient == null || onTap == null ? (fill ?? V.surface) : null,
-                gradient: onTap == null ? null : gradient,
-                border: border == null ? null : Border.all(color: border!),
-                boxShadow: glow && onTap != null ? [BoxShadow(color: V.pink.withValues(alpha: 0.4), blurRadius: 30, offset: const Offset(0, 10))] : null,
+                color: brand ? null : V.surface2,
+                gradient: brand ? V.brand : null,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                boxShadow: brand && onTap != null ? [BoxShadow(color: V.pink.withValues(alpha: 0.4), blurRadius: 30, offset: const Offset(0, 10))] : null,
               ),
-              child: Icon(icon, size: iconSize, color: color),
+              child: Icon(icon, size: iconSize ?? size * 0.44, color: color),
             ),
           ),
         ),
@@ -517,32 +552,38 @@ class _LikedYouStrip extends StatelessWidget {
     final n = status.likedYouCount;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: Panel(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        radius: 18,
-        border: V.gold.withValues(alpha: 0.3),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LikedYouScreen())),
-        child: Row(children: [
-          if (urls.isEmpty)
-            Container(width: 40, height: 40, decoration: BoxDecoration(color: V.gold.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(SolarIconsBold.heart, size: 20, color: V.gold))
-          else
-            FaceStack(urls: urls.take(3).toList(), size: 36, overlap: 12, blur: l?.unlocked == true ? 0 : 3),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('$n ${n == 1 ? 'person likes' : 'people like'} you', style: VT.title(14, weight: FontWeight.w600)),
-              Text(status.vip ? 'See who, and like back' : 'VIP shows who they are', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(12, color: V.muted)),
+      child: Semantics(
+        button: true,
+        label: 'See who liked you',
+        child: GestureDetector(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LikedYouScreen())),
+          child: Container(
+            height: 54,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(color: V.gold.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(18), border: Border.all(color: V.gold.withValues(alpha: 0.25))),
+            child: Row(children: [
+              if (urls.isEmpty)
+                Container(width: 34, height: 34, decoration: BoxDecoration(color: V.gold.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(SolarIconsBold.heart, size: 18, color: V.gold))
+              else
+                FaceStack(urls: urls.take(3).toList(), size: 34, overlap: 10, blur: l?.unlocked == true ? 0 : 4, borderColor: V.bg),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('$n ${n == 1 ? 'person' : 'people'} liked you', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.title(14, weight: FontWeight.w700)),
+                  Text(status.vip ? 'Like them back to match' : 'Like them back to match · VIP shows who', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(12, color: V.gold)),
+                ]),
+              ),
+              if (status.likedYouUnseen > 0)
+                Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(color: V.pink, borderRadius: BorderRadius.circular(10)),
+                  child: Text('${status.likedYouUnseen} new', style: VT.label(11, color: Colors.white, weight: FontWeight.w800)),
+                ),
+              const Icon(SolarIconsOutline.altArrowRight, size: 20, color: V.gold),
             ]),
           ),
-          if (status.likedYouUnseen > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: V.pink, borderRadius: BorderRadius.circular(10)),
-              child: Text('${status.likedYouUnseen} new', style: VT.label(11, color: Colors.white, weight: FontWeight.w800)),
-            ),
-          const SizedBox(width: 6),
-          const Icon(SolarIconsOutline.altArrowRight, size: 20, color: V.muted),
-        ]),
+        ),
       ),
     );
   }

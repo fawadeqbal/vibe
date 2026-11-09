@@ -62,28 +62,26 @@ export function LikedYouScreen() {
         />
       ) : liked.unlocked ? (
         <>
-          <p className="type-body mb-4 text-[14px] text-text2">Like them back and it&apos;s a match — the chat opens right away.</p>
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <p className="mx-1 mb-3.5 text-[14px] leading-[1.45] text-text2">Like them back and it&apos;s a match: the chat opens right away.</p>
+          <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {people.map((c) => (
-              <li key={c.profile.id} className="relative aspect-[3/4] overflow-hidden rounded-[20px] border border-line bg-surface">
+              <li key={c.profile.id} className="relative h-[200px] overflow-hidden rounded-[20px] bg-surface">
                 {c.profile.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.profile.avatarUrl} alt="" className="absolute inset-0 size-full object-cover" />
                 ) : null}
-                <span aria-hidden className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 to-transparent" />
+                <span aria-hidden className="absolute inset-x-0 bottom-0 h-[110px]" style={{ background: "linear-gradient(to top, rgb(11 10 16 / .9), rgb(11 10 16 / 0))" }} />
                 {c.superLikedMe ? (
-                  <span className="type-label absolute top-2 left-2 inline-flex h-6 items-center gap-1 rounded-full bg-violet px-2 text-[11px] font-semibold text-white">
+                  <span className="absolute top-2.5 left-2.5 inline-flex h-6 items-center gap-1 rounded-full bg-[#60a5fa] px-2 text-[11px] font-semibold text-white">
                     <Icon name="star" variant="filled" size={13} /> Super Like
                   </span>
                 ) : null}
-                <div className="absolute inset-x-0 bottom-0 p-3 text-white">
-                  <p className="type-title truncate text-[16px] font-semibold">
+                <div className="absolute inset-x-2.5 bottom-2.5 text-white">
+                  <p className="truncate text-[14px] font-bold">
                     {c.profile.name.split(" ")[0]}
                     {c.profile.age ? `, ${c.profile.age}` : ""}
                   </p>
-                  <p className="type-body truncate text-[11.5px] text-white/75">
-                    {c.profile.country.flag} {activeLabel(c)}
-                  </p>
+                  <p className="truncate text-[11.5px] text-white/75">{activeLabel(c) || c.profile.country.name}</p>
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
@@ -99,7 +97,7 @@ export function LikedYouScreen() {
                       onClick={() => void answer(c, "like")}
                       className={cn("bg-brand flex h-9 flex-1 items-center justify-center rounded-full text-white hover:brightness-110")}
                     >
-                      <Icon name="favorite" variant="filled" size={18} />
+                      <Icon name="favorite" size={18} />
                     </button>
                   </div>
                 </div>
@@ -108,25 +106,30 @@ export function LikedYouScreen() {
           </ul>
         </>
       ) : (
-        <div className="flex flex-col items-center pt-4 text-center">
-          <ul className="grid w-full grid-cols-3 gap-2.5">
-            {liked.previews.slice(0, 6).map((u, i) => (
-              <li key={i} className="relative aspect-[3/4] overflow-hidden rounded-[18px] bg-surface2">
+        <div className="relative pb-[190px]">
+          <p className="mx-1 mb-3.5 text-[14px] leading-[1.45] text-text2">
+            {liked.count} {liked.count === 1 ? "person" : "people"} liked you. Like them back in Discover and it&apos;s a match, or see who they are now.
+          </p>
+          <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {(liked.previews.length ? liked.previews : [""]).slice(0, Math.max(1, Math.min(6, liked.count))).map((u, i) => (
+              <li key={i} className="relative h-[200px] overflow-hidden rounded-[20px] bg-surface">
                 {u ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={u} alt="" className="size-full object-cover" style={{ filter: "blur(12px)", transform: "scale(1.2)" }} />
+                  <img src={u} alt="" className="size-full object-cover" style={{ filter: "blur(14px)", transform: "scale(1.2)" }} />
                 ) : null}
-                <Icon name="lock" size={20} className="absolute inset-0 m-auto text-white/80" />
+                <span aria-hidden className="absolute inset-x-0 bottom-0 h-[70px]" style={{ background: "linear-gradient(to top, rgb(11 10 16 / .8), rgb(11 10 16 / 0))" }} />
+                <Icon name="lock" size={18} className="absolute top-2.5 right-2.5 text-white/85" />
               </li>
             ))}
           </ul>
-          <h2 className="type-display mt-6 text-[26px]">
-            {liked.count} {liked.count === 1 ? "person likes" : "people like"} <span className="type-serif text-[30px] text-gold">you</span>
-          </h2>
-          <p className="type-body mt-2 max-w-[360px] text-[14px] text-text2">
-            With VIP you see who they are and can like them back — instant match. Or keep swiping: they may show up in your deck.
-          </p>
-          <GradientButton label="See who with VIP" icon="workspace_premium" tone="gold" className="mt-6 max-w-[360px]" onClick={() => router.push("/vip")} />
+          <div className="fixed inset-x-4 bottom-[calc(24px+env(safe-area-inset-bottom))] z-10 mx-auto flex max-w-[520px] flex-col gap-2.5 rounded-[24px] border border-gold/30 bg-surface/94 p-4 backdrop-blur-[12px]">
+            <span className="flex items-center gap-2 text-[16px] font-bold">
+              <Icon name="workspace_premium" size={22} className="text-gold" />
+              See who liked you
+            </span>
+            <span className="text-[13px] text-text2">With VIP: see everyone who liked you, unlimited likes and free filters.</span>
+            <GradientButton label="Get VIP" tone="gold" height={48} onClick={() => router.push("/vip")} />
+          </div>
         </div>
       )}
     </Screen>
