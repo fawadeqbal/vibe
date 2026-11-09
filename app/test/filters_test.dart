@@ -62,7 +62,7 @@ void main() {
     expect(const SharedFilters(gender: WantedGender.men, countryCode: 'IN', minAge: 25).freeOnly(), const SharedFilters(minAge: 25));
   });
 
-  testWidgets('the sheet saves, then offers the pass when gender is locked; the chips show it', (t) async {
+  testWidgets('the sheet saves, then offers the pass when gender is locked; the tags show it', (t) async {
     t.view.physicalSize = const Size(412 * 3, 1000 * 3);
     t.view.devicePixelRatio = 3;
     addTearDown(t.view.reset);
@@ -74,11 +74,13 @@ void main() {
       child: MaterialApp(
         theme: V.theme(),
         home: Scaffold(
-          body: Builder(builder: (c) => Column(children: [FilterChips(onOpen: () => showFiltersSheet(c)), TextButton(onPressed: () => showFiltersSheet(c), child: const Text('open'))])),
+          body: Builder(builder: (c) => Column(children: [FilterButton(onOpen: () => showFiltersSheet(c)), FilterTags(onOpen: () => showFiltersSheet(c)), TextButton(onPressed: () => showFiltersSheet(c), child: const Text('open'))])),
         ),
       ),
     ));
-    expect(find.text('Anyone'), findsOneWidget);
+    // Nothing set: just the button, no tags, no dot.
+    expect(find.text('Clear'), findsNothing);
+    expect(find.bySemanticsLabel('Filters'), findsOneWidget);
     await t.tap(find.text('open'));
     await t.pumpAndSettle();
     expect(find.text('One set of filters for random matches and Discover.'), findsOneWidget);
@@ -91,13 +93,23 @@ void main() {
     expect(find.text('Turn on gender and country'), findsOneWidget);
     await t.tap(find.text('Not now'));
     await t.pumpAndSettle();
-    // The chip says Women, with a lock while it's not open.
+    // Only what's set shows: a Women tag (locked while it's not open), and
+    // the button gets its dot.
     expect(find.text('Women'), findsOneWidget);
-    // Verified only switches right in the chip row.
-    await t.drag(find.byType(ListView), const Offset(-300, 0));
+    expect(find.bySemanticsLabel('Women (needs the filter pass)'), findsOneWidget);
+    expect(find.bySemanticsLabel('Filters (some are on)'), findsOneWidget);
+    await filters.save(filters.filters.copyWith(verifiedOnly: true));
     await t.pumpAndSettle();
-    await t.tap(find.text('Verified only'));
+    expect(find.text('Verified'), findsOneWidget);
+    // × drops just that one.
+    await t.tap(find.bySemanticsLabel('Remove Women'));
     await t.pumpAndSettle();
+    expect(filters.filters.gender, WantedGender.anyone);
     expect(filters.filters.verifiedOnly, isTrue);
+    // Clear drops the rest, and the row goes away.
+    await t.tap(find.text('Clear'));
+    await t.pumpAndSettle();
+    expect(filters.filters, SharedFilters.defaults);
+    expect(find.text('Clear'), findsNothing);
   });
 }

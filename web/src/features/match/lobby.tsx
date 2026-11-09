@@ -16,7 +16,7 @@ import { useSession } from "@/stores/session";
 import { useWaitlist } from "@/stores/waitlist";
 import { useWallet } from "@/stores/wallet";
 
-import { FilterChips } from "@/features/filters/filter-chips";
+import { FilterButton, FilterTags } from "@/features/filters/filter-chips";
 import { VibeHourInvite } from "@/features/engagement/vibe-hour-invite";
 
 import { VibeHourBanner } from "./lobby-extras";
@@ -51,18 +51,26 @@ export function Lobby({ onStart }: { onStart: () => void }) {
           <VibeHourInvite compact />
         </div>
 
-        {camLive ? (
-          <div className="relative mt-3 flex items-start justify-between px-4">
+        {/* Filters on top of the camera buttons; the preview's own buttons only while it's on. */}
+        <div className="relative mt-3 flex items-start justify-between px-4">
+          {camLive ? (
             <Glass radius={15} className="flex h-[30px] items-center gap-1.5 bg-bg2/50 py-0">
               <Icon name="visibility" size={15} className="text-text2" />
               <span className="type-body text-[12px] text-text2">Only you see this preview</span>
             </Glass>
-            <div className="flex flex-col gap-2.5">
-              <RoundControl icon="videocam_off" size={42} onClick={() => useMatch.getState().stopPreview()} ariaLabel="Turn camera preview off" />
-              <RoundControl icon="cameraswitch" size={42} onClick={() => void useMatch.getState().switchCamera()} ariaLabel="Switch camera" />
-            </div>
+          ) : (
+            <span />
+          )}
+          <div className="flex flex-col gap-2.5">
+            <FilterButton glass size={42} />
+            {camLive ? (
+              <>
+                <RoundControl icon="videocam_off" size={42} onClick={() => useMatch.getState().stopPreview()} ariaLabel="Turn camera preview off" />
+                <RoundControl icon="cameraswitch" size={42} onClick={() => void useMatch.getState().switchCamera()} ariaLabel="Switch camera" />
+              </>
+            ) : null}
           </div>
-        ) : null}
+        </div>
 
         <div className="flex min-h-[88px] flex-1 items-center justify-center px-8 py-2">
           {camLive ? null : previewOn && cameraActive ? (
@@ -73,7 +81,7 @@ export function Lobby({ onStart }: { onStart: () => void }) {
         </div>
 
         <div className="px-4">
-          <FilterChips glass />
+          <FilterTags glass />
           <button type="button" onClick={() => void openSafetySheet()} className="mt-3.5 mb-3 flex items-center gap-1.5 px-0.5 text-left">
             <Icon name="shield" size={16} className="shrink-0 text-trust" />
             <span className="type-body text-[12.5px] text-white/82">
