@@ -1,7 +1,6 @@
-import { SafetyPage } from "@/features/profile/me-sections";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Safety & trust" };
-
+/** Old link: these settings now live in Settings and activity. */
 export default function Page() {
-  return <SafetyPage />;
+  redirect("/me/settings");
 }

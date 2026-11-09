@@ -1,5 +1,6 @@
-// Me: the profile card and numbers, then one menu row per area; each row
-// pushes its own screen (me_sections.dart, wallet, VIP, invite, partner).
+// Me: photo, three numbers, name and bio, what's left and recent matches,
+// then three shortcuts; ☰ opens Settings and activity, whose rows each push
+// their own screen, and Back always steps back exactly one level.
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -25,6 +26,12 @@ import 'package:vibe_app/providers/session_provider.dart';
 import 'package:vibe_app/providers/social_provider.dart';
 import 'package:vibe_app/providers/wallet_provider.dart';
 import 'package:vibe_app/screens/invite/invite_screen.dart';
+import 'package:vibe_app/screens/profile/blocked_people_screen.dart';
+import 'package:vibe_app/screens/profile/follow_lists_screen.dart';
+import 'package:vibe_app/screens/profile/leaderboard_screen.dart';
+import 'package:vibe_app/screens/profile/me_overview.dart';
+import 'package:vibe_app/screens/profile/me_settings.dart';
+import 'package:vibe_app/screens/store/cashout_screen.dart';
 import 'package:vibe_app/screens/partner/partner_screen.dart';
 import 'package:vibe_app/screens/profile/me_sections.dart';
 import 'package:vibe_app/screens/profile/profile_screen.dart';
@@ -130,71 +137,158 @@ Future<MeHarness> pumpMe(WidgetTester t, {PartnerStatus partnerStatus = PartnerS
   return h;
 }
 
+/// Me, then ☰ → Settings and activity.
+Future<MeHarness> pumpSettings(WidgetTester t, {PartnerStatus partnerStatus = PartnerStatus.active, bool history = false}) async {
+  final h = await pumpMe(t, partnerStatus: partnerStatus, history: history);
+  await t.tap(find.byTooltip('Settings and activity'));
+  await t.pumpAndSettle();
+  expect(find.byType(SettingsMenuScreen), findsOneWidget);
+  return h;
+}
+
 Future<void> scrollToRow(WidgetTester t, String title) async {
   await t.scrollUntilVisible(find.text(title), 200, scrollable: find.byType(Scrollable).first);
   await t.pump();
 }
 
-/// Taps the row [title], checks the pushed screen, and comes back to Me.
-Future<void> opens(WidgetTester t, String title, Type screen, {String? appBar}) async {
+/// Taps the row [title], checks the pushed screen, and Back lands on [backTo] again.
+Future<void> opens(WidgetTester t, String title, Type screen, {String? appBar, Type backTo = SettingsMenuScreen}) async {
   await scrollToRow(t, title);
-  await t.tap(find.text(title));
+  await t.tap(find.text(title).last);
   await t.pumpAndSettle();
   expect(find.byType(screen), findsOneWidget, reason: '$title → $screen');
   if (appBar != null) expect(find.descendant(of: find.byType(AppBar), matching: find.text(appBar)), findsOneWidget, reason: '$title → "$appBar"');
   await t.pageBack();
   await t.pumpAndSettle();
   expect(find.byType(screen), findsNothing);
+  expect(find.byType(backTo), findsOneWidget, reason: 'Back from $title goes one level up');
 }
 
 void main() {
-  testWidgets('Me: card, numbers and one row per area', (t) async {
+  testWidgets('Me: header, numbers, actions and three shortcuts', (t) async {
     await pumpMe(t);
     expect(find.text('Me'), findsOneWidget);
     expect(find.text('Sana Malik, 23'), findsOneWidget);
+    for (final label in ['Matches', 'Likes', 'Friends', 'Edit profile', 'Share profile', 'Not verified']) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.byTooltip('Settings and activity'), findsOneWidget);
+    // No photo yet: the first card asks for one, verification comes after.
+    expect(find.text('Add a photo'), findsOneWidget);
+    for (final title in ['Wallet', 'Get VIP', 'Invite friends']) {
+      await scrollToRow(t, title);
+      expect(find.text(title), findsOneWidget, reason: title);
+    }
+    // The settings rows moved behind ☰.
+    expect(find.text('Account & sign-in'), findsNothing);
+  });
+
+  testWidgets('the eye shows the card others see', (t) async {
+    await pumpMe(t);
+    await t.tap(find.bySemanticsLabel('See how others see you').last);
+    await t.pumpAndSettle();
+    expect(find.byType(ProfileCard), findsOneWidget);
     expect(find.text('How others see you'), findsOneWidget);
-    await scrollToRow(t, 'Matches');
-    expect(find.text('Matches'), findsOneWidget);
+  });
+
+  testWidgets('shortcuts on Me push their screens and come back to Me', (t) async {
+    await pumpMe(t);
+    await opens(t, 'Wallet', WalletScreen, appBar: 'Wallet', backTo: ProfileScreen);
+    await opens(t, 'Invite friends', InviteScreen, appBar: 'Invite friends', backTo: ProfileScreen);
+  });
+
+  testWidgets('Settings and activity: five groups, every row', (t) async {
+    await pumpSettings(t);
     for (final title in [
-      'Progress & badges',
-      'Followers & privacy',
+      'Account & sign-in',
+      'Notifications',
+      'Time & wellbeing',
       'Recent matches',
-      'Safety & trust',
+      'Followers & friends',
+      'Progress & badges',
+      'Leaderboard',
+      'Get verified',
+      'Private account',
+      'Show my numbers',
+      'Blur the first 3 seconds',
+      'Blocked',
       'Wallet',
       'Get VIP',
+      'Cash out gems',
       'Invite friends',
       'Creator partner program',
-      'Notifications & wellbeing',
-      'Account',
+      'Help & safety centre',
+      'Terms & policies',
     ]) {
       await scrollToRow(t, title);
       expect(find.text(title), findsOneWidget, reason: title);
     }
-    // The partner row says where you are in the program.
     expect(find.text('Your stats, links and payouts'), findsOneWidget);
+    await t.pageBack();
+    await t.pumpAndSettle();
+    expect(find.byType(ProfileScreen), findsOneWidget);
   });
 
-  // One test per row, so a broken screen names itself.
+  testWidgets('search narrows the menu', (t) async {
+    await pumpSettings(t);
+    await t.enterText(find.byType(TextField), 'blur');
+    await t.pumpAndSettle();
+    expect(find.text('Blur the first 3 seconds'), findsOneWidget);
+    expect(find.text('Account & sign-in'), findsNothing);
+    await t.enterText(find.byType(TextField), 'password');
+    await t.pumpAndSettle();
+    expect(find.text('Account & sign-in'), findsOneWidget);
+    await t.enterText(find.byType(TextField), 'zzzz');
+    await t.pumpAndSettle();
+    expect(find.textContaining('Nothing matches'), findsOneWidget);
+  });
+
+  testWidgets('"Show my numbers" is the opposite of hide stats', (t) async {
+    final h = await pumpSettings(t);
+    await scrollToRow(t, 'Show my numbers');
+    final before = h.follows.settings.hideStats;
+    final row = find.ancestor(of: find.text('Show my numbers'), matching: find.byType(GroupRow));
+    await t.tap(find.descendant(of: row, matching: find.byType(Switch)));
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await t.pumpAndSettle();
+    expect(h.follows.settings.hideStats, !before);
+  });
+
+  // One test per row, so a broken screen names itself; Back returns to the menu.
   const rows = <(String, Type, String?)>[
-    ('Progress & badges', ProgressSectionScreen, 'Progress & badges'),
-    ('Followers & privacy', FollowersSectionScreen, 'Followers & privacy'),
+    ('Account & sign-in', AccountSectionScreen, 'Account & sign-in'),
+    ('Notifications', NotificationsSectionScreen, 'Notifications'),
+    ('Time & wellbeing', WellbeingSectionScreen, 'Time & wellbeing'),
     ('Recent matches', RecentMatchesScreen, 'Recent matches'),
-    ('Safety & trust', SafetySectionScreen, 'Safety & trust'),
+    ('Followers & friends', FollowListsScreen, null),
+    ('Progress & badges', ProgressSectionScreen, 'Progress & badges'),
+    ('Leaderboard', LeaderboardScreen, null),
+    ('Blocked', BlockedPeopleScreen, null),
     ('Wallet', WalletScreen, 'Wallet'),
     ('Get VIP', VipScreen, null),
+    ('Cash out gems', CashoutScreen, null),
     ('Invite friends', InviteScreen, 'Invite friends'),
-    ('Notifications & wellbeing', WellbeingSectionScreen, 'Notifications & wellbeing'),
-    ('Account', AccountSectionScreen, 'Account'),
+    ('Help & safety centre', HelpSectionScreen, 'Help & safety centre'),
+    ('Terms & policies', LegalSectionScreen, 'Terms & policies'),
   ];
   for (final (title, screen, appBar) in rows) {
     testWidgets('"$title" pushes $screen', (t) async {
-      await pumpMe(t);
+      await pumpSettings(t);
       await opens(t, title, screen, appBar: appBar);
     });
   }
 
+  testWidgets('account page keeps log out and delete in the danger zone', (t) async {
+    await pumpSettings(t);
+    await scrollToRow(t, 'Account & sign-in');
+    await t.tap(find.text('Account & sign-in'));
+    await t.pumpAndSettle();
+    expect(find.text('DANGER ZONE'), findsOneWidget);
+    expect(find.textContaining('Log out'), findsOneWidget);
+  });
+
   testWidgets('the partner row opens the native partner screen', (t) async {
-    final h = await pumpMe(t);
+    final h = await pumpSettings(t);
     await opens(t, 'Creator partner program', PartnerScreen, appBar: 'Creator partners');
     // Opened once more: the active dashboard is there.
     await scrollToRow(t, 'Creator partner program');
@@ -205,17 +299,24 @@ void main() {
     expect(find.text('EARNINGS'), findsOneWidget);
   });
 
-  testWidgets('recent matches: the row counts them, the screen lists them', (t) async {
+  testWidgets('recent matches: a row of faces on Me, counted in the menu, listed on their screen', (t) async {
     await pumpMe(t, history: true);
-    await scrollToRow(t, 'Recent matches');
-    expect(find.text('5 recent calls'), findsOneWidget);
-    await t.tap(find.text('Recent matches'));
+    await scrollToRow(t, 'See all');
+    expect(find.byType(RecentMatches), findsOneWidget);
+    expect(find.descendant(of: find.byType(RecentMatches), matching: find.byType(VAvatar)), findsNWidgets(5));
+    await t.tap(find.text('See all'));
     await t.pumpAndSettle();
+    expect(find.byType(RecentMatchesScreen), findsOneWidget);
     expect(find.byType(VAvatar), findsNWidgets(5));
+    await t.pageBack();
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Settings and activity'));
+    await t.pumpAndSettle();
+    expect(find.text('5 recent calls'), findsOneWidget);
   });
 
   testWidgets('the partner row before applying', (t) async {
-    await pumpMe(t, partnerStatus: PartnerStatus.none);
+    await pumpSettings(t, partnerStatus: PartnerStatus.none);
     await scrollToRow(t, 'Creator partner program');
     expect(find.text('Earn money for the people you bring'), findsOneWidget);
   });

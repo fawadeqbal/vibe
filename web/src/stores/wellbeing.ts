@@ -8,7 +8,7 @@ import { useSession } from "./session";
 /**
  * The break reminder (spec §11), client only: counts time with the page
  * visible while you are searching or in a call. At your limit (Me →
- * Notifications & wellbeing) `due` turns on and the engagement host asks
+ * Time & wellbeing) `due` turns on and the engagement host asks
  * "Time for a break?". Ten minutes without counting starts it over.
  */
 interface WellbeingState {

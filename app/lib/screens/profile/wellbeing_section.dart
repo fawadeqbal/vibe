@@ -15,7 +15,7 @@ String clockLabel(int minutes) {
   return '$h12:${m.toString().padLeft(2, '0')} ${h < 12 ? 'AM' : 'PM'}';
 }
 
-/// Me → Notifications & wellbeing: quiet hours (teal — wellbeing is trust)
+/// Me → ☰ → Time & wellbeing: quiet hours (teal — wellbeing is trust)
 /// and a gentle break reminder.
 class WellbeingSection extends StatelessWidget {
   const WellbeingSection({super.key});

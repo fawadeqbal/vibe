@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 
 import { Screen } from "@/components/layout/screen";
 import { confirm } from "@/components/shared/dialogs";
-import { startSelfieVerification, verificationSubtitle, VerifyPill } from "@/components/shared/selfie-verification";
 import { Avatar } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { EmptyState } from "@/components/ui/misc";
@@ -18,15 +17,12 @@ import { useNow } from "@/hooks/use-now";
 import { errorMessage } from "@/lib/api/errors";
 import { alpha } from "@/lib/colors";
 import { config } from "@/lib/config";
-import { ago, duration, thousands } from "@/lib/format";
+import { ago, duration } from "@/lib/format";
 import { type MatchRecord, matchLengthSeconds } from "@/lib/models";
-import { useFollows } from "@/stores/follows";
 import { useMatch } from "@/stores/match";
-import { useSession, verification } from "@/stores/session";
-import { useSocial } from "@/stores/social";
+import { useSession } from "@/stores/session";
 import { toast } from "@/stores/ui";
 
-import { openBlockedPeople } from "./blocked-people";
 import { NotifyChoices } from "@/features/engagement/notify-choices";
 import { ProgressCard } from "@/features/engagement/progress-card";
 import { WellbeingSection } from "@/features/engagement/wellbeing-section";
@@ -35,11 +31,15 @@ import { SignInMethodsCard } from "./sign-in-methods";
 
 const TRUST = { iconColor: "trust" as const, iconBg: alpha("trust", 0.12) };
 
-/** The pages behind the Me menu rows: a back button, a title and the section. */
-function MeSection({ title, children, footer }: { title: string; children: ReactNode; footer?: string }) {
+/**
+ * The pages behind Me: a back button, a title and the section. Back steps
+ * one level: to where you came from, or (opened straight from a link) to
+ * the page above it, which for most of these is Settings and activity.
+ */
+export function MeSection({ title, children, footer, parent = "/me/settings" }: { title: string; children: ReactNode; footer?: string; parent?: string }) {
   const router = useRouter();
   return (
-    <Screen width="sm" header={<AppBar title={title} onBack={() => (history.length > 1 ? router.back() : router.push("/me"))} />} bodyClassName="pt-1">
+    <Screen width="sm" header={<AppBar title={title} onBack={() => (history.length > 1 ? router.back() : router.push(parent))} />} bodyClassName="pt-1">
       {children}
       {footer ? <p className="type-body mt-3 px-1 text-[12px] leading-[1.5] text-muted">{footer}</p> : null}
     </Screen>
@@ -55,22 +55,13 @@ export function ProgressPage() {
   );
 }
 
-/** Me → Followers & privacy. */
-export function PrivacyPage() {
-  return (
-    <MeSection title="Followers & privacy">
-      <FollowSettingsCard />
-    </MeSection>
-  );
-}
-
 /** Me → Recent matches: your last calls; tap one to see their profile. */
 export function MatchesPage() {
   const history = useMatch((s) => s.history);
   useNow(60_000);
   const recent = [...history].reverse().slice(0, 20);
   return (
-    <MeSection title="Recent matches">
+    <MeSection title="Recent matches" parent="/me">
       {!recent.length ? (
         <EmptyState className="mt-10" icon="history" title="No calls " accent="yet" body="Your last matches will show up here." />
       ) : (
@@ -80,82 +71,32 @@ export function MatchesPage() {
   );
 }
 
-/** Me → Safety & trust (teal): verification, blur, blocked people, help. */
-export function SafetyPage() {
-  const session = useSession();
-  const me = session.me;
-  const autoBlur = useMatch((s) => s.autoBlur);
-  const blocked = useSocial((s) => s.blocked);
-  if (!me) return null;
-  const v = verification(session);
+/** Settings → Notifications: for each kind of news, which of phone, inbox and e-mail it reaches. */
+export function NotificationsPage() {
   return (
-    <MeSection title="Safety & trust">
-      <GroupCard className="border-trust/22">
-        <GroupRow
-          icon="verified"
-          iconVariant={me.verified ? "round" : "outlined"}
-          {...TRUST}
-          title={me.verified ? "Verified profile" : "Verify your profile"}
-          subtitle={verificationSubtitle(v, me.verified)}
-          trailing={me.verified ? <Icon name="check_circle" className="text-trust" /> : <VerifyPill busy={session.busy} onClick={() => void startSelfieVerification()} />}
-        />
-        <GroupRow icon="blur_on" title="Blur the first 3 seconds" subtitle="Both videos start blurred." trailing={<Switch checked={autoBlur} onChange={(x) => useMatch.getState().setAutoBlur(x)} label="Blur the first 3 seconds" />} />
-        <GroupRow
-          icon="block"
-          title="Blocked people"
-          subtitle={blocked.length ? `${blocked.length} blocked · tap to unblock` : "Nobody blocked"}
-          trailing={<Icon name="chevron_right" className="text-muted" />}
-          onClick={() => void openBlockedPeople()}
-        />
-        <GroupRow icon="support_agent" title="Help and safety" trailing={<Icon name="chevron_right" className="text-muted" />} onClick={() => toast("The help centre opens here soon")} />
-      </GroupCard>
+    <MeSection title="Notifications" footer="Account and safety messages always reach you, so they can't be turned off.">
+      <NotifyChoices />
     </MeSection>
   );
 }
 
-/** Me → Notifications & wellbeing. */
+/** Settings → Time & wellbeing: quiet hours, break reminders, the Vibe Hour nudge. */
 export function WellbeingPage() {
   return (
-    <MeSection title="Notifications & wellbeing">
-      <NotifyChoices />
+    <MeSection title="Time & wellbeing">
       <WellbeingSection title={false} />
     </MeSection>
   );
 }
 
-/** Me → Account: sign-in methods, e-mail updates, legal pages, sign out, delete account. */
+/** Settings → Account & sign-in: how you sign in, e-mail updates, then sign out / delete. */
 export function AccountPage() {
   const emailUpdates = useSession((s) => s.emailUpdates);
-  const legal = (slug: string) => window.open(`${config.siteUrl}/${slug}/`, "_blank", "noopener");
-  const deleteAccount = async () => {
-    const first = await confirm({
-      title: "Delete your account?",
-      body: "Your profile, photos and name are removed and you're signed out. Unused coins, gems and VIP time are lost — cash out gems first. This can't be undone.",
-      ok: "Continue",
-      okTone: "bad",
-    });
-    if (!first) return;
-    const sure = await confirm({ title: "Delete it for good?", body: "Last check: your Vibe account will be deleted now.", ok: "Delete account", okTone: "bad" });
-    if (!sure) return;
-    try {
-      useMatch.getState().releaseCamera();
-      await useSession.getState().deleteAccount();
-      toast("Your account was deleted");
-    } catch (e) {
-      toast(errorMessage(e), { error: true });
-    }
-  };
-  const signOut = async () => {
-    const ok = await confirm({ title: "Sign out?", body: "You can sign back in with the same e-mail any time.", ok: "Sign out", okTone: "bad" });
-    if (!ok) return;
-    useMatch.getState().releaseCamera();
-    await useSession.getState().signOut();
-  };
   return (
-    <MeSection title="Account">
+    <MeSection title="Account & sign-in">
       <SectionTitle text="Sign-in methods" top={4} />
       <SignInMethodsCard />
-      <SectionTitle text="Account" top={22} />
+      <SectionTitle text="E-mail" top={22} />
       <GroupCard dividerInset={52}>
         <GroupRow
           bare
@@ -172,16 +113,90 @@ export function AccountPage() {
             />
           }
         />
-        <GroupRow bare icon="description" iconVariant="outlined" title="Terms of Use" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => legal("terms")} />
-        <GroupRow bare icon="lock" iconVariant="outlined" title="Privacy Policy" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => legal("privacy")} />
-        <GroupRow bare icon="groups" iconVariant="outlined" title="Community guidelines" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => legal("guidelines")} />
-        <GroupRow bare icon="logout" iconColor="bad" title="Sign out" titleColor="bad" onClick={() => void signOut()} />
-        <GroupRow bare icon="delete" iconVariant="outlined" iconColor="bad" title="Delete account" titleColor="bad" onClick={() => void deleteAccount()} />
+      </GroupCard>
+      <SectionTitle text="Danger zone" top={22} />
+      <GroupCard dividerInset={52} className="border-bad/20">
+        <GroupRow bare icon="logout" iconColor="bad" title="Log out" titleColor="bad" onClick={() => void signOutFlow()} />
+        <GroupRow bare icon="delete" iconVariant="outlined" iconColor="bad" title="Delete account" titleColor="bad" subtitle="Removes your profile for good" onClick={() => void deleteAccountFlow()} />
       </GroupCard>
     </MeSection>
   );
 }
 
+/** Settings → Terms & policies: the four public pages on the site. */
+export function LegalPage() {
+  return (
+    <MeSection title="Terms & policies" footer="These open on the Vibe website.">
+      <GroupCard dividerInset={52}>
+        {LEGAL.map((l) => (
+          <GroupRow key={l.slug} bare icon={l.icon} iconVariant="outlined" title={l.title} trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => openSitePage(l.slug)} />
+        ))}
+      </GroupCard>
+    </MeSection>
+  );
+}
+
+const LEGAL = [
+  { slug: "terms", icon: "description", title: "Terms of Use" },
+  { slug: "privacy", icon: "lock", title: "Privacy Policy" },
+  { slug: "guidelines", icon: "groups", title: "Community guidelines" },
+  { slug: "child-safety", icon: "shield", title: "Child safety" },
+];
+
+/** Settings → Help & safety centre: how to stay safe, the rules, and a person to write to. */
+export function HelpPage() {
+  return (
+    <MeSection title="Help & safety centre" footer="In a call, tap the flag to report someone. A person on our team reviews every report.">
+      <GroupCard className="border-trust/22">
+        <GroupRow icon="shield" {...TRUST} title="Staying safe on Vibe" subtitle="Blur, blocking, reporting and age rules" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => openSitePage("child-safety")} />
+        <GroupRow icon="groups" {...TRUST} title="Community guidelines" subtitle="What's OK and what gets you banned" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => openSitePage("guidelines")} />
+        <GroupRow
+          icon="mail_outline"
+          {...TRUST}
+          title="Write to us"
+          subtitle={SUPPORT_EMAIL}
+          trailing={<Icon name="chevron_right" className="text-muted" />}
+          onClick={() => {
+            window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Vibe help")}`;
+          }}
+        />
+      </GroupCard>
+    </MeSection>
+  );
+}
+
+const SUPPORT_EMAIL = "support@vibe.fawadiqbal.dev";
+
+/** A page on the public site (terms, privacy…) in a new tab. */
+export const openSitePage = (slug: string) => window.open(`${config.siteUrl}/${slug}/`, "_blank", "noopener");
+
+/** Sign out, after one check. */
+export async function signOutFlow() {
+  const ok = await confirm({ title: "Log out?", body: "You can sign back in with the same e-mail any time.", ok: "Log out", okTone: "bad" });
+  if (!ok) return;
+  useMatch.getState().releaseCamera();
+  await useSession.getState().signOut();
+}
+
+/** Delete the account, after two checks (what's lost, then "for good?"). */
+export async function deleteAccountFlow() {
+  const first = await confirm({
+    title: "Delete your account?",
+    body: "Your profile, photos and name are removed and you're signed out. Unused coins, gems and VIP time are lost — cash out gems first. This can't be undone.",
+    ok: "Continue",
+    okTone: "bad",
+  });
+  if (!first) return;
+  const sure = await confirm({ title: "Delete it for good?", body: "Last check: your Vibe account will be deleted now.", ok: "Delete account", okTone: "bad" });
+  if (!sure) return;
+  try {
+    useMatch.getState().releaseCamera();
+    await useSession.getState().deleteAccount();
+    toast("Your account was deleted");
+  } catch (e) {
+    toast(errorMessage(e), { error: true });
+  }
+}
 function MatchRow({ r, last }: { r: MatchRecord; last: boolean }) {
   const bits = [duration(matchLengthSeconds(r)), ago(r.startedAt), ...(r.likedMe ? ["liked you"] : []), ...(r.giftsReceived > 0 ? [`${r.giftsReceived} gift${r.giftsReceived === 1 ? "" : "s"}`] : [])];
   return (
@@ -195,44 +210,5 @@ function MatchRow({ r, last }: { r: MatchRecord; last: boolean }) {
       </span>
       {r.liked ? <Icon name="favorite" size={18} className="text-pink" /> : null}
     </Link>
-  );
-}
-
-/** Your followers (only you see the lists) and the two privacy switches. */
-export function FollowSettingsCard() {
-  const router = useRouter();
-  const s = useFollows((x) => x.settings);
-  const save = async (patch: { privateAccount?: boolean; hideStats?: boolean }) => {
-    if (!(await useFollows.getState().setPrivacy(patch))) toast("Couldn't save that, try again", { error: true });
-  };
-  return (
-    <div>
-      <GroupCard dividerInset={52}>
-        <GroupRow
-          bare
-          icon="people_alt"
-          title={`${thousands(s.followers)} ${s.followers === 1 ? "follower" : "followers"} · ${thousands(s.following)} following`}
-          subtitle="Only you can see these lists."
-          trailing={<Icon name="chevron_right" className="text-muted" />}
-          onClick={() => router.push("/me/follows")}
-        />
-        <GroupRow
-          bare
-          icon="lock"
-          iconVariant="outlined"
-          title="Private account"
-          subtitle="New followers need your OK first."
-          trailing={<Switch checked={s.privateAccount} label="Private account" onChange={(on) => void save({ privateAccount: on })} />}
-        />
-        <GroupRow
-          bare
-          icon="visibility_off"
-          iconVariant="outlined"
-          title="Hide my stats"
-          subtitle="Matches, likes and gifts stay private."
-          trailing={<Switch checked={s.hideStats} label="Hide my stats" onChange={(on) => void save({ hideStats: on })} />}
-        />
-      </GroupCard>
-    </div>
   );
 }
