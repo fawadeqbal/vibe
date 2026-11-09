@@ -1,9 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentMethod } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Length, Matches, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Length, Matches, Min } from 'class-validator';
+
+import { AD_PLATFORMS, AdPlatform } from '../ads/ad-views';
+
+export class AdPlatformDto {
+  @ApiProperty({ enum: AD_PLATFORMS, description: 'Where the video plays: picks the network chosen in Settings → Ads' })
+  @IsIn(AD_PLATFORMS)
+  platform!: AdPlatform;
+}
 
 export class AdRewardDto {
-  @ApiProperty({ description: 'The nonce the app put in AdMob ServerSideVerificationOptions.customData for this view (dev: any unique string)' })
+  @ApiProperty({ description: 'The token from POST /wallet/rewards/ad/start (older apps: the nonce they put in AdMob customData; dev: any unique string)' })
   @IsString()
   @Length(1, 200)
   adToken!: string;

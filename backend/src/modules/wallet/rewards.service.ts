@@ -52,6 +52,12 @@ export class RewardsService {
     return res;
   }
 
+  /** Before a video starts, so nobody watches one that can't pay. */
+  async assertAdsLeft(userId: string): Promise<void> {
+    const w = await this.prisma.wallet.findUniqueOrThrow({ where: { userId } });
+    if (adsLeftToday(w, this.clock, this.economy.rules) <= 0) throw AppError.conflict("You've watched all of today's ads", ErrorCode.DAILY_LIMIT_REACHED);
+  }
+
   async rewardAd(userId: string, adToken: string): Promise<{ reward: number; leftToday: number }> {
     const before = await this.prisma.wallet.findUniqueOrThrow({ where: { userId } });
     if (adsLeftToday(before, this.clock, this.economy.rules) <= 0) throw AppError.conflict("You've watched all of today's ads", ErrorCode.DAILY_LIMIT_REACHED);

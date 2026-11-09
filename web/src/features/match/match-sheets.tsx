@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { rewardedAds } from "@/components/shared/rewarded-ads";
 import { GhostButton, GradientButton, TextButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { CoinAmount } from "@/components/ui/money";
@@ -90,7 +89,7 @@ function CameraBlockedSheet({ kind, onClose }: { kind: CameraErrorKind; onClose:
 
 // ── A filter you can't afford ─────────────────────────────────────────────
 
-export type FilterCoinsChoice = "store" | "ad" | "vip" | "anyone";
+export type FilterCoinsChoice = "store" | "vip" | "anyone";
 
 /** "This filter costs N coins": get coins, watch a video, VIP, or match with anyone for free. */
 export const openFilterCoins = (o: { cost: number; coins: number; filterLabel: string }) =>
@@ -127,7 +126,6 @@ function FilterCoinsSheet({ cost, coins, filterLabel, onPick }: { cost: number; 
       <p className="type-body mt-1.5 text-[14px] leading-[1.5] text-text2">You only pay when you&apos;re matched. Matching with anyone is always free.</p>
       <div className="mt-4 flex flex-col gap-2">
         {row("store", "monetization_on", "text-gold", "Get coins", undefined, true)}
-        {rewardedAds.available ? row("ad", "smart_display", "text-lavender", "Watch a short video for free coins") : null}
         {row("vip", "workspace_premium", "text-gold", "VIP — every filter free", "Plus unlimited likes in Discover")}
       </div>
       <GradientButton label="Match with anyone — free" className="mt-4" onClick={() => onPick("anyone")} />

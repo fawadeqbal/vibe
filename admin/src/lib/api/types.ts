@@ -543,7 +543,9 @@ export interface Setting {
   group: string;
   label: string;
   description: string;
-  type: "boolean" | "number" | "string";
+  type: "boolean" | "number" | "string" | "select";
+  /** For `select`: the allowed values. */
+  options?: string[];
   value: boolean | number | string;
   default: boolean | number | string;
   updatedAt: string | null;

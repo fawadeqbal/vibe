@@ -366,7 +366,7 @@ void main() {
 
   shot('r1_filter_coins', (t, h) async {
     await t.pumpWidget(h.app(const Scaffold(body: SizedBox.expand())));
-    unawaited(showFilterCoins(t.element(find.byType(Scaffold)), cost: 10, coins: 4, filterLabel: 'Women · Pakistan', adsAvailable: true));
+    unawaited(showFilterCoins(t.element(find.byType(Scaffold)), cost: 10, coins: 4, filterLabel: 'Women · Pakistan'));
     await snap(t, 'r1_filter_coins');
   });
 

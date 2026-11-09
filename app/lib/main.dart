@@ -178,11 +178,16 @@ AppServices _buildServices(IntegrationsConfig config, {required ApiClient? api, 
   }
 
   final adUnit = config.rewardedUnit(platform);
-  final RewardedAds ads = !server
+  // The admin picks the network (Settings → Ads): Monetag, Google AdMob (needs
+  // this build's ad unit) or off. Debug builds fall back to the mock video.
+  final RewardedAds ads = api == null
       ? MockRewardedAds(backend) // offline demo: nothing to verify against
-      : (mobile && adUnit != null)
-          ? AdMobRewardedAds(adUnit)
-          : (kDebugMode ? MockRewardedAds(backend) : const NoRewardedAds());
+      : ServerRewardedAds(
+          api: api,
+          platform: platform == TargetPlatform.iOS ? 'ios' : 'android',
+          admob: (mobile && adUnit != null) ? AdMobRewardedAds(adUnit) : null,
+          fallback: kDebugMode ? MockRewardedAds(backend) : const NoRewardedAds(),
+        );
 
   final PushService push = server && mobile ? FirebasePush(config, platform: platform) : NoPush();
   unawaited(push.init());

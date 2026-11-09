@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Skeleton, Switch } from "@/components/ui/controls";
-import { Input } from "@/components/ui/input";
+import { Input, NativeSelect } from "@/components/ui/input";
 import { meKey } from "@/features/auth/session";
 import { api } from "@/lib/api/client";
 import type { Setting } from "@/lib/api/types";
@@ -29,6 +29,9 @@ const CONFIRM: Record<string, (v: unknown) => string | null> = {
   "security.require2fa": (v) => (v ? "Staff without two-factor must set it up before they can use the panel." : null),
   "payments.localMethodsInStoreApps": (v) => (v ? "Store builds will offer JazzCash, Easypaisa, card and bank too. Google Play and the App Store may reject or remove the app for this." : null),
 };
+
+/** Readable names for `select` values; unknown values show as they are. */
+const OPTION_LABELS: Record<string, string> = { off: "Off", monetag: "Monetag", admob: "Google AdMob" };
 
 /**
  * Runtime settings, rendered from the API's own list (type, label, help),
@@ -101,7 +104,7 @@ function SettingRow({ setting: s }: { setting: Setting }) {
     }
   };
 
-  const changed = s.type !== "boolean" && draft !== String(s.value);
+  const changed = s.type !== "boolean" && s.type !== "select" && draft !== String(s.value);
   const isDefault = String(s.value) === String(s.default);
 
   return (
@@ -121,6 +124,14 @@ function SettingRow({ setting: s }: { setting: Setting }) {
       <div className="flex shrink-0 items-center gap-2">
         {s.type === "boolean" ? (
           <Switch checked={s.value === true} disabled={busy} onCheckedChange={(v) => void save(v)} aria-label={s.label} />
+        ) : s.type === "select" ? (
+          <NativeSelect value={String(s.value)} disabled={busy} onChange={(e) => void save(e.target.value)} className="w-44" aria-label={s.label}>
+            {(s.options ?? []).map((o) => (
+              <option key={o} value={o}>
+                {OPTION_LABELS[o] ?? o}
+              </option>
+            ))}
+          </NativeSelect>
         ) : (
           <form
             className="flex items-center gap-2"
@@ -138,7 +149,7 @@ function SettingRow({ setting: s }: { setting: Setting }) {
           </form>
         )}
         {!isDefault && (
-          <Button size="icon-xs" variant="ghost" aria-label="Reset to default" title={`Default: ${String(s.default) || "empty"}`} onClick={() => void save(s.default)} disabled={busy}>
+          <Button size="icon-xs" variant="ghost" aria-label="Reset to default" title={`Default: ${OPTION_LABELS[String(s.default)] ?? (String(s.default) || "empty")}`} onClick={() => void save(s.default)} disabled={busy}>
             <RotateCcw />
           </Button>
         )}

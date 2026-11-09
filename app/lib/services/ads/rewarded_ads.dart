@@ -9,6 +9,9 @@ import '../../core/api/api_client.dart';
 import '../../core/mock/mock_backend.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
+import 'monetag_ads.dart';
+
+export 'monetag_ads.dart' show AdPageOpener, MonetagRewardedAds;
 
 enum AdOutcome {
   /// Watched to the end: claim with [AdResult.token].
@@ -34,11 +37,15 @@ class AdResult {
   final String? message;
 }
 
-/// Rewarded video ads. [AdMobRewardedAds] when an ad unit is configured,
-/// [MockRewardedAds] for the offline demo (and debug against a dev server),
-/// [NoRewardedAds] otherwise (the "watch an ad" row hides).
+/// One rewarded-video network. The Store only talks to this interface, so a
+/// new network is one more class plus a case in [ServerRewardedAds]:
+/// [AdMobRewardedAds] (Google), [MonetagRewardedAds], [MockRewardedAds] for
+/// the offline demo / debug, [NoRewardedAds] (the Store's video card hides).
 abstract class RewardedAds {
   bool get available;
+
+  /// Re-reads which network the admin picked (Settings → Ads). No-op for fixed ones.
+  Future<void> refresh();
 
   /// Plays one ad. [userId] goes to AdMob's server-side verification.
   Future<AdResult> show(BuildContext context, {required String userId});
@@ -48,6 +55,8 @@ class NoRewardedAds implements RewardedAds {
   const NoRewardedAds();
   @override
   bool get available => false;
+  @override
+  Future<void> refresh() async {}
   @override
   Future<AdResult> show(BuildContext context, {required String userId}) async => const AdResult(AdOutcome.unavailable);
 }
@@ -62,6 +71,9 @@ class AdMobRewardedAds implements RewardedAds {
 
   @override
   bool get available => true;
+
+  @override
+  Future<void> refresh() async {}
 
   @override
   Future<AdResult> show(BuildContext context, {required String userId}) async {
@@ -117,6 +129,9 @@ class MockRewardedAds implements RewardedAds {
   bool get available => true;
 
   @override
+  Future<void> refresh() async {}
+
+  @override
   Future<AdResult> show(BuildContext context, {required String userId}) async {
     final filled = await _backend.loadRewardedAd();
     if (!filled) return const AdResult(AdOutcome.noFill, message: 'No ad available right now. Try again in a minute.');
@@ -124,6 +139,65 @@ class MockRewardedAds implements RewardedAds {
     final watched = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => const MockAdDialog());
     if (watched != true) return const AdResult(AdOutcome.dismissed);
     return AdResult(AdOutcome.rewarded, token: 'dev-ad-${DateTime.now().microsecondsSinceEpoch}-${_rnd.nextInt(1 << 30)}');
+  }
+}
+
+/// Picks the network the admin chose for the app (Settings → Ads), from
+/// `GET /wallet/rewards/ad/setup`. Until that answers, or when it says off,
+/// [fallback] is used (the mock in debug builds, none in release).
+class ServerRewardedAds implements RewardedAds {
+  ServerRewardedAds({required this.api, required this.platform, this.admob, this.fallback = const NoRewardedAds(), AdPageOpener? openPage}) : _openPage = openPage;
+
+  final ApiClient api;
+
+  /// `android` or `ios`.
+  final String platform;
+
+  /// Google AdMob, when this build has an ad unit.
+  final RewardedAds? admob;
+  final RewardedAds fallback;
+  final AdPageOpener? _openPage;
+  RewardedAds? _picked;
+
+  RewardedAds get current => _picked ?? fallback;
+
+  @override
+  bool get available => current.available;
+
+  @override
+  Future<void> refresh() async {
+    try {
+      final j = await api.get('/wallet/rewards/ad/setup', query: {'platform': platform}) as Map<String, dynamic>;
+      _picked = pick(j);
+    } catch (_) {
+      // Keep what we had: offline is not "ads off".
+    }
+  }
+
+  /// The network for a setup answer. Add new networks here.
+  RewardedAds? pick(Map<String, dynamic> setup) {
+    final config = (setup['config'] as Map?)?.cast<String, dynamic>() ?? const {};
+    switch (setup['provider']) {
+      case 'monetag':
+        final frame = config['frameUrl'] as String?;
+        if (frame == null || frame.isEmpty) return null;
+        return MonetagRewardedAds(
+          frameUrl: frame,
+          open: _openPage,
+          start: () async => ((await api.post('/wallet/rewards/ad/start', {'platform': platform})) as Map<String, dynamic>)['token'] as String,
+        );
+      case 'admob':
+        return admob;
+      default:
+        return null;
+    }
+  }
+
+  @override
+  Future<AdResult> show(BuildContext context, {required String userId}) async {
+    if (_picked == null) await refresh();
+    if (!context.mounted) return const AdResult(AdOutcome.dismissed);
+    return current.show(context, userId: userId);
   }
 }
 
@@ -176,7 +250,7 @@ class _MockAdDialogState extends State<MockAdDialog> {
                   const SizedBox(height: 12),
                   Text('Mock advertiser', style: VT.title(20, color: Colors.white)),
                   const SizedBox(height: 4),
-                  Text('A real rewarded ad plays here (AdMob).', style: VT.body(13, color: Colors.white70)),
+                  Text('A real video ad plays here.', style: VT.body(13, color: Colors.white70)),
                 ],
               ),
             ),

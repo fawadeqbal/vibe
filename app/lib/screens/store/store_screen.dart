@@ -10,10 +10,10 @@ import '../../core/util/format.dart';
 import '../../models/models.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
-import '../../services/ads/rewarded_ads.dart';
 import '../../services/app_services.dart';
 import '../invite/invite_screen.dart';
 import 'checkout_screen.dart';
+import 'video_coins_card.dart';
 import 'vip_screen.dart';
 import 'wallet_screen.dart';
 
@@ -242,8 +242,6 @@ class _EarnSection extends StatefulWidget {
 }
 
 class _EarnSectionState extends State<_EarnSection> {
-  bool _adBusy = false;
-
   /// Runs a wallet action and shows server errors (offline, limits) as a toast.
   Future<void> _guard(Future<void> Function() fn) async {
     try {
@@ -258,33 +256,6 @@ class _EarnSectionState extends State<_EarnSection> {
         if (!mounted) return;
         toast(context, r == null ? 'Already checked in today' : '+$r coins · see you tomorrow', error: r == null);
       });
-
-  Future<void> _watchAd() async {
-    final wallet = context.read<WalletProvider>();
-    final ads = context.read<AppServices>().ads;
-    if (wallet.adsLeftToday <= 0) {
-      toast(context, 'You have watched all of today\'s ads', error: true);
-      return;
-    }
-    setState(() => _adBusy = true);
-    final r = await ads.show(context, userId: context.read<SessionProvider>().me?.id ?? '');
-    if (!mounted) return;
-    setState(() => _adBusy = false);
-    switch (r.outcome) {
-      case AdOutcome.dismissed:
-        return;
-      case AdOutcome.noFill:
-      case AdOutcome.unavailable:
-        toast(context, r.message ?? 'No ad available right now. Try again in a minute.', error: true);
-        return;
-      case AdOutcome.rewarded:
-        await _guard(() async {
-          // The token is the nonce AdMob echoes to the server in its signed callback.
-          final coins = await wallet.rewardAd(adToken: r.token);
-          if (mounted) toast(context, coins == null ? 'Daily ad limit reached' : '+$coins coins', error: coins == null);
-        });
-    }
-  }
 
   void _invite() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InviteScreen()));
 
@@ -310,6 +281,7 @@ class _EarnSectionState extends State<_EarnSection> {
     final rewards = Economy.checkInRewards;
     return Column(
       children: [
+        const VideoCoinsCard(),
         Panel(
           radius: 24,
           padding: const EdgeInsets.all(18),
@@ -337,16 +309,6 @@ class _EarnSectionState extends State<_EarnSection> {
         const SizedBox(height: 10),
         GroupCard(
           children: [
-            if (context.read<AppServices>().ads.available)
-              GroupRow(
-              icon: SolarIconsBold.playCircle,
-              iconColor: V.gold,
-              iconBg: V.gold.withValues(alpha: 0.12),
-              title: 'Watch an ad',
-              subtitle: wallet.isVip ? 'VIP has no ads — but you can still earn' : '${wallet.adsLeftToday} left today',
-              trailing: _adBusy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: V.gold)) : _reward('+${Economy.rewardedAdCoins}', wallet.adsLeftToday > 0),
-              onTap: _adBusy ? null : _watchAd,
-            ),
             GroupRow(
               icon: SolarIconsBold.userPlusRounded,
               iconColor: V.gold,

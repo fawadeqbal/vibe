@@ -93,7 +93,7 @@ void main() {
     });
 
     testWidgets('filter needs coins: free option, no video row without ads', (t) async {
-      await t.pumpWidget(_app(const FilterCoinsSheet(cost: 10, coins: 4, filterLabel: 'Women', adsAvailable: false)));
+      await t.pumpWidget(_app(const FilterCoinsSheet(cost: 10, coins: 4, filterLabel: 'Women')));
       expect(find.text('Match with anyone — free'), findsOneWidget);
       expect(find.text('You have 4'), findsOneWidget);
       expect(find.textContaining('video'), findsNothing);
