@@ -100,8 +100,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(f.calls, ['follow u2']);
     expect(find.text('Following'), findsOneWidget);
-    expect(find.text('Matches'), findsOneWidget);
-    expect(find.textContaining('1 follower'), findsOneWidget);
+    expect(find.text('Likes'), findsOneWidget);
+    expect(find.text('Follower'), findsOneWidget); // 1 follower now
   });
 
   testWidgets('hidden stats and "Follows you"', (tester) async {
