@@ -254,7 +254,7 @@ export function vipPerkGroups(e: Economy, bonus: number): PerkGroup[] {
     ...(supers > 0 ? ([[`${supers} free Super Like${supers === 1 ? "" : "s"} a day`, "They see you first, with a star."]] as [string, string][]) : []),
     ["Free Undo", "Bring back someone you passed by mistake."],
     ...(e.discoverPremiumFilters
-      ? ([["Every Discover filter", `Gender, country, online now, verified. Others pay ${e.discoverFilterPassCost} coins for ${e.discoverFilterPassHours} hours.`]] as [string, string][])
+      ? ([["Every Discover filter", `Gender and country, in random matches and Discover. Others pay ${e.discoverFilterPassCost} coins for ${e.discoverFilterPassHours} hours.`]] as [string, string][])
       : []),
   ];
   return [
@@ -294,10 +294,9 @@ export function vipComparison(e: Economy, bonus: number): [string, string, strin
             e.discoverVipFreeSuperLikes > 0 ? `${e.discoverVipFreeSuperLikes} free/day` : `${e.discoverSuperLikeCost} coins`,
           ],
           ["Undo a pass", `${e.discoverUndoCost} coins`, "Free"],
-          ...(e.discoverPremiumFilters ? ([["Discover filters", `Age · ${e.discoverFilterPassCost} coins/${e.discoverFilterPassHours}h`, "All"]] as [string, string, string][]) : []),
-        ] as [string, string, string][])
+                  ] as [string, string, string][])
       : []),
-    ["Match filters", `${Math.min(e.genderFilterCost, e.regionFilterCost)}+ coins`, "Free"],
+    ...(e.discoverPremiumFilters ? ([["Gender & country filters", `${e.discoverFilterPassCost} coins / ${e.discoverFilterPassHours}h`, "Free"]] as [string, string, string][]) : []),
     ["Coins each month", "—", String(bonus)],
     ["Ads", "Yes", "None"],
   ];

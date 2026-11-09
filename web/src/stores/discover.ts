@@ -6,6 +6,7 @@ import { Ev } from "@/lib/api/realtime";
 import { notifyInBackground } from "@/lib/browser-notify";
 import type { Friend, Profile } from "@/lib/models";
 
+import { DEFAULT_FILTERS, freeOnly, type SharedFilters, useFilters, usesExtraFilters } from "./filters";
 import { api, realtime } from "./services";
 import { useSocial } from "./social";
 
@@ -47,29 +48,17 @@ export interface FilterAccess {
   passHours: number;
 }
 
-export type WantedGender = "anyone" | "women" | "men";
-export interface DiscoverFilters {
-  gender: WantedGender;
-  minAge: number;
-  maxAge: number;
-  /** Two-letter code; "" = anywhere. */
-  countryCode: string;
-  onlineOnly: boolean;
-  verifiedOnly: boolean;
-}
-
-/** The filters that need VIP, Vibe Hour or a pass (age is free for everyone). */
-export const usesExtraFilters = (f: DiscoverFilters): boolean => f.gender !== "anyone" || !!f.countryCode || f.onlineOnly || f.verifiedOnly;
-/** Just the free part (age) of some filters. */
-export const freeOnly = (f: DiscoverFilters): DiscoverFilters => ({ ...DEFAULT_DISCOVER_FILTERS, minAge: f.minAge, maxAge: f.maxAge });
+// Discover uses the same filters as random matches (stores/filters.ts).
+export type { WantedGender } from "./filters";
+export type DiscoverFilters = SharedFilters;
+export { freeOnly, usesExtraFilters } from "./filters";
+export const DEFAULT_DISCOVER_FILTERS: DiscoverFilters = DEFAULT_FILTERS;
 
 export type SwipeKind = "like" | "super" | "pass";
 
 /** What a swipe did, so the screen can react (match dialog, out-of-likes sheet, coins). */
 export type SwipeOutcome = { ok: true; matched: Friend | null } | { ok: false; reason: "out-of-likes" | "coins" | "error"; message?: string };
 
-export const DEFAULT_DISCOVER_FILTERS: DiscoverFilters = { gender: "anyone", minAge: 18, maxAge: 60, countryCode: "", onlineOnly: false, verifiedOnly: false };
-const FILTERS_KEY = "vibe.discover.filters";
 
 const card = (m: Json): DiscoverCard => ({
   profile: mapProfile(asMap(m.profile)),
@@ -113,30 +102,6 @@ const filterAccess = (m: Json): FilterAccess => {
   };
 };
 
-function saveFilters(f: DiscoverFilters) {
-  try {
-    window.localStorage.setItem(FILTERS_KEY, JSON.stringify(f));
-  } catch {}
-}
-
-function readFilters(): DiscoverFilters {
-  try {
-    const raw = typeof window !== "undefined" ? window.localStorage.getItem(FILTERS_KEY) : null;
-    if (!raw) return DEFAULT_DISCOVER_FILTERS;
-    const f = JSON.parse(raw) as Partial<DiscoverFilters>;
-    return {
-      gender: f.gender === "women" || f.gender === "men" ? f.gender : "anyone",
-      minAge: Math.min(99, Math.max(18, Number(f.minAge) || 18)),
-      maxAge: Math.min(99, Math.max(18, Number(f.maxAge) || 60)),
-      countryCode: typeof f.countryCode === "string" && /^[A-Z]{2}$/.test(f.countryCode) ? f.countryCode : "",
-      onlineOnly: f.onlineOnly === true,
-      verifiedOnly: f.verifiedOnly === true,
-    };
-  } catch {
-    return DEFAULT_DISCOVER_FILTERS;
-  }
-}
-
 /**
  * Discover (GET /discover/deck, POST /discover/swipes…): a deck of real
  * people, one at a time. Two likes make a match — friends, chat open. The
@@ -170,6 +135,8 @@ interface DiscoverState {
   /** Tops the deck up when it runs low. */
   refill: () => Promise<void>;
   setFilters: (f: DiscoverFilters) => void;
+  /** The shared filters changed (here or on Home): reload the deck. */
+  syncFilters: () => void;
   swipe: (c: DiscoverCard, kind: SwipeKind) => Promise<SwipeOutcome>;
   /** False with "coins" when it can't be paid for. */
   undo: () => Promise<"ok" | "coins" | "nothing">;
@@ -208,13 +175,14 @@ export function afterSwipe(st: DiscoverStatus | null, kind: SwipeKind): Discover
 
 export const useDiscover = create<DiscoverState>()((set, get) => {
   const fetchDeck = async (replace: boolean) => {
-    const f = get().filters;
+    const saved = useFilters.getState().filters;
+    // Gender and country only while they're open; the saved choice stays for when they are again.
+    const f = usesExtraFilters(saved) && !extraOpen() ? freeOnly(saved) : saved;
     const q = {
       gender: f.gender,
       minAge: f.minAge,
       maxAge: f.maxAge,
       ...(f.countryCode ? { countryCode: f.countryCode } : {}),
-      ...(f.onlineOnly ? { onlineOnly: "true" } : {}),
       ...(f.verifiedOnly ? { verifiedOnly: "true" } : {}),
       limit: 20,
     };
@@ -222,11 +190,10 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     try {
       r = asMap(await api.get("/discover/deck", q));
     } catch (e) {
-      // The pass ran out (or VIP ended): keep age, drop the rest, tell the screen.
+      // The pass ran out (or VIP ended): show the free part (age, verified), tell the screen once.
       if (e instanceof ApiError && e.code === "FILTERS_LOCKED" && usesExtraFilters(f)) {
-        const free = freeOnly(f);
-        saveFilters(free);
-        set({ filters: free, filtersExpired: true });
+        useFilters.setState((s) => ({ access: { ...s.access, unlocked: false, reason: null, passUntil: null } }));
+        set({ filtersExpired: true });
         void get().loadStatus();
         return fetchDeck(replace);
       }
@@ -259,7 +226,7 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     async load() {
       if (!api.hasSession) return;
       if (loadingDeck) return loadingDeck;
-      set({ loading: true, filters: readFilters() });
+      set({ loading: true, filters: useFilters.getState().filters });
       loadingDeck = (async () => {
         try {
           await Promise.all([get().loadStatus(), fetchDeck(true)]);
@@ -294,9 +261,12 @@ export const useDiscover = create<DiscoverState>()((set, get) => {
     },
 
     setFilters(f) {
-      saveFilters(f);
-      set({ filters: f, deck: [], lastPassed: null, filtersExpired: false });
-      set({ loading: true });
+      // Saved for matches too; the subscription below reloads the deck.
+      void useFilters.getState().save(f);
+    },
+
+    syncFilters() {
+      set({ filters: useFilters.getState().filters, deck: [], lastPassed: null, filtersExpired: false, loading: true });
       void fetchDeck(true)
         .then(() => set({ failed: false }))
         .catch(() => set({ failed: true }))
@@ -453,4 +423,13 @@ realtime.on(Ev.discoverNewPeople, (e) => {
   // Caught up: there's someone new to show now.
   const s = useDiscover.getState();
   if (s.exhausted || !s.deck.length) void s.load();
+});
+
+/** Gender and country are open right now (VIP, Vibe Hour or a pass). */
+const extraOpen = () => useFilters.getState().access.unlocked || !!useDiscover.getState().status?.filters.unlocked;
+
+// One set of filters: a change made on Home (or here) reloads the deck if it's been opened.
+useFilters.subscribe((s, p) => {
+  if (s.changed !== p.changed && (useDiscover.getState().deck.length || useDiscover.getState().exhausted)) useDiscover.getState().syncFilters();
+  else if (s.filters !== p.filters) useDiscover.setState({ filters: s.filters });
 });

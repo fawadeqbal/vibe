@@ -3,10 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Gift } from "@/lib/models";
-import { isVibeHour, useEngagement } from "@/stores/engagement";
+import { filtersReady, useFilters } from "@/stores/filters";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
-import { filterCost, isVip, useWallet } from "@/stores/wallet";
 
 import { Connected } from "./connected";
 import { VoiceCall } from "./voice-call";
@@ -31,8 +30,7 @@ export function MatchScreen() {
   const voiceCall = useMatch((s) => s.voiceCall);
   const hasLast = useMatch((s) => s.lastPartner != null);
   const chat = useMatch((s) => s.chat);
-  const filters = useMatch((s) => s.filters);
-  const freeToMatch = useWallet((w) => filterCost(filters, isVip(w.wallet) || isVibeHour(useEngagement.getState())) === 0);
+  const freeToMatch = useFilters((s) => filtersReady(s));
   const [burst, setBurst] = useState<{ gift: Gift; received: boolean; bonusGems?: number; seq: number } | null>(null);
   const seen = useRef(0);
   const actions = useMatchActions((g) => setBurst((b) => ({ gift: g, received: false, seq: (b?.seq ?? 0) + 1 })));

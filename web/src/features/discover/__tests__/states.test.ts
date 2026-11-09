@@ -10,11 +10,11 @@ describe("filters that hide people", () => {
   });
 
   it("lists each one, and removing it keeps the others", () => {
-    const f = { ...DEFAULT_DISCOVER_FILTERS, gender: "women" as const, countryCode: "PK", onlineOnly: true, minAge: 22, maxAge: 30 };
+    const f = { ...DEFAULT_DISCOVER_FILTERS, gender: "women" as const, countryCode: "PK", verifiedOnly: true, minAge: 22, maxAge: 30 };
     const a = activeFilters(f);
-    expect(a.map((x) => x.label)).toEqual(["Online now", "Pakistan", "Women", "Ages 22–30"]);
+    expect(a.map((x) => x.label)).toEqual(["Pakistan", "Women", "Verified only", "Ages 22–30"]);
     const noCountry = a.find((x) => x.key === "country")!.without;
-    expect(noCountry).toEqual({ ...f, countryCode: "" });
+    expect(noCountry).toEqual({ ...f, countryCode: null });
     expect(a.find((x) => x.key === "age")!.without.minAge).toBe(18);
   });
 });

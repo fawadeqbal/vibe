@@ -13,7 +13,7 @@ import { Headline } from "@/components/ui/typography";
 import { useNow } from "@/hooks/use-now";
 import { cn } from "@/lib/cn";
 import { clock, thousands, until } from "@/lib/format";
-import type { MatchFilters } from "@/lib/models";
+import { saveMatchFilters, useMatchFilters } from "@/stores/filters";
 import { useCatalog } from "@/stores/catalog";
 import { clock12, freeReconnectLeft, vibeHourLive } from "@/lib/engagement";
 import { useEngagement } from "@/stores/engagement";
@@ -41,7 +41,7 @@ export const SLOW_SEARCH_SECONDS = 15;
 export function Searching({ onRestart, onReconnect }: { onRestart: () => void; onReconnect: () => void }) {
   const rematch = useMatch((s) => s.rematchSoon);
   const wallet = useWallet((s) => s.wallet);
-  const filters = useMatch((s) => s.filters);
+  const filters = useMatchFilters();
   const autoBlur = useMatch((s) => s.autoBlur);
   const boostCost = useCatalog((s) => s.economy.boostCost);
   const boosted = isBoosted(wallet);
@@ -237,7 +237,7 @@ function PillAction({ icon, label, onClick, tone = "default" }: { icon: string; 
 }
 
 /** Takes the safety card's place once the wait gets long: one line on why, and small actions — part of the screen, not a card. */
-function SlowSearchCard({ filters, nobodyAround, onRestart }: { filters: MatchFilters; nobodyAround: boolean; onRestart: () => void }) {
+function SlowSearchCard({ filters, nobodyAround, onRestart }: { filters: ReturnType<typeof useMatchFilters>; nobodyAround: boolean; onRestart: () => void }) {
   const router = useRouter();
   const narrowed = isNarrowed(filters);
   if (narrowed) {
@@ -261,7 +261,7 @@ function SlowSearchCard({ filters, nobodyAround, onRestart }: { filters: MatchFi
             onClick={() => {
               const m = useMatch.getState();
               m.stop();
-              m.setFilters({ gender: "anyone", countryCode: null, safeMode: false });
+              void saveMatchFilters({ gender: "anyone", countryCode: null, safeMode: false });
               onRestart();
             }}
           />

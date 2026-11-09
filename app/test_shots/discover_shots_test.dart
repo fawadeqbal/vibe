@@ -16,6 +16,7 @@ import 'package:vibe_app/core/theme/vibe_theme.dart';
 import 'package:vibe_app/core/theme/vibe_widgets.dart';
 import 'package:vibe_app/models/calls.dart';
 import 'package:vibe_app/models/models.dart';
+import 'package:vibe_app/providers/filters_provider.dart';
 import 'package:vibe_app/providers/calls_provider.dart';
 import 'package:vibe_app/providers/discover_provider.dart';
 import 'package:vibe_app/providers/follows_provider.dart';
@@ -115,6 +116,7 @@ class H {
   late SessionProvider session;
   late MatchProvider match;
   late DiscoverProvider discover;
+  late FiltersProvider filters;
   late CallsProvider calls;
   late Profile sana;
   late FollowsProvider follows;
@@ -128,6 +130,8 @@ class H {
     session = SessionProvider(backend);
     match = MatchProvider(backend, wallet, social, session, cameraEnabled: false);
     discover = DiscoverProvider(social, wallet);
+    filters = FiltersProvider(wallet);
+    wireSharedFilters(filters, match, discover);
     calls = CallsProvider(social, match);
     await wallet.load();
     wallet.debugSet(wallet.wallet.copyWith(coins: 340, vipUntil: vip ? DateTime.now().add(const Duration(days: 20)) : null));
@@ -151,6 +155,7 @@ class H {
           ChangeNotifierProvider.value(value: social),
           ChangeNotifierProvider.value(value: match),
           ChangeNotifierProvider.value(value: discover),
+          ChangeNotifierProvider<FiltersProvider>.value(value: filters),
           ChangeNotifierProvider.value(value: calls),
           ChangeNotifierProvider.value(value: inbox),
           ChangeNotifierProvider.value(value: CatalogProvider()),

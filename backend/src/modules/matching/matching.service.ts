@@ -34,6 +34,7 @@ import { callSignal, freeReconnectUntil, GOOD_CALL_SECONDS, isFreeReconnect, isN
 import { MatchSessionStore } from './match-session.store';
 import { ActiveMatch, EndedReason, MatchPrefs, Ticket } from './matching.types';
 import { SkipCooldownService } from './skip-cooldown.service';
+import { FiltersService } from '../filters/filters.service';
 import { ChatSafetyService } from '../chat-safety/chat-safety.service';
 
 export interface MatchFoundPayload {
@@ -139,6 +140,7 @@ export class MatchingService {
     private readonly waitlist: MatchWaitlistService,
     private readonly waves: WavesService,
     private readonly safety: ChatSafetyService,
+    private readonly filters: FiltersService,
   ) {}
 
   // ── queue ─────────────────────────────────────────────────────────────
@@ -156,9 +158,9 @@ export class MatchingService {
     if (!isProfileReady(user)) throw new AppError(ErrorCode.PROFILE_INCOMPLETE, 'Add your name and age first', HttpStatus.FORBIDDEN);
     const now = this.clock.now();
     const vip = isVip(user.wallet, now);
-    // Vibe Hour: filters are free for everyone.
-    const cost = this.engagement.isVibeHour(now) ? 0 : this.economy.filterCost({ gender: prefs.gender, countryCode: prefs.countryCode }, vip);
-    if (cost > (user.wallet?.coins ?? 0)) throw AppError.insufficientCoins(cost, user.wallet?.coins ?? 0);
+    // Gender and country need VIP, Vibe Hour or the filter pass (shared with Discover). Age and verified only are free.
+    await this.filters.assertAllowed(userId, { gender: prefs.gender === 'WOMEN' ? 'women' : prefs.gender === 'MEN' ? 'men' : 'anyone', countryCode: prefs.countryCode }, now, vip);
+    const cost = 0;
 
     const last = await this.sessions.lastPartner(userId);
     const exclude = [...(await this.blocks.excluded(userId))];
@@ -167,6 +169,7 @@ export class MatchingService {
       gender: user.gender,
       countryCode: user.countryCode,
       verified: user.verified,
+      age: user.age ?? undefined,
       prefs,
       cost,
       vip,

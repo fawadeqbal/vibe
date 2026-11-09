@@ -29,7 +29,7 @@ export class MatchGateway {
 
   @SubscribeMessage('match:join')
   async join(@ConnectedSocket() s: Socket, @MessageBody() dto: JoinDto) {
-    return ok(await this.matching.join(uid(s), { gender: dto.gender, countryCode: dto.countryCode ?? null, safeMode: dto.safeMode, autoBlur: dto.autoBlur }));
+    return ok(await this.matching.join(uid(s), { gender: dto.gender, countryCode: dto.countryCode ?? null, safeMode: dto.safeMode, autoBlur: dto.autoBlur, minAge: dto.minAge, maxAge: dto.maxAge }));
   }
 
   @SubscribeMessage('match:leave')

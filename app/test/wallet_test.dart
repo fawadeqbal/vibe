@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibe_app/providers/filters_provider.dart';
 import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/mock/mock_data.dart';
 import 'package:vibe_app/models/models.dart';
@@ -42,12 +43,13 @@ void main() {
 
   test('VIP: filters become free, monthly bonus lands, trial extends the period', () async {
     final monthly = MockData.plans.firstWhere((p) => p.id == 'vip_month');
-    expect(wallet.filterCost(const MatchFilters(gender: GenderFilter.women, countryCode: 'PK')), 15);
+    final filters = FiltersProvider(wallet);
+    expect(filters.access.unlocked, isFalse);
     await wallet.activateVip(monthly, PaymentMethod.googlePlay, 'VB-2');
     expect(wallet.isVip, isTrue);
     expect(wallet.coins, Economy.welcomeCoins + Economy.vipMonthlyBonusCoins);
     expect(wallet.wallet.vipUntil, now.add(const Duration(days: 33)));
-    expect(wallet.filterCost(const MatchFilters(gender: GenderFilter.women, countryCode: 'PK')), 0);
+    expect(filters.access.reason, 'vip');
     await wallet.cancelVip();
     expect(wallet.isVip, isFalse);
   });

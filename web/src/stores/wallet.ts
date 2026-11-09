@@ -4,7 +4,7 @@ import { newIdempotencyKey } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { asList, asMap, type Json, paymentMethodFromApi, paymentMethodToApi, transaction, wallet as mapWallet } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
-import type { MatchFilters, PaymentMethod, Transaction, Wallet } from "@/lib/models";
+import type { PaymentMethod, Transaction, Wallet } from "@/lib/models";
 import {
   type Cashout,
   cashoutStatusFromApi,
@@ -255,12 +255,6 @@ export const freeFriendRequestsLeft = (s: Pick<WalletState, "view">) =>
 export const canCashOut = (s: Pick<WalletState, "view" | "wallet">) =>
   typeof s.view.canCashOut === "boolean" ? s.view.canCashOut : s.wallet.gems >= economy().cashoutMinGems;
 
-/** Coins a single match costs with these filters (0 for VIP and during Vibe Hour: pass `free`). */
-export function filterCost(f: MatchFilters, free: boolean): number {
-  if (free) return 0;
-  const e = economy();
-  return (f.gender !== "anyone" ? e.genderFilterCost : 0) + (f.countryCode ? e.regionFilterCost : 0);
-}
 
 realtime.on(Ev.walletUpdated, (w) => {
   const s = useWallet.getState();

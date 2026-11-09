@@ -7,8 +7,6 @@ import type { CoinPack, Country, Gift, VipPlan } from "./models";
  * The server computes every charge — these are for display.
  */
 export interface Economy {
-  genderFilterCost: number;
-  regionFilterCost: number;
   reconnectCost: number;
   friendRequestCost: number;
   freeFriendRequestsPerDay: number;
@@ -88,8 +86,6 @@ export interface Economy {
 }
 
 export const DEFAULT_ECONOMY: Economy = {
-  genderFilterCost: 10,
-  regionFilterCost: 5,
   reconnectCost: 20,
   friendRequestCost: 10,
   freeFriendRequestsPerDay: 3,

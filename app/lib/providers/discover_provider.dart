@@ -9,6 +9,7 @@ import '../core/api/mappers.dart';
 import '../core/api/realtime_client.dart';
 import '../core/mock/mock_data.dart';
 import '../models/discover.dart';
+import '../models/filters.dart';
 import '../models/models.dart';
 import 'social_provider.dart';
 import 'wallet_provider.dart';
@@ -90,14 +91,34 @@ abstract class DiscoverProvider extends ChangeNotifier {
   /// Opens the extra filters for a while: 'ok', or 'coins' when short.
   Future<String> buyFilterPass();
 
-  /// The pass ran out (or VIP ended): keep age, drop the rest, tell the screen.
+  /// The pass ran out (or VIP ended): keep age and verified only, tell the screen once.
+  /// The saved filters stay as they are (they come back with a pass or VIP).
   @protected
   Future<void> filtersLocked() async {
     _filters = _filters.freeOnly();
     _filtersExpired = true;
-    await _saveFilters();
+    onFiltersLocked?.call();
     await loadStatus();
   }
+
+  /// Told when the server says gender/country are locked (the app marks the shared filters).
+  VoidCallback? onFiltersLocked;
+
+  /// The shared filters (models/filters.dart) changed, here or on Home: use them.
+  Future<void> applyShared(SharedFilters s, {required bool extraOpen}) async {
+    final f = s.usesExtra && !extraOpen ? s.freeOnly() : s;
+    final next = DiscoverFilters(gender: f.gender, minAge: f.minAge, maxAge: f.maxAge, countryCode: f.countryCode ?? '', verifiedOnly: f.verifiedOnly);
+    if (_sameFilters(next, _filters)) return;
+    if (_deck.isEmpty && !_exhausted && !_loading) {
+      _filters = next;
+      notifyListeners();
+      return;
+    }
+    await setFilters(next);
+  }
+
+  static bool _sameFilters(DiscoverFilters a, DiscoverFilters b) =>
+      a.gender == b.gender && a.minAge == b.minAge && a.maxAge == b.maxAge && a.countryCode == b.countryCode && a.onlineOnly == b.onlineOnly && a.verifiedOnly == b.verifiedOnly;
 
   /// A pass that can still be undone.
   DiscoverCard? get lastPassed => _lastPassed;

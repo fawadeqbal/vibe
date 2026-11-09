@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibe_app/models/filters.dart';
+import 'package:vibe_app/providers/filters_provider.dart';
 import 'package:vibe_app/core/api/mappers.dart';
 import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/models/models.dart';
@@ -62,12 +64,12 @@ void main() {
       final now = DateTime.now();
       final v = VibeHour.fromJson({'active': true, 'startsAt': now.subtract(const Duration(minutes: 5)).toUtc().toIso8601String(), 'endsAt': now.add(const Duration(minutes: 55)).toUtc().toIso8601String()});
       expect(v.activeAt(now), isTrue);
-      const paid = MatchFilters(gender: GenderFilter.women, countryCode: 'TR');
-      expect(paid.costFor(vip: false), Economy.genderFilterCost + Economy.regionFilterCost);
+      final filters = FiltersProvider(null)..save(const SharedFilters(gender: WantedGender.women, countryCode: 'TR'));
+      expect(filters.access.unlocked, isFalse);
       Economy.freeFiltersUntil = v.endsAt;
-      expect(paid.costFor(vip: false), 0);
+      expect(filters.access.reason, 'vibe_hour');
       Economy.freeFiltersUntil = now.subtract(const Duration(seconds: 1));
-      expect(paid.costFor(vip: false), greaterThan(0));
+      expect(filters.access.unlocked, isFalse);
     });
 
     test('local provider follows the catalog rules and sets free filters', () async {

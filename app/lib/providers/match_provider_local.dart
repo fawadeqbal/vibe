@@ -62,31 +62,24 @@ class LocalMatchProvider extends MatchProvider {
   @override
   Future<void> withdrawNotify() async => _lookTimer?.cancel();
 
-  /// Starts searching. Charges the filter cost up front (a real service
-  /// charges per match too); returns false — and stays idle — when the
-  /// user cannot afford the filters they picked.
+  /// Starts searching; false — and idle — when gender or country are on
+  /// but not open (the screen offers the filter pass).
   @override
   Future<bool> start() async {
     if (_state == MatchState.searching) return true;
     _needsCoins = false;
-    if (!await _chargeFilters()) return false;
+    _filtersLocked = _filters.usesExtra && !(extraFiltersOpen?.call() ?? true);
+    if (_filtersLocked) {
+      _lastError = 'These filters need VIP or a filter pass';
+      _state = MatchState.idle;
+      notifyListeners();
+      return false;
+    }
     _endReason = null;
     _lastError = null;
     _state = MatchState.searching;
     notifyListeners();
     return _search();
-  }
-
-  Future<bool> _chargeFilters() async {
-    final cost = filterCost;
-    if (cost > 0 && !await _wallet.spend(cost, 'Filters · ${_filterLabel()}')) {
-      _lastError = 'Not enough coins for these filters.';
-      _needsCoins = true;
-      _state = MatchState.idle;
-      notifyListeners();
-      return false;
-    }
-    return true;
   }
 
   Future<bool> _search() async {
@@ -114,7 +107,7 @@ class LocalMatchProvider extends MatchProvider {
     _partnerLikedMe = false;
     _partnerAskedToBeFriends = false;
     _elapsed = Duration.zero;
-    _current = MatchRecord(id: 'mt${DateTime.now().millisecondsSinceEpoch}', partner: p, startedAt: DateTime.now(), coinsSpent: filterCost);
+    _current = MatchRecord(id: 'mt${DateTime.now().millisecondsSinceEpoch}', partner: p, startedAt: DateTime.now(), coinsSpent: 0);
     _blurUntil = _autoBlur && !_wallet.isVip ? DateTime.now().add(const Duration(seconds: 3)) : null;
     _state = MatchState.connected;
     _session.bumpStats(matches: 1);
@@ -186,7 +179,6 @@ class LocalMatchProvider extends MatchProvider {
       }
       _noteSkip();
       _end(EndReason.skipped, keepGoing: true);
-      if (!await _chargeFilters()) return false;
       return _search();
     }
     return start();
@@ -436,13 +428,7 @@ class LocalMatchProvider extends MatchProvider {
     notifyListeners();
   }
 
-  String _filterLabel() {
-    final parts = <String>[];
-    if (_filters.gender == GenderFilter.women) parts.add('women');
-    if (_filters.gender == GenderFilter.men) parts.add('men');
-    if (_filters.countryCode != null) parts.add(_filters.countryCode!);
-    return parts.join(' · ');
-  }
+
 
   @override
   void dispose() {

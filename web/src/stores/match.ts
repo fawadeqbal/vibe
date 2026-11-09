@@ -5,12 +5,13 @@ import { ApiError } from "@/lib/api/errors";
 import { applyGameAnswer, asList, asMap, callGame, date as mapDate, type Json, matchRecord, profile as mapProfile } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
 import { config } from "@/lib/config";
-import type { CallGame, ChatMessage, GameId, Gift, MatchFilters, MatchRecord, Profile, ReportReason } from "@/lib/models";
+import type { CallGame, ChatMessage, GameId, Gift, MatchRecord, Profile, ReportReason } from "@/lib/models";
 import { matchLengthSeconds } from "@/lib/models";
 import { sameDay } from "@/lib/format";
 
 import { useCatalog } from "./catalog";
 import { api, realtime } from "./services";
+import { useFilters } from "./filters";
 import { useSession } from "./session";
 import { toast } from "./ui";
 import { useSocial } from "./social";
@@ -39,7 +40,8 @@ export interface EndedInfo {
  */
 interface MatchState {
   status: MatchStatus;
-  filters: MatchFilters;
+  /** Gender or country filters are on but not open (no VIP, pass or Vibe Hour): offer the pass. */
+  filtersLocked: boolean;
   partner: Profile | null;
   lastPartner: Profile | null;
   current: MatchRecord | null;
@@ -108,7 +110,6 @@ interface MatchState {
   toggleCam: () => void;
   switchCamera: () => Promise<void>;
   setAutoBlur: (v: boolean) => void;
-  setFilters: (f: MatchFilters) => void;
   /** False — and idle — when the filters can't be paid for. */
   start: () => Promise<boolean>;
   /** Skip to the next person (the server enforces the skip cooldown). */
@@ -183,12 +184,11 @@ let blurTimer: ReturnType<typeof setTimeout> | undefined;
 
 const REASONS: Record<ReportReason, string> = { nudity: "NUDITY", harassment: "HARASSMENT", underage: "UNDERAGE", spam: "SPAM", scam: "SCAM", other: "OTHER" };
 
-const DEFAULT_FILTERS: MatchFilters = { gender: "anyone", countryCode: null, safeMode: false };
-
 export const useMatch = create<MatchState>()((set, get) => {
   const fail = (e: ApiError) => {
     if (e.code === "ACCOUNT_BANNED" && typeof e.details.until === "string") useSession.setState({ pausedUntil: new Date(e.details.until) });
     set((s) => ({
+      filtersLocked: e.code === "FILTERS_LOCKED",
       needsCoins: e.isInsufficientCoins,
       lastError: e.isInsufficientCoins ? "Not enough coins for these filters." : e.message,
       status: s.status === "searching" ? "idle" : s.status,
@@ -248,7 +248,7 @@ export const useMatch = create<MatchState>()((set, get) => {
 
   return {
     status: "idle",
-    filters: DEFAULT_FILTERS,
+    filtersLocked: false,
     partner: null,
     lastPartner: null,
     current: null,
@@ -409,20 +409,22 @@ export const useMatch = create<MatchState>()((set, get) => {
     },
 
     setAutoBlur: (v) => set({ autoBlur: v }),
-    setFilters: (f) => set({ filters: f }),
 
     async start() {
       const s = get();
       if (s.status === "searching" || s.status === "connected") return true;
-      set({ needsCoins: false, lastError: null, endReason: null, status: "searching" });
+      set({ needsCoins: false, filtersLocked: false, lastError: null, endReason: null, status: "searching" });
       void get().ensureCamera();
       try {
-        const f = get().filters;
+        // The same filters as Discover (stores/filters.ts).
+        const f = useFilters.getState().filters;
         await realtime.request("match:join", {
           gender: f.gender === "women" ? "WOMEN" : f.gender === "men" ? "MEN" : "ANYONE",
           countryCode: f.countryCode,
-          safeMode: f.safeMode,
+          safeMode: f.verifiedOnly,
           autoBlur: get().autoBlur,
+          minAge: f.minAge,
+          maxAge: f.maxAge,
         });
         return true;
       } catch (e) {

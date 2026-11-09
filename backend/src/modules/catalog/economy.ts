@@ -11,8 +11,6 @@ import { z } from 'zod';
 // ── rules ────────────────────────────────────────────────────────────────────
 
 export interface EconomyRules {
-  genderFilterCost: number;
-  regionFilterCost: number;
   reconnectCost: number;
   skipCooldownBypassCost: number;
   skipsBeforeCooldown: number;
@@ -177,10 +175,8 @@ export const RULE_GROUPS: RuleGroup[] = [
   {
     key: 'matching',
     label: 'Matching',
-    description: 'What filters and second chances cost. VIP members pay nothing for filters.',
+    description: 'What second chances cost. Filters are under Discover: one filter pass opens them in matches and Discover.',
     fields: [
-      coins('genderFilterCost', 'Gender filter, per match'),
-      coins('regionFilterCost', 'Country filter, per match'),
       coins('reconnectCost', 'Reconnect with the last person'),
       coins('skipCooldownBypassCost', 'Skip the cool-down'),
       count('skipsBeforeCooldown', 'Quick skips before a cool-down', 1, 100),
@@ -248,8 +244,8 @@ export const RULE_GROUPS: RuleGroup[] = [
       days('discoverActiveDays', 'Hide people inactive for', 1, 365, 'Keeps decks full of people who might reply.'),
       days('discoverPassResetDays', 'Passed people come back after', 1, 365),
       { key: 'discoverVerifiedOnly', label: 'Verified people only', help: 'Show only selfie-verified people in decks.', kind: 'flag', min: 0, max: 1 },
-      { key: 'discoverPremiumFilters', label: 'Extra filters need VIP or a pass', help: 'Gender, country, online now and verified only. Age is always free. VIP and Vibe Hour get them free. Off = all filters free.', kind: 'flag', min: 0, max: 1 },
-      coins('discoverFilterPassCost', 'Filter pass', 'Unlocks the extra filters for non-VIP people.'),
+      { key: 'discoverPremiumFilters', label: 'Extra filters need VIP or a pass', help: 'Gender, country and online now, in random matches and Discover. Age and verified only are always free. VIP and Vibe Hour get them free. Off = all filters free.', kind: 'flag', min: 0, max: 1 },
+      coins('discoverFilterPassCost', 'Filter pass', 'Unlocks the extra filters in random matches and Discover for non-VIP people.'),
       { key: 'discoverFilterPassHours', label: 'Filter pass lasts', kind: 'hours', min: 1, max: 720 },
     ],
   },
@@ -385,8 +381,6 @@ export function feeShareFor(method: string, r: Pick<EconomyRules, 'storeFeeShare
 }
 
 export const DEFAULT_RULES: EconomyRules = {
-  genderFilterCost: 10,
-  regionFilterCost: 5,
   reconnectCost: 20,
   skipCooldownBypassCost: 5,
   skipsBeforeCooldown: 5,
@@ -651,17 +645,10 @@ export const packTotalCoins = (p: Pick<CoinPack, 'coins' | 'bonusPercent'>): num
 
 export const gemsToUsdCents = (gems: number, rules: Pick<EconomyRules, 'usdCentsPerGem'>): number => Math.floor(gems * rules.usdCentsPerGem);
 
-export interface MatchFilterInput {
-  gender: 'ANYONE' | 'WOMEN' | 'MEN';
-  countryCode?: string | null;
-  safeMode?: boolean;
-}
-
-/** Coins one match costs with these filters; VIP pays nothing. */
-export function filterCost(f: MatchFilterInput, vip: boolean, rules: Pick<EconomyRules, 'genderFilterCost' | 'regionFilterCost'>): number {
-  if (vip) return 0;
-  let cost = 0;
-  if (f.gender !== 'ANYONE') cost += rules.genderFilterCost;
-  if (f.countryCode) cost += rules.regionFilterCost;
-  return cost;
-}
+/** Rules that no longer exist; dropped from what's stored before it's checked. */
+export const RETIRED_RULES = ['genderFilterCost', 'regionFilterCost'] as const;
+export const withoutRetiredRules = (v: unknown): Record<string, unknown> => {
+  const o = { ...((v && typeof v === 'object' ? v : {}) as Record<string, unknown>) };
+  for (const k of RETIRED_RULES) delete o[k];
+  return o;
+};

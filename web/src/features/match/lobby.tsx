@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { VideoScrims } from "@/components/ui/brand";
 import { GhostButton, GradientButton } from "@/components/ui/button";
-import { Glass, GlassPill, RoundControl } from "@/components/ui/glass";
+import { Glass, RoundControl } from "@/components/ui/glass";
 import { Icon } from "@/components/ui/icon";
 import { OnlineDot, Tag } from "@/components/ui/misc";
 import { CoinAmount, CoinChip } from "@/components/ui/money";
@@ -24,9 +24,13 @@ import { useActivity } from "@/stores/activity";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { useWaitlist } from "@/stores/waitlist";
-import { filterCost, isBoosted, isVip, useWallet } from "@/stores/wallet";
+import { isBoosted, isVip, useWallet } from "@/stores/wallet";
 
-import { openFiltersSheet, TRUST_ROW } from "./filters-sheet";
+import { FilterChips } from "@/features/filters/filter-chips";
+import { openFiltersSheet } from "@/features/filters/filters-sheet";
+import { saveMatchFilters, useFilters, useMatchFilters } from "@/stores/filters";
+
+import { TRUST_ROW } from "./labels";
 import { countryHint, countryLabel, filterSummary, genderFilterHint, genderFilterIcon, genderFilterLabel, verifiedHint } from "./labels";
 import { VibeHourInvite } from "@/features/engagement/vibe-hour-invite";
 
@@ -55,7 +59,8 @@ export function Lobby({ onStart }: { onStart: () => void }) {
 function useLobbyState() {
   const wallet = useWallet((s) => s.wallet);
   const economy = useCatalog((s) => s.economy);
-  const filters = useMatch((s) => s.filters);
+  const filters = useMatchFilters();
+  const access = useFilters((s) => s.access);
   const autoBlur = useMatch((s) => s.autoBlur);
   const camLive = useMatch((s) => !!s.localStream && s.camOn);
   const previewOn = useMatch((s) => s.previewOn);
@@ -79,9 +84,9 @@ function useLobbyState() {
     vip,
     boosted,
     freeBoost: !boosted && wallet.freeBoosts > 0,
-    /** Paid filters are free for VIP and for everyone during Vibe Hour. */
-    filtersFree: vip || vibeHour,
-    cost: filterCost(filters, vip || vibeHour),
+    /** Gender and country are open: VIP, Vibe Hour or the filter pass. */
+    filtersFree: access.unlocked,
+    cost: 0,
   };
 }
 
@@ -89,10 +94,7 @@ function useLobbyState() {
 
 function PhoneLobby({ onStart, availability }: { onStart: () => void; availability: Availability | null }) {
   const s = useLobbyState();
-  const setFilters = useMatch((st) => st.setFilters);
   const { filters } = s;
-  /** Paid filters read "Free" during Vibe Hour (VIP has them free anyway). */
-  const freeTag = s.vibeHour && !s.vip ? <span className="type-label ml-1 rounded-[8px] bg-ok/16 px-1.5 py-0.5 text-[10.5px] text-ok">Free</span> : null;
 
   return (
     <div className="absolute inset-0">
@@ -116,44 +118,7 @@ function PhoneLobby({ onStart, availability }: { onStart: () => void; availabili
           <AvailabilityLine availability={availability} className="justify-center px-4" />
           <WaitlistStrip availability={availability} onStart={onStart} className="mt-2.5 px-4" />
 
-          <div className="mt-4 flex flex-wrap justify-center gap-1.5 px-4">
-            <GlassPill
-              height={40}
-              fontSize={13}
-              icon={genderFilterIcon[filters.gender]}
-              label={genderFilterLabel[filters.gender]}
-              trailing={
-                <>
-                  {filters.gender !== "anyone" ? freeTag : null}
-                  <Icon name="expand_more" size={16} className="text-text2" />
-                </>
-              }
-              onClick={() => void openFiltersSheet()}
-            />
-            <GlassPill
-              height={40}
-              fontSize={13}
-              icon="public"
-              label={countryLabel(filters.countryCode)}
-              trailing={
-                <>
-                  {filters.countryCode ? freeTag : null}
-                  <Icon name="expand_more" size={16} className="text-text2" />
-                </>
-              }
-              onClick={() => void openFiltersSheet()}
-            />
-            <GlassPill
-              height={40}
-              fontSize={13}
-              icon="verified"
-              iconVariant={filters.safeMode ? "round" : "outlined"}
-              label="Verified only"
-              tint={filters.safeMode ? "trust" : undefined}
-              textColor={filters.safeMode ? "trust" : "white"}
-              onClick={() => setFilters({ ...filters, safeMode: !filters.safeMode })}
-            />
-          </div>
+          <FilterChips glass className="mt-4 px-4" />
           {/* The pills as a sentence, so "Anyone · Anywhere · Verified only" reads as a choice. */}
           <p className="type-body mt-2 px-4 text-center text-[12px] text-white/70" aria-live="polite">
             {filterSummary(filters)}
@@ -339,15 +304,14 @@ function WideLobby({ onStart, availability }: { onStart: () => void; availabilit
 
 /** Each filter as a row that says what it means and what it costs. */
 function FilterRows({ free }: { free: boolean }) {
-  const filters = useMatch((s) => s.filters);
-  const e = useCatalog((s) => s.economy);
-  const price = (on: boolean, coins: number) =>
+  const filters = useMatchFilters();
+  const price = (on: boolean) =>
     !on || free ? (
       <span className="type-label text-[12px] text-ok">Free</span>
     ) : (
-      <span className="flex items-center">
-        <CoinAmount amount={coins} size={12} />
-        <span className="type-body ml-1 text-[11.5px] text-muted">/match</span>
+      <span className="type-label flex items-center gap-1 text-[12px] text-gold">
+        <Icon name="lock" size={13} />
+        Pass
       </span>
     );
   const chevron = <Icon name="chevron_right" size={20} className="ml-1.5 text-muted" />;
@@ -364,7 +328,7 @@ function FilterRows({ free }: { free: boolean }) {
         subtitle={genderFilterHint[filters.gender]}
         trailing={
           <>
-            {price(filters.gender !== "anyone", e.genderFilterCost)}
+            {price(filters.gender !== "anyone")}
             {chevron}
           </>
         }
@@ -381,7 +345,7 @@ function FilterRows({ free }: { free: boolean }) {
         subtitle={countryHint(filters.countryCode)}
         trailing={
           <>
-            {price(filters.countryCode != null, e.regionFilterCost)}
+            {price(filters.countryCode != null)}
             {chevron}
           </>
         }
@@ -393,7 +357,7 @@ function FilterRows({ free }: { free: boolean }) {
         {...TRUST_ROW}
         title="Verified only"
         subtitle={`${verifiedHint(filters.safeMode)} · Free`}
-        trailing={<Switch checked={filters.safeMode} onChange={(v) => useMatch.getState().setFilters({ ...filters, safeMode: v })} label="Verified only" />}
+        trailing={<Switch checked={filters.safeMode} onChange={(v) => void saveMatchFilters({ ...filters, safeMode: v })} label="Verified only" />}
       />
     </GroupCard>
   );

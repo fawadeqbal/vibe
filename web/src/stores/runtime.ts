@@ -8,6 +8,7 @@ import { useCalls } from "./calls";
 import { useCatalog } from "./catalog";
 import { useDiscover } from "./discover";
 import { useEngagement } from "./engagement";
+import { useFilters } from "./filters";
 import { useFollows } from "./follows";
 import { useInbox } from "./inbox";
 import { useMatch } from "./match";
@@ -35,6 +36,7 @@ async function loadAll() {
     useWallet.getState().load(),
     useSocial.getState().load(),
     useFollows.getState().load(),
+    useFilters.getState().load(),
     useMatch.getState().load(),
     useInbox.getState().load(),
     useActivity.getState().load(),
@@ -61,6 +63,7 @@ function onSessionChanged(signedIn: boolean) {
     useWallet.getState().reset();
     useSocial.getState().reset();
     useFollows.getState().reset();
+    useFilters.getState().reset();
     useInbox.getState().reset();
     useActivity.getState().reset();
     useEngagement.getState().reset();

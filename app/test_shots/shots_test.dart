@@ -15,6 +15,7 @@ import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/mock/mock_data.dart';
 import 'package:vibe_app/core/theme/vibe_theme.dart';
 import 'package:vibe_app/models/models.dart';
+import 'package:vibe_app/providers/filters_provider.dart';
 import 'package:vibe_app/providers/calls_provider.dart';
 import 'package:vibe_app/providers/catalog_provider.dart';
 import 'package:vibe_app/providers/discover_provider.dart';
@@ -29,7 +30,7 @@ import 'package:vibe_app/providers/session_provider.dart';
 import 'package:vibe_app/providers/social_provider.dart';
 import 'package:vibe_app/providers/wallet_provider.dart';
 import 'package:vibe_app/screens/home/home_shell.dart';
-import 'package:vibe_app/screens/match/filters_sheet.dart';
+import 'package:vibe_app/screens/filters/filters_sheet.dart';
 import 'package:vibe_app/screens/match/report_sheet.dart';
 import 'package:vibe_app/screens/match/safety_sheet.dart';
 import 'package:vibe_app/screens/onboarding/permissions_screen.dart';
@@ -117,6 +118,7 @@ class H {
   late InboxProvider inbox;
   late FollowsProvider follows;
   late DiscoverProvider discover;
+  late FiltersProvider filters;
   late CallsProvider calls;
 
   Future<void> init({bool slowMatch = false, bool vip = false, bool withFriends = true}) async {
@@ -153,6 +155,8 @@ class H {
     session = SessionProvider(backend);
     match = MatchProvider(slowMatch ? MockBackend(fast: false, random: Random(4)) : backend, wallet, social, session, cameraEnabled: false);
     discover = DiscoverProvider(social, wallet);
+    filters = FiltersProvider(wallet);
+    wireSharedFilters(filters, match, discover);
     calls = CallsProvider(social, match);
     await wallet.load();
     wallet.debugSet(wallet.wallet.copyWith(coins: 340, gems: 1280, streakDay: 2, vipUntil: vip ? DateTime.now().add(const Duration(days: 20)) : null));
@@ -185,6 +189,7 @@ class H {
           ChangeNotifierProvider.value(value: social),
           ChangeNotifierProvider.value(value: match),
           ChangeNotifierProvider.value(value: discover),
+          ChangeNotifierProvider<FiltersProvider>.value(value: filters),
           ChangeNotifierProvider.value(value: calls),
           ChangeNotifierProvider.value(value: inbox),
           ChangeNotifierProvider.value(value: CatalogProvider()),

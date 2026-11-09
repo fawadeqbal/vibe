@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ReportReason } from '@prisma/client';
-import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Length, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
 
 import { COUNTRY_CODES } from '../../catalog/economy';
 import { GAME_IDS, GameId } from '../icebreakers';
@@ -22,6 +22,18 @@ export class JoinDto {
   @IsOptional()
   @IsBoolean()
   autoBlur: boolean = true;
+
+  @IsOptional()
+  @IsInt()
+  @Min(18)
+  @Max(99)
+  minAge?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(18)
+  @Max(99)
+  maxAge?: number;
 }
 
 export class NextDto {

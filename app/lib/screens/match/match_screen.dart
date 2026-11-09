@@ -14,7 +14,9 @@ import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/follows.dart';
 import '../../models/models.dart';
+import '../../models/filters.dart' show WantedGender;
 import '../../providers/engagement_provider.dart';
+import '../../providers/filters_provider.dart';
 import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
@@ -28,7 +30,8 @@ import '../profile/user_profile_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../store/store_screen.dart';
 import '../store/vip_screen.dart';
-import 'filters_sheet.dart';
+import '../filters/filter_chips.dart';
+import '../filters/filters_sheet.dart';
 import 'gift_sheet.dart';
 import 'icebreakers.dart';
 import 'lobby_extras.dart';
@@ -130,28 +133,29 @@ class _MatchScreenState extends State<MatchScreen> {
   Future<void> _start() async {
     final m = context.read<MatchProvider>();
     if (await m.start()) return;
-    if (m.needsCoins && mounted) {
-      if (await _filtersNeedCoins(m) && mounted) await m.start();
+    if (m.filtersLocked && mounted) {
+      if (await _filtersLocked() && mounted) await m.start();
       return;
     }
-    await _explainFailure(m, 'These filters cost ${m.filterCost} coins per match.');
+    await _explainFailure(m, 'You need more coins for that.');
   }
 
-  /// Filters they can't afford: get coins (the Store also has free videos),
-  /// VIP, or match with anyone for free. True when they chose "anyone" (start again).
-  Future<bool> _filtersNeedCoins(MatchProvider m) async {
-    final f = m.filters;
-    final label = [if (f.gender == GenderFilter.women) 'Women', if (f.gender == GenderFilter.men) 'Men', if (f.countryCode != null) MockData.country(f.countryCode!).name].join(' · ');
-    final wallet = context.read<WalletProvider>();
-    final choice = await showFilterCoins(context, cost: m.filterCost, coins: wallet.coins, filterLabel: label.isEmpty ? 'Filters' : label);
-    if (!mounted || choice == null) return false;
+  /// Gender or country are on but not open: the filter pass (shared with
+  /// Discover), VIP, or meet anyone for now (age and verified only still apply).
+  /// True = start again.
+  Future<bool> _filtersLocked() async {
+    final choice = await showFilterPass(context);
+    if (!mounted) return false;
     switch (choice) {
-      case FilterCoinsChoice.store:
-        widget.onOpenStore();
-      case FilterCoinsChoice.vip:
+      case 'ok':
+        return true;
+      case 'vip':
         await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const VipScreen()));
-      case FilterCoinsChoice.anyone:
-        m.setFilters(const MatchFilters().copyWith(safeMode: f.safeMode));
+      case 'coins':
+        widget.onOpenStore();
+      default:
+        final p = context.read<FiltersProvider>();
+        await p.save(p.filters.copyWith(gender: WantedGender.anyone, clearCountry: true));
         return true;
     }
     return false;
@@ -170,7 +174,7 @@ class _MatchScreenState extends State<MatchScreen> {
       if (choice == null || !mounted || !m.isConnected) return;
       if (choice == CooldownChoice.next) {
         // The wait is over: carry on to the next person.
-        if (!await m.next()) await _explainFailure(m, 'These filters cost ${m.filterCost} coins per match.');
+        if (!await m.next()) await _explainFailure(m, 'You need more coins for that.');
         return;
       }
       if (!await m.bypassCooldown()) await _explainFailure(m, 'Skipping the cooldown costs ${Economy.skipCooldownBypassCost} coins.');
@@ -179,7 +183,7 @@ class _MatchScreenState extends State<MatchScreen> {
     if (await m.next()) return;
     // The server can answer "slow down" — then offer the same choice.
     if (m.inCooldown && mounted) return _next();
-    await _explainFailure(m, 'These filters cost ${m.filterCost} coins per match.');
+    await _explainFailure(m, 'You need more coins for that.');
   }
 
   Future<void> _gift() async {
@@ -533,9 +537,7 @@ class _Lobby extends StatelessWidget {
   Widget build(BuildContext context) {
     final wallet = context.watch<WalletProvider>();
     final me = context.watch<SessionProvider>().me;
-    // Vibe Hour: filters are free (the chips say so).
-    final vibeHour = context.watch<EngagementProvider>().vibeHourActive;
-    final cost = m.filterCost;
+    const cost = 0;
     final f = m.filters;
     final camLive = m.hasLocalVideo && m.camOn;
     return Stack(
@@ -629,48 +631,7 @@ class _Lobby extends StatelessWidget {
               _AvailabilityLine(availability: m.availability),
               _WaitlistStrip(m: m, onStart: onStart),
               const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    GlassPill(
-                      height: 40,
-                      fontSize: 13,
-                      icon: switch (f.gender) {
-                        GenderFilter.women => SolarIconsBold.women,
-                        GenderFilter.men => SolarIconsBold.men,
-                        _ => SolarIconsBold.usersGroupRounded,
-                      },
-                      label: _genderLabel(f.gender),
-                      trailing: _PillTrailing(free: vibeHour && !wallet.isVip && f.gender != GenderFilter.anyone),
-                      onTap: () => showFiltersSheet(context),
-                    ),
-                    GlassPill(
-                      height: 40,
-                      fontSize: 13,
-                      icon: SolarIconsBold.global,
-                      label: _countryLabel(f.countryCode),
-                      trailing: _PillTrailing(free: vibeHour && !wallet.isVip && f.countryCode != null),
-                      onTap: () => showFiltersSheet(context),
-                    ),
-                    GlassPill(
-                      height: 40,
-                      fontSize: 13,
-                      icon: f.safeMode ? SolarIconsBold.verifiedCheck : SolarIconsOutline.verifiedCheck,
-                      label: 'Verified only',
-                      tint: f.safeMode ? V.trust : null,
-                      textColor: f.safeMode ? V.trust : Colors.white,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        m.setFilters(f.copyWith(safeMode: !f.safeMode));
-                      },
-                    ),
-                  ],
-                ),
-              ),
+              FilterChips(glass: true, onOpen: () => showFiltersSheet(context)),
               // The pills as a sentence, so "Anyone · Anywhere · Verified only" reads as a choice.
               const SizedBox(height: 8),
               Padding(
@@ -761,26 +722,6 @@ String filterSummary(MatchFilters f) {
   return "You'll meet ${f.safeMode ? 'verified ${who == 'anyone' ? 'people' : who}' : who} $where.";
 }
 
-/// A filter pill's end: "Free" while Vibe Hour makes a paid filter free, then the chevron.
-class _PillTrailing extends StatelessWidget {
-  const _PillTrailing({required this.free});
-  final bool free;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      if (free)
-        Container(
-          margin: const EdgeInsets.only(left: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(color: V.ok.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(8)),
-          child: Text('Free', style: VT.label(10.5, color: V.ok)),
-        ),
-      const Icon(SolarIconsOutline.altArrowDown, size: 16, color: V.text2),
-    ],
-  );
-}
 
 /// Vibe Hour (live, or when it starts, with "Remind me") and friends who are
 /// on, stacked under the header. Takes no room when there's none of that.
@@ -1172,7 +1113,7 @@ class _EndedState extends State<_Ended> {
   void initState() {
     super.initState();
     // Never spends coins without a tap: only when matching is free for them.
-    if (widget.m.endReason == EndReason.partnerLeft && widget.m.filterCost == 0) {
+    if (widget.m.endReason == EndReason.partnerLeft && (!widget.m.filters.usesExtra || (widget.m.extraFiltersOpen?.call() ?? true))) {
       _autoAt = DateTime.now().add(autoNextAfter);
       _autoTick = Timer.periodic(const Duration(milliseconds: 250), (_) {
         if (!mounted) return;
@@ -1862,7 +1803,8 @@ class _SlowSearch extends StatelessWidget {
               warn: true,
               onTap: () {
                 m.stop();
-                m.setFilters(const MatchFilters());
+                final p = context.read<FiltersProvider>();
+                p.save(p.filters.copyWith(gender: WantedGender.anyone, clearCountry: true));
                 onRestart();
               },
             ),

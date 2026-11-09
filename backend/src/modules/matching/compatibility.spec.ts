@@ -149,3 +149,18 @@ describe('compatibility', () => {
     });
   });
 });
+
+describe('age filter', () => {
+  const t = (id: string, age: number | undefined, minAge?: number, maxAge?: number) =>
+    ({ userId: id, gender: 'FEMALE', countryCode: 'PK', verified: true, age, prefs: { gender: 'ANYONE', countryCode: null, safeMode: false, autoBlur: true, minAge, maxAge }, cost: 0, vip: false, boosted: false, enqueuedAt: 0, exclude: [] }) as Ticket;
+
+  it('keeps people outside your age range out, both ways', () => {
+    expect(compatible(t('a', 24, 18, 30), t('b', 29))).toBe(true);
+    expect(compatible(t('a', 24, 18, 30), t('b', 31))).toBe(false);
+    expect(compatible(t('a', 24), t('b', 40, 30, 50))).toBe(false);
+  });
+
+  it('a ticket without an age (from before) is never filtered out', () => {
+    expect(compatible(t('a', 24, 18, 20), t('b', undefined))).toBe(true);
+  });
+});

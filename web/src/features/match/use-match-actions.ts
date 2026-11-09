@@ -8,16 +8,17 @@ import { pickGift } from "@/components/shared/gift-sheet";
 import { pickReport } from "@/components/shared/report-sheet";
 import { errorMessage } from "@/lib/api/errors";
 import type { Gift } from "@/lib/models";
-import { COUNTRIES } from "@/lib/catalog";
 import { freeReconnectLeft } from "@/lib/engagement";
 import { economy } from "@/stores/catalog";
-import { isVibeHour, useEngagement } from "@/stores/engagement";
 import { cooldownSeconds, useMatch } from "@/stores/match";
 import { useSocial } from "@/stores/social";
 import { toast } from "@/stores/ui";
-import { filterCost, freeFriendRequestsLeft, isBoosted, isVip, useWallet } from "@/stores/wallet";
+import { useFilters } from "@/stores/filters";
+import { freeFriendRequestsLeft, isBoosted, useWallet } from "@/stores/wallet";
 
-import { openCooldown, openFilterCoins } from "./match-sheets";
+import { openFilterPass } from "@/features/filters/filters-sheet";
+
+import { openCooldown } from "./match-sheets";
 
 /**
  * Every tap on the match screen that can cost coins or needs a question
@@ -38,22 +39,18 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
     [needCoins],
   );
 
-  const currentFilterCost = () => filterCost(useMatch.getState().filters, isVip(useWallet.getState().wallet) || isVibeHour(useEngagement.getState()));
-
   /**
-   * Filters they can't afford: get coins (the Store also has free videos), VIP, or match with
-   * anyone for free (which starts right away).
+   * Gender or country are on but not open: the filter pass (shared with Discover), VIP, or
+   * meet anyone for now (age and verified only still apply). True = start again.
    */
-  const filtersNeedCoins = useCallback(async (): Promise<boolean> => {
-    const f = useMatch.getState().filters;
-    const label = [f.gender === "women" ? "Women" : f.gender === "men" ? "Men" : null, f.countryCode ? (COUNTRIES.find((c) => c.code === f.countryCode)?.name ?? f.countryCode) : null]
-      .filter(Boolean)
-      .join(" · ");
-    const choice = await openFilterCoins({ cost: currentFilterCost(), coins: useWallet.getState().wallet.coins, filterLabel: label || "Filters" });
-    if (choice === "store") router.push("/store");
-    else if (choice === "vip") router.push("/vip");
-    else if (choice === "anyone") {
-      useMatch.getState().setFilters({ ...f, gender: "anyone", countryCode: null });
+  const filtersLocked = useCallback(async (): Promise<boolean> => {
+    const r = await openFilterPass();
+    if (r === "ok") return true;
+    if (r === "vip") router.push("/vip");
+    else if (r === "coins") router.push("/store");
+    else {
+      const f = useFilters.getState().filters;
+      await useFilters.getState().save({ ...f, gender: "anyone", countryCode: null });
       return true;
     }
     return false;
@@ -61,12 +58,12 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
 
   const start = useCallback(async () => {
     if (await useMatch.getState().start()) return;
-    if (useMatch.getState().needsCoins) {
-      if (await filtersNeedCoins()) await useMatch.getState().start();
+    if (useMatch.getState().filtersLocked) {
+      if (await filtersLocked()) await useMatch.getState().start();
       return;
     }
-    await explainFailure(`These filters cost ${currentFilterCost()} coins per match.`);
-  }, [explainFailure, filtersNeedCoins]);
+    await explainFailure("You need more coins for that.");
+  }, [explainFailure, filtersLocked]);
 
   const next = useCallback(async () => {
     const bypass = economy().skipCooldownBypassCost;
@@ -78,7 +75,7 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
         if (!choice || useMatch.getState().status !== "connected") return;
         if (choice === "next") {
           // The wait is over: carry on to the next person.
-          if (!(await useMatch.getState().next())) await explainFailure(`These filters cost ${currentFilterCost()} coins per match.`);
+          if (!(await useMatch.getState().next())) await explainFailure("You need more coins for that.");
           return;
         }
         if (!(await useMatch.getState().next(true))) await explainFailure(`Skipping the cooldown costs ${bypass} coins.`);
@@ -87,7 +84,7 @@ export function useMatchActions(onGiftSent: (g: Gift) => void) {
       if (await m.next()) return;
       if (cooldownSeconds(useMatch.getState()) === 0) break;
     }
-    await explainFailure(`These filters cost ${currentFilterCost()} coins per match.`);
+    await explainFailure("You need more coins for that.");
   }, [explainFailure]);
 
   const gift = useCallback(async () => {

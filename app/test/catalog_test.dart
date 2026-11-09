@@ -24,8 +24,6 @@ void main() {
     });
     expect(notified, 1);
     expect(c.version, '2026-10-01T10:00:00.000Z');
-    expect(Economy.genderFilterCost, 12);
-    expect(Economy.regionFilterCost, 5); // not sent: unchanged
     expect(Economy.boostLength, const Duration(minutes: 45));
     expect(Economy.usdPerGem, closeTo(0.008, 1e-9));
     expect(Economy.checkInRewards, [1, 2, 3, 4, 5, 6, 7]);

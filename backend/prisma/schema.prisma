@@ -116,6 +116,8 @@ model User {
   breakReminderMinutes Int?
   /// Appear in other people's Discover deck (Privacy setting).
   showInDiscover       Boolean    @default(true)
+  /// Who you meet, shared by random matches and Discover: { gender, minAge, maxAge, countryCode, verifiedOnly }.
+  filters              Json?
   lastSeenAt           DateTime?
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt

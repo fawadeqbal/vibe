@@ -284,30 +284,30 @@ class Wallet {
   }
 }
 
+/// The match screen's view of the shared filters (models/filters.dart): who,
+/// from where, verified only (safeMode) and the age range. Gender and country
+/// need VIP, Vibe Hour or the filter pass; nothing is charged per match.
 class MatchFilters {
-  const MatchFilters({this.gender = GenderFilter.anyone, this.countryCode, this.safeMode = false});
+  const MatchFilters({this.gender = GenderFilter.anyone, this.countryCode, this.safeMode = false, this.minAge = 18, this.maxAge = 99});
   final GenderFilter gender;
 
   /// null = anywhere.
   final String? countryCode;
   final bool safeMode;
+  final int minAge;
+  final int maxAge;
 
-  MatchFilters copyWith({GenderFilter? gender, String? countryCode, bool clearCountry = false, bool? safeMode}) {
+  /// Gender or a country: needs VIP, Vibe Hour or the pass.
+  bool get usesExtra => gender != GenderFilter.anyone || countryCode != null;
+
+  MatchFilters copyWith({GenderFilter? gender, String? countryCode, bool clearCountry = false, bool? safeMode, int? minAge, int? maxAge}) {
     return MatchFilters(
       gender: gender ?? this.gender,
       countryCode: clearCountry ? null : (countryCode ?? this.countryCode),
       safeMode: safeMode ?? this.safeMode,
+      minAge: minAge ?? this.minAge,
+      maxAge: maxAge ?? this.maxAge,
     );
-  }
-
-  /// Coins a single match costs with these filters (0 for VIP, and for
-  /// everyone during Vibe Hour).
-  int costFor({required bool vip}) {
-    if (vip || Economy.filtersFree) return 0;
-    var cost = 0;
-    if (gender != GenderFilter.anyone) cost += Economy.genderFilterCost;
-    if (countryCode != null) cost += Economy.regionFilterCost;
-    return cost;
   }
 }
 
@@ -501,8 +501,6 @@ class Economy {
   Economy._();
 
   // Filters and match actions
-  static int genderFilterCost = 10;
-  static int regionFilterCost = 5;
   static int reconnectCost = 20;
   static int friendRequestCost = 10;
   static int freeFriendRequestsPerDay = 3;

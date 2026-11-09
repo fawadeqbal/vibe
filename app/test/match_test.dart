@@ -2,6 +2,9 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibe_app/models/filters.dart';
+import 'package:vibe_app/providers/discover_provider.dart';
+import 'package:vibe_app/providers/filters_provider.dart';
 import 'package:vibe_app/core/mock/mock_backend.dart';
 import 'package:vibe_app/core/mock/mock_data.dart';
 import 'package:vibe_app/models/models.dart';
@@ -35,10 +38,10 @@ void main() {
   });
 
   test('economy numbers match BUSINESS.md', () {
-    expect(const MatchFilters().costFor(vip: false), 0);
-    expect(const MatchFilters(gender: GenderFilter.men).costFor(vip: false), Economy.genderFilterCost);
-    expect(const MatchFilters(gender: GenderFilter.men, countryCode: 'US').costFor(vip: false), Economy.genderFilterCost + Economy.regionFilterCost);
-    expect(const MatchFilters(gender: GenderFilter.men, countryCode: 'US').costFor(vip: true), 0);
+    expect(const MatchFilters().usesExtra, isFalse);
+    expect(const MatchFilters(safeMode: true, minAge: 25).usesExtra, isFalse, reason: 'age and verified only are free');
+    expect(const MatchFilters(gender: GenderFilter.men).usesExtra, isTrue);
+    expect(const MatchFilters(countryCode: 'US').usesExtra, isTrue);
     expect(MockData.packs.map((p) => p.usdPer100).reduce(max), closeTo(0.99, 0.001));
     expect(MockData.gifts.every((g) => g.gems == (g.coins * Economy.giftGemShare).round()), isTrue);
   });
@@ -71,15 +74,22 @@ void main() {
     expect(match.endReason, EndReason.skipped);
   });
 
-  test('filters are charged per match and refused when unaffordable', () async {
-    match.setFilters(const MatchFilters(gender: GenderFilter.women));
-    expect(await match.start(), isTrue);
-    expect(wallet.coins, Economy.welcomeCoins - Economy.genderFilterCost);
-    expect(match.partner!.gender, Gender.female);
-    wallet.debugSet(wallet.wallet.copyWith(coins: 3));
-    expect(await match.next(), isFalse);
+  test('gender and country need the filter pass (shared with Discover); with it, nothing is charged per match', () async {
+    final filters = FiltersProvider(wallet);
+    final discover = DiscoverProvider(social, wallet);
+    wireSharedFilters(filters, match, discover);
+    await filters.save(const SharedFilters(gender: WantedGender.women));
+    expect(await match.start(), isFalse);
+    expect(match.filtersLocked, isTrue);
     expect(match.state, MatchState.idle);
-    expect(match.lastError, contains('Not enough coins'));
+    expect(await filters.buyPass(), 'ok');
+    expect(wallet.coins, Economy.welcomeCoins - Economy.discoverFilterPassCost);
+    expect(await match.start(), isTrue);
+    expect(match.partner!.gender, Gender.female);
+    expect(await match.next(), isTrue);
+    expect(wallet.coins, Economy.welcomeCoins - Economy.discoverFilterPassCost, reason: 'no per-match charge');
+    discover.dispose();
+    filters.dispose();
   });
 
   test('gifts, likes and friend requests inside a match', () async {

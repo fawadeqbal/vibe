@@ -377,7 +377,6 @@ abstract class MatchProvider extends ChangeNotifier {
   }
 
   bool get inCooldown => cooldownSeconds > 0;
-  int get filterCost => _wallet.filterCost(_filters);
 
   // Session stats for the profile page
   int get matchesToday => _history.where((r) => _sameDay(r.startedAt, DateTime.now())).length;
@@ -698,6 +697,13 @@ abstract class MatchProvider extends ChangeNotifier {
     _filters = f;
     notifyListeners();
   }
+
+  /// Gender or country are on but not open (no VIP, pass or Vibe Hour): the screen offers the pass.
+  bool get filtersLocked => _filtersLocked;
+  bool _filtersLocked = false;
+
+  /// Whether gender/country are open right now (set by the app from FiltersProvider; null = always).
+  bool Function()? extraFiltersOpen;
 
   // ── the loop (implemented by local / remote) ──────────────────────────
 

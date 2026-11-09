@@ -7,6 +7,9 @@ export interface MatchPrefs {
   countryCode: string | null;
   safeMode: boolean;
   autoBlur: boolean;
+  /** Age range (always free); missing = 18–99. */
+  minAge?: number;
+  maxAge?: number;
 }
 
 /** A person waiting in the queue: who they are and who they want to meet. */
@@ -15,6 +18,8 @@ export interface Ticket {
   gender: Gender;
   countryCode: string;
   verified: boolean;
+  /** For the other person's age filter (missing on tickets from before it existed). */
+  age?: number;
   prefs: MatchPrefs;
   /** Coins this match will cost them (0 for VIP / no paid filters). */
   cost: number;
