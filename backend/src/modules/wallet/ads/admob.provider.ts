@@ -59,7 +59,7 @@ export class AdMobProvider implements RewardedAdProvider, IntegrationReporter {
     }
     const ts = Number(p.get('timestamp'));
     if (ts && Math.abs(Date.now() - ts) > 3600_000) return false;
-    await this.views.markWatched(userId, p.get('custom_data') || tx, tx);
+    await this.views.markWatched(userId, p.get('custom_data') || tx, tx, { provider: 'admob' });
     return true;
   }
 

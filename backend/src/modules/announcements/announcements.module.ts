@@ -30,6 +30,8 @@ export class AppInfoController {
       matchingEnabled: s['matching.enabled'],
       // Public anyway (it is in the page that shows the ad). The web's /ad-frame reads it from here, never from its URL.
       monetag: zone ? { zoneId: zone, sdkUrl: s['ads.monetagSdkUrl'] } : null,
+      // The landing page loads its Vignette only when this is set (Settings → Ads).
+      landingAd: s['ads.landingVignette'] && s['ads.landingVignetteZoneId'] ? { zoneId: s['ads.landingVignetteZoneId'], src: s['ads.landingVignetteScript'] } : null,
     };
   }
 

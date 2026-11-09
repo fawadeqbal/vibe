@@ -78,6 +78,8 @@ export const site = {
   /** Google Analytics 4 measurement id (G-XXXX). Empty = no analytics script at all. */
   gaId: env(process.env.NEXT_PUBLIC_GA_ID, ""),
 
+  /** Startup config (GET <api>/v1/config): the landing Vignette is switched on/off there. */
+  configUrl: api ? `${api}/v1/config` : null,
   /** Live count for the hero pill: GET <api>/v1/stats/online → { online }. */
   onlineUrl: api ? `${api}/v1/stats/online` : null,
   /** The live count only shows from this many people up; below it the pill shows the busy hours instead. */

@@ -47,6 +47,13 @@ export class InsightsController {
     return this.insights.growth(q.days, q.client);
   }
 
+  @Get('ads')
+  @RequirePermissions(P.FinanceView)
+  @ApiOperation({ summary: 'Store videos: started → watched → paid, coins given, the network\'s estimated earnings, per day and platform' })
+  ads(@Query() q: InsightsQuery) {
+    return this.insights.ads(q.days);
+  }
+
   @Get('money')
   @RequirePermissions(P.FinanceView)
   @ApiOperation({ summary: 'Money: who pays, how much, what sells, days to the first purchase' })

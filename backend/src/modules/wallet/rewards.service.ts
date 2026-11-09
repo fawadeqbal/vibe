@@ -76,6 +76,7 @@ export class RewardsService {
       return { reward: this.economy.rules.rewardedAdCoins, leftToday: left - 1 };
     });
     this.wallet.changed([userId]);
+    await this.ads.paid(adToken, res.reward);
     return res;
   }
 

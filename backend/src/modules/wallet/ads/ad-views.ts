@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { RedisService } from '../../../infra/redis/redis.service';
 
 /** Where the person watches: decides which network the admin panel picked. */
@@ -32,15 +33,33 @@ const TICKET = (token: string) => `ad:ticket:${token}`;
 const VERIFIED = (userId: string, token: string) => `ad:verified:${userId}:${token}`;
 const USED = (userId: string, token: string) => `ad:used:${userId}:${token}`;
 
-/** Redis bookkeeping shared by every network: tickets, watched views, single use. */
+export interface WatchedDetails {
+  provider: AdProviderKey;
+  /** Monetag: false for `non_valued` (unpaid) views. */
+  valued?: boolean;
+  /** The network's estimate of what the view earned, USD. */
+  estimatedUsd?: number;
+}
+
+/**
+ * Bookkeeping shared by every network. Redis: tickets, watched views, single
+ * use (fast, expiring). Postgres `AdView`: one row per view for admin reports —
+ * written best-effort, so reporting can never block a reward.
+ */
 @Injectable()
 export class AdViews {
-  constructor(private readonly redis: RedisService) {}
+  private readonly logger = new Logger(AdViews.name);
+
+  constructor(
+    private readonly redis: RedisService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   /** A one-off id for one view. Monetag gets it as `ymid` and sends it back in its postback. */
-  async issue(userId: string, provider: AdProviderKey): Promise<string> {
+  async issue(userId: string, provider: AdProviderKey, platform: AdPlatform): Promise<string> {
     const token = `v${randomBytes(15).toString('base64url')}`;
     await this.redis.client.set(TICKET(token), JSON.stringify({ userId, provider } satisfies AdTicket), 'EX', 3600);
+    await this.record(() => this.prisma.adView.create({ data: { token, userId, provider, platform } }));
     return token;
   }
 
@@ -55,10 +74,29 @@ export class AdViews {
   }
 
   /** The network confirmed this view. The ticket is spent so a second postback does nothing. */
-  async markWatched(userId: string, token: string, reference: string): Promise<boolean> {
+  async markWatched(userId: string, token: string, reference: string, details?: WatchedDetails): Promise<boolean> {
     const fresh = (await this.redis.client.set(VERIFIED(userId, token), reference, 'EX', 86400, 'NX')) === 'OK';
     await this.redis.client.del(TICKET(token));
+    if (fresh && details && token.length <= 64) {
+      const fields = { valued: details.valued ?? null, estimatedUsd: details.estimatedUsd ?? null, watchedAt: new Date() };
+      // Older AdMob builds make their own nonce, so there may be no row yet.
+      await this.record(() => this.prisma.adView.upsert({ where: { token }, update: fields, create: { token, userId, provider: details.provider, platform: 'app', ...fields } }));
+    }
     return fresh;
+  }
+
+  /** Coins were paid for this view. */
+  async paid(token: string, coins: number): Promise<void> {
+    if (token.length > 64) return;
+    await this.record(() => this.prisma.adView.updateMany({ where: { token, paidAt: null }, data: { coins, paidAt: new Date() } }));
+  }
+
+  private async record(write: () => Promise<unknown>): Promise<void> {
+    try {
+      await write();
+    } catch (e) {
+      this.logger.warn(`Ad view not recorded: ${(e as Error).message}`);
+    }
   }
 
   /** Claims a confirmed view once. */

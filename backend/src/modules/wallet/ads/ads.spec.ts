@@ -1,6 +1,7 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
 
 import { AppConfig } from '../../../config/app-config.service';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { RedisService } from '../../../infra/redis/redis.service';
 import { SettingsService } from '../../settings/settings.service';
 import { AdViews } from './ad-views';
@@ -18,6 +19,26 @@ function fakeRedis() {
       del: async (k: string) => (m.delete(k) ? 1 : 0),
     },
   } as unknown as RedisService;
+}
+
+/** Records AdView writes; reporting is best-effort, so one test makes it throw. */
+function fakePrisma(rows: Map<string, Record<string, unknown>> = new Map(), fail = false) {
+  const guard = () => {
+    if (fail) throw new Error('db down');
+  };
+  return {
+    adView: {
+      create: async ({ data }: { data: Record<string, unknown> }) => (guard(), rows.set(data.token as string, { ...data })),
+      upsert: async ({ where, update, create }: { where: { token: string }; update: Record<string, unknown>; create: Record<string, unknown> }) => {
+        guard();
+        rows.set(where.token, rows.has(where.token) ? { ...rows.get(where.token), ...update } : { ...create });
+      },
+      updateMany: async ({ where, data }: { where: { token: string }; data: Record<string, unknown> }) => {
+        guard();
+        if (rows.has(where.token)) rows.set(where.token, { ...rows.get(where.token), ...data });
+      },
+    },
+  } as unknown as PrismaService;
 }
 
 function fakeSettings(values: Record<string, unknown>) {
@@ -42,7 +63,7 @@ describe('AdMob server-side verification', () => {
     return `${message}&signature=${sig}&key_id=42`;
   };
   const build = (units = '1234567890') => {
-    const views = new AdViews(fakeRedis());
+    const views = new AdViews(fakeRedis(), fakePrisma());
     const cfg = config({ ADS_VERIFIER: 'live', ADMOB_AD_UNIT_IDS: units });
     const admob = new AdMobProvider(views, cfg);
     admob.fetchImpl = async () => new Response(JSON.stringify({ keys: [{ keyId: 42, pem: publicKey.export({ type: 'spki', format: 'pem' }) }] }), { headers: { 'content-type': 'application/json' } });
@@ -70,13 +91,13 @@ describe('AdMob server-side verification', () => {
 });
 
 describe('Monetag postbacks', () => {
-  const build = (settings: Record<string, unknown> = {}, env: Record<string, string> = {}, isProduction = true) => {
-    const views = new AdViews(fakeRedis());
+  const build = (settings: Record<string, unknown> = {}, env: Record<string, string> = {}, isProduction = true, rows = new Map<string, Record<string, unknown>>(), dbDown = false) => {
+    const views = new AdViews(fakeRedis(), fakePrisma(rows, dbDown));
     const cfg = config(env, isProduction);
     const s = fakeSettings(settings);
     const monetag = new MonetagProvider(views, s, cfg);
     const ads = new AdsService(views, s, cfg, new AdMobProvider(views, cfg), monetag);
-    return { monetag, ads };
+    return { monetag, ads, rows };
   };
   const postback = (monetag: MonetagProvider, ymid: string, extra: Record<string, string> = {}) =>
     monetag.acceptPostback({ secret: monetag.secret, ymid, event: 'impression', value: 'valued', zone: '9876543', ...extra });
@@ -128,6 +149,24 @@ describe('Monetag postbacks', () => {
     const dev = build({}, { ADS_VERIFIER: 'dev' }, false);
     const t2 = (await dev.ads.start('u1', 'web')).token;
     expect(await dev.ads.consume('u1', t2, 0)).toBe(true);
+  });
+
+  it('records each view for the admin report: started, watched with earnings, paid', async () => {
+    const { monetag, ads, rows } = build();
+    const { token } = await ads.start('u1', 'web');
+    expect(rows.get(token)).toMatchObject({ userId: 'u1', provider: 'monetag', platform: 'web' });
+    await postback(monetag, token, { price: '0.0012345' });
+    expect(rows.get(token)).toMatchObject({ valued: true, estimatedUsd: 0.0012345 });
+    await ads.paid(token, 10);
+    expect(rows.get(token)).toMatchObject({ coins: 10 });
+    expect(rows.get(token)!.paidAt).toBeInstanceOf(Date);
+  });
+
+  it('a database hiccup never blocks the reward', async () => {
+    const { monetag, ads } = build({}, {}, true, new Map(), true);
+    const { token } = await ads.start('u1', 'web');
+    expect(await postback(monetag, token)).toBe('paid');
+    expect(await ads.consume('u1', token, 0)).toBe(true);
   });
 
   it('uses MONETAG_POSTBACK_SECRET when set, a derived one otherwise', () => {

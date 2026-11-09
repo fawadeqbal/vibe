@@ -48,7 +48,7 @@ export class AdsService {
   async start(userId: string, platform: AdPlatform): Promise<AdSetup & { token: string }> {
     const s = await this.setup(platform);
     if (s.provider === 'off') throw new AppError(ErrorCode.FEATURE_DISABLED, 'Videos are off for now', HttpStatus.FORBIDDEN);
-    return { ...s, token: await this.views.issue(userId, s.provider) };
+    return { ...s, token: await this.views.issue(userId, s.provider, platform) };
   }
 
   /**
@@ -73,6 +73,11 @@ export class AdsService {
       if (await this.views.take(userId, token)) return true;
     }
     return false;
+  }
+
+  /** For the admin report: coins actually paid for this view. */
+  paid(token: string, coins: number): Promise<void> {
+    return this.views.paid(token, coins);
   }
 
   private get devPays(): boolean {

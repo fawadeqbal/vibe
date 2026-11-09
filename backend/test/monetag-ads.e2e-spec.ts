@@ -46,7 +46,7 @@ describe('rewarded videos via Monetag', () => {
     const pb = (q: Record<string, string>) => t.http.get('/v1/webhooks/monetag/postback').query({ secret, ymid: token, event: 'impression', value: 'valued', zone: '9876543', ...q });
 
     expect((await pb({ secret: 'wrong' }).expect(200)).body).toEqual({ ok: false, result: 'bad_secret' });
-    expect((await pb({}).expect(200)).body).toEqual({ ok: true, result: 'paid' });
+    expect((await pb({ price: '0.0021000' }).expect(200)).body).toEqual({ ok: true, result: 'paid' });
 
     const before = (await t.http.get('/v1/wallet').set(u.auth)).body.coins;
     const claim = await t.http.post('/v1/wallet/rewards/ad').set(u.auth).send({ adToken: token }).expect(200);
@@ -54,6 +54,20 @@ describe('rewarded videos via Monetag', () => {
     expect(claim.body.wallet.coins).toBe(before + 10);
     const again = await t.http.post('/v1/wallet/rewards/ad').set(u.auth).send({ adToken: token }).expect(400);
     expect(again.body.error.code).toBe('AD_NOT_VERIFIED');
+
+    // Admin → Finance → Store videos counts it, with Monetag's estimate.
+    const report = (await t.http.get('/v1/admin/insights/ads').query({ days: 7 }).set(owner.auth).expect(200)).body;
+    expect(report).toMatchObject({ paid: 1, watched: 1, coinsGiven: 10, estimatedUsd: 0.0021, people: 1 });
+    expect(report.started).toBeGreaterThanOrEqual(1);
+    expect(report.daily).toHaveLength(7);
+    expect(report.byPlatform).toEqual([expect.objectContaining({ platform: 'web', paid: 1 })]);
+  });
+
+  it('the landing Vignette is on by default and switchable from admin', async () => {
+    expect((await t.http.get('/v1/config').expect(200)).body.landingAd).toEqual({ zoneId: '12201130', src: 'https://n6wxm.com/vignette.min.js' });
+    await set('ads.landingVignette', false).expect(200);
+    expect((await t.http.get('/v1/config').expect(200)).body.landingAd).toBeNull();
+    await set('ads.landingVignette', true).expect(200);
   });
 
   it('no token once the daily videos are used up', async () => {

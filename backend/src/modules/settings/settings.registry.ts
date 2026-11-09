@@ -149,6 +149,27 @@ export const SETTINGS = {
     schema: z.boolean(),
     default: true,
   },
+  'ads.landingVignette': {
+    group: 'Ads',
+    label: 'Vignette ad on the landing page',
+    description: 'Monetag Vignette on vibe.fawadiqbal.dev: a full-screen ad when visitors click a link. Off removes it within a minute, no deploy.',
+    schema: z.boolean(),
+    default: true,
+  },
+  'ads.landingVignetteZoneId': {
+    group: 'Ads',
+    label: 'Landing Vignette zone ID',
+    description: 'The Monetag zone number of the Vignette tag.',
+    schema: z.string().regex(/^$|^\d{3,12}$/, 'Use the zone number, e.g. 12201130'),
+    default: '12201130',
+  },
+  'ads.landingVignetteScript': {
+    group: 'Ads',
+    label: 'Landing Vignette script',
+    description: 'The script address from the Vignette tag (the src in Monetag\'s code).',
+    schema: z.string().url().max(200),
+    default: 'https://n6wxm.com/vignette.min.js',
+  },
   'security.require2fa': {
     group: 'Security',
     label: 'Require 2FA for staff',

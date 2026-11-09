@@ -6,7 +6,7 @@ import { Integration, IntegrationReporter, IntegrationStatus } from '../../../in
 import { SettingsService } from '../../settings/settings.service';
 import { AdPlatform, AdViews, RewardedAdProvider } from './ad-views';
 
-export type MonetagPostback = Partial<Record<'secret' | 'ymid' | 'event' | 'value' | 'zone', string>>;
+export type MonetagPostback = Partial<Record<'secret' | 'ymid' | 'event' | 'value' | 'zone' | 'price', string>>;
 export type MonetagResult = 'paid' | 'duplicate' | 'ignored' | 'bad_secret' | 'wrong_zone' | 'unpaid_view' | 'unknown_view';
 
 /**
@@ -59,7 +59,9 @@ export class MonetagProvider implements RewardedAdProvider, IntegrationReporter 
     const token = q.ymid ?? '';
     const ticket = token ? await this.views.ticket(token) : null;
     if (!ticket || ticket.provider !== 'monetag') return 'unknown_view';
-    return (await this.views.markWatched(ticket.userId, token, `monetag:${q.value ?? 'valued'}`)) ? 'paid' : 'duplicate';
+    const price = Number(q.price);
+    const details = { provider: 'monetag' as const, valued: q.value === 'valued', estimatedUsd: Number.isFinite(price) && price >= 0 ? price : undefined };
+    return (await this.views.markWatched(ticket.userId, token, `monetag:${q.value ?? 'valued'}`, details)) ? 'paid' : 'duplicate';
   }
 
   private secretMatches(given: string | undefined): boolean {
@@ -82,7 +84,7 @@ export class MonetagProvider implements RewardedAdProvider, IntegrationReporter 
       endpoints: [
         {
           label: 'Postback URL — paste in Monetag (zone → Postback)',
-          url: this.config.url(`/v1/webhooks/monetag/postback?secret=${this.secret}&ymid={ymid}&event={event_type}&value={reward_event_type}&zone={zone_id}`),
+          url: this.config.url(`/v1/webhooks/monetag/postback?secret=${this.secret}&ymid={ymid}&event={event_type}&value={reward_event_type}&zone={zone_id}&price={estimated_price}`),
         },
       ],
       notes: [
