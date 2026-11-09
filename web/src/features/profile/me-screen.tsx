@@ -38,6 +38,7 @@ export function MeScreen() {
 
   return (
     <Screen
+      width="wide"
       header={
         <PageHeader
           title="Me"
@@ -50,15 +51,29 @@ export function MeScreen() {
         />
       }
     >
-      <ProfileHeader me={me} />
-      <CompleteProfile me={me} />
-      <RecentMatches />
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-8">
+        <div className="min-w-0">
+          <ProfileHeader me={me} />
+          <CompleteProfile me={me} />
+          <RecentMatches />
+        </div>
 
-      <GroupCard className="mt-[26px]">
-        <Shortcut icon="account_balance_wallet" title="Wallet" subtitle={`${compact(wallet.coins)} coins · ${compact(wallet.gems)} gems`} href="/wallet" />
-        <Shortcut icon="workspace_premium" title={vip ? "You are VIP" : "Get VIP"} subtitle={vip ? until(wallet.vipUntil!) : "Free filters, no ads, see who liked you"} href="/vip" />
-        <Shortcut icon="card_giftcard" title="Invite friends" subtitle={`Give ${economy.inviteeRewardCoins}, get ${economy.inviteRewardCoins} coins`} href="/invite" />
-      </GroupCard>
+        <GroupCard className="mt-[26px] lg:sticky lg:top-2 lg:mt-2">
+          <Shortcut icon="account_balance_wallet" title="Wallet" subtitle={`${compact(wallet.coins)} coins · ${compact(wallet.gems)} gems`} href="/wallet" />
+          <Shortcut
+            icon="workspace_premium"
+            title={vip ? "You are VIP" : "Get VIP"}
+            subtitle={vip ? until(wallet.vipUntil!) : "Free filters, no ads, see who liked you"}
+            href="/vip"
+          />
+          <Shortcut
+            icon="card_giftcard"
+            title="Invite friends"
+            subtitle={`Give ${economy.inviteeRewardCoins}, get ${economy.inviteRewardCoins} coins`}
+            href="/invite"
+          />
+        </GroupCard>
+      </div>
     </Screen>
   );
 }

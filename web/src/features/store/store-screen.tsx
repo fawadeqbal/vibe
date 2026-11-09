@@ -35,6 +35,7 @@ export function StoreScreen() {
 
   return (
     <Screen
+      width="wide"
       header={
         <PageHeader
           title="Store"
@@ -49,7 +50,7 @@ export function StoreScreen() {
     >
       {!vip ? <VipBanner /> : null}
       <SectionTitle text="Coins" note="Coins never expire" top={vip ? 4 : 28} />
-      <div className="grid grid-cols-2 gap-x-2.5 gap-y-3.5 pt-1">
+      <div className="grid grid-cols-2 gap-x-2.5 gap-y-3.5 pt-1 lg:grid-cols-4 lg:gap-x-3.5">
         {packs.map((p) => (
           <PackCard key={p.id} pack={p} best={p === best} />
         ))}

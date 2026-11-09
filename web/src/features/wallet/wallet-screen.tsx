@@ -43,7 +43,7 @@ export function WalletScreen() {
 
   return (
     <Screen
-      width="sm"
+      width="wide"
       header={
         <AppBar
           title="Wallet"
@@ -53,65 +53,71 @@ export function WalletScreen() {
       }
       bodyClassName="pt-2"
     >
-      <Panel>
-        <div className="grid grid-cols-[1fr_1px_1fr] gap-3.5">
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <span className="type-label flex items-center gap-1.5 text-[12.5px] text-gold">
-              <CoinIcon size={16} />
-              Coins
-            </span>
-            <span className="type-number-lg text-[30px] leading-none text-text" title={`${thousands(wallet.coins)} coins`}>
-              {figure(wallet.coins)}
-            </span>
-            <span className="type-body text-[12px] leading-[1.4] text-text2">to spend on calls, gifts, filters</span>
+      <div className="lg:grid lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-8">
+        <div className="lg:sticky lg:top-2">
+          <Panel>
+            <div className="grid grid-cols-[1fr_1px_1fr] gap-3.5">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="type-label flex items-center gap-1.5 text-[12.5px] text-gold">
+                  <CoinIcon size={16} />
+                  Coins
+                </span>
+                <span className="type-number-lg text-[30px] leading-none text-text" title={`${thousands(wallet.coins)} coins`}>
+                  {figure(wallet.coins)}
+                </span>
+                <span className="type-body text-[12px] leading-[1.4] text-text2">to spend on calls, gifts, filters</span>
+              </div>
+              <span className="bg-line-soft" />
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="type-label flex items-center gap-1.5 text-[12.5px] text-gem">
+                  <GemIcon size={16} />
+                  Gems
+                </span>
+                <span className="type-number-lg text-[30px] leading-none text-text" title={`${thousands(wallet.gems)} gems`}>
+                  {figure(wallet.gems)}
+                </span>
+                <span className="type-body text-[12px] leading-[1.4] text-text2">≈ {usdCompact(wallet.gems * usdPerGem)} · from gifts</span>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <GradientButton tone="gold" label="Buy coins" icon="add_circle_outline" height={44} onClick={() => router.push("/store")} />
+              <GradientButton tone="gem" label="Cash out" icon="payments" height={44} onClick={() => router.push("/wallet/cashout")} />
+            </div>
+          </Panel>
+          <div className="mt-2.5">
+            <GemGoalCard />
           </div>
-          <span className="bg-line-soft" />
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <span className="type-label flex items-center gap-1.5 text-[12.5px] text-gem">
-              <GemIcon size={16} />
-              Gems
-            </span>
-            <span className="type-number-lg text-[30px] leading-none text-text" title={`${thousands(wallet.gems)} gems`}>
-              {figure(wallet.gems)}
-            </span>
-            <span className="type-body text-[12px] leading-[1.4] text-text2">≈ {usdCompact(wallet.gems * usdPerGem)} · from gifts</span>
-          </div>
+          <WeeklyRecapCard />
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2.5">
-          <GradientButton tone="gold" label="Buy coins" icon="add_circle_outline" height={44} onClick={() => router.push("/store")} />
-          <GradientButton tone="gem" label="Cash out" icon="payments" height={44} onClick={() => router.push("/wallet/cashout")} />
-        </div>
-      </Panel>
-      <div className="mt-2.5">
-        <GemGoalCard />
-      </div>
-      <WeeklyRecapCard />
 
-      <SectionTitle text="History" top={26} bottom={10} />
-      <PillTabs
-        label="Show"
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { value: "all", label: "All" },
-          { value: "coins", label: "Coins" },
-          { value: "gems", label: "Gems" },
-        ]}
-      />
-      {!days.length ? (
-        <EmptyState icon="receipt_long" title="Nothing yet" body="Purchases, gifts, rewards and spends all show up here." />
-      ) : (
-        days.map(([label, items]) => (
-          <section key={label} aria-label={label}>
-            <p className="type-label mx-1 mt-[18px] mb-2 text-[12.5px] text-text2">{label}</p>
-            <GroupCard>
-              {items.map((t) => (
-                <TxRow key={t.id} t={t} />
-              ))}
-            </GroupCard>
-          </section>
-        ))
-      )}
+        <div>
+          <SectionTitle text="History" top={26} bottom={10} />
+          <PillTabs
+            label="Show"
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { value: "all", label: "All" },
+              { value: "coins", label: "Coins" },
+              { value: "gems", label: "Gems" },
+            ]}
+          />
+          {!days.length ? (
+            <EmptyState icon="receipt_long" title="Nothing yet" body="Purchases, gifts, rewards and spends all show up here." />
+          ) : (
+            days.map(([label, items]) => (
+              <section key={label} aria-label={label}>
+                <p className="type-label mx-1 mt-[18px] mb-2 text-[12.5px] text-text2">{label}</p>
+                <GroupCard>
+                  {items.map((t) => (
+                    <TxRow key={t.id} t={t} />
+                  ))}
+                </GroupCard>
+              </section>
+            ))
+          )}
+        </div>
+      </div>
     </Screen>
   );
 }
