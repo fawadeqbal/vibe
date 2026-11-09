@@ -12,6 +12,7 @@ import '../../core/util/format.dart';
 import '../../models/models.dart';
 import '../../models/payments.dart';
 import '../../providers/engagement_provider.dart';
+import '../../providers/follows_provider.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/social_provider.dart';
@@ -19,7 +20,8 @@ import '../../providers/wallet_provider.dart';
 import '../../services/app_services.dart';
 import '../invite/invite_share.dart';
 import '../onboarding/profile_setup_screen.dart';
-import 'me_sections.dart';
+import 'follow_lists_screen.dart';
+import 'me_lists.dart';
 import 'user_profile_screen.dart';
 import 'verification_flow.dart';
 
@@ -27,6 +29,8 @@ import 'verification_flow.dart';
 // your photo and three numbers, name and bio, Edit / Share / Preview, what's
 // left to fill in and your last matches. The full card others see opens from
 // the eye button.
+
+void _push(BuildContext context, Widget page) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 
 void _openEdit(BuildContext context) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileSetupScreen(editing: true)));
 
@@ -387,6 +391,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
   Widget build(BuildContext context) {
     final me = widget.me;
     final friends = context.select<SocialProvider, int>((s) => s.friends.length);
+    final followers = context.select<FollowsProvider, int>((f) => f.settings.followers);
     final level = context.select<EngagementProvider, int>((e) => e.level.level);
     final vip = context.select<WalletProvider, bool>((w) => w.isVip);
     final hasPhoto = me.avatarUrl.isNotEmpty;
@@ -441,9 +446,9 @@ class _ProfileHeaderState extends State<ProfileHeader> {
             Expanded(
               child: Row(
                 children: [
-                  _Stat(value: me.matches, label: 'Matches', onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RecentMatchesScreen()))),
-                  _Stat(value: me.likes, label: 'Likes'),
-                  _Stat(value: friends, label: 'Friends'),
+                  _Stat(value: friends, label: 'Friends', onTap: () => _push(context, const FriendsListScreen())),
+                  _Stat(value: followers, label: 'Followers', onTap: () => _push(context, const FollowListsScreen())),
+                  _Stat(value: me.likes, label: 'Likes', onTap: () => _push(context, const LikesScreen())),
                 ],
               ),
             ),

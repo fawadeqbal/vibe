@@ -206,6 +206,28 @@ class RemoteMatchProvider extends MatchProvider {
     } on ApiException catch (_) {}
   }
 
+  @override
+  Future<Paged<MatchRecord>> fetchMatches({String? cursor}) async {
+    final page = await _api.get('/me/matches', query: {'limit': '${MatchProvider.pageSize}', 'cursor': ?cursor}) as Map;
+    return Paged(
+      (page['items'] as List).map((e) => ApiMap.matchRecord(Map<String, dynamic>.from(e as Map))).whereType<MatchRecord>().toList(),
+      page['nextCursor'] as String?,
+    );
+  }
+
+  @override
+  Future<Paged<LikeReceived>> fetchLikes({String? cursor}) async {
+    final page = await _api.get('/me/likes', query: {'limit': '${MatchProvider.pageSize}', 'cursor': ?cursor}) as Map;
+    return Paged(
+      [
+        for (final e in page['items'] as List)
+          if (Map<String, dynamic>.from(e as Map) case final m)
+            LikeReceived(id: m['id'] as String, profile: ApiMap.profile(Map<String, dynamic>.from(m['profile'] as Map)), likedAt: DateTime.parse(m['likedAt'] as String).toLocal()),
+      ],
+      page['nextCursor'] as String?,
+    );
+  }
+
   // ── the loop ──────────────────────────────────────────────────────────
 
   Map<String, dynamic> get _joinPayload => {

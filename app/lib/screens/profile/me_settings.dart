@@ -25,6 +25,7 @@ import '../store/wallet_screen.dart';
 import 'blocked_people_screen.dart';
 import 'follow_lists_screen.dart';
 import 'leaderboard_screen.dart';
+import 'me_lists.dart';
 import 'me_sections.dart';
 import 'verification_flow.dart';
 

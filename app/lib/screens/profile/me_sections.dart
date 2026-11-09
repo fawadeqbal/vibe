@@ -8,15 +8,12 @@ import '../../core/api/api_exception.dart';
 import '../../core/config/legal_links.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
-import '../../core/util/format.dart';
-import '../../models/models.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
 import 'notify_choices.dart';
 import 'progress.dart';
 import 'sign_in_methods.dart';
-import 'user_profile_screen.dart';
 import 'wellbeing_section.dart';
 
 /// The screens behind Me and Settings and activity, one level each: the
@@ -53,61 +50,6 @@ class ProgressSectionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const MeSectionScaffold(title: 'Progress & badges', footer: 'Good calls, likes, gifts and streaks earn XP. Badges stay on your profile.', children: [ProgressCard()]);
-}
-
-/// Me → Recent matches: your last calls; tap one to see their profile.
-class RecentMatchesScreen extends StatelessWidget {
-  const RecentMatchesScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final match = context.watch<MatchProvider>();
-    final list = match.history.take(20).toList();
-    return MeSectionScaffold(
-      title: 'Recent matches',
-      children: [
-        if (list.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 60),
-            child: EmptyState(icon: SolarIconsBold.history, title: 'No calls ', accent: 'yet', body: 'Your last matches will show up here.'),
-          )
-        else
-          for (final (i, r) in list.indexed) _matchRow(context, r, last: i == list.length - 1),
-      ],
-    );
-  }
-
-  Widget _matchRow(BuildContext context, MatchRecord r, {required bool last}) => InkWell(
-    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfileScreen(userId: r.partner.id))),
-    child: _matchRowContent(r, last: last),
-  );
-
-  Widget _matchRowContent(MatchRecord r, {required bool last}) {
-    final bits = [Fmt.duration(r.length), Fmt.ago(r.startedAt), if (r.likedMe) 'liked you', if (r.giftsReceived > 0) '${r.giftsReceived} gift${r.giftsReceived == 1 ? '' : 's'}'];
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        border: last ? null : const Border(bottom: BorderSide(color: V.lineSoft)),
-      ),
-      child: Row(
-        children: [
-          VAvatar(url: r.partner.avatarUrl, name: r.partner.name, size: 44),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${r.partner.name}, ${r.partner.age} ${r.partner.country.flag}', style: VT.title(15, weight: FontWeight.w600)),
-                const SizedBox(height: 1),
-                Text(bits.join(' · '), style: VT.body(12, color: V.text2)),
-              ],
-            ),
-          ),
-          if (r.liked) const Icon(SolarIconsBold.heart, size: 18, color: V.pink),
-        ],
-      ),
-    );
-  }
 }
 
 /// Settings → Notifications: for each kind of news, which of phone, inbox and e-mail it reaches.

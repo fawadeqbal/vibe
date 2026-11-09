@@ -255,6 +255,38 @@ export class UsersService {
   }
 
   /**
+   * Everyone who liked you on a call (the "Likes" number on your profile),
+   * newest first, one row per like. They already met you, so this isn't the
+   * VIP "liked you" list (Discover likes waiting for an answer).
+   * Cursor: `<iso time>|<matchId>` of the last row.
+   */
+  async likesReceived(id: string, q: CursorQueryDto) {
+    const [at, matchId] = (q.cursor ?? '').split('|');
+    const after = q.cursor && matchId && !Number.isNaN(Date.parse(at)) ? { at: new Date(at), matchId } : null;
+    const rows = await this.prisma.matchLike.findMany({
+      where: {
+        toId: id,
+        ...(after ? { OR: [{ createdAt: { lt: after.at } }, { createdAt: after.at, matchId: { lt: after.matchId } }] } : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }, { matchId: 'desc' }],
+      take: q.limit + 1,
+    });
+    const hasMore = rows.length > q.limit;
+    const slice = hasMore ? rows.slice(0, q.limit) : rows;
+    const people = await this.prisma.user.findMany({ where: { id: { in: [...new Set(slice.map((r) => r.fromId))] } }, include: PROFILE_INCLUDE });
+    const byId = new Map(people.map((p) => [p.id, p]));
+    const now = this.clock.now();
+    const last = slice[slice.length - 1];
+    return {
+      items: slice.flatMap((r) => {
+        const p = byId.get(r.fromId);
+        return p ? [{ id: r.matchId, profile: toPublicProfile(p, now), likedAt: r.createdAt.toISOString() }] : [];
+      }),
+      nextCursor: hasMore && last ? `${last.createdAt.toISOString()}|${last.matchId}` : null,
+    };
+  }
+
+  /**
    * Store requirement: users can delete their account. Personal data is
    * wiped; the ledger and reports stay (pseudonymous) for accounting/safety.
    */

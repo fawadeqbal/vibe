@@ -1,24 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { Screen } from "@/components/layout/screen";
 import { confirm } from "@/components/shared/dialogs";
-import { Avatar } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
-import { EmptyState } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
 import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { Switch } from "@/components/ui/switch";
 import { SectionTitle } from "@/components/ui/typography";
-import { useNow } from "@/hooks/use-now";
 import { errorMessage } from "@/lib/api/errors";
 import { alpha } from "@/lib/colors";
 import { config } from "@/lib/config";
-import { ago, duration } from "@/lib/format";
-import { type MatchRecord, matchLengthSeconds } from "@/lib/models";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { toast } from "@/stores/ui";
@@ -51,22 +45,6 @@ export function ProgressPage() {
   return (
     <MeSection title="Progress & badges" footer="Good calls, likes, gifts and streaks earn XP. Badges stay on your profile.">
       <ProgressCard />
-    </MeSection>
-  );
-}
-
-/** Me → Recent matches: your last calls; tap one to see their profile. */
-export function MatchesPage() {
-  const history = useMatch((s) => s.history);
-  useNow(60_000);
-  const recent = [...history].reverse().slice(0, 20);
-  return (
-    <MeSection title="Recent matches" parent="/me">
-      {!recent.length ? (
-        <EmptyState className="mt-10" icon="history" title="No calls " accent="yet" body="Your last matches will show up here." />
-      ) : (
-        recent.map((r, i) => <MatchRow key={r.id} r={r} last={i === recent.length - 1} />)
-      )}
     </MeSection>
   );
 }
@@ -196,19 +174,4 @@ export async function deleteAccountFlow() {
   } catch (e) {
     toast(errorMessage(e), { error: true });
   }
-}
-function MatchRow({ r, last }: { r: MatchRecord; last: boolean }) {
-  const bits = [duration(matchLengthSeconds(r)), ago(r.startedAt), ...(r.likedMe ? ["liked you"] : []), ...(r.giftsReceived > 0 ? [`${r.giftsReceived} gift${r.giftsReceived === 1 ? "" : "s"}`] : [])];
-  return (
-    <Link href={`/u/${r.partner.id}`} className={`flex items-center py-3 transition-opacity hover:opacity-85 ${last ? "" : "border-b border-line-soft"}`}>
-      <Avatar url={r.partner.avatarUrl} name={r.partner.name} size={44} />
-      <span className="ml-3.5 min-w-0 flex-1">
-        <span className="type-title block text-[15px] font-semibold">
-          {r.partner.name}, {r.partner.age} {r.partner.country.flag}
-        </span>
-        <span className="type-body mt-px block text-[12px] text-text2">{bits.join(" · ")}</span>
-      </span>
-      {r.liked ? <Icon name="favorite" size={18} className="text-pink" /> : null}
-    </Link>
-  );
 }
