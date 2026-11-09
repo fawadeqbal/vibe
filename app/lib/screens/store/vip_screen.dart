@@ -124,21 +124,36 @@ class _VipScreenState extends State<VipScreen> {
                 const Headline('Vibe ', accent: 'VIP', size: 36, accentColor: V.gold, textAlign: TextAlign.center),
                 const SizedBox(height: 8),
                 Text(
-                  vip ? 'Active · ${Fmt.until(wallet.wallet.vipUntil!)}' : 'Meet more people, faster: unlimited likes, see who liked you, free filters.',
+                  vip ? 'Active · ${Fmt.until(wallet.wallet.vipUntil!)}' : 'Meet more people, faster.',
                   textAlign: TextAlign.center,
                   style: VT.body(15, color: vip ? V.gold : V.text2),
                 ),
-                const SizedBox(height: 22),
-                if (likedCount > 0)
+                SectionTitle(vip ? 'Plans' : 'Choose a plan', top: 26, bottom: 14),
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final (i, p) in MockData.plans.take(3).indexed) ...[if (i > 0) const SizedBox(width: 8), Expanded(child: _planTile(p))],
+                    ],
+                  ),
+                ),
+                const SectionTitle('What you get', top: 26, bottom: 10),
+                GroupCard(
+                  children: [
+                    for (final g in vipPerkGroups())
+                      for (final (title, sub) in g.items)
+                        () {
+                          final (icon, color) = _perkLook(title);
+                          return GroupRow(icon: icon, iconColor: color, iconBg: color.withValues(alpha: 0.13), title: title, subtitle: sub.isEmpty ? null : sub);
+                        }(),
+                  ],
+                ),
+                if (likedCount > 0) ...[
+                  const SizedBox(height: 14),
                   _likedCard(likedUrls, likedNames, likedCount, vip, useDiscover ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LikedYouScreen())) : null),
-                const SectionTitle('What you get', top: 26),
-                for (final g in vipPerkGroups()) ...[_group(g), const SizedBox(height: 10)],
-                const SectionTitle('Free vs VIP', top: 16),
-                _compare(),
-                const SizedBox(height: 10),
+                ],
+                const SizedBox(height: 12),
                 Text('Video calls in chat are the same for everyone: both people have to allow them.', style: VT.body(11.5, color: V.muted, height: 1.45)),
-                const SectionTitle('Choose a plan', top: 26),
-                for (final p in MockData.plans) ...[_planRow(p), const SizedBox(height: 8)],
               ],
             ),
           ),
@@ -237,105 +252,64 @@ class _VipScreenState extends State<VipScreen> {
     );
   }
 
-  Widget _group(VipPerkGroup g) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.07))),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [Icon(g.icon, size: 16, color: g.color), const SizedBox(width: 6), Text(g.title, style: VT.label(12.5, color: g.color, weight: FontWeight.w700))]),
-          const SizedBox(height: 6),
-          for (final (title, sub) in g.items)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(padding: const EdgeInsets.only(top: 1), child: Icon(SolarIconsBold.checkCircle, size: 18, color: g.color)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(title, style: VT.title(14, weight: FontWeight.w600)),
-                      if (sub.isNotEmpty) Text(sub, style: VT.body(12, color: V.text2, height: 1.4)),
-                    ]),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
+  /// Which tile goes with which perk (web: perkLook).
+  (IconData, Color) _perkLook(String title) {
+    final t = title.toLowerCase();
+    if (t.contains('unlimited likes')) return (SolarIconsBold.heart, V.pink);
+    if (t.contains('liked you')) return (SolarIconsBold.eye, V.pinkSoft);
+    if (t.contains('super like')) return (SolarIconsBold.star, const Color(0xFF60A5FA));
+    if (t.contains('undo')) return (SolarIconsBold.undoLeft, V.gold);
+    if (t.contains('filter')) return (SolarIconsBold.tuning, V.lavender);
+    if (t.contains('priority')) return (SolarIconsBold.bolt, V.gold);
+    if (t.contains('coins')) return (SolarIconsBold.dollarMinimalistic, V.gold);
+    if (t.contains('ads')) return (SolarIconsBold.forbiddenCircle, V.text2);
+    return (SolarIconsBold.crown, V.gold);
   }
 
-  Widget _compare() {
-    final rows = vipComparison();
-    return Container(
-      decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.07))),
-      child: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 0, 10),
-          child: Row(children: [
-            const Expanded(child: SizedBox.shrink()),
-            SizedBox(width: 84, child: Text('Free', textAlign: TextAlign.center, style: VT.label(12, color: V.muted))),
-            SizedBox(width: 84, child: Text('VIP', textAlign: TextAlign.center, style: VT.label(12, color: V.gold, weight: FontWeight.w700))),
-          ]),
-        ),
-        for (final (k, free, vip) in rows)
-          Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: V.lineSoft))),
-            padding: const EdgeInsets.fromLTRB(16, 10, 0, 10),
-            child: Row(children: [
-              Expanded(child: Text(k, style: VT.body(13, weight: FontWeight.w500))),
-              SizedBox(width: 84, child: Text(free, textAlign: TextAlign.center, style: VT.body(13, color: V.muted))),
-              SizedBox(width: 84, child: Text(vip, textAlign: TextAlign.center, style: VT.body(13, color: V.gold, weight: FontWeight.w600))),
-            ]),
-          ),
-      ]),
-    );
-  }
-
-  Widget _planRow(VipPlan p) {
+  /// One plan as a column: name, price, period; the badge sits on its top edge.
+  Widget _planTile(VipPlan p) {
     final on = p.id == _plan.id;
-    final perWeek = p.usd / (p.length.inDays / 7);
-    final Widget? tag = p.trialDays > 0 ? Tag('${p.trialDays} days free', color: V.trust) : (p.savePercent > 0 ? Tag('Save ${p.savePercent}%', color: V.ok) : null);
+    final badge = p.trialDays > 0 ? '${p.trialDays} days free' : (p.savePercent > 0 ? 'Save ${p.savePercent}%' : null);
     return Semantics(
       selected: on,
       button: true,
-      label: '${p.label}, ${Fmt.usd(p.usd)}',
+      label: '${p.label}, ${Fmt.usd(p.usd)} every ${_period(p)}${badge != null ? ', $badge' : ''}',
+      excludeSemantics: true,
       child: GestureDetector(
         onTap: () => setState(() => _planId = p.id),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: on ? V.gold.withValues(alpha: 0.08) : V.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: on ? V.gold : V.line, width: on ? 1.5 : 1),
-          ),
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: on ? V.gold : Colors.transparent, border: on ? null : Border.all(color: V.muted, width: 2)),
-                child: on ? Center(child: Container(width: 8, height: 8, decoration: const BoxDecoration(shape: BoxShape.circle, color: V.bg))) : null,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(6, 16, 6, 12),
+              decoration: BoxDecoration(
+                color: on ? V.gold.withValues(alpha: 0.08) : V.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: on ? V.gold : V.line, width: on ? 1.5 : 1),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [Text(p.label, style: VT.title(15, weight: FontWeight.w600)), if (tag != null) ...[const SizedBox(width: 8), tag]]),
-                    const SizedBox(height: 1),
-                    Text('${Fmt.usd(perWeek)}/wk${p.highlighted ? ' · most popular' : ''}', style: VT.body(12, color: on ? V.text2 : V.muted)),
-                  ],
+              child: Column(
+                children: [
+                  Text(p.label, style: VT.body(13, color: V.text2)),
+                  const SizedBox(height: 4),
+                  FittedBox(fit: BoxFit.scaleDown, child: Text(Fmt.usd(p.usd), style: VT.number(20))),
+                  const SizedBox(height: 2),
+                  Text('every ${_period(p)}', style: VT.body(11.5, color: V.muted)),
+                ],
+              ),
+            ),
+            if (badge != null)
+              Positioned(
+                top: -10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(color: on ? V.gold : V.surface3, borderRadius: BorderRadius.circular(10)),
+                  child: Text(badge, style: VT.label(11, color: on ? V.onGold : V.gold, weight: FontWeight.w700)),
                 ),
               ),
-              Text(Fmt.usd(p.usd), style: VT.number(16)),
-            ],
-          ),
+          ],
         ),
       ),
     );

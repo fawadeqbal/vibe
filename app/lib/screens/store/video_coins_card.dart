@@ -17,7 +17,10 @@ enum VideoPhase { ready, loading, adding, noFill }
 /// Opt-in, a daily limit (Economy → Free coins), coins only after the network
 /// confirms the view. The network comes from Settings → Ads; off hides it.
 class VideoCoinsCard extends StatefulWidget {
-  const VideoCoinsCard({super.key});
+  const VideoCoinsCard({super.key, this.asRow = false});
+
+  /// One row in the Store's free-coins group, with a Watch pill. (Design: Store.)
+  final bool asRow;
 
   @override
   State<VideoCoinsCard> createState() => _VideoCoinsCardState();
@@ -97,6 +100,18 @@ class _VideoCoinsCardState extends State<VideoCoinsCard> {
                 VideoPhase.noFill => 'No video to show right now. Try again in a minute.',
               });
 
+    if (widget.asRow) {
+      final off = limit || busy;
+      return GroupRow(
+        icon: SolarIconsBold.playCircle,
+        iconColor: V.pinkSoft,
+        iconBg: V.pink.withValues(alpha: 0.13),
+        title: 'Watch a short video',
+        subtitle: limit ? 'All done for today' : (_note ?? '+$coins coins · $left of $perDay left today'),
+        trailing: actionPill(busy ? '…' : (limit ? 'Done' : (_phase == VideoPhase.noFill ? 'Retry' : 'Watch')), off: off),
+        onTap: off ? null : _watch,
+      );
+    }
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
@@ -161,3 +176,12 @@ class _VideoCoinsCardState extends State<VideoCoinsCard> {
     );
   }
 }
+
+/// "Watch", "Claim": the pink pill on a free-coins row (web: ActionPill).
+Widget actionPill(String text, {bool off = false}) => Container(
+  height: 32,
+  padding: const EdgeInsets.symmetric(horizontal: 14),
+  alignment: Alignment.center,
+  decoration: BoxDecoration(gradient: off ? null : V.brand, color: off ? Colors.white.withValues(alpha: 0.06) : null, borderRadius: BorderRadius.circular(16)),
+  child: Text(text, style: VT.label(13, color: off ? V.muted : Colors.white, weight: FontWeight.w700)),
+);

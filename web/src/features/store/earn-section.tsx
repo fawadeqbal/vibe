@@ -2,9 +2,8 @@
 
 import { useRouter } from "next/navigation";
 
-import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { GroupCard, GroupRow, Panel } from "@/components/ui/panel";
+import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { errorMessage } from "@/lib/api/errors";
 import { alpha } from "@/lib/colors";
 import { cn } from "@/lib/cn";
@@ -14,9 +13,7 @@ import { useSession } from "@/stores/session";
 import { toast } from "@/stores/ui";
 import { checkedInToday, nextCheckInDay, useWallet } from "@/stores/wallet";
 
-import { VideoCoinsCard } from "./video-coins-card";
-
-const GOLD_ROW = { iconColor: "gold" as const, iconBg: alpha("gold", 0.12) };
+import { useVideoCoins } from "./video-coins-card";
 
 /** Store videos (VideoCoinsCard), daily check-in streak, invite (→ Invite friends), profile bonus. */
 export function EarnSection() {
@@ -27,6 +24,7 @@ export function EarnSection() {
   const bonusClaimed = useWallet((s) => s.wallet.profileBonusClaimed);
   const me = useSession((s) => s.me);
   const rewards = e.checkInRewards;
+  const video = useVideoCoins();
 
   const guard = async (fn: () => Promise<void>) => {
     try {
@@ -50,64 +48,68 @@ export function EarnSection() {
     });
   };
 
+  const today = rewards[day] ?? rewards[0];
   return (
-    <div>
-      <VideoCoinsCard />
-      <Panel className="rounded-[24px] p-[18px]">
-        <p className="type-title text-[15px] font-semibold">Daily check-in</p>
-        <p className="type-body mt-0.5 text-[12px] text-muted">Miss a day and the streak starts over.</p>
-        <div className="mt-4 flex justify-between">
-          {rewards.map((r, i) => (
-            <StreakDay key={i} index={i} reward={r} day={day} done={done} last={i === rewards.length - 1} />
-          ))}
-        </div>
-        <div className="mt-4">
-          {done ? <GhostButton label="Come back tomorrow" icon="check" height={48} expand /> : <GradientButton label={`Claim ${rewards[day] ?? rewards[0]} coins`} height={48} onClick={() => void checkIn()} />}
-        </div>
-      </Panel>
-      <GroupCard className="mt-2.5">
-        <GroupRow icon="person_add" {...GOLD_ROW} title="Invite a friend" subtitle={`They get ${e.inviteeRewardCoins}, you get ${e.inviteRewardCoins} once they're active`} trailing={<Reward text={`+${e.inviteRewardCoins}`} active />} onClick={() => router.push("/invite")} />
+    <GroupCard>
+      {video.available ? (
         <GroupRow
-          icon="badge"
-          {...GOLD_ROW}
-          title="Complete your profile"
-          subtitle={bonusClaimed ? "Claimed" : me && isProfileComplete(me) ? "Ready to claim · once" : "Photo, bio, 3 interests · once"}
-          trailing={bonusClaimed ? <Icon name="check_circle" size={22} className="text-ok" /> : <Reward text={`+${e.profileCompleteCoins}`} active />}
-          onClick={bonusClaimed ? undefined : () => void profileBonus()}
+          icon="play_circle"
+          iconColor="pink-soft"
+          iconBg={alpha("pink", 0.13)}
+          title="Watch a short video"
+          subtitle={video.limit ? "All done for today" : (video.note ?? `+${video.coins} coins · ${video.left} of ${video.perDay} left today`)}
+          trailing={
+            <ActionPill text={video.busy ? "…" : video.limit ? "Done" : video.phase === "noFill" ? "Retry" : "Watch"} off={video.limit || video.busy} />
+          }
+          onClick={video.limit || video.busy ? undefined : () => void video.watch()}
         />
-      </GroupCard>
-    </div>
+      ) : null}
+      <GroupRow
+        icon="schedule"
+        iconColor="pink-soft"
+        iconBg={alpha("pink", 0.13)}
+        title="Daily check-in"
+        subtitle={done ? `Day ${day} of 7 · come back tomorrow` : `Day ${day + 1} of 7 · +${today} today`}
+        trailing={done ? <Icon name="check_circle" size={22} className="text-ok" /> : <ActionPill text="Claim" />}
+        onClick={done ? undefined : () => void checkIn()}
+      />
+      <GroupRow
+        icon="redeem"
+        iconColor="lavender"
+        iconBg={alpha("violet", 0.16)}
+        title="Invite a friend"
+        subtitle={`You get ${e.inviteRewardCoins} when they get active`}
+        trailing={<Reward text={`+${e.inviteRewardCoins}`} active />}
+        onClick={() => router.push("/invite")}
+      />
+      <GroupRow
+        icon="person"
+        iconColor="lavender"
+        iconBg={alpha("violet", 0.16)}
+        title="Complete your profile"
+        subtitle={bonusClaimed ? "Claimed" : me && isProfileComplete(me) ? "Ready to claim · once" : "Photo, bio and 3 interests"}
+        trailing={bonusClaimed ? <Icon name="check_circle" size={22} className="text-ok" /> : <Reward text={`+${e.profileCompleteCoins}`} active />}
+        onClick={bonusClaimed ? undefined : () => void profileBonus()}
+      />
+    </GroupCard>
   );
 }
 
-function StreakDay({ index, reward, day, done, last }: { index: number; reward: number; day: number; done: boolean; last: boolean }) {
-  const claimed = index < day || (index === day && done);
-  const today = index === day && !done;
+/** "Watch", "Claim": the pink pill on a free-coins row. */
+function ActionPill({ text, off = false }: { text: string; off?: boolean }) {
   return (
-    <div className="flex flex-col items-center" aria-label={`Day ${index + 1}, ${reward} coins${claimed ? ", claimed" : today ? ", today" : ""}`}>
-      {claimed ? (
-        <span className="flex size-[38px] items-center justify-center rounded-full bg-gold/16">
-          <Icon name="check" size={18} className="text-gold" />
-        </span>
-      ) : today ? (
-        <span className="bg-brand flex size-[38px] rounded-full p-0.5">
-          <span className="type-number flex flex-1 items-center justify-center rounded-full bg-surface text-[12px] text-gold">{reward}</span>
-        </span>
-      ) : (
-        <span
-          className={cn(
-            "type-number flex size-[38px] items-center justify-center rounded-full text-[12px]",
-            last ? "border border-gold/45 bg-gold/8 font-bold text-gold" : "bg-surface2 font-semibold text-muted",
-          )}
-        >
-          {reward}
-        </span>
-      )}
-      <span className={cn("type-label mt-1.5 text-[10.5px]", today ? "font-semibold text-text" : "font-normal text-muted")}>{today ? "Today" : claimed ? reward : `D${index + 1}`}</span>
-    </div>
+    <span className={cn("type-label flex h-8 items-center rounded-full px-3.5 text-[13px] font-bold", off ? "bg-white/6 text-muted" : "bg-brand text-white")}>
+      {text}
+    </span>
   );
 }
 
 function Reward({ text, active }: { text: string; active: boolean }) {
-  return <span className={cn("type-number flex h-[26px] items-center rounded-[13px] px-2.5 text-[12.5px]", active ? "bg-gold/12 text-gold" : "bg-muted/12 text-muted")}>{text}</span>;
+  return (
+    <span
+      className={cn("type-number flex h-[26px] items-center rounded-[13px] px-2.5 text-[12.5px]", active ? "bg-gold/12 text-gold" : "bg-muted/12 text-muted")}
+    >
+      {text}
+    </span>
+  );
 }

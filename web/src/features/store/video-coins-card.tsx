@@ -27,6 +27,62 @@ const NOTE: Record<Phase | "limit", string> = {
  * a daily limit (Economy → Free coins), and coins only after the network
  * confirms the view. The network comes from Settings → Ads; off hides the card.
  */
+/** The video-for-coins state and action, shared by the card and the Store row. */
+export function useVideoCoins() {
+  const ads = useRewardedAds((s) => s.ads);
+  const perDay = useCatalog((s) => s.economy.rewardedAdsPerDay);
+  const coins = useCatalog((s) => s.economy.rewardedAdCoins);
+  const left = useWallet(adsLeftToday);
+  const [phase, setPhase] = useState<Phase>("ready");
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    void useRewardedAds.getState().load();
+  }, []);
+
+  const available = ads.available && perDay > 0;
+
+  const watched = Math.min(perDay, Math.max(0, perDay - left));
+  const limit = left <= 0 && phase !== "adding";
+  const busy = phase === "loading" || phase === "adding";
+
+  const watch = async () => {
+    if (busy || limit) return;
+    setNote(null);
+    setPhase("loading");
+    const r = await ads.show();
+    if (r.outcome === "dismissed") return setPhase("ready");
+    if (r.outcome !== "rewarded" || !r.token) {
+      setNote(r.message ?? null);
+      return setPhase("noFill");
+    }
+    setPhase("adding");
+    try {
+      const got = await useWallet.getState().rewardAd(r.token);
+      if (got == null) toast("You've watched all of today's videos", { error: true });
+      else toast(`+${got} coins added`);
+      setPhase("ready");
+    } catch (e) {
+      setNote(errorMessage(e));
+      setPhase("noFill");
+    }
+  };
+
+  const label = limit
+    ? `All ${perDay} watched today`
+    : phase === "loading"
+      ? "Getting a video…"
+      : phase === "adding"
+        ? "Adding your coins…"
+        : phase === "noFill"
+          ? "Try again"
+          : watched > 0
+            ? `Watch another · +${coins}`
+            : `Watch · +${coins} coins`;
+
+  return { available, perDay, coins, left, watched, limit, busy, phase, note, label, watch };
+}
+
 export function VideoCoinsCard() {
   const ads = useRewardedAds((s) => s.ads);
   const perDay = useCatalog((s) => s.economy.rewardedAdsPerDay);
@@ -67,20 +123,40 @@ export function VideoCoinsCard() {
     }
   };
 
-  const label = limit ? `All ${perDay} watched today` : phase === "loading" ? "Getting a video…" : phase === "adding" ? "Adding your coins…" : phase === "noFill" ? "Try again" : watched > 0 ? `Watch another · +${coins}` : `Watch · +${coins} coins`;
+  const label = limit
+    ? `All ${perDay} watched today`
+    : phase === "loading"
+      ? "Getting a video…"
+      : phase === "adding"
+        ? "Adding your coins…"
+        : phase === "noFill"
+          ? "Try again"
+          : watched > 0
+            ? `Watch another · +${coins}`
+            : `Watch · +${coins} coins`;
 
   return (
-    <section aria-label="Watch a short video for coins" className={cn("mb-2.5 rounded-card border bg-surface p-4", limit || busy ? "border-line" : "border-gold/35")}>
+    <section
+      aria-label="Watch a short video for coins"
+      className={cn("mb-2.5 rounded-card border bg-surface p-4", limit || busy ? "border-line" : "border-gold/35")}
+    >
       <div className="flex items-center gap-3.5">
         <span className="flex size-[52px] shrink-0 items-center justify-center rounded-[16px] bg-gold/14 text-gold">
           <Icon name="play_arrow" size={26} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="type-title text-[16px] font-bold">Watch a short video</p>
-          <p className="type-body mt-0.5 text-[13px] text-muted">{limit ? "All done for today" : `Get +${coins} coins each time · ${left} of ${perDay} left today`}</p>
+          <p className="type-body mt-0.5 text-[13px] text-muted">
+            {limit ? "All done for today" : `Get +${coins} coins each time · ${left} of ${perDay} left today`}
+          </p>
         </div>
       </div>
-      <div className="mt-3.5 grid gap-1" style={{ gridTemplateColumns: `repeat(${perDay}, minmax(0, 1fr))` }} role="img" aria-label={`${watched} of ${perDay} watched today`}>
+      <div
+        className="mt-3.5 grid gap-1"
+        style={{ gridTemplateColumns: `repeat(${perDay}, minmax(0, 1fr))` }}
+        role="img"
+        aria-label={`${watched} of ${perDay} watched today`}
+      >
         {Array.from({ length: perDay }, (_, i) => (
           <span key={i} className={cn("h-1.5 rounded-full", i < watched ? "bg-gold" : "bg-surface2")} />
         ))}

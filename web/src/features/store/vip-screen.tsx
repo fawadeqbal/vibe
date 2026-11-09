@@ -7,10 +7,11 @@ import { Screen } from "@/components/layout/screen";
 import { FaceStack } from "@/components/ui/avatar";
 import { CircleIconButton, GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { RadioDot, Tag } from "@/components/ui/misc";
+import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { Headline, SectionTitle } from "@/components/ui/typography";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
+import { alpha, type Tone } from "@/lib/colors";
 import { plural, until, usd } from "@/lib/format";
 import type { Economy } from "@/lib/catalog";
 import { periodWord, type VipPlan } from "@/lib/models";
@@ -80,8 +81,7 @@ export function VipScreen() {
     }
   };
 
-  const groups = vipPerkGroups(e, bonus);
-  const compare = vipComparison(e, bonus);
+  const perks = vipPerkGroups(e, bonus).flatMap((g) => g.items);
 
   return (
     <Screen
@@ -144,76 +144,45 @@ export function VipScreen() {
       </div>
       <Headline text="Vibe " accent="VIP" size={36} accentColor="gold" align="center" className="mt-4" />
       <p className={cn("type-body mt-2 text-center text-[15px]", vip ? "text-gold" : "text-text2")}>
-        {vip ? `Active · ${until(wallet.vipUntil!)}` : "Meet more people, faster: unlimited likes, see who liked you, free filters."}
+        {vip ? `Active · ${until(wallet.vipUntil!)}` : "Meet more people, faster."}
       </p>
-      <div className="h-[22px]" />
-      {likedCount > 0 ? (
-        <LikedCard
-          urls={likedUrls}
-          names={likedNames}
-          count={likedCount}
-          vip={vip}
-          onOpen={useDiscoverLikes ? () => router.push("/discover/liked-you") : undefined}
-        />
+
+      {plans.length ? (
+        <>
+          <SectionTitle text={vip ? "Plans" : "Choose a plan"} top={26} bottom={14} />
+          <div
+            className="grid gap-2"
+            role="radiogroup"
+            aria-label="Plan"
+            style={{ gridTemplateColumns: `repeat(${Math.min(plans.length, 3)}, minmax(0, 1fr))` }}
+          >
+            {plans.map((p) => (
+              <PlanTile key={p.id} plan={p} on={p.id === plan?.id} onClick={() => setPlanId(p.id)} />
+            ))}
+          </div>
+        </>
       ) : null}
 
-      <SectionTitle text="What you get" top={26} />
-      <div className="flex flex-col gap-2.5">
-        {groups.map((g) => (
-          <section key={g.title} aria-label={g.title} className="rounded-[20px] border border-white/7 bg-surface px-4 pt-3.5 pb-2">
-            <p className={cn("type-label flex items-center gap-1.5 text-[12.5px] font-bold", g.color)}>
-              <Icon name={g.icon} size={16} /> {g.title}
-            </p>
-            <ul className="mt-1.5">
-              {g.items.map(([title, sub]) => (
-                <li key={title} className="flex gap-3 py-2">
-                  <Icon name="check_circle" variant="filled" size={18} className={cn("mt-px shrink-0", g.color)} />
-                  <span className="min-w-0">
-                    <span className="type-title block text-[14px] font-semibold">{title}</span>
-                    {sub ? <span className="type-body block text-[12px] leading-[1.4] text-text2">{sub}</span> : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
+      <SectionTitle text="What you get" top={26} bottom={10} />
+      <GroupCard>
+        {perks.map(([title, sub]) => {
+          const look = perkLook(title);
+          return <GroupRow key={title} icon={look.icon} iconColor={look.tone} iconBg={alpha(look.tone, 0.13)} title={title} subtitle={sub || undefined} />;
+        })}
+      </GroupCard>
 
-      <SectionTitle text="Free vs VIP" top={26} />
-      <table className="w-full overflow-hidden rounded-[20px] border border-white/7 bg-surface text-[13px]">
-        <thead>
-          <tr>
-            <th scope="col" className="sr-only">
-              Feature
-            </th>
-            <th scope="col" className="type-label w-[84px] px-2 py-2.5 text-center text-[12px] font-semibold text-muted">
-              Free
-            </th>
-            <th scope="col" className="type-label w-[84px] px-2 py-2.5 text-center text-[12px] font-bold text-gold">
-              VIP
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {compare.map(([k, free, vipV]) => (
-            <tr key={k} className="border-t border-white/6">
-              <th scope="row" className="type-body px-4 py-2.5 text-left font-medium text-text">
-                {k}
-              </th>
-              <td className="type-body px-2 py-2.5 text-center text-muted">{free}</td>
-              <td className="type-body px-2 py-2.5 text-center font-semibold text-gold">{vipV}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="type-body mt-2.5 text-[11.5px] leading-[1.45] text-muted">Video calls in chat are the same for everyone: both people have to allow them.</p>
-
-      <SectionTitle text="Choose a plan" top={26} />
-      <div className="flex flex-col gap-2" role="radiogroup" aria-label="Plan">
-        {plans.map((p) => (
-          <PlanRow key={p.id} plan={p} on={p.id === plan?.id} onClick={() => setPlanId(p.id)} />
-        ))}
-      </div>
+      {likedCount > 0 ? (
+        <div className="mt-3.5">
+          <LikedCard
+            urls={likedUrls}
+            names={likedNames}
+            count={likedCount}
+            vip={vip}
+            onOpen={useDiscoverLikes ? () => router.push("/discover/liked-you") : undefined}
+          />
+        </div>
+      ) : null}
+      <p className="type-body mt-3 text-[11.5px] leading-[1.45] text-muted">Video calls in chat are the same for everyone: both people have to allow them.</p>
     </Screen>
   );
 }
@@ -254,7 +223,12 @@ export function vipPerkGroups(e: Economy, bonus: number): PerkGroup[] {
     ...(supers > 0 ? ([[`${supers} free Super Like${supers === 1 ? "" : "s"} a day`, "They see you first, with a star."]] as [string, string][]) : []),
     ["Free Undo", "Bring back someone you passed by mistake."],
     ...(e.discoverPremiumFilters
-      ? ([["Every Discover filter", `Gender and country, in random matches and Discover. Others pay ${e.discoverFilterPassCost} coins for ${e.discoverFilterPassHours} hours.`]] as [string, string][])
+      ? ([
+          [
+            "Every Discover filter",
+            `Gender and country, in random matches and Discover. Others pay ${e.discoverFilterPassCost} coins for ${e.discoverFilterPassHours} hours.`,
+          ],
+        ] as [string, string][])
       : []),
   ];
   return [
@@ -294,45 +268,58 @@ export function vipComparison(e: Economy, bonus: number): [string, string, strin
             e.discoverVipFreeSuperLikes > 0 ? `${e.discoverVipFreeSuperLikes} free/day` : `${e.discoverSuperLikeCost} coins`,
           ],
           ["Undo a pass", `${e.discoverUndoCost} coins`, "Free"],
-                  ] as [string, string, string][])
+        ] as [string, string, string][])
       : []),
-    ...(e.discoverPremiumFilters ? ([["Gender & country filters", `${e.discoverFilterPassCost} coins / ${e.discoverFilterPassHours}h`, "Free"]] as [string, string, string][]) : []),
+    ...(e.discoverPremiumFilters
+      ? ([["Gender & country filters", `${e.discoverFilterPassCost} coins / ${e.discoverFilterPassHours}h`, "Free"]] as [string, string, string][])
+      : []),
     ["Coins each month", "—", String(bonus)],
     ["Ads", "Yes", "None"],
   ];
 }
 
-function PlanRow({ plan, on, onClick }: { plan: VipPlan; on: boolean; onClick: () => void }) {
-  const perWeek = plan.usd / (plan.days / 7);
-  const tag =
-    plan.trialDays > 0 ? (
-      <Tag text={`${plan.trialDays} days free`} tone="trust" />
-    ) : plan.savePercent > 0 ? (
-      <Tag text={`Save ${plan.savePercent}%`} tone="ok" />
-    ) : null;
+/** Which tile goes with which perk. */
+function perkLook(title: string): { icon: string; tone: Tone } {
+  const t = title.toLowerCase();
+  if (t.includes("unlimited likes")) return { icon: "favorite", tone: "pink" };
+  if (t.includes("liked you")) return { icon: "visibility", tone: "pink-soft" };
+  if (t.includes("super like")) return { icon: "star", tone: "info" };
+  if (t.includes("undo")) return { icon: "undo", tone: "gold" };
+  if (t.includes("filter")) return { icon: "tune", tone: "lavender" };
+  if (t.includes("priority")) return { icon: "bolt", tone: "gold" };
+  if (t.includes("coins")) return { icon: "monetization_on", tone: "gold" };
+  if (t.includes("ads")) return { icon: "block", tone: "text2" };
+  return { icon: "workspace_premium", tone: "gold" };
+}
+
+/** One plan as a column: name, price, period; the badge sits on its top edge. */
+function PlanTile({ plan, on, onClick }: { plan: VipPlan; on: boolean; onClick: () => void }) {
+  const badge = plan.trialDays > 0 ? `${plan.trialDays} days free` : plan.savePercent > 0 ? `Save ${plan.savePercent}%` : null;
   return (
     <button
       type="button"
       role="radio"
       aria-checked={on}
-      aria-label={`${plan.label}, ${usd(plan.usd)}`}
+      aria-label={`${plan.label}, ${usd(plan.usd)} every ${periodWord(plan)}${badge ? `, ${badge}` : ""}`}
       onClick={onClick}
       className={cn(
-        "flex items-center rounded-[18px] border px-4 py-3.5 text-left transition-colors duration-150",
+        "relative flex flex-col items-center rounded-[18px] border px-2 pt-4 pb-3 text-center transition-colors duration-150",
         on ? "border-[1.5px] border-gold bg-gold/8" : "border-line bg-surface hover:bg-surface2",
       )}
     >
-      <RadioDot on={on} tone="gold" />
-      <span className="ml-3 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="type-title text-[15px] font-semibold">{plan.label}</span>
-          {tag}
+      {badge ? (
+        <span
+          className={cn(
+            "type-label absolute -top-2.5 rounded-full px-2 py-[2px] text-[11px] font-bold whitespace-nowrap",
+            on ? "bg-gold text-on-gold" : "bg-surface3 text-gold",
+          )}
+        >
+          {badge}
         </span>
-        <span className={cn("type-body mt-px block text-[12px]", on ? "text-text2" : "text-muted")}>
-          {usd(perWeek)}/wk{plan.highlighted ? " · most popular" : ""}
-        </span>
-      </span>
-      <span className="type-number text-[16px]">{usd(plan.usd)}</span>
+      ) : null}
+      <span className="type-body text-[13px] text-text2">{plan.label}</span>
+      <span className="type-number-lg mt-1 text-[20px]">{usd(plan.usd)}</span>
+      <span className="type-body mt-0.5 text-[11.5px] text-muted">every {periodWord(plan)}</span>
     </button>
   );
 }
