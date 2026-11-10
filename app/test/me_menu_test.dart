@@ -149,7 +149,7 @@ Future<MeHarness> pumpSettings(WidgetTester t, {PartnerStatus partnerStatus = Pa
 }
 
 Future<void> scrollToRow(WidgetTester t, String title) async {
-  await t.scrollUntilVisible(find.text(title), 200, scrollable: find.byType(Scrollable).first);
+  await t.scrollUntilVisible(find.text(title), 200, scrollable: find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first);
   await t.pump();
 }
 

@@ -55,6 +55,18 @@ class _ChatsScreenState extends State<ChatsScreen> {
               actions: const [NotificationsBell()],
             ),
             if (empty) const MomentsBar(),
+            // Search and moments stay put; only the chats under them scroll.
+            if (!empty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SearchField(controller: _search, onChanged: (v) => setState(() => _q = v)),
+                    if (q.isEmpty) ...[const SizedBox(height: 14), const MomentsBar(padding: EdgeInsets.zero)],
+                  ],
+                ),
+              ),
             Expanded(
               child: empty
                   ? Padding(
@@ -71,11 +83,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
                       // Clear the floating dock (its height arrives as bottom padding).
                       padding: EdgeInsets.fromLTRB(16, 0, 16, 32 + MediaQuery.paddingOf(context).bottom),
                       children: [
-                        _SearchField(controller: _search, onChanged: (v) => setState(() => _q = v)),
                         if (q.isEmpty) ...[
-                          const SizedBox(height: 14),
-                          const MomentsBar(padding: EdgeInsets.zero),
-                          if (requests.isNotEmpty) ...[const SizedBox(height: 14), _RequestsRow(requests: requests)],
+                          if (requests.isNotEmpty) ...[const SizedBox(height: 10), _RequestsRow(requests: requests)],
                           if (!wallet.isVip && social.likedYouCount > 0) ...[
                             const SizedBox(height: 14),
                             _LikedTeaser(people: social.likedYou, count: social.likedYouCount),

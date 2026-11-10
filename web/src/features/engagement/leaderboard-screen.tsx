@@ -70,9 +70,9 @@ export function LeaderboardScreen() {
       header={<AppBar title="This week's top" onBack={() => (window.history.length > 1 ? router.back() : router.push("/me"))} />}
       bodyClassName="pb-28"
       footer={data && me ? <MeRow board={data} rank={mine!.rank} score={mine!.score} name={me.name} avatarUrl={me.avatarUrl} /> : null}
+      pinned={<PillTabs tabs={TABS} value={board} onChange={setBoard} label="Leaderboard" />}
     >
-      <PillTabs tabs={TABS} value={board} onChange={setBoard} label="Leaderboard" />
-      <p className="type-body mt-3 text-[12.5px] text-muted">{board === "xp" ? "XP from good calls, likes, gifts and streaks." : "Gems received from gifts."} Resets Monday.</p>
+      <p className="type-body mt-1 text-[12.5px] text-muted">{board === "xp" ? "XP from good calls, likes, gifts and streaks." : "Gems received from gifts."} Resets Monday.</p>
       {!data ? (
         failed === board ? (
           <EmptyState icon="cloud_off" title="Couldn't load " accent="this" body="Check your connection and try again." />

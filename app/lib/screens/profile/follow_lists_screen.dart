@@ -164,15 +164,13 @@ class _FollowListTabState extends State<_FollowListTab> with AutomaticKeepAliveC
     final items = q.isEmpty ? _items : _items.where((e) => e.profile.name.toLowerCase().contains(q)).toList();
     final verb = switch (widget.which) { FollowList.followers => 'Followed you', FollowList.following => 'You followed', FollowList.requests => 'Asked' };
     final label = FollowListsScreen._label(widget.which).toLowerCase();
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        if (n.metrics.extentAfter < 400) _more();
-        return false;
-      },
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-        children: [
-          Container(
+    // The search stays put under the tabs; only the list scrolls.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Container(
             height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(color: V.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: V.line)),
@@ -191,7 +189,16 @@ class _FollowListTabState extends State<_FollowListTab> with AutomaticKeepAliveC
               ],
             ),
           ),
-          const SizedBox(height: 12),
+        ),
+        Expanded(
+          child: NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n.metrics.extentAfter < 400) _more();
+        return false;
+      },
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+        children: [
           if (items.isEmpty)
             Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text('Nobody called “${_query.trim()}”.', style: VT.body(13.5, color: V.muted)))
           else
@@ -233,6 +240,9 @@ class _FollowListTabState extends State<_FollowListTab> with AutomaticKeepAliveC
           Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text('Only you can see these lists.', style: VT.body(12, color: V.muted))),
         ],
       ),
+          ),
+        ),
+      ],
     );
   }
 }

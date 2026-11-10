@@ -207,22 +207,26 @@ export function SettingsMenuPage() {
   const shown = groups.map((g) => ({ ...g, items: g.items.filter((i) => !i.hidden && matches(i)) })).filter((g) => g.items.length);
 
   return (
-    <MeSection title="Settings and activity" parent="/me">
-      <label className="relative mt-1 block">
-        <Icon name="search" size={20} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search"
-          aria-label="Search settings"
-          className="type-body h-11 w-full rounded-[14px] border border-line bg-surface2 pr-4 pl-11 text-[15px] text-text outline-none placeholder:text-muted focus:border-violet"
-        />
-      </label>
-
+    <MeSection
+      title="Settings and activity"
+      parent="/me"
+      pinned={
+        <label className="relative mt-1 block">
+          <Icon name="search" size={20} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search"
+            aria-label="Search settings"
+            className="type-body h-11 w-full rounded-[14px] border border-line bg-surface2 pr-4 pl-11 text-[15px] text-text outline-none placeholder:text-muted focus:border-violet"
+          />
+        </label>
+      }
+    >
       {shown.map((g, gi) => (
         <section key={g.title} aria-label={g.title}>
-          <SectionTitle text={g.title} top={gi === 0 ? 20 : 24} bottom={10} />
+          <SectionTitle text={g.title} top={gi === 0 ? 10 : 24} bottom={10} />
           <GroupCard>
             {g.items.map((i) => (
               <GroupRow
