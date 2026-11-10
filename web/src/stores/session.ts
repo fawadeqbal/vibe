@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { meCache } from "@/lib/me-cache";
 import { ApiError } from "@/lib/api/errors";
 import { tokenStore } from "@/lib/api/tokens";
 import { asList, asMap, type Json, mePrefs, profile as mapProfile } from "@/lib/api/mappers";
@@ -85,7 +86,8 @@ const signOutHooks: Array<() => Promise<void> | void> = [];
 let cachedProviders: string[] | null = null;
 
 export const useSession = create<SessionState>()((set, get) => {
-  const applyMe = (m: Json) =>
+  const applyMe = (m: Json) => {
+    meCache.write(m);
     set({
       me: mapProfile(m),
       onboarded: m.onboarded === true,
@@ -96,6 +98,7 @@ export const useSession = create<SessionState>()((set, get) => {
       prefs: mePrefs(m),
       pausedUntil: typeof m.bannedUntil === "string" && new Date(m.bannedUntil).getTime() > Date.now() ? new Date(m.bannedUntil) : null,
     });
+  };
 
   const busyWhile = async <T,>(fn: () => Promise<T>): Promise<T> => {
     set({ busy: true });
@@ -141,11 +144,29 @@ export const useSession = create<SessionState>()((set, get) => {
       try {
         api.restore();
         if (api.hasSession) {
-          try {
-            applyMe(asMap(await api.get("/me")));
-          } catch (e) {
-            if (e instanceof ApiError && e.isUnauthenticated) api.clearSession();
-            // Offline at launch: stay signed out of the UI until we can reach the server.
+          // Last time's profile: open straight in, and check with the server behind it.
+          const cached = meCache.read();
+          if (cached) {
+            applyMe(cached);
+            set({ booting: false });
+            void (async () => {
+              try {
+                applyMe(asMap(await api.get("/me")));
+              } catch (e) {
+                // Signed out meanwhile (another device, expired): back to sign-in. Offline: keep going on the cache.
+                if (e instanceof ApiError && e.isUnauthenticated) {
+                  api.clearSession();
+                  set({ me: null, onboarded: false });
+                }
+              }
+            })();
+          } else {
+            try {
+              applyMe(asMap(await api.get("/me")));
+            } catch (e) {
+              if (e instanceof ApiError && e.isUnauthenticated) api.clearSession();
+              // Offline on the very first load (nothing cached yet): signed out until we can reach the server.
+            }
           }
         }
         await get().refreshPermissions();

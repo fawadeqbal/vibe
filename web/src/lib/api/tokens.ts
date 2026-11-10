@@ -31,6 +31,8 @@ export const tokenStore = {
   clear() {
     try {
       window.localStorage.removeItem(KEY);
+      // The cached profile goes with the session (lib/me-cache.ts).
+      window.localStorage.removeItem("vibe.me");
     } catch {}
   },
 };

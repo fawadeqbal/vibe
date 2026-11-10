@@ -79,6 +79,11 @@
   --animate-swipe-hint: vibe-swipe-hint 1.8s ease-in-out infinite;
 }
 
+/* A reload in a tab that already saw the splash: never show it (lib/splash-once.ts). */
+html[data-splash="skip"] [data-splash-overlay] {
+  display: none;
+}
+
 /* The home-bar gap under bottom bars; none while the iPhone keyboard is up (it covers the home bar). */
 :root {
   --safe-bottom: env(safe-area-inset-bottom);
