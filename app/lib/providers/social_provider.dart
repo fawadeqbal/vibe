@@ -82,8 +82,19 @@ abstract class SocialProvider extends ChangeNotifier {
 
   Future<void> load();
 
-  /// Loads a conversation from the server the first time it is opened.
+  /// Loads a conversation from the server the first time it is opened: its newest page only.
   Future<void> ensureMessages(String friendId) async {}
+
+  /// Per chat: the cursor for the next older page (null once the start of the chat is loaded).
+  final Map<String, String?> _olderCursor = {};
+  final Set<String> _loadingOlder = {};
+
+  /// More, older messages to load when you scroll to the top.
+  bool hasOlder(String friendId) => _olderCursor[friendId] != null;
+  bool loadingOlder(String friendId) => _loadingOlder.contains(friendId);
+
+  /// The page before the oldest one loaded (scrolling up).
+  Future<void> loadOlder(String friendId) async {}
 
   /// The chat screen for [friendId] closed.
   void leaveChat(String friendId) {}

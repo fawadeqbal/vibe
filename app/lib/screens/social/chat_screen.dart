@@ -65,6 +65,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _social.ensureMessages(widget.friendId);
+    _scroll.addListener(_maybeLoadOlder);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<CallsProvider>().loadState(widget.friendId);
     });
@@ -253,7 +254,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void _toMessage(int index, int total) {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted || !_scroll.hasClients) return;
-      _scroll.jumpTo(_scroll.position.maxScrollExtent * (total <= 1 ? 1 : index / (total - 1)));
+      // The list is reversed: 0 is the newest, the max extent the oldest loaded.
+      final fromNewest = total - 1 - index;
+      _scroll.jumpTo(_scroll.position.maxScrollExtent * (total <= 1 ? 0 : fromNewest / (total - 1)));
       await Future<void>.delayed(const Duration(milliseconds: 16));
       final ctx = _focusKey.currentContext;
       if (ctx != null && ctx.mounted) await Scrollable.ensureVisible(ctx, alignment: 0.5, duration: const Duration(milliseconds: 200));
@@ -262,10 +265,17 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Back to the newest (the list is reversed, so that's offset 0).
   void _toBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      if (_scroll.hasClients && _scroll.offset > 0) _scroll.animateTo(0, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
     });
+  }
+
+  /// Near the top (the oldest loaded): the page before it.
+  void _maybeLoadOlder() {
+    if (!_scroll.hasClients || _scroll.position.extentAfter > 400) return;
+    if (_social.hasOlder(widget.friendId) && !_social.loadingOlder(widget.friendId)) _social.loadOlder(widget.friendId);
   }
 
   Future<void> _gift(String name) async {
@@ -306,17 +316,25 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<SocialProvider>().markRead(widget.friendId);
     });
+    // The list is reversed, so it opens on the newest message with no scrolling, new messages stay in
+    // view, and older pages added at the far end don't move what you see.
     final count = msgs.length + (typing ? 1 : 0);
     if (count != _lastCount) {
       _lastCount = count;
-      final at = _focusId == null ? -1 : msgs.indexWhere((x) => x.id == _focusId);
-      if (at >= 0 && _focusedAt == null) {
-        _focusedAt = msgs.length;
-        _toMessage(at, msgs.length);
-      } else if (widget.focusMessageId == null || (_focusedAt != null && msgs.length > _focusedAt!)) {
-        _toBottom();
+      // Opened at a message: load older pages until it's there, then go to it.
+      if (_focusId != null && _focusedAt == null && msgs.isNotEmpty) {
+        final at = msgs.indexWhere((x) => x.id == _focusId);
+        if (at >= 0) {
+          _focusedAt = msgs.length;
+          _toMessage(at, msgs.length);
+        } else if (social.hasOlder(widget.friendId)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _social.loadOlder(widget.friendId));
+        }
       }
+      // A short chat (or a tall screen): nothing to scroll yet, so fetch older now.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeLoadOlder());
     }
+    final older = social.hasOlder(widget.friendId) || social.loadingOlder(widget.friendId);
     // "Seen" under your last message once they've read it.
     final lastMine = msgs.lastIndexWhere((m) => m.fromMe && !m.isSystem);
     final seenAt = social.seenAt(widget.friendId);
@@ -423,10 +441,20 @@ class _ChatScreenState extends State<ChatScreen> {
                 ? ChatHello(friend: f.profile, myInterests: _myInterests(context), onSend: (t) => _social.sendMessage(widget.friendId, t))
                 : ListView.builder(
                     controller: _scroll,
+                    reverse: true,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                    itemCount: msgs.length + (typing ? 1 : 0),
-                    itemBuilder: (context, i) {
-                      if (i == msgs.length) return TypingBubble(name: f.profile.name);
+                    itemCount: msgs.length + (typing ? 1 : 0) + (older ? 1 : 0),
+                    itemBuilder: (context, k) {
+                      // Reversed: the typing dots first (at the bottom), then newest → oldest, then "loading older".
+                      if (typing && k == 0) return TypingBubble(name: f.profile.name);
+                      final j = k - (typing ? 1 : 0);
+                      if (j >= msgs.length) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Center(child: social.loadingOlder(widget.friendId) ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, color: V.pink)) : const SizedBox(height: 20)),
+                        );
+                      }
+                      final i = msgs.length - 1 - j;
                       final m = msgs[i];
                       if (m.isSystem) {
                         return SystemLine(m: m, onCallBack: f.calls.on ? (video) => context.read<CallsProvider>().ring(f.profile, video && f.calls.video ? CallMedia.video : CallMedia.voice) : null);

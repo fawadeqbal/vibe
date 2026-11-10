@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useNeedCoins } from "@/components/shared/dialogs";
 import { pickGift } from "@/components/shared/gift-sheet";
@@ -10,6 +10,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { CircleIconButton } from "@/components/ui/button";
 import { HiddenNote } from "@/components/shared/hidden-note";
 import { Icon } from "@/components/ui/icon";
+import { Spinner } from "@/components/ui/spinner";
 import { KeyHint } from "@/components/ui/kbd";
 import { EmptyState } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
@@ -67,23 +68,62 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
     if (f && f.unread > 0) useSocial.getState().markRead(friendId);
   }, [f, friendId]);
 
-  // Opened at a message: scroll to it and flash it once; new messages after that scroll to the bottom as usual.
+  // The list is anchored to the bottom (flex-col-reverse): it opens on the newest message with no
+  // scroll from the top, new messages stay in view, and older pages added on top don't move what you see.
+  const ready = !!f;
+  const hasOlder = useSocial((s) => !!s.olderCursor[friendId]);
+  const loadingOlder = useSocial((s) => !!s.loadingOlder[friendId]);
+  const top = useRef<HTMLDivElement>(null);
+  // Where you were (distance from the newest) before an older page came in: at the very top the browser
+  // would otherwise keep you pinned there, and you'd jump to the oldest message and pull in page after page.
+  const keepAt = useRef<number | null>(null);
+  const loadOlder = useCallback(() => {
+    if (!list.current || useSocial.getState().loadingOlder[friendId]) return;
+    keepAt.current = list.current.scrollTop;
+    void useSocial.getState().loadOlder(friendId);
+  }, [friendId]);
+  const oldestId = msgs?.[0]?.id;
+  useLayoutEffect(() => {
+    if (keepAt.current == null || !list.current) return;
+    list.current.scrollTop = keepAt.current;
+    keepAt.current = null;
+  }, [oldestId]);
+  useEffect(() => {
+    const el = top.current;
+    const root = list.current;
+    if (!el || !root || !hasOlder) return;
+    const io = new IntersectionObserver((e) => e[0]?.isIntersecting && loadOlder(), {
+      root,
+      rootMargin: "400px 0px 0px 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+    // `ready`: the list only exists once the friend is loaded too.
+  }, [hasOlder, msgs?.length, ready, loadOlder]);
+
+  // You sent something: back to the newest, wherever you were.
+  const last = msgs?.[msgs.length - 1];
+  const lastSentId = last?.fromMe ? last.id : null;
+  const sentBefore = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    // Not when the chat first opens (it already starts at the newest, or at a message you came for).
+    if (sentBefore.current !== undefined && lastSentId && lastSentId !== sentBefore.current) list.current?.scrollTo({ top: 0, behavior: "smooth" });
+    if (msgs?.length) sentBefore.current = lastSentId;
+  }, [lastSentId, msgs?.length]);
+
+  // Opened at a message: load older pages until it's there, scroll to it, and flash it once.
   const [focus, setFocus] = useState(focusId ?? null);
-  const focusedAt = useRef<number | null>(null);
   useEffect(() => {
     if (!focus || !msgs?.length) return;
     const el = list.current?.querySelector(`[data-mid="${CSS.escape(focus)}"]`);
-    if (!el) return;
+    if (!el) {
+      if (hasOlder) loadOlder();
+      return;
+    }
     el.scrollIntoView({ block: "center" });
-    focusedAt.current = msgs.length;
     const t = setTimeout(() => setFocus(null), 2400);
     return () => clearTimeout(t);
-  }, [focus, msgs?.length]);
-
-  useEffect(() => {
-    if (focusId && (focusedAt.current == null || (msgs?.length ?? 0) <= focusedAt.current)) return;
-    list.current?.scrollTo({ top: list.current.scrollHeight, behavior: "smooth" });
-  }, [msgs?.length, typing, focusId]);
+  }, [focus, msgs?.length, hasOlder, ready, loadOlder]);
 
   // "Calls unlock when you've both said something": re-check once you have.
   const blockedByMessages = callState?.askBlockedBy === "messages";
@@ -249,30 +289,38 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
             }}
           />
         ) : (
-          <div ref={list} className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3 lg:px-7 lg:py-[18px]">
-            {msgs.map((m, i) => (
-              <Bubble
-                key={m.id}
-                focused={m.id === focus}
-                m={m}
-                f={f}
-                tail={endsRun(msgs, i)}
-                onHold={() => void onHold(m)}
-                onCallBack={
-                  f.calls.mine && f.calls.theirs
-                    ? (video) => void useCalls.getState().ring(p, video && f.calls.mineVideo && f.calls.theirsVideo ? "video" : "voice")
-                    : undefined
-                }
-              />
-            ))}
-            {seen ? <p className="type-label -mt-0.5 mb-1.5 text-right text-[11px] text-muted">Seen</p> : null}
-            {typing ? (
-              <div aria-label={`${first} is typing`} className="mb-1.5 inline-flex gap-1 rounded-[16px] bg-surface2 px-3 py-2.5">
-                <span className="size-1.5 animate-bounce rounded-full bg-muted [animation-delay:-0.3s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-muted [animation-delay:-0.15s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-muted" />
-              </div>
-            ) : null}
+          <div ref={list} className="quiet-scroll flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-4 py-3 lg:px-7 lg:py-[18px]">
+            <div>
+              <div ref={top} aria-hidden className="h-px" />
+              {loadingOlder ? (
+                <div className="flex justify-center py-3" role="status" aria-label="Loading older messages">
+                  <Spinner size={20} stroke={2} />
+                </div>
+              ) : null}
+              {msgs.map((m, i) => (
+                <Bubble
+                  key={m.id}
+                  focused={m.id === focus}
+                  m={m}
+                  f={f}
+                  tail={endsRun(msgs, i)}
+                  onHold={() => void onHold(m)}
+                  onCallBack={
+                    f.calls.mine && f.calls.theirs
+                      ? (video) => void useCalls.getState().ring(p, video && f.calls.mineVideo && f.calls.theirsVideo ? "video" : "voice")
+                      : undefined
+                  }
+                />
+              ))}
+              {seen ? <p className="type-label -mt-0.5 mb-1.5 text-right text-[11px] text-muted">Seen</p> : null}
+              {typing ? (
+                <div aria-label={`${first} is typing`} className="mb-1.5 inline-flex gap-1 rounded-[16px] bg-surface2 px-3 py-2.5">
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted [animation-delay:-0.3s]" />
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted [animation-delay:-0.15s]" />
+                  <span className="size-1.5 animate-bounce rounded-full bg-muted" />
+                </div>
+              ) : null}
+            </div>
           </div>
         )}
         {f.state === "friends" ? <CallsCard f={f} state={callState} /> : null}

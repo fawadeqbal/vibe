@@ -17,6 +17,10 @@ import { api, realtime } from "./services";
 interface SocialState {
   all: Friend[];
   chats: Record<string, ChatMessage[]>;
+  /** Per chat: the cursor for the next older page, or null once the start of the chat is loaded. */
+  olderCursor: Record<string, string | null>;
+  /** Per chat: an older page is on its way. */
+  loadingOlder: Record<string, boolean>;
   /** Friends typing to you right now (id → until when, ms). */
   typing: Record<string, number>;
   /** When each friend last read your messages ("Seen"). */
@@ -30,8 +34,10 @@ interface SocialState {
   load: () => Promise<void>;
   /** Re-reads just the friends list (presence, streaks). */
   refreshFriends: () => Promise<void>;
-  /** Loads a conversation the first time it is opened. */
+  /** Loads a conversation the first time it is opened: its newest page only. */
   ensureMessages: (friendId: string) => Promise<void>;
+  /** The page before the oldest one loaded (scrolling up). */
+  loadOlder: (friendId: string) => Promise<void>;
   leaveChat: (friendId: string) => void;
   /** False when it could not be paid for. */
   sendRequest: (p: Profile) => Promise<boolean>;
@@ -58,6 +64,8 @@ interface SocialState {
 }
 
 const loadedChats = new Set<string>();
+/** Messages per page: the newest when a chat opens, then this many more each time you scroll to the top. */
+const CHAT_PAGE = 40;
 let openChat: string | null = null;
 
 const giftById = (id: unknown) => useCatalog.getState().gift(id);
@@ -104,6 +112,8 @@ export const useSocial = create<SocialState>()((set, get) => {
   return {
     all: [],
     chats: {},
+    olderCursor: {},
+    loadingOlder: {},
     typing: {},
     seenAt: {},
     blocked: [],
@@ -123,13 +133,38 @@ export const useSocial = create<SocialState>()((set, get) => {
       openChat = friendId;
       if (loadedChats.has(friendId)) return;
       try {
-        const page = asMap(await api.get(`/friends/${friendId}/messages`, { limit: 100 }));
+        const page = asMap(await api.get(`/friends/${friendId}/messages`, { limit: CHAT_PAGE }));
         const list = asList(page.items)
           .map((e) => mapMessage(asMap(e), giftById))
           .reverse();
         loadedChats.add(friendId);
-        set((s) => ({ chats: { ...s.chats, [friendId]: list } }));
+        set((s) => ({
+          chats: { ...s.chats, [friendId]: list },
+          olderCursor: { ...s.olderCursor, [friendId]: typeof page.nextCursor === "string" ? page.nextCursor : null },
+        }));
       } catch {}
+    },
+
+    async loadOlder(friendId) {
+      const cursor = get().olderCursor[friendId];
+      if (!cursor || get().loadingOlder[friendId]) return;
+      set((s) => ({ loadingOlder: { ...s.loadingOlder, [friendId]: true } }));
+      try {
+        const page = asMap(await api.get(`/friends/${friendId}/messages`, { limit: CHAT_PAGE, cursor }));
+        const older = asList(page.items)
+          .map((e) => mapMessage(asMap(e), giftById))
+          .reverse();
+        set((s) => {
+          const have = new Set((s.chats[friendId] ?? []).map((m) => m.id));
+          return {
+            chats: { ...s.chats, [friendId]: [...older.filter((m) => !have.has(m.id)), ...(s.chats[friendId] ?? [])] },
+            olderCursor: { ...s.olderCursor, [friendId]: typeof page.nextCursor === "string" ? page.nextCursor : null },
+          };
+        });
+      } catch {
+      } finally {
+        set((s) => ({ loadingOlder: { ...s.loadingOlder, [friendId]: false } }));
+      }
     },
 
     leaveChat(friendId) {
@@ -272,7 +307,7 @@ export const useSocial = create<SocialState>()((set, get) => {
     reset() {
       loadedChats.clear();
       openChat = null;
-      set({ all: [], chats: {}, typing: {}, seenAt: {}, blocked: [], likedYou: [], likedYouCount: 0, loaded: false });
+      set({ all: [], chats: {}, olderCursor: {}, loadingOlder: {}, typing: {}, seenAt: {}, blocked: [], likedYou: [], likedYouCount: 0, loaded: false });
     },
   };
 });
