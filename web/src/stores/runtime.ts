@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api/errors";
+import { Ev } from "@/lib/api/realtime";
 import { browserStorage } from "@/lib/referrals";
 import { captureVisit, clearVisit, readVisit } from "@/lib/site-visit";
 
@@ -17,6 +18,7 @@ import { useReferrals } from "./referrals";
 import { api, realtime } from "./services";
 import { useSession } from "./session";
 import { useSocial } from "./social";
+import { toast } from "./ui";
 import { useWallet } from "./wallet";
 import { useWaitlist } from "./waitlist";
 import { useWaves } from "./waves";
@@ -111,6 +113,14 @@ export async function catchUp() {
 }
 
 let hiddenAt = 0;
+function watchSessionEnded() {
+  realtime.on(Ev.sessionEnded, () => {
+    if (!useSession.getState().me) return;
+    void useSession.getState().endedElsewhere();
+    toast("You were signed out on this device", { error: true });
+  });
+}
+
 function watchResync() {
   // On a live call the tab counts as in use even without mouse or keys.
   let inCall = false;
@@ -135,6 +145,7 @@ export function startApp() {
   if (started) return;
   started = true;
   watchResync();
+  watchSessionEnded();
   // An invite link (?ref=CODE&s=SOURCE) can land on any page: keep it for sign-up.
   useReferrals.getState().captureFromLocation();
   // A link from the marketing site (?vid=…): keep the visit for sign-up attribution.

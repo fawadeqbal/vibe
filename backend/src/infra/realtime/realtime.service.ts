@@ -189,6 +189,16 @@ export class RealtimeService {
     await this.redis.client.zadd(ACTIVE_ZSET, ...(userIds.flatMap((id) => [now, id]) as [number, string]));
   }
 
+  /** Runs [fn] for each of this person's sockets, on any instance (e.g. to close one device's connection). */
+  async forUserSockets(userId: string, fn: (s: { data: Record<string, unknown>; emit: (ev: string, data: unknown) => unknown; disconnect: (close?: boolean) => unknown }) => void | Promise<void>): Promise<void> {
+    if (!this.server) return;
+    try {
+      for (const s of await this.server.in(userRoom(userId)).fetchSockets()) await fn(s as never);
+    } catch (e) {
+      this.logger.warn(`sockets for ${userId} failed: ${(e as Error).message}`);
+    }
+  }
+
   async isOnline(userId: string): Promise<boolean> {
     const score = await this.redis.client.zscore(ONLINE_ZSET, userId);
     return !!score && Date.now() - Number(score) < STALE_MS;

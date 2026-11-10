@@ -24,6 +24,17 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "vibe/install_referrer").setMethodCallHandler { call, result ->
             if (call.method == "get") readInstallReferrer(result) else result.notImplemented()
         }
+        // Settings → Devices: "Samsung SM-A515F · Android 13" (sent once as X-Device).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "vibe/device").setMethodCallHandler { call, result ->
+            if (call.method == "name") result.success(deviceName()) else result.notImplemented()
+        }
+    }
+
+    private fun deviceName(): String {
+        val maker = Build.MANUFACTURER.orEmpty().replaceFirstChar { it.uppercase() }
+        val model = Build.MODEL.orEmpty()
+        val name = if (model.startsWith(maker, ignoreCase = true)) model else "$maker $model".trim()
+        return "$name · Android ${Build.VERSION.RELEASE}"
     }
 
     /** Answers with the referrer string, or null when there is none / Play can't tell. Never errors. */

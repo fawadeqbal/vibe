@@ -260,14 +260,21 @@ model Session {
   family      String
   userAgent   String?
   ip          String?
+  /// android | ios | web (X-Client): Settings → Devices shows a phone or a computer.
+  client      String?   @db.VarChar(16)
+  /// "Samsung SM-A515F · Android 13" (the app's X-Device) or "Chrome on Windows" (from the browser).
+  device      String?   @db.VarChar(80)
   expiresAt   DateTime
   revokedAt   DateTime?
+  /// Why it ended: rotated (normal refresh), signed_out, remote (from another device), admin, reuse, all.
+  revokeReason String?  @db.VarChar(16)
   createdAt   DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([family])
+  @@index([userId, revokedAt])
 }
 
 // ── money ──────────────────────────────────────────────────────────────

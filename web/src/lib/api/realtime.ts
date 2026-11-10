@@ -10,6 +10,8 @@ export const Ev = {
   paymentUpdated: "payment:updated",
   cashoutUpdated: "cashout:updated",
   accountBanned: "account:banned",
+  /** This device was signed out from another device's Settings → Devices (or by the team). */
+  sessionEnded: "session:ended",
   accountWarning: "account:warning",
   announcement: "system:announcement",
   matchSearching: "match:searching",

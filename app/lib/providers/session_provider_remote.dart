@@ -256,6 +256,18 @@ class RemoteSessionProvider extends SessionProvider {
   }
 
   @override
+  Future<List<DeviceSession>> devices() async => [for (final e in (await _api.get('/me/sessions') as List? ?? const [])) DeviceSession.fromJson(Map<String, dynamic>.from(e as Map))];
+
+  @override
+  Future<void> endDevice(String id) async => _api.delete('/me/sessions/${Uri.encodeComponent(id)}');
+
+  @override
+  Future<int> endOtherDevices() async {
+    final r = await _api.post('/me/sessions/sign-out-others', const <String, dynamic>{});
+    return r is Map && r['ended'] is num ? (r['ended'] as num).toInt() : 0;
+  }
+
+  @override
   Future<void> signOut() async {
     await _runSignOutHooks();
     final t = await _api.tokens.read();

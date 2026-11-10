@@ -73,6 +73,8 @@ interface SessionState {
   refreshPermissions: () => Promise<void>;
   requestPermissions: () => Promise<boolean>;
   signOut: () => Promise<void>;
+  /** This device was signed out elsewhere (`session:ended`). */
+  endedElsewhere: () => Promise<void>;
   /** DELETE /me, then signs out here. Throws if the server refused. */
   deleteAccount: () => Promise<void>;
   /** Runs before the session is dropped on sign-out (while the token still works). */
@@ -305,6 +307,17 @@ export const useSession = create<SessionState>()((set, get) => {
 
     async deleteAccount() {
       await api.delete("/me");
+      for (const h of signOutHooks) {
+        try {
+          await h();
+        } catch {}
+      }
+      api.clearSession();
+      set({ me: null, onboarded: false, invitedBy: null, referralClaimable: false, verificationState: NO_VERIFICATION });
+    },
+
+    async endedElsewhere() {
+      // Signed out from another device's Settings → Devices (or by the team): back to sign-in.
       for (const h of signOutHooks) {
         try {
           await h();

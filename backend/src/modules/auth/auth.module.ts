@@ -7,6 +7,8 @@ import { AuthController, IdentitiesController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { OtpService } from './otp.service';
 import { IdentityService } from './identity/identity.service';
+import { SessionsController } from './sessions.controller';
+import { SessionsService } from './sessions.service';
 import { TokenService } from './token.service';
 
 @Global()
@@ -19,13 +21,14 @@ import { TokenService } from './token.service';
       useFactory: (config: AppConfig) => ({ secret: config.get('JWT_ACCESS_SECRET'), signOptions: { issuer: 'vibe' }, verifyOptions: { issuer: 'vibe' } }),
     }),
   ],
-  controllers: [AuthController, IdentitiesController],
+  controllers: [AuthController, IdentitiesController, SessionsController],
   providers: [
     AuthService,
     OtpService,
     TokenService,
+    SessionsService,
     IdentityService,
   ],
-  exports: [TokenService],
+  exports: [TokenService, SessionsService],
 })
 export class AuthModule {}

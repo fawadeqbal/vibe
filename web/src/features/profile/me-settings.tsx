@@ -91,6 +91,7 @@ export function SettingsMenuPage() {
         title: "Your account",
         items: [
           { key: "account", icon: "manage_accounts", title: "Account & sign-in", subtitle: "Sign-in methods, e-mail, delete account", words: "email password google apple facebook login delete", href: "/me/account" },
+          { key: "devices", icon: "devices", title: "Devices", subtitle: "Where you're signed in; sign one out", words: "sessions logged in phone browser computer sign out logout security", href: "/me/devices" },
           { key: "notifications", icon: "notifications_none", title: "Notifications", subtitle: "Phone, inbox and e-mail, for each kind", words: "push alerts sounds email", href: "/me/notifications" },
           { key: "wellbeing", icon: "bedtime", title: "Time & wellbeing", subtitle: "Quiet hours and break reminders", words: "quiet hours break reminder vibe hour sleep", href: "/me/wellbeing" },
           {

@@ -9,6 +9,8 @@ export const ServerEvent = {
   /** A cash-out changed status (paid, returned). */
   CashoutUpdated: 'cashout:updated',
   AccountBanned: 'account:banned',
+  /** This device was signed out (from another device's Settings → Devices, or by the team): go back to sign-in. */
+  SessionEnded: 'session:ended',
   AccountWarning: 'account:warning',
   /** A moderator answered your appeal: `{ status: ACCEPTED | REJECTED, note }` (accepted = the pause is lifted). */
   AccountAppeal: 'account:appeal',

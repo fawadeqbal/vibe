@@ -203,6 +203,32 @@ class Transaction {
   final String? receipt;
 }
 
+/// One phone or browser you're signed in on (Settings → Devices).
+class DeviceSession {
+  const DeviceSession({required this.id, required this.client, required this.device, required this.signedInAt, required this.lastActiveAt, required this.current});
+  final String id;
+
+  /// 'android', 'ios' or 'web'.
+  final String client;
+  final String device;
+  final DateTime signedInAt;
+  final DateTime lastActiveAt;
+
+  /// This phone.
+  final bool current;
+
+  bool get isWeb => client == 'web';
+
+  factory DeviceSession.fromJson(Map<String, dynamic> m) => DeviceSession(
+    id: m['id'] as String? ?? '',
+    client: m['client'] as String? ?? 'web',
+    device: m['device'] as String? ?? 'Unknown device',
+    signedInAt: DateTime.tryParse(m['signedInAt'] as String? ?? '') ?? DateTime.now(),
+    lastActiveAt: DateTime.tryParse(m['lastActiveAt'] as String? ?? '') ?? DateTime.now(),
+    current: m['current'] == true,
+  );
+}
+
 enum PaymentMethod { googlePlay, appStore, jazzCash, easypaisa, card, bank }
 
 extension PaymentMethodInfo on PaymentMethod {

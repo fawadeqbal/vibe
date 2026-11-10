@@ -11,6 +11,7 @@ import { Audit, CurrentStaff, RequirePermissions, StaffApi } from '../core/staff
 import type { StaffPrincipal } from '../core/staff.types';
 import { BanDto, GrantVipDto, NoteDto, ReasonDto, UpdateUserDto, UserListQuery, VerificationDto, WalletAdjustDto } from './admin-users.dto';
 import { AdminUsersService } from './admin-users.service';
+import { SessionsService } from '../../auth/sessions.service';
 
 class ReportsQuery extends CursorQueryDto {
   @IsOptional()
@@ -26,6 +27,7 @@ export class AdminUsersController {
   constructor(
     private readonly users: AdminUsersService,
     private readonly prisma: PrismaService,
+    private readonly sessions: SessionsService,
   ) {}
 
   @Get()
@@ -107,6 +109,28 @@ export class AdminUsersController {
   async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     await this.users.update(id, dto);
     return OK;
+  }
+
+  @Get(':id/sessions')
+  @RequirePermissions(P.UsersView)
+  @ApiOperation({ summary: 'Devices this person is signed in on (app or web, device, IP, last used)' })
+  listSessions(@Param('id') id: string) {
+    return this.sessions.list(id);
+  }
+
+  @Delete(':id/sessions/:sessionId')
+  @RequirePermissions(P.UsersBan)
+  @Audit('user.session_ended', { target: 'user', summary: reasonOf })
+  endSession(@Param('id') id: string, @Param('sessionId') sessionId: string, @Body() _dto: ReasonDto) {
+    return this.sessions.end(id, sessionId, 'admin');
+  }
+
+  @Post(':id/sessions/sign-out-all')
+  @HttpCode(200)
+  @RequirePermissions(P.UsersBan)
+  @Audit('user.sessions_ended', { target: 'user', summary: reasonOf })
+  endAllSessions(@Param('id') id: string, @Body() _dto: ReasonDto) {
+    return this.sessions.endAll(id, 'admin');
   }
 
   @Post(':id/ban')

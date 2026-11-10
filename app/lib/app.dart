@@ -64,6 +64,7 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
     if (open != null) _banners.dismissWhere((b) => b.data['friendId'] == open && (b.data['open'] ?? b.data['route']) == 'chat');
   }
   StreamSubscription<bool>? _connection;
+  StreamSubscription<Map<String, dynamic>>? _ended;
   DateTime? _pausedAt;
   DateTime _lastCatchUp = DateTime.fromMillisecondsSinceEpoch(0);
   StreamSubscription<StoreDelivery>? _deliveries;
@@ -85,6 +86,13 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
       _connection = rt.connection.listen((up) {
         if (up && wasConnected) unawaited(_catchUp());
         if (up) wasConnected = true;
+      });
+      // Signed out from another device's Settings → Devices (or by the team): back to sign-in.
+      final api = context.read<ApiClient>();
+      _ended = rt.on(Ev.sessionEnded).listen((_) async {
+        if (!api.hasSession) return;
+        await api.endedElsewhere();
+        _messenger.currentState?.showSnackBar(const SnackBar(content: Text('You were signed out on this device')));
       });
       WidgetsBinding.instance.addObserver(this);
     }
@@ -120,6 +128,7 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
     _social?.removeListener(_clearOpenChatBanners);
     _banners.dispose();
     _connection?.cancel();
+    _ended?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _deliveries?.cancel();
     super.dispose();
