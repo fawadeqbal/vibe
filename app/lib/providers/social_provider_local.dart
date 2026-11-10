@@ -248,7 +248,7 @@ class LocalSocialProvider extends SocialProvider {
     list.add(m);
     if (list.length > 300) list.removeRange(0, list.length - 300);
     final f = friend(friendId);
-    if (f != null) _upsert(f.copyWith(lastMessage: SocialProvider.lastLine(m), unread: unread ? f.unread + 1 : f.unread));
+    if (f != null) _upsert(f.copyWith(lastMessage: SocialProvider.lastLine(m), lastMessageAt: m.at, unread: unread ? f.unread + 1 : f.unread));
   }
 
   void _upsert(Friend f) {

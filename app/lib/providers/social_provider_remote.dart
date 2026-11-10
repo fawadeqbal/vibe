@@ -85,7 +85,7 @@ class RemoteSocialProvider extends SocialProvider {
     final f = friend(friendId);
     if (f != null) {
       final unread = !msg.fromMe && !msg.isSystem && _openChat != friendId ? f.unread + 1 : f.unread;
-      _replace(f.copyWith(lastMessage: SocialProvider.lastLine(msg), unread: unread));
+      _replace(f.copyWith(lastMessage: SocialProvider.lastLine(msg), lastMessageAt: msg.at, unread: unread));
     }
     if (_openChat == friendId && !msg.fromMe) markRead(friendId);
     notifyListeners();
@@ -267,7 +267,7 @@ class RemoteSocialProvider extends SocialProvider {
       } else {
         replaceMessage(friendId, m, oldId: tempId);
         final f = friend(friendId);
-        if (f != null) _replace(f.copyWith(lastMessage: m.text));
+        if (f != null) _replace(f.copyWith(lastMessage: m.text, lastMessageAt: m.at));
       }
     } catch (_) {
       list.removeWhere((x) => x.id == tempId);

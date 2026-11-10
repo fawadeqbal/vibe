@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { activityItem, friend, profileView } from "../api/mappers";
 import { presenceLabel } from "../format";
 import { notificationPath } from "../notification-path";
+import { friendsOf, lastActivity } from "../../stores/social";
 
 const NOW = new Date("2026-11-09T12:00:00Z").getTime();
 
@@ -88,5 +89,26 @@ describe("notificationPath", () => {
     expect(notificationPath({ route: "profile", open: "verification", userId: "me" })).toBe("/me/verification");
     expect(notificationPath({ route: "inbox", open: "team", messageId: "x1" })).toBe("/news/x1");
     expect(notificationPath({ route: "inbox", open: "recap" })).toBe("/me/recap");
+  });
+});
+
+describe("chat list order", () => {
+  const f = (id: string, since: string, lastMessageAt: string | null) =>
+    friend({ profile: { id, name: id }, state: "friends", since, lastMessage: lastMessageAt ? "hi" : null, lastMessageAt });
+
+  it("whoever texted last comes first, even for chats not opened yet; a chat with no messages counts from when you became friends", () => {
+    const oldFriendNewText = f("old", "2025-01-01T00:00:00Z", "2026-11-10T07:00:00Z");
+    const newFriendOldText = f("new", "2026-11-09T00:00:00Z", "2026-11-09T01:00:00Z");
+    const noMessages = f("quiet", "2026-11-10T05:00:00Z", null);
+    const order = friendsOf({ all: [newFriendOldText, noMessages, oldFriendNewText], chats: {} }).map((x) => x.profile.id);
+    expect(order).toEqual(["old", "quiet", "new"]);
+  });
+
+  it("a message loaded here that is newer than the list's time moves the chat up", () => {
+    const a = f("a", "2025-01-01T00:00:00Z", "2026-11-10T06:00:00Z");
+    const b = f("b", "2025-01-01T00:00:00Z", "2026-11-10T05:00:00Z");
+    const chats = { b: [{ at: new Date("2026-11-10T08:00:00Z") }] } as unknown as Parameters<typeof lastActivity>[0];
+    expect(friendsOf({ all: [a, b], chats }).map((x) => x.profile.id)).toEqual(["b", "a"]);
+    expect(lastActivity(chats, a).toISOString()).toBe("2026-11-10T06:00:00.000Z");
   });
 });

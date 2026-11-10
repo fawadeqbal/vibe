@@ -40,7 +40,7 @@ abstract class SocialProvider extends ChangeNotifier {
   final Map<String, Timer> _typingTimers = {};
 
   List<Friend> get friends =>
-      _friends.where((f) => f.state == FriendState.friends).toList()..sort((a, b) => (b.lastMessage == null ? b.since : _lastAt(b)).compareTo(a.lastMessage == null ? a.since : _lastAt(a)));
+      _friends.where((f) => f.state == FriendState.friends).toList()..sort((a, b) => lastActivity(b).compareTo(lastActivity(a)));
   List<Friend> get incoming => _friends.where((f) => f.state == FriendState.incoming).toList();
   List<Friend> get requested => _friends.where((f) => f.state == FriendState.requested).toList();
   Set<String> get blocked => _blocked;
@@ -58,9 +58,16 @@ abstract class SocialProvider extends ChangeNotifier {
   /// Streaks that end tonight unless you both talk.
   int get streaksAtRisk => friends.where((f) => f.streak.atRisk).length;
 
-  DateTime _lastAt(Friend f) {
+  /// When this chat last had a message: the newest one loaded here, or the
+  /// server's `lastMessageAt` for a chat you haven't opened yet; a chat with no
+  /// messages counts from when you became friends. The Chats list is in this
+  /// order (whoever texted last first) and shows this time.
+  DateTime lastActivity(Friend f) {
     final list = _chats[f.profile.id];
-    return list == null || list.isEmpty ? f.since : list.last.at;
+    final loaded = list == null || list.isEmpty ? null : list.last.at;
+    final server = f.lastMessageAt;
+    if (loaded != null && server != null) return loaded.isAfter(server) ? loaded : server;
+    return loaded ?? server ?? f.since;
   }
 
   FriendState stateOf(String userId) {
@@ -174,7 +181,7 @@ abstract class SocialProvider extends ChangeNotifier {
     list[i] = m;
     if (i == list.length - 1) {
       final fi = _friends.indexWhere((x) => x.profile.id == friendId);
-      if (fi >= 0) _friends[fi] = _friends[fi].copyWith(lastMessage: lastLine(m));
+      if (fi >= 0) _friends[fi] = _friends[fi].copyWith(lastMessage: lastLine(m), lastMessageAt: m.at);
     }
     notifyListeners();
   }
@@ -225,7 +232,7 @@ abstract class SocialProvider extends ChangeNotifier {
     if (list.any((x) => x.id == m.id)) return;
     list.add(m);
     final i = _friends.indexWhere((x) => x.profile.id == friendId);
-    if (i >= 0) _friends[i] = _friends[i].copyWith(lastMessage: m.text);
+    if (i >= 0) _friends[i] = _friends[i].copyWith(lastMessage: m.text, lastMessageAt: m.at);
     notifyListeners();
   }
 

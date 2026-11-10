@@ -259,8 +259,7 @@ class _FriendRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final social = context.read<SocialProvider>();
-    final msgs = social.messages(f.profile.id);
-    final at = msgs.isEmpty ? f.since : msgs.last.at;
+    final at = social.lastActivity(f);
     final unread = f.unread > 0;
     final typing = context.select<SocialProvider, bool>((s) => s.isTyping(f.profile.id));
     return InkWell(

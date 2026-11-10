@@ -340,7 +340,7 @@ function onMessage(m: Json) {
   const all = s.all.map((f) => {
     if (f.profile.id !== friendId) return f;
     const unread = !msg.fromMe && msg.kind !== "system" && openChat !== friendId ? f.unread + 1 : f.unread;
-    return { ...f, lastMessage: msg.gift ? `${msg.gift.emoji} ${msg.gift.name}` : msg.text, unread };
+    return { ...f, lastMessage: msg.gift ? `${msg.gift.emoji} ${msg.gift.name}` : msg.text, lastMessageAt: msg.at, unread };
   });
   useSocial.setState({ chats: { ...s.chats, [friendId]: [...list, msg] }, all });
   if (openChat === friendId && !msg.fromMe) s.markRead(friendId);
@@ -352,16 +352,21 @@ function setStreak(friendId: string, streak: StreakView) {
 
 // ── selectors ─────────────────────────────────────────────────────────────
 
-const lastAt = (s: Pick<SocialState, "chats">, f: Friend) => {
-  const list = s.chats[f.profile.id];
-  return list?.length ? list[list.length - 1].at : f.since;
+/**
+ * When this chat last had a message: the newest one loaded here, or the
+ * server’s `lastMessageAt` for a chat you haven't opened yet; a chat with no
+ * messages counts from when you became friends.
+ */
+export const lastActivity = (chats: SocialState["chats"], f: Friend): Date => {
+  const list = chats[f.profile.id];
+  const loaded = list?.length ? list[list.length - 1].at : null;
+  const latest = loaded && f.lastMessageAt ? (loaded > f.lastMessageAt ? loaded : f.lastMessageAt) : (loaded ?? f.lastMessageAt);
+  return latest ?? f.since;
 };
 
-/** Friends, the most recent conversation first. */
+/** Friends, whoever texted last (either way) first. */
 export const friendsOf = (s: Pick<SocialState, "all" | "chats">) =>
-  s.all
-    .filter((f) => f.state === "friends")
-    .sort((a, b) => (b.lastMessage == null ? b.since : lastAt(s, b)).getTime() - (a.lastMessage == null ? a.since : lastAt(s, a)).getTime());
+  s.all.filter((f) => f.state === "friends").sort((a, b) => lastActivity(s.chats, b).getTime() - lastActivity(s.chats, a).getTime());
 export const incomingOf = (s: Pick<SocialState, "all">) => s.all.filter((f) => f.state === "incoming");
 export const requestedOf = (s: Pick<SocialState, "all">) => s.all.filter((f) => f.state === "requested");
 export const unreadTotal = (s: Pick<SocialState, "all">) => s.all.reduce((a, f) => a + f.unread, 0);
