@@ -110,6 +110,9 @@ class Ev {
 
   /// Your messages reached your friend's phone or an open tab: `{ friendId, at }` (two grey ticks).
   static const messagesDelivered = 'message:delivered';
+
+  /// You cleared a chat on another of your devices: `{ friendId, at }` (your side only).
+  static const chatCleared = 'chat:cleared';
 }
 
 class RealtimeEvent {

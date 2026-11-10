@@ -172,6 +172,12 @@ class LocalSocialProvider extends SocialProvider {
   }
 
   @override
+  Future<void> clearChat(String friendId) async {
+    clearedLocally(friendId);
+    await _persist();
+  }
+
+  @override
   Future<void> editMessage(String friendId, String messageId, String text) async {
     final m = _find(friendId, messageId);
     if (m == null) return;

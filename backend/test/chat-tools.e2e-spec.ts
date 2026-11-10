@@ -79,6 +79,33 @@ describe('chat tools', () => {
     expect(after.find((m: { id: string }) => m.id === third.id).deliveredAt).toEqual(expect.any(String));
   });
 
+  it('clear chat: empties it for you only; they keep every message; new ones show for both', async () => {
+    const { a, b } = await friends();
+    await say(a, b, 'hello');
+    await say(b, a, 'hey you');
+    await say(b, a, 'unread one');
+    const sa = await online(a);
+    const cleared = next(sa, 'chat:cleared');
+    const r = (await t.http.delete(`/v1/friends/${b.id}/messages`).set(a.auth).expect(200)).body;
+    expect(r.clearedAt).toEqual(expect.any(String));
+    expect(await cleared).toMatchObject({ friendId: b.id });
+
+    // Asad's side: nothing left, no last line, nothing unread.
+    expect((await t.http.get(`/v1/friends/${b.id}/messages`).set(a.auth).expect(200)).body.items).toHaveLength(0);
+    expect((await t.http.get('/v1/friends').set(a.auth).expect(200)).body[0]).toMatchObject({ lastMessage: null, last: null, unread: 0 });
+    // Bina's side: all three still there, and still unread for nobody else (no read receipt went out).
+    const theirs = (await t.http.get(`/v1/friends/${a.id}/messages`).set(b.auth).expect(200)).body.items;
+    expect(theirs.map((m: { text: string }) => m.text)).toEqual(['unread one', 'hey you', 'hello']);
+    expect(theirs.filter((m: { fromMe: boolean; readAt: string | null }) => m.fromMe).every((m: { readAt: string | null }) => m.readAt === null)).toBe(true);
+
+    // Talking again: both see the new messages.
+    await sleep(5);
+    await say(b, a, 'still there?');
+    expect((await t.http.get(`/v1/friends/${b.id}/messages`).set(a.auth).expect(200)).body.items.map((m: { text: string }) => m.text)).toEqual(['still there?']);
+    expect((await t.http.get('/v1/friends').set(a.auth).expect(200)).body[0]).toMatchObject({ lastMessage: 'still there?', unread: 1 });
+    expect((await t.http.get(`/v1/friends/${a.id}/messages`).set(b.auth).expect(200)).body.items).toHaveLength(4);
+  });
+
   it('replies quote the message; reactions are one each and live; unsend clears it for both', async () => {
     const { a, b } = await friends();
     const sa = await online(a);

@@ -144,7 +144,12 @@ export class MessagesService {
 
   async list(me: string, friendId: string, q: CursorQueryDto) {
     const f = await this.friends.requireFriends(me, friendId);
-    const rows = await this.prisma.message.findMany({ where: { friendshipId: f.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...cursorArgs(q) });
+    const cleared = this.friends.clearedFor(f, me);
+    const rows = await this.prisma.message.findMany({
+      where: { friendshipId: f.id, ...(cleared ? { createdAt: { gt: cleared } } : {}) },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      ...cursorArgs(q),
+    });
     const replies = await this.repliesFor(rows);
     return toPage(rows, q.limit, (m) => this.toView(m, me, friendId, replies));
   }
@@ -318,6 +323,21 @@ export class MessagesService {
     this.realtime.toUser(otherId, ServerEvent.Message, this.toView(m, otherId, by));
     this.realtime.toUser(by, ServerEvent.Message, this.toView(m, by, otherId));
     return this.toView(m, by, otherId);
+  }
+
+  /**
+   * "Clear chat": empties it for you only. Messages up to now are hidden
+   * from your side (list, last line, unread); your friend keeps every one
+   * of them, and nothing is sent to them. Your other devices clear too.
+   */
+  async clear(me: string, friendId: string): Promise<{ clearedAt: string }> {
+    const f = await this.friends.requireFriends(me, friendId);
+    const at = this.clock.now();
+    await this.prisma.friendship.update({ where: { id: f.id }, data: f.userLowId === me ? { clearedLowAt: at } : { clearedHighAt: at } });
+    // Its notification lines go too (yours only).
+    await this.feed.markReadAbout(me, friendId, CHAT_TYPES);
+    this.realtime.toUsers([me], ServerEvent.ChatCleared, { friendId, at: at.toISOString() });
+    return { clearedAt: at.toISOString() };
   }
 
   /** Marks their messages read; they see "Seen" (`message:read`). */
