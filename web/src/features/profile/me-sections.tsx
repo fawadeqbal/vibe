@@ -30,10 +30,11 @@ const TRUST = { iconColor: "trust" as const, iconBg: alpha("trust", 0.12) };
  * one level: to where you came from, or (opened straight from a link) to
  * the page above it, which for most of these is Settings and activity.
  */
-export function MeSection({ title, children, footer, parent = "/me/settings" }: { title: string; children: ReactNode; footer?: string; parent?: string }) {
+/** `pinned`: stays put above the scrolling content (e.g. the settings search). */
+export function MeSection({ title, children, footer, pinned, parent = "/me/settings" }: { title: string; children: ReactNode; footer?: string; pinned?: ReactNode; parent?: string }) {
   const router = useRouter();
   return (
-    <Screen width="sm" header={<AppBar title={title} onBack={() => (history.length > 1 ? router.back() : router.push(parent))} />} bodyClassName="pt-1">
+    <Screen width="sm" header={<AppBar title={title} onBack={() => (history.length > 1 ? router.back() : router.push(parent))} />} pinned={pinned} bodyClassName="pt-1">
       {children}
       {footer ? <p className="type-body mt-3 px-1 text-[12px] leading-[1.5] text-muted">{footer}</p> : null}
     </Screen>

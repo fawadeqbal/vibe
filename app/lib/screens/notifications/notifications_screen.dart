@@ -122,14 +122,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ? const Center(child: CircularProgressIndicator(color: V.pink))
           : items.isEmpty && requestCount == 0
           ? EmptyState(icon: SolarIconsOutline.bell, title: 'Nothing ', accent: 'yet', body: _empty[NotificationFilter.all]!.$3)
-          : RefreshIndicator(
-              color: V.pink,
-              onRefresh: a.refresh,
-              child: ListView(
-                controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                children: [
-                  PillTabs<NotificationFilter>(
+          // The filters stay put; only the notifications under them scroll.
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                  child: PillTabs<NotificationFilter>(
                     value: _filter,
                     onChanged: (v) => setState(() => _filter = v),
                     tabs: const [
@@ -140,53 +139,65 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       (NotificationFilter.account, 'Account'),
                     ],
                   ),
-                  if (requestCount > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: _RequestsStrip(incoming: incoming, sent: sent),
+                ),
+                Expanded(
+                  child: RefreshIndicator(
+                    color: V.pink,
+                    onRefresh: a.refresh,
+                    child: ListView(
+                      controller: _scroll,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                      children: [
+                        if (requestCount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: _RequestsStrip(incoming: incoming, sent: sent),
+                          ),
+                        for (final (n, (b, rows)) in groups.indexed) ...[
+                          _header(
+                            switch (b) {
+                              NotificationBucket.today => 'Today',
+                              NotificationBucket.week => 'This week',
+                              NotificationBucket.earlier => 'Earlier',
+                            },
+                            action: n == 0 && listed.any(isNew)
+                                ? (
+                                    'Mark all read',
+                                    () {
+                                      setState(() => _freshIds = const {});
+                                      a.markAllRead();
+                                    },
+                                  )
+                                : null,
+                          ),
+                          _card([for (final i in rows) ActivityRow(item: i, isNew: isNew(i))]),
+                        ],
+                        if (listed.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 24),
+                            child: EmptyState(icon: empty.$1, title: empty.$2, body: empty.$3),
+                          ),
+                        if (!a.hasMore && listed.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 18),
+                            child: Text(
+                              'We keep notifications for 90 days.',
+                              textAlign: TextAlign.center,
+                              style: VT.body(12, color: V.muted),
+                            ),
+                          ),
+                        if (a.hasMore)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(
+                              child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2, color: V.pink)),
+                            ),
+                          ),
+                      ],
                     ),
-                  for (final (n, (b, rows)) in groups.indexed) ...[
-                    _header(
-                      switch (b) {
-                        NotificationBucket.today => 'Today',
-                        NotificationBucket.week => 'This week',
-                        NotificationBucket.earlier => 'Earlier',
-                      },
-                      action: n == 0 && listed.any(isNew)
-                          ? (
-                              'Mark all read',
-                              () {
-                                setState(() => _freshIds = const {});
-                                a.markAllRead();
-                              },
-                            )
-                          : null,
-                    ),
-                    _card([for (final i in rows) ActivityRow(item: i, isNew: isNew(i))]),
-                  ],
-                  if (listed.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 24),
-                      child: EmptyState(icon: empty.$1, title: empty.$2, body: empty.$3),
-                    ),
-                  if (!a.hasMore && listed.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 18),
-                      child: Text(
-                        'We keep notifications for 90 days.',
-                        textAlign: TextAlign.center,
-                        style: VT.body(12, color: V.muted),
-                      ),
-                    ),
-                  if (a.hasMore)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(
-                        child: SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2, color: V.pink)),
-                      ),
-                    ),
-                ],
-              ),
+                  ),
+                ),
+              ],
             ),
     );
   }

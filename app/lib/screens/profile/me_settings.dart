@@ -231,8 +231,7 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
 
     return MeSectionScaffold(
       title: 'Settings and activity',
-      children: [
-        TextField(
+      pinned: TextField(
           controller: _search,
           onChanged: (t) => setState(() => _q = t.trim().toLowerCase()),
           style: VT.body(15),
@@ -259,8 +258,9 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
             fillColor: V.surface2,
           ),
         ),
+      children: [
         for (final (i, (title, items)) in shown.indexed) ...[
-          SectionTitle(title, top: i == 0 ? 20 : 24, bottom: 10),
+          SectionTitle(title, top: i == 0 ? 8 : 24, bottom: 10),
           GroupCard(children: [for (final it in items) _row(context, it)]),
           if (title == 'Wallet & invites' && _q.isEmpty && session.referralClaimable) ...[const SizedBox(height: 10), const InviteCodeField()],
         ],

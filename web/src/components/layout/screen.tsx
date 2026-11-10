@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
  */
 export function Screen({
   header,
+  pinned,
   children,
   footer,
   background,
@@ -15,6 +16,8 @@ export function Screen({
   width = "md",
 }: {
   header?: ReactNode;
+  /** Under the header and outside the scroll (a search box, tabs): stays put while the list under it scrolls. */
+  pinned?: ReactNode;
   children: ReactNode;
   /** Pinned under the body (e.g. VIP's sticky call to action). */
   footer?: ReactNode;
@@ -30,6 +33,7 @@ export function Screen({
     <div className="relative flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
       {background}
       {header ? <div className={cn("relative mx-auto w-full shrink-0", max)}>{header}</div> : null}
+      {pinned ? <div className={cn("relative mx-auto w-full shrink-0 px-5 pb-2", max)}>{pinned}</div> : null}
       <div className="quiet-scroll relative min-h-0 flex-1 overflow-y-auto">
         <div className={cn("mx-auto w-full px-5 pb-8", max, bodyClassName)}>{children}</div>
       </div>

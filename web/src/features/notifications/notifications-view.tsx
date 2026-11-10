@@ -233,11 +233,14 @@ export function NotificationsView() {
           </div>
         </div>
       ) : (
-        <div className="quiet-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pt-1 pb-8">
-          <div className="-mx-4 px-4">{tabs}</div>
-          {requestCount ? <RequestsStrip incoming={incoming} sent={sent} onOpen={() => setShowRequests(true)} /> : null}
-          {list}
-        </div>
+        <>
+          {/* The filters stay put; only the notifications under them scroll. */}
+          <div className="shrink-0 px-4 pt-1 pb-1">{tabs}</div>
+          <div className="quiet-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-8">
+            {requestCount ? <RequestsStrip incoming={incoming} sent={sent} onOpen={() => setShowRequests(true)} /> : null}
+            {list}
+          </div>
+        </>
       )}
     </div>
   );

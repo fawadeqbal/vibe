@@ -19,18 +19,20 @@ import 'wellbeing_section.dart';
 /// The screens behind Me and Settings and activity, one level each: the
 /// system Back (or the app bar arrow) always returns to the page you came from.
 class MeSectionScaffold extends StatelessWidget {
-  const MeSectionScaffold({super.key, required this.title, required this.children, this.footer});
+  const MeSectionScaffold({super.key, required this.title, required this.children, this.footer, this.pinned});
   final String title;
   final List<Widget> children;
+
+  /// Stays put above the scrolling content (e.g. the settings search).
+  final Widget? pinned;
 
   /// Small print under the content (e.g. what a section is for).
   final String? footer;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: vibeAppBar(context, title),
-    body: ListView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+  Widget build(BuildContext context) {
+    final list = ListView(
+      padding: EdgeInsets.fromLTRB(20, pinned == null ? 4 : 0, 20, 32),
       children: [
         ...children,
         if (footer != null)
@@ -39,8 +41,20 @@ class MeSectionScaffold extends StatelessWidget {
             child: Text(footer!, style: VT.body(12, color: V.muted, height: 1.5)),
           ),
       ],
-    ),
-  );
+    );
+    return Scaffold(
+      appBar: vibeAppBar(context, title),
+      body: pinned == null
+          ? list
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: pinned),
+                Expanded(child: list),
+              ],
+            ),
+    );
+  }
 }
 
 /// Me → Progress & badges: level, this week's XP and the badges.

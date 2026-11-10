@@ -79,53 +79,60 @@ export function ChatsList() {
           />
         </>
       ) : (
-        <div className="quiet-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-8">
-          <label className="flex h-12 items-center gap-2.5 rounded-full border border-line bg-surface px-4">
-            <Icon name="search" variant="outlined" size={20} className="shrink-0 text-muted" />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search chats"
-              aria-label="Search chats"
-              className="type-body min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-muted"
-            />
-            {query ? (
-              <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="text-muted hover:text-text">
-                <Icon name="close" size={18} />
-              </button>
-            ) : null}
-          </label>
-          {q ? null : (
-            <>
+        <>
+          {/* Search and moments stay put; only the chats under them scroll. */}
+          <div className="shrink-0 overflow-x-hidden px-4 pb-1">
+            <label className="flex h-12 items-center gap-2.5 rounded-full border border-line bg-surface px-4">
+              <Icon name="search" variant="outlined" size={20} className="shrink-0 text-muted" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search chats"
+                aria-label="Search chats"
+                className="type-body min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-muted"
+              />
+              {query ? (
+                <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="text-muted hover:text-text">
+                  <Icon name="close" size={18} />
+                </button>
+              ) : null}
+            </label>
+            {q ? null : (
               <div className="mt-3.5">
                 <MomentsBar />
               </div>
-              {requests.length ? <RequestsRow requests={requests} /> : null}
-              {!vip && social.likedYouCount > 0 ? (
-                <div className="mt-3.5">
-                  <LikedTeaser people={social.likedYou} count={social.likedYouCount} />
-                </div>
-              ) : null}
-            </>
-          )}
-          <SectionTitle text={q ? `${friends.length} ${plural(friends.length, "match", "matches")}` : `Friends · ${all.length}`} top={22} bottom={10} />
-          {friends.length ? (
-            <div className="overflow-hidden rounded-[22px] border border-line bg-surface">
-              {friends.map((f, i) => (
-                <FriendRow
-                  key={f.profile.id}
-                  f={f}
-                  last={i === friends.length - 1}
-                  active={path === `/chats/${f.profile.id}`}
-                  onRestore={() => void restore(f)}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="type-body px-1 text-[13.5px] text-muted">No friend called “{query.trim()}”.</p>
-          )}
-        </div>
+            )}
+          </div>
+          <div className="quiet-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-8">
+            {q ? null : (
+              <>
+                {requests.length ? <RequestsRow requests={requests} /> : null}
+                {!vip && social.likedYouCount > 0 ? (
+                  <div className="mt-3.5">
+                    <LikedTeaser people={social.likedYou} count={social.likedYouCount} />
+                  </div>
+                ) : null}
+              </>
+            )}
+            <SectionTitle text={q ? `${friends.length} ${plural(friends.length, "match", "matches")}` : `Friends · ${all.length}`} top={22} bottom={10} />
+            {friends.length ? (
+              <div className="overflow-hidden rounded-[22px] border border-line bg-surface">
+                {friends.map((f, i) => (
+                  <FriendRow
+                    key={f.profile.id}
+                    f={f}
+                    last={i === friends.length - 1}
+                    active={path === `/chats/${f.profile.id}`}
+                    onRestore={() => void restore(f)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="type-body px-1 text-[13.5px] text-muted">No friend called “{query.trim()}”.</p>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

@@ -37,28 +37,50 @@ export function FollowListsScreen({ initialTab }: { initialTab: FollowList }) {
   const shown = tabs.includes(tab) ? tab : "followers";
   const settings = useFollows((s) => s.settings);
   const count = (x: FollowList) => (x === "followers" ? settings.followers : x === "following" ? settings.following : null);
+  // The tabs and the search stay put; only the list scrolls.
+  const [query, setQuery] = useState("");
   return (
-    <Screen header={<AppBar title="Followers" onBack={() => (history.length > 1 ? router.back() : router.push("/me/settings"))} />}>
-      <PillTabs
-        className="mb-3"
-        label="Lists"
-        tabs={tabs.map((x) => ({ value: x, label: count(x) ? `${LABEL[x]} · ${compact(count(x)!)}` : LABEL[x] }))}
-        value={shown}
-        onChange={setTab}
-      />
-      <FollowListTab key={shown} which={shown} />
+    <Screen
+      header={<AppBar title="Followers" onBack={() => (history.length > 1 ? router.back() : router.push("/me/settings"))} />}
+      pinned={
+        <>
+          <PillTabs
+            className="mb-3"
+            label="Lists"
+            tabs={tabs.map((x) => ({ value: x, label: count(x) ? `${LABEL[x]} · ${compact(count(x)!)}` : LABEL[x] }))}
+            value={shown}
+            onChange={(x) => {
+              setTab(x);
+              setQuery("");
+            }}
+          />
+          <label className="flex h-12 items-center gap-2.5 rounded-full border border-line bg-surface px-4">
+            <Icon name="search" variant="outlined" size={20} className="shrink-0 text-muted" />
+            <input
+              type="search"
+              value={query}
+              onChange={(ev) => setQuery(ev.target.value)}
+              placeholder={`Search ${LABEL[shown].toLowerCase()}`}
+              aria-label={`Search ${LABEL[shown].toLowerCase()}`}
+              className="type-body min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-muted"
+            />
+          </label>
+        </>
+      }
+      bodyClassName="pt-2"
+    >
+      <FollowListTab key={shown} which={shown} query={query} />
       <p className="type-body mt-3 px-1 text-[12px] text-muted">Only you can see these lists.</p>
     </Screen>
   );
 }
 
-function FollowListTab({ which }: { which: FollowList }) {
+function FollowListTab({ which, query }: { which: FollowList; query: string }) {
   const router = useRouter();
   const [items, setItems] = useState<FollowEntry[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
   const [followedBack, setFollowedBack] = useState<string[]>([]);
-  const [query, setQuery] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -191,17 +213,6 @@ function FollowListTab({ which }: { which: FollowList }) {
   const verb = which === "followers" ? "Followed you" : which === "following" ? "You followed" : "Asked";
   return (
     <div>
-      <label className="mb-3 flex h-12 items-center gap-2.5 rounded-full border border-line bg-surface px-4">
-        <Icon name="search" variant="outlined" size={20} className="shrink-0 text-muted" />
-        <input
-          type="search"
-          value={query}
-          onChange={(ev) => setQuery(ev.target.value)}
-          placeholder={`Search ${LABEL[which].toLowerCase()}`}
-          aria-label={`Search ${LABEL[which].toLowerCase()}`}
-          className="type-body min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-muted"
-        />
-      </label>
       {shown.length ? (
         <GroupCard dividerInset={74}>
           {shown.map((e) => (
