@@ -81,9 +81,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const showBar = tabRoot && !(live && onVideo);
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-bg">
+    // --app-h: the visible height on iPhone while the keyboard is up (useKeyboardViewport); 100dvh otherwise.
+    <div className="flex h-[var(--app-h,100dvh)] overflow-hidden bg-bg">
       {/* Rail (wide screens). */}
-      <nav aria-label="Main" className="sticky top-0 hidden h-dvh w-[92px] shrink-0 flex-col items-center border-r border-line-soft bg-bg py-6 lg:flex">
+      <nav aria-label="Main" className="sticky top-0 hidden h-[var(--app-h,100dvh)] w-[92px] shrink-0 flex-col items-center border-r border-line-soft bg-bg py-6 lg:flex">
         <Link href="/match" aria-label="Vibe home" className="mb-8">
           <VibeLogo size={40} shadow={false} />
         </Link>

@@ -94,7 +94,7 @@ export function MatchScreen() {
   const callActions = { next: () => void actions.next(), gift: () => void actions.gift(), addFriend: () => void actions.addFriend(), report: () => void actions.report() };
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden bg-bg lg:h-dvh">
+    <div className="relative h-[var(--app-h,100dvh)] w-full overflow-hidden bg-bg lg:h-[var(--app-h,100dvh)]">
       {status === "connected" && friendCall && voiceCall ? (
         <FriendVoiceCall actions={{ gift: () => void actions.gift(), report: () => void actions.report() }} />
       ) : status === "connected" && friendCall ? (

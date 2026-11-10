@@ -79,6 +79,42 @@
   --animate-swipe-hint: vibe-swipe-hint 1.8s ease-in-out infinite;
 }
 
+/* The home-bar gap under bottom bars; none while the iPhone keyboard is up (it covers the home bar). */
+:root {
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+html[data-keyboard="open"] {
+  --safe-bottom: 0px;
+}
+
+/*
+ * Phone and tablet browsers zoom into a text box under 16px when you tap it
+ * (iPhone and iPad always; some Android browsers too) and stay zoomed. On any
+ * touch screen, text boxes are at least 16px. Desktop keeps its sizes.
+ */
+@media (pointer: coarse), (hover: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}
+/* iOS browsers that report a fine pointer (iPad with a trackpad) still zoom. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
+/* Old browsers without 100dvh: the full window, until useKeyboardViewport measures it. */
+@supports not (height: 100dvh) {
+  :root {
+    --app-h: 100vh;
+  }
+}
+
 @layer base {
   html {
     color-scheme: dark;

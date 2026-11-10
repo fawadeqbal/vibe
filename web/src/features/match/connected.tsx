@@ -113,7 +113,7 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
           <ChatOverlay partnerName={p.name} compact={!!m.game} />
         </div>
 
-        <div className="absolute inset-x-3 flex items-center gap-2.5 bottom-[calc(22px+env(safe-area-inset-bottom))]">
+        <div className="absolute inset-x-3 flex items-center gap-2.5 bottom-[calc(22px+var(--safe-bottom))]">
           <Composer partnerName={p.name} />
           <NextButton onClick={actions.next} />
         </div>

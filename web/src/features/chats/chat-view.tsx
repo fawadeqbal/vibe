@@ -238,7 +238,7 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
   const seen = !!lastMine && ((lastMine.readAt && lastMine.readAt >= lastMine.at) || (seenAt && seenAt >= lastMine.at));
 
   return (
-    <div className="flex h-dvh min-h-0 min-w-0 flex-1">
+    <div className="flex h-[var(--app-h,100dvh)] min-h-0 min-w-0 flex-1">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
         <AppBar
           onBack={back}
@@ -334,7 +334,7 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
         )}
         {f.state === "friends" ? <CallsCard f={f} state={callState} /> : null}
 
-        <div className="px-3 pt-2 pb-[calc(10px+env(safe-area-inset-bottom))] lg:border-t lg:border-line-soft lg:px-[22px] lg:pt-3.5 lg:pb-4">
+        <div className="px-3 pt-2 pb-[calc(10px+var(--safe-bottom))] lg:border-t lg:border-line-soft lg:px-[22px] lg:pt-3.5 lg:pb-4">
           {replyTo ? (
             <div className="mb-2 flex items-center gap-2 rounded-[14px] border-l-[3px] border-violet bg-violet/10 py-1.5 pr-1.5 pl-3">
               <span className="min-w-0 flex-1">
