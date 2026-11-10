@@ -145,16 +145,16 @@ export function DiscoverAboutPanel({ c, className }: { c: DiscoverCard; classNam
   const first = p.name.split(" ")[0] || p.name;
   const shared = new Set(c.sharedInterests);
   const active = activeLabel(c);
-  const facts: { icon: string; text: string }[] = [
-    { icon: "public", text: p.country.name },
-    { icon: "person", text: [genderLabel[p.gender], p.age ? `${p.age}` : null].filter(Boolean).join(" · ") },
-    ...(p.level ? [{ icon: "emoji_events", text: `Level ${p.level}` }] : []),
+  // Four quick facts as tiles (the desktop design); only the ones we know.
+  const facts: { label: string; value: string; tone?: string }[] = [
+    { label: "From", value: p.country.name },
+    { label: "Age", value: [genderLabel[p.gender], p.age ? `${p.age}` : null].filter(Boolean).join(" · ") },
+    ...(p.intent ? [{ label: "Here to", value: INTENT_SHORT[p.intent] }] : []),
+    ...(p.level ? [{ label: "Level", value: `Level ${p.level}`, tone: "text-lavender" }] : []),
   ];
+  const both = c.sharedInterests.slice(0, 2);
   return (
-    <aside
-      aria-label={`About ${first}`}
-      className={cn("flex w-[380px] shrink-0 flex-col gap-4 overflow-y-auto rounded-[24px] border border-line bg-surface p-5", className)}
-    >
+    <section aria-label={`About ${first}`} className={cn("flex flex-col gap-[18px] rounded-[24px] border border-line bg-surface p-[22px]", className)}>
       <div className="flex items-center gap-2">
         <h2 className="type-title truncate text-[20px] tracking-[-0.02em]">About {first}</h2>
         {p.verified ? <Icon name="verified" size={18} className="shrink-0 text-trust" label="Verified" /> : null}
@@ -162,37 +162,50 @@ export function DiscoverAboutPanel({ c, className }: { c: DiscoverCard; classNam
         {active ? <span className="type-label shrink-0 text-[12.5px] text-ok">{active}</span> : null}
       </div>
       {p.bio ? (
-        <p className="type-body text-[14px] leading-[1.55] text-text">{p.bio}</p>
+        <p className="type-body text-[15px] leading-[1.5] text-text">“{p.bio}”</p>
       ) : (
         <p className="type-body text-[13.5px] text-muted">{first} hasn&apos;t written a bio yet.</p>
       )}
-      <div className="flex flex-col gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5">
         {facts.map((f) => (
-          <span key={f.icon} className="type-body flex items-center gap-2.5 text-[13.5px] text-text2">
-            <Icon name={f.icon} size={18} className="text-muted" />
-            {f.text}
-          </span>
+          <div key={f.label} className="flex min-w-0 flex-col gap-0.5 rounded-[16px] bg-surface2 px-3.5 py-3">
+            <span className="type-body text-[11.5px] text-muted">{f.label}</span>
+            <span className={cn("type-title truncate text-[14.5px] font-bold", f.tone)}>{f.value}</span>
+          </div>
         ))}
       </div>
       {p.interests.length ? (
-        <div>
-          <p className="type-overline mb-2.5">{shared.size ? `${shared.size} interest${shared.size === 1 ? "" : "s"} in common` : "Interests"}</p>
+        <div className="flex flex-col gap-2.5">
+          <p className="type-overline">Interests</p>
           <div className="flex flex-wrap gap-1.5">
             {sortedInterests(p, c.sharedInterests).map((i) => (
               <InterestChip key={i} label={i} shared={shared.has(i)} glass={false} />
             ))}
           </div>
+          {both.length ? <p className="type-body text-[12.5px] text-text2">You both like {both.join(" and ").toLowerCase()}.</p> : null}
         </div>
       ) : null}
-      <span className="flex-1" />
-      <button
-        type="button"
-        onClick={() => void reportOrBlock(c, () => undefined)}
-        className="type-label flex h-11 items-center justify-center gap-2 self-start rounded-full border border-white/10 bg-white/5 px-4 text-[13.5px] text-text2 hover:text-text"
-      >
-        <Icon name="flag" size={18} />
-        Report or block
-      </button>
-    </aside>
+    </section>
   );
 }
+
+/** "Report or block" for the person on top of the deck (desktop, under the side cards). */
+export function ReportOrBlockButton({ c }: { c: DiscoverCard }) {
+  return (
+    <button
+      type="button"
+      onClick={() => void reportOrBlock(c, () => undefined)}
+      className="type-label flex h-10 items-center justify-center gap-2 self-start rounded-full border border-white/10 px-4 text-[13px] text-text2 hover:text-text"
+    >
+      <Icon name="flag" size={17} />
+      Report or block
+    </button>
+  );
+}
+
+const INTENT_SHORT: Record<NonNullable<DiscoverCard["profile"]["intent"]>, string> = {
+  chat: "Chat",
+  friends: "Make friends",
+  dating: "Date",
+  open: "Not sure yet",
+};

@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { useNeedCoins } from "@/components/shared/dialogs";
 import { FaceStack } from "@/components/ui/avatar";
 import { RoundControl } from "@/components/ui/glass";
 import { Icon } from "@/components/ui/icon";
-import { KeyHint } from "@/components/ui/kbd";
 import { CoinChip } from "@/components/ui/money";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { errorMessage } from "@/lib/api/errors";
@@ -23,7 +22,7 @@ import { useWallet } from "@/stores/wallet";
 import { FilterButton, FilterTags } from "@/features/filters/filter-chips";
 
 import { DiscoverCardView } from "./discover-card";
-import { DiscoverAboutPanel, DiscoverProfile } from "./discover-profile";
+import { DiscoverAboutPanel, DiscoverProfile, ReportOrBlockButton } from "./discover-profile";
 import { openDiscoverFilters, openOutOfLikes } from "./discover-sheets";
 import { DeckEmpty, DeckOffline, DeckResting, DeckSkeleton, NoPhotoPanel, OutOfLikesBanner, openWelcomeBack } from "./discover-states";
 
@@ -37,6 +36,11 @@ const SLOW_MS = 8_000;
 const BEHIND: Record<number, CSSProperties> = {
   1: { transform: "scale(0.96) translateY(10px)", opacity: 0.85, transition: "transform 260ms var(--ease-spring, ease-out), opacity 260ms ease-out" },
   2: { transform: "scale(0.92) translateY(20px)", opacity: 0, transition: "transform 260ms var(--ease-spring, ease-out), opacity 260ms ease-out" },
+};
+/** Desktop: the next two peek out behind the card, tilted, so the deck reads as a stack. */
+const BEHIND_DESKTOP: Record<number, CSSProperties> = {
+  1: { transform: "translate(10px, 8px) rotate(1.6deg) scale(0.98)", opacity: 0.9, transition: "transform 260ms var(--ease-spring, ease-out), opacity 260ms ease-out" },
+  2: { transform: "translate(22px, 18px) rotate(3.2deg) scale(0.96)", opacity: 0.55, transition: "transform 260ms var(--ease-spring, ease-out), opacity 260ms ease-out" },
 };
 
 type Fly = { id: string; kind: SwipeKind } | null;
@@ -295,7 +299,10 @@ export function DiscoverScreen() {
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex shrink-0 items-center gap-2 pt-2.5 pr-4 pb-2.5 pl-5 lg:h-[72px] lg:px-7 lg:py-0">
-          <h1 className="flex-1 text-[30px] leading-[1.1] font-bold tracking-[-0.038em] lg:text-[26px] lg:tracking-[-0.03em]">Discover</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[30px] leading-[1.1] font-bold tracking-[-0.038em] lg:text-[28px] lg:tracking-[-0.03em]">Discover</h1>
+            {desktop ? <p className="type-body mt-0.5 truncate text-[13.5px] text-text2">Like someone, and if they like you back you can chat and call.</p> : null}
+          </div>
           {likesPill && !resting ? (
             <button
               type="button"
@@ -314,8 +321,8 @@ export function DiscoverScreen() {
           {desktop ? <DesktopHeaderEnd /> : null}
         </header>
         {resting ? null : desktop ? (
-          <div className="flex shrink-0 items-center gap-3 px-7 pb-[18px] empty:hidden">
-            {likedYou && likedYou.count > 0 ? <LikedYouPill count={likedYou.count} unseen={likedYou.unseen} vip={vip} /> : null}
+          <div className="mx-auto flex w-full max-w-[1180px] shrink-0 items-center gap-3 px-7 pb-[18px] empty:hidden">
+            {likedYou && likedYou.count > 0 && !(top && showCards) ? <LikedYouPill count={likedYou.count} unseen={likedYou.unseen} vip={vip} /> : null}
             <span className="flex-1" />
             <FilterTags className="!mr-0 !pr-0" />
           </div>
@@ -362,9 +369,9 @@ export function DiscoverScreen() {
           </p>
         ) : null}
 
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:justify-center lg:gap-10 lg:px-7 lg:pb-6">
-          <div className="flex min-h-0 flex-1 flex-col lg:w-[440px] lg:flex-none">
-            <div className="relative mx-4 min-h-[380px] flex-1 lg:mx-0 lg:max-h-[640px]">
+        <div className="flex min-h-0 flex-1 flex-col lg:mx-auto lg:w-full lg:max-w-[1180px] lg:flex-row lg:justify-center lg:gap-7 lg:overflow-y-auto lg:px-7 lg:pb-6">
+          <div className="flex min-h-0 flex-1 flex-col lg:w-[440px] lg:flex-none xl:w-[500px]">
+            <div className="relative mx-4 min-h-[380px] flex-1 lg:mx-0 lg:max-h-[660px] lg:min-h-[560px]">
               {resting ? (
                 <DeckResting onMeetLive={() => router.push("/match")} />
               ) : photoGate ? (
@@ -380,7 +387,7 @@ export function DiscoverScreen() {
                       key={c.profile.id}
                       aria-hidden={i > 0 || undefined}
                       className={cn("absolute inset-0", i === 0 ? "touch-none cursor-grab active:cursor-grabbing" : "pointer-events-none")}
-                      style={i === 0 ? { ...topStyle, zIndex: 3 } : { ...BEHIND[i], zIndex: 3 - i }}
+                      style={i === 0 ? { ...topStyle, zIndex: 3 } : { ...(desktop ? BEHIND_DESKTOP : BEHIND)[i], zIndex: 3 - i }}
                       {...(i === 0 ? { onPointerDown: onDown, onPointerMove: onMove, onPointerUp: onUp, onPointerCancel: onCancel } : {})}
                     >
                       <DiscoverCardView
@@ -419,7 +426,8 @@ export function DiscoverScreen() {
 
             {showActions ? (
               <DeckActions
-                className="pt-3.5 pb-[calc(14px+env(safe-area-inset-bottom))] lg:pb-3"
+                className="pt-3.5 pb-[calc(14px+env(safe-area-inset-bottom))] lg:pt-[18px] lg:pb-3"
+                labeled={desktop}
                 disabled={!showCards || !!fly}
                 canUndo={!!lastPassed && !fly && (showCards || refilling)}
                 onUndo={() => void undo()}
@@ -431,16 +439,15 @@ export function DiscoverScreen() {
             ) : (
               <div aria-hidden className="pb-[calc(14px+env(safe-area-inset-bottom))] lg:pb-0" />
             )}
-            {showCards && desktop ? (
-              <div className="flex flex-wrap justify-center gap-[18px] pt-1">
-                <KeyHint k="←" label="Pass" />
-                <KeyHint k="↑" label="Super like" />
-                <KeyHint k="→" label="Like" />
-                <KeyHint k="⌫" label="Undo" />
-              </div>
-            ) : null}
           </div>
-          {desktop && top && showCards && !resting ? <DiscoverAboutPanel c={top} /> : null}
+          {desktop && top && showCards && !resting ? (
+            <div className="flex w-[340px] shrink-0 flex-col gap-4 xl:w-[420px]">
+              <DiscoverAboutPanel c={top} />
+              {deck.length > 1 ? <UpNext cards={deck.slice(1, 4)} /> : null}
+              {likedYou && likedYou.count > 0 ? <LikedYouCard count={likedYou.count} unseen={likedYou.unseen} vip={vip} /> : null}
+              <ReportOrBlockButton c={top} />
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -480,6 +487,7 @@ export function DiscoverScreen() {
  */
 function DeckActions({
   className,
+  labeled = false,
   disabled,
   canUndo,
   onUndo,
@@ -489,6 +497,8 @@ function DeckActions({
   onLive,
 }: {
   className?: string;
+  /** Desktop: each button with its name and keyboard key underneath. */
+  labeled?: boolean;
   disabled: boolean;
   canUndo: boolean;
   onUndo: () => void;
@@ -500,35 +510,45 @@ function DeckActions({
   const status = useDiscover((s) => s.status);
   const outOfLikes = status?.likesLeft === 0;
   return (
-    <div className={cn("flex items-center justify-center gap-4", className)}>
-      <RoundAction
-        label={status?.undoCost && !status.vip ? `Undo (${status.undoCost} coins)` : "Undo"}
-        icon="undo"
-        size={44}
-        color="var(--color-gold)"
-        disabled={!canUndo}
-        onClick={onUndo}
-      />
-      <RoundAction label="Pass" icon="close" size={60} iconSize={28} color="var(--color-text)" disabled={disabled} onClick={onPass} />
-      <RoundAction
-        label={status && status.freeSuperLikesLeft > 0 ? "Super Like (free)" : `Super Like · ${status?.superLikeCost ?? 10} coins`}
-        icon="star"
-        size={52}
-        color="#60a5fa"
-        disabled={disabled}
-        onClick={onSuper}
-      />
-      <RoundAction
-        label={outOfLikes ? "Like (no likes left today)" : "Like"}
-        icon="favorite"
-        size={64}
-        iconSize={30}
-        color={outOfLikes ? "var(--color-muted)" : "#fff"}
-        brand={!outOfLikes}
-        disabled={disabled}
-        onClick={onLike}
-      />
-      <RoundAction label="Meet someone live" icon="videocam" size={44} color="var(--color-pink-soft)" onClick={onLive} />
+    <div className={cn("flex justify-center", labeled ? "items-start gap-[22px]" : "items-center gap-4", className)}>
+      <ActionSlot labeled={labeled} name="Undo" k="⌫">
+        <RoundAction
+          label={status?.undoCost && !status.vip ? `Undo (${status.undoCost} coins)` : "Undo"}
+          icon="undo"
+          size={44}
+          color="var(--color-gold)"
+          disabled={!canUndo}
+          onClick={onUndo}
+        />
+      </ActionSlot>
+      <ActionSlot labeled={labeled} name="Pass" k="←">
+        <RoundAction label="Pass" icon="close" size={60} iconSize={28} color="var(--color-text)" disabled={disabled} onClick={onPass} />
+      </ActionSlot>
+      <ActionSlot labeled={labeled} name="Super like" k="↑">
+        <RoundAction
+          label={status && status.freeSuperLikesLeft > 0 ? "Super Like (free)" : `Super Like · ${status?.superLikeCost ?? 10} coins`}
+          icon="star"
+          size={52}
+          color="#60a5fa"
+          disabled={disabled}
+          onClick={onSuper}
+        />
+      </ActionSlot>
+      <ActionSlot labeled={labeled} name="Like" k="→" strong>
+        <RoundAction
+          label={outOfLikes ? "Like (no likes left today)" : "Like"}
+          icon="favorite"
+          size={64}
+          iconSize={30}
+          color={outOfLikes ? "var(--color-muted)" : "#fff"}
+          brand={!outOfLikes}
+          disabled={disabled}
+          onClick={onLike}
+        />
+      </ActionSlot>
+      <ActionSlot labeled={labeled} name="Call">
+        <RoundAction label="Meet someone live" icon="videocam" size={44} color="var(--color-pink-soft)" onClick={onLive} />
+      </ActionSlot>
     </div>
   );
 }
@@ -600,6 +620,65 @@ function LikedYouPill({ count, unseen, vip }: { count: number; unseen: number; v
       <span className="text-[13px] font-semibold text-gold">{vip ? "Like them back" : "See who with VIP"}</span>
       {unseen > 0 ? <span className="rounded-full bg-pink px-2 py-0.5 text-[11px] font-bold text-white">{unseen} new</span> : null}
       <Icon name="chevron_right" variant="outlined" size={18} className="text-gold" />
+    </Link>
+  );
+}
+
+/** One deck button; on desktop, its name and key sit underneath. */
+function ActionSlot({ labeled, name, k, strong = false, children }: { labeled: boolean; name: string; k?: string; strong?: boolean; children: ReactNode }) {
+  if (!labeled) return <>{children}</>;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex h-16 items-center">{children}</div>
+      <span className={cn("type-label flex items-center gap-1.5 text-[12px]", strong ? "font-semibold text-text" : "text-text2")}>
+        {name}
+        {k ? <kbd className="rounded-[4px] border border-white/14 px-[5px] font-sans text-[10.5px] font-normal text-text2">{k}</kbd> : null}
+      </span>
+    </div>
+  );
+}
+
+/** Desktop: the next people in the deck, as small photo tiles. */
+function UpNext({ cards }: { cards: DiscoverCard[] }) {
+  return (
+    <section aria-label="Up next" className="flex flex-col gap-3.5 rounded-[24px] border border-line bg-surface px-[22px] py-[18px]">
+      <h3 className="type-title text-[15px] font-bold">Up next</h3>
+      <ul className="flex gap-2.5">
+        {cards.map((c) => (
+          <li key={c.profile.id} className="relative h-[112px] min-w-0 flex-1 overflow-hidden rounded-[16px] bg-surface2">
+            {c.profile.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={c.profile.avatarUrl} alt="" className="absolute inset-0 size-full object-cover" />
+            ) : null}
+            <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+            <span className="type-title absolute right-2 bottom-2 left-2.5 truncate text-[13px] font-bold text-white">
+              {c.profile.name.split(" ")[0]}
+              {c.profile.age ? `, ${c.profile.age}` : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Desktop: who liked you, as a card beside the deck. */
+function LikedYouCard({ count, unseen, vip }: { count: number; unseen: number; vip: boolean }) {
+  return (
+    <Link
+      href="/discover/liked-you"
+      aria-label="See who liked you"
+      className="flex items-center gap-3.5 rounded-[24px] border border-pink-soft/25 bg-[linear-gradient(135deg,rgb(255_61_143/0.14),rgb(139_92_246/0.14))] px-[22px] py-[18px] hover:brightness-110"
+    >
+      <LikedYouFaces />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="type-title truncate text-[14.5px] font-bold">
+          {count} {count === 1 ? "person" : "people"} liked you
+        </span>
+        <span className="type-body truncate text-[12.5px] text-text2">{vip ? "Like them back to start chatting." : "Like them back to match · VIP shows who"}</span>
+      </span>
+      {unseen > 0 ? <span className="rounded-full bg-pink px-2 py-0.5 text-[11px] font-bold text-white">{unseen} new</span> : null}
+      <span className="type-label shrink-0 text-[13px] font-bold text-pink-soft">See them</span>
     </Link>
   );
 }

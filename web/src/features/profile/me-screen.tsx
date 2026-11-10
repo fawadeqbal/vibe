@@ -5,6 +5,7 @@ import { useEffect } from "react";
 
 import { Screen } from "@/components/layout/screen";
 import { CircleIconButton } from "@/components/ui/button";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import { Icon } from "@/components/ui/icon";
 import { CoinChip } from "@/components/ui/money";
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,6 +17,7 @@ import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { isVip, useWallet } from "@/stores/wallet";
 
+import { MeDesktop } from "./me-desktop";
 import { CompleteProfile, ProfileHeader, RecentMatches } from "./me-overview";
 
 /**
@@ -30,11 +32,39 @@ export function MeScreen() {
   const me = useSession((s) => s.me);
   const wallet = useWallet((s) => s.wallet);
   const economy = useCatalog((s) => s.economy);
+  const desktop = useIsDesktop();
   useEffect(() => {
     if (!useMatch.getState().history.length) void useMatch.getState().load();
   }, []);
   if (!me) return null;
   const vip = isVip(wallet);
+
+  if (desktop)
+    return (
+      <Screen
+        width="xl"
+        header={
+          <PageHeader
+            title="Me"
+            actions={
+              <div className="flex items-center gap-2.5">
+                <CoinChip coins={wallet.coins} onClick={() => router.push("/wallet")} showPlus={false} />
+                <button
+                  type="button"
+                  onClick={() => router.push("/me/settings")}
+                  className="type-label flex h-10 items-center gap-2 rounded-full border border-white/10 bg-surface px-4 text-[13px] font-semibold text-text transition-colors hover:bg-white/8"
+                >
+                  <Icon name="settings" size={18} />
+                  Settings
+                </button>
+              </div>
+            }
+          />
+        }
+      >
+        <MeDesktop me={me} />
+      </Screen>
+    );
 
   return (
     <Screen
