@@ -5,7 +5,16 @@ import type { LastMessage } from "@/lib/models";
 import { chatPreview } from "./chat-preview";
 
 const at = new Date("2026-11-10T10:00:00Z");
-const last = (x: Partial<LastMessage>): LastMessage => ({ fromMe: false, kind: "text", read: false, unsent: false, event: null, seconds: null, ...x });
+const last = (x: Partial<LastMessage>): LastMessage => ({
+  fromMe: false,
+  kind: "text",
+  delivered: false,
+  read: false,
+  unsent: false,
+  event: null,
+  seconds: null,
+  ...x,
+});
 const p = (x: Partial<LastMessage> | null, text: string | null = "hey", seenAt?: Date) =>
   chatPreview({ last: x ? last(x) : null, lastMessage: text, lastMessageAt: at }, seenAt);
 
@@ -13,6 +22,7 @@ describe("chatPreview", () => {
   it("their text as is; yours with You: and a tick", () => {
     expect(p({})).toEqual({ text: "hey", icon: null, ticks: null, missed: false });
     expect(p({ fromMe: true })).toMatchObject({ text: "You: hey", ticks: "sent" });
+    expect(p({ fromMe: true, delivered: true })).toMatchObject({ ticks: "delivered" });
     expect(p({ fromMe: true, read: true })).toMatchObject({ ticks: "seen" });
   });
 

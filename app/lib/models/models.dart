@@ -397,9 +397,12 @@ class CallsView {
 
 /// The last message of a chat, for its line in the chats list.
 class LastMessage {
-  const LastMessage({required this.fromMe, this.kind = MessageKind.text, this.read = false, this.unsent = false, this.event, this.seconds});
+  const LastMessage({required this.fromMe, this.kind = MessageKind.text, this.delivered = false, this.read = false, this.unsent = false, this.event, this.seconds});
   final bool fromMe;
   final MessageKind kind;
+
+  /// Yours, and it reached their phone or an open tab (two grey ticks).
+  final bool delivered;
 
   /// Yours, and they've read it.
   final bool read;
@@ -414,6 +417,7 @@ class LastMessage {
   factory LastMessage.of(ChatMessage m) => LastMessage(
         fromMe: m.fromMe,
         kind: m.kind,
+        delivered: m.fromMe && (m.deliveredAt != null || m.readAt != null),
         read: m.fromMe && m.readAt != null,
         unsent: m.unsent,
         event: m.meta?['event'] as String?,
@@ -423,13 +427,14 @@ class LastMessage {
   factory LastMessage.fromJson(Map<String, dynamic> j) => LastMessage(
         fromMe: j['fromMe'] == true,
         kind: MessageKind.values.firstWhere((k) => k.name == j['kind'], orElse: () => MessageKind.text),
+        delivered: j['delivered'] == true || j['read'] == true,
         read: j['read'] == true,
         unsent: j['unsent'] == true,
         event: j['event'] as String?,
         seconds: (j['seconds'] as num?)?.toInt(),
       );
 
-  Map<String, dynamic> toJson() => {'fromMe': fromMe, 'kind': kind.name, 'read': read, 'unsent': unsent, 'event': event, 'seconds': seconds};
+  Map<String, dynamic> toJson() => {'fromMe': fromMe, 'kind': kind.name, 'delivered': delivered, 'read': read, 'unsent': unsent, 'event': event, 'seconds': seconds};
 }
 
 class Friend {
@@ -488,6 +493,7 @@ class ChatMessage {
     this.reactionTheirs,
     this.unsent = false,
     this.edited = false,
+    this.deliveredAt,
     this.readAt,
     this.pending = false,
     this.failed = false,
@@ -516,6 +522,9 @@ class ChatMessage {
   /// Its sender changed the text: "edited" under it.
   final bool edited;
 
+  /// Reached their phone or an open tab (your messages: two grey ticks).
+  final DateTime? deliveredAt;
+
   /// When they read it (your messages).
   final DateTime? readAt;
 
@@ -535,7 +544,7 @@ class ChatMessage {
   String? get event => meta?['event'] as String?;
   String? get mediaUrl => meta?['url'] as String?;
 
-  ChatMessage copyWith({DateTime? readAt, String? reactionMine, String? reactionTheirs, bool clearMine = false, bool clearTheirs = false, bool? unsent, bool? edited, String? text, ReplyRef? replyTo, bool? pending, bool? failed}) => ChatMessage(
+  ChatMessage copyWith({DateTime? deliveredAt, DateTime? readAt, String? reactionMine, String? reactionTheirs, bool clearMine = false, bool clearTheirs = false, bool? unsent, bool? edited, String? text, ReplyRef? replyTo, bool? pending, bool? failed}) => ChatMessage(
         id: id,
         fromMe: fromMe,
         text: text ?? this.text,
@@ -548,6 +557,7 @@ class ChatMessage {
         reactionTheirs: clearTheirs ? null : (reactionTheirs ?? this.reactionTheirs),
         unsent: unsent ?? this.unsent,
         edited: edited ?? this.edited,
+        deliveredAt: deliveredAt ?? this.deliveredAt,
         readAt: readAt ?? this.readAt,
         pending: pending ?? this.pending,
         failed: failed ?? this.failed,

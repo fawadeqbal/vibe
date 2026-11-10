@@ -31,7 +31,9 @@ export class FriendsController {
 
   @Get()
   @ApiOperation({ summary: 'Friends and pending requests (incoming + sent), most recent chat first' })
-  list(@CurrentUser('id') me: string) {
+  async list(@CurrentUser('id') me: string) {
+    // Opening the app: messages waiting for you have now reached you (their senders see two grey ticks).
+    await this.messages.markDelivered(me);
     return this.friends.list(me);
   }
 
@@ -71,7 +73,8 @@ export class FriendsController {
   }
 
   @Get(':userId/messages')
-  messagesList(@CurrentUser('id') me: string, @Param('userId') userId: string, @Query() q: CursorQueryDto) {
+  async messagesList(@CurrentUser('id') me: string, @Param('userId') userId: string, @Query() q: CursorQueryDto) {
+    await this.messages.markDelivered(me);
     return this.messages.list(me, userId, q);
   }
 

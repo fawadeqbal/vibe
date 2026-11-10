@@ -41,6 +41,44 @@ describe('chat tools', () => {
   const say = async (from: TestUser, to: TestUser, text: string, replyToId?: string) =>
     (await t.http.post(`/v1/friends/${to.id}/messages`).set(from.auth).send({ text, ...(replyToId ? { replyToId } : {}) }).expect(201)).body;
 
+  it('ticks: sent while they are away, delivered once they connect or open the app, then read', async () => {
+    const { a, b } = await friends();
+    const sa = await online(a);
+    // Bina is away: one tick.
+    const first = await say(a, b, 'you there?');
+    expect(first).toMatchObject({ deliveredAt: null, readAt: null });
+    expect((await t.http.get('/v1/friends').set(a.auth).expect(200)).body[0].last).toMatchObject({ fromMe: true, delivered: false, read: false });
+
+    // Her phone connects: two grey ticks, live.
+    const delivered = next(sa, 'message:delivered');
+    const sb = await online(b);
+    expect(await delivered).toMatchObject({ friendId: b.id });
+    const page = (await t.http.get(`/v1/friends/${b.id}/messages`).set(a.auth).expect(200)).body.items;
+    expect(page.find((m: { id: string }) => m.id === first.id).deliveredAt).toEqual(expect.any(String));
+
+    // While she's connected, new messages go out delivered.
+    const second = await say(a, b, 'call later?');
+    expect(second.deliveredAt).toEqual(expect.any(String));
+    expect(second.readAt).toBeNull();
+
+    // She reads: coloured ticks; the list says so too.
+    const read = next(sa, 'message:read');
+    await t.http.post(`/v1/friends/${a.id}/read`).set(b.auth).expect(200);
+    expect(await read).toMatchObject({ friendId: b.id });
+    expect((await t.http.get('/v1/friends').set(a.auth).expect(200)).body[0].last).toMatchObject({ delivered: true, read: true });
+
+    // Away again, then she opens the app (no socket yet): loading her chats delivers what waited.
+    sb.disconnect();
+    await sleep(200);
+    await t.redis.client.zrem('presence:online', b.id).catch(() => 0);
+    const third = await say(a, b, 'night!');
+    const late = next(sa, 'message:delivered');
+    await t.http.get('/v1/friends').set(b.auth).expect(200);
+    expect(await late).toMatchObject({ friendId: b.id });
+    const after = (await t.http.get(`/v1/friends/${b.id}/messages`).set(a.auth).expect(200)).body.items;
+    expect(after.find((m: { id: string }) => m.id === third.id).deliveredAt).toEqual(expect.any(String));
+  });
+
   it('replies quote the message; reactions are one each and live; unsend clears it for both', async () => {
     const { a, b } = await friends();
     const sa = await online(a);

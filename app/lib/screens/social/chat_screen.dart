@@ -24,6 +24,7 @@ import '../store/store_screen.dart';
 import 'chat_calls.dart';
 import 'chat_sheets.dart';
 import 'chat_tools.dart';
+import 'message_status.dart';
 import 'streaks.dart';
 
 /// Text chat with a friend. Gifts here earn them gems too — that is what
@@ -45,6 +46,9 @@ class _ChatScreenState extends State<ChatScreen> {
   final _focus = FocusNode();
 
   late final SocialProvider _social = context.read<SocialProvider>();
+
+  /// "N new messages" marks what was unread when you opened the chat (not what arrives while you're in it).
+  final _openedAt = DateTime.now();
   late final AppServices _services = context.read<AppServices>();
 
   ChatMessage? _replyTo;
@@ -270,6 +274,9 @@ class _ChatScreenState extends State<ChatScreen> {
           });
           _text.value = TextEditingValue(text: m.text, selection: TextSelection.collapsed(offset: m.text.length));
           _focus.requestFocus();
+        case PlainAction(action: SimpleAction.info):
+          final t = statusTimes(m, seenAt: _social.seenAt(widget.friendId), deliveredAt: _social.deliveredAt(widget.friendId));
+          await showMessageInfo(context, m, name: f.profile.name, sent: t.sent, delivered: t.delivered, seen: t.seen);
         case PlainAction(action: SimpleAction.copy):
           await copyMessage(context, m);
         case PlainAction(action: SimpleAction.unsend):
@@ -373,10 +380,12 @@ class _ChatScreenState extends State<ChatScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _maybeLoadOlder());
     }
     final older = social.hasOlder(widget.friendId) || social.loadingOlder(widget.friendId);
-    // "Seen" under your last message once they've read it.
-    final lastMine = msgs.lastIndexWhere((m) => m.fromMe && !m.isSystem);
+    // Ticks on your messages: live receipts count for everything sent before them.
     final seenAt = social.seenAt(widget.friendId);
-    final seen = lastMine >= 0 && (msgs[lastMine].readAt != null || (seenAt != null && !seenAt.isBefore(msgs[lastMine].at))) && !msgs[lastMine].pending && !msgs[lastMine].failed;
+    final deliveredAt = social.deliveredAt(widget.friendId);
+    bool isNew(ChatMessage m) => !m.fromMe && !m.isSystem && m.readAt == null && m.at.isBefore(_openedAt);
+    final firstNew = msgs.indexWhere(isNew);
+    final newCount = firstNew < 0 ? 0 : msgs.skip(firstNew).where(isNew).length;
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 64,
@@ -495,29 +504,38 @@ class _ChatScreenState extends State<ChatScreen> {
                       }
                       final i = msgs.length - 1 - j;
                       final m = msgs[i];
+                      // A day line above the first message of each day, and "N new messages" where you stopped reading.
+                      Widget lines(Widget child) {
+                        final day = i == 0 || !Fmt.sameDay(msgs[i - 1].at, m.at);
+                        if (!day && i != firstNew) return child;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [if (day) _DayLine(m.at), if (i == firstNew) _NewLine(newCount), child],
+                        );
+                      }
                       if (m.isSystem) {
-                        return SystemLine(m: m, onCallBack: f.calls.on ? (video) => context.read<CallsProvider>().ring(f.profile, video && f.calls.video ? CallMedia.video : CallMedia.voice) : null);
+                        return lines(SystemLine(m: m, onCallBack: f.calls.on ? (video) => context.read<CallsProvider>().ring(f.profile, video && f.calls.video ? CallMedia.video : CallMedia.voice) : null));
                       }
                       final next = i + 1 < msgs.length ? msgs[i + 1] : null;
                       final bubble = _Bubble(
                         m: m,
                         friend: f.profile,
-                        tail: next == null || next.isSystem || next.fromMe != m.fromMe,
+                        tail: next == null || next.isSystem || next.fromMe != m.fromMe || !Fmt.sameDay(next.at, m.at),
                         friendName: f.profile.name,
-                        seen: seen && i == lastMine,
+                        status: messageStatus(m, seenAt: seenAt, deliveredAt: deliveredAt),
                         onLongPress: () => _longPress(m, f),
                         onSwipe: () => _startReply(m),
                         onReactionTap: m.reactionMine != null ? () => _social.react(widget.friendId, m.id, null) : null,
                       );
-                      if (m.id != widget.focusMessageId) return bubble;
+                      if (m.id != widget.focusMessageId) return lines(bubble);
                       final on = _focusId == m.id;
-                      return AnimatedContainer(
+                      return lines(AnimatedContainer(
                         key: _focusKey,
                         duration: const Duration(milliseconds: 500),
                         padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), border: Border.all(color: on ? V.pinkSoft : Colors.transparent, width: 2)),
                         child: bubble,
-                      );
+                      ));
                     },
                   ),
           ),
@@ -644,16 +662,18 @@ class _ChatScreenState extends State<ChatScreen> {
 }
 
 /// One message: text, gift, photo or voice note, with its reply quote,
-/// reaction, time and "Seen".
+/// reaction, and the time with your ticks in its corner.
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.m, required this.friend, required this.tail, required this.friendName, required this.seen, required this.onLongPress, this.onSwipe, this.onReactionTap});
+  const _Bubble({required this.m, required this.friend, required this.tail, required this.friendName, required this.status, required this.onLongPress, this.onSwipe, this.onReactionTap});
   final ChatMessage m;
   final Profile friend;
 
   /// The last of a run from one side: the corner tightens and their avatar shows.
   final bool tail;
   final String friendName;
-  final bool seen;
+
+  /// Your message: sending, sent, delivered, seen or not sent (the ticks).
+  final MessageStatus? status;
   final VoidCallback onLongPress;
 
   /// Swiped right: reply to it.
@@ -714,25 +734,27 @@ class _Bubble extends StatelessWidget {
               ],
             )
           else if (photo)
-            PhotoBubble(m: m)
-          else if (m.kind == MessageKind.voice)
-            VoiceNoteBubble(m: m)
-          else
-            Text.rich(
-              TextSpan(
-                text: m.text,
-                children: [
-                  if (m.edited) TextSpan(text: '  edited', style: VT.label(11, color: plainMine ? Colors.white60 : V.muted, weight: FontWeight.w500)),
-                ],
-              ),
-              style: VT.body(14.5, color: fg, height: 1.4),
-            ),
-          if (m.pending)
-            Padding(
-              padding: EdgeInsets.fromLTRB(photo ? 6 : 0, 2, photo ? 6 : 0, 0),
-              child: Text('Sending…', style: VT.label(10, color: plainMine ? Colors.white70 : V.muted, weight: FontWeight.w500)),
+            Stack(
+              children: [
+                PhotoBubble(m: m),
+                Positioned(right: 8, bottom: 8, child: _Meta(m: m, status: status, overlay: true)),
+              ],
             )
-          else if (m.failed)
+          else if (m.kind == MessageKind.voice) ...[
+            VoiceNoteBubble(m: m),
+            Align(alignment: Alignment.centerRight, child: _Meta(m: m, status: status, onMine: mine)),
+          ] else
+            // The time and ticks follow the text: on its last line when there's room, else just under it, at the end.
+            Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.end,
+              spacing: 8,
+              children: [
+                Text(m.text, style: VT.body(14.5, color: fg, height: 1.4)),
+                Padding(padding: const EdgeInsets.only(bottom: 1), child: _Meta(m: m, status: status, onMine: plainMine)),
+              ],
+            ),
+          if (m.failed)
             Semantics(
               button: true,
               child: GestureDetector(
@@ -794,14 +816,78 @@ class _Bubble extends StatelessWidget {
           ),
           ),
           if (mine && m.hidden && !m.unsent) Padding(padding: EdgeInsets.only(top: reactions.isNotEmpty ? 12 : 0), child: const HiddenNote()),
-          if (seen)
-            Padding(
-              padding: const EdgeInsets.only(top: 2, right: 4),
-              child: Text(
-                'Seen',
-                style: VT.label(10.5, color: V.muted, weight: FontWeight.w600),
-              ),
-            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Time and ticks in the corner of a bubble (and "edited"), like WhatsApp.
+class _Meta extends StatelessWidget {
+  const _Meta({required this.m, required this.status, this.onMine = false, this.overlay = false});
+  final ChatMessage m;
+  final MessageStatus? status;
+  final bool onMine;
+
+  /// On a photo: a dark pill over its corner.
+  final bool overlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = overlay ? Colors.white : (onMine ? Colors.white.withValues(alpha: 0.7) : V.muted);
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (m.edited) Text('edited ', style: VT.label(11, color: color, weight: FontWeight.w500).copyWith(fontStyle: FontStyle.italic)),
+        Text(Fmt.time(m.at), style: VT.number(11, color: color, weight: FontWeight.w500)),
+        if (status != null) ...[const SizedBox(width: 3), Ticks(status!, onMine: onMine || overlay)],
+      ],
+    );
+    if (!overlay) return row;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), borderRadius: BorderRadius.circular(10)),
+      child: row,
+    );
+  }
+}
+
+/// Today · Yesterday · Monday · 12 Oct, between days.
+class _DayLine extends StatelessWidget {
+  const _DayLine(this.at);
+  final DateTime at;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(12)),
+            child: Text(Fmt.dayLine(at), style: VT.label(12, color: V.text2, weight: FontWeight.w600)),
+          ),
+        ),
+      );
+}
+
+/// Where you stopped reading: "3 new messages".
+class _NewLine extends StatelessWidget {
+  const _NewLine(this.count);
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final line = Expanded(child: Container(height: 1, color: V.pink.withValues(alpha: 0.35)));
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          line,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text('$count new ${count == 1 ? 'message' : 'messages'}', style: VT.label(12, color: V.pinkSoft, weight: FontWeight.w700)),
+          ),
+          line,
         ],
       ),
     );

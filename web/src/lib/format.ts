@@ -157,4 +157,16 @@ export const date = (t: Date) => `${t.getDate()} ${MONTHS[t.getMonth()]} ${t.get
 export const sameDay = (a: Date | null | undefined, b: Date | null | undefined) =>
   !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** A chat's day line: Today, Yesterday, a weekday this past week, else 12 Oct (and the year if not this one). */
+export function dayLine(t: Date, now = new Date()): string {
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((start(now) - start(t)) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return WEEKDAYS[t.getDay()];
+  return t.getFullYear() === now.getFullYear() ? `${t.getDate()} ${MONTHS[t.getMonth()]}` : date(t);
+}
+
 export const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);

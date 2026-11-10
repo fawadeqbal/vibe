@@ -13,6 +13,7 @@ import '../store/vip_screen.dart';
 import '../../core/api/api_exception.dart';
 import 'chat_preview.dart';
 import 'chat_screen.dart';
+import 'message_status.dart';
 import 'moments.dart';
 import 'streaks.dart';
 
@@ -394,7 +395,8 @@ class _ChatRow extends StatelessWidget {
     final unread = f.unread > 0;
     final typing = context.select<SocialProvider, bool>((s) => s.isTyping(f.profile.id));
     final seenAt = context.select<SocialProvider, DateTime?>((s) => s.seenAt(f.profile.id));
-    final p = ChatPreview.of(f, seenAt: seenAt);
+    final deliveredAt = context.select<SocialProvider, DateTime?>((s) => s.deliveredAt(f.profile.id));
+    final p = ChatPreview.of(f, seenAt: seenAt, deliveredAt: deliveredAt);
     final color = typing ? V.ok : (p.missed ? V.bad : (unread ? V.text : V.text2));
     return InkWell(
         onTap: onTap,
@@ -436,7 +438,11 @@ class _ChatRow extends StatelessWidget {
                           const Spacer(),
                         ] else ...[
                           if (!typing && p.ticks != null) ...[
-                            Icon(p.ticks == PreviewTicks.seen ? Icons.done_all_rounded : Icons.done_rounded, size: 16, color: p.ticks == PreviewTicks.seen ? V.trust : V.muted, semanticLabel: p.ticks == PreviewTicks.seen ? 'Seen' : 'Sent'),
+                            Ticks(switch (p.ticks!) {
+                              PreviewTicks.seen => MessageStatus.seen,
+                              PreviewTicks.delivered => MessageStatus.delivered,
+                              PreviewTicks.sent => MessageStatus.sent,
+                            }),
                             const SizedBox(width: 4),
                           ],
                           if (!typing && p.icon != null) ...[

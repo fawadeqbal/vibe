@@ -293,6 +293,7 @@ class ApiMap {
       reactionTheirs: re['theirs'] as String?,
       unsent: m['unsent'] == true,
       edited: m['edited'] == true,
+      deliveredAt: date(m['deliveredAt']),
       readAt: date(m['readAt']),
     );
   }

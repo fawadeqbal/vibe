@@ -20,6 +20,7 @@ import { toast } from "@/stores/ui";
 import { isVip, useWallet } from "@/stores/wallet";
 
 import { chatPreview } from "./chat-preview";
+import { Ticks } from "./ticks";
 import { MomentsBar } from "./moments-bar";
 import { useRestoreStreak } from "./streak";
 
@@ -246,9 +247,10 @@ function ChatRow({ f, active, onRestore }: { f: Friend; active: boolean; onResto
   const at = useSocial((s) => lastActivity(s.chats, f));
   const typing = useSocial((s) => !!s.typing[f.profile.id]);
   const seenAt = useSocial((s) => s.seenAt[f.profile.id]);
+  const deliveredAt = useSocial((s) => s.deliveredAt[f.profile.id]);
   const unread = f.unread > 0;
   const restorable = f.streak.restorable && f.streak.lostCount > 0;
-  const p = chatPreview(f, seenAt);
+  const p = chatPreview(f, seenAt, deliveredAt);
   const tone = typing ? "font-semibold text-ok" : p.missed ? "text-bad" : unread ? "font-semibold text-text" : "text-text2";
   // The whole row opens the chat (a stretched link), so "Restore" can be its own button.
   return (
@@ -302,14 +304,7 @@ function ChatRow({ f, active, onRestore }: { f: Friend; active: boolean; onResto
             </span>
           ) : (
             <>
-              {!typing && p.ticks ? (
-                <Icon
-                  name={p.ticks === "seen" ? "done_all" : "done"}
-                  size={16}
-                  className={cn("shrink-0", p.ticks === "seen" ? "text-trust" : "text-muted")}
-                  label={p.ticks === "seen" ? "Seen" : "Sent"}
-                />
-              ) : null}
+              {!typing && p.ticks ? <Ticks status={p.ticks} /> : null}
               {!typing && p.icon ? (
                 <Icon
                   name={PREVIEW_ICON[p.icon]}

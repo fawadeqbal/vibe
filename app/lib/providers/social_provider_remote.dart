@@ -28,6 +28,11 @@ class RemoteSocialProvider extends SocialProvider {
         final at = DateTime.tryParse('${e['at']}');
         if (id != null && at != null) noteSeen(id, at);
       }),
+      _rt.on(Ev.messagesDelivered).listen((e) {
+        final id = e['friendId'] as String?;
+        final at = DateTime.tryParse('${e['at']}');
+        if (id != null && at != null) noteDelivered(id, at);
+      }),
     ];
   }
 

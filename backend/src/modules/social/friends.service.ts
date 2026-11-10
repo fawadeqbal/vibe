@@ -41,6 +41,8 @@ export interface FriendView {
 export interface LastMessageView {
   fromMe: boolean;
   kind: 'text' | 'gift' | 'system' | 'photo' | 'voice';
+  /** Yours, and it reached their phone or an open tab (two grey ticks). */
+  delivered: boolean;
   /** Yours, and they've read it. */
   read: boolean;
   unsent: boolean;
@@ -197,9 +199,9 @@ export class FriendsService {
     const [users, last, unread, online, myWallet] = await Promise.all([
       this.prisma.user.findMany({ where: { id: { in: otherIds } }, include: PROFILE_INCLUDE }),
       this.prisma.$queryRaw<
-        { friendshipId: string; text: string; giftId: string | null; createdAt: Date; senderId: string; kind: string; readAt: Date | null; unsentAt: Date | null; meta: unknown }[]
+        { friendshipId: string; text: string; giftId: string | null; createdAt: Date; senderId: string; kind: string; deliveredAt: Date | null; readAt: Date | null; unsentAt: Date | null; meta: unknown }[]
       >`
-        SELECT DISTINCT ON ("friendshipId") "friendshipId", "text", "giftId", "createdAt", "senderId", "kind", "readAt", "unsentAt", "meta"
+        SELECT DISTINCT ON ("friendshipId") "friendshipId", "text", "giftId", "createdAt", "senderId", "kind", "deliveredAt", "readAt", "unsentAt", "meta"
           FROM "Message" WHERE "friendshipId" IN (${Prisma.join(ids)})
          ORDER BY "friendshipId", "createdAt" DESC`,
       this.prisma.message.groupBy({ by: ['friendshipId'], where: { friendshipId: { in: ids }, senderId: { not: me }, readAt: null }, _count: { _all: true } }),
@@ -239,11 +241,12 @@ export class FriendsService {
   }
 }
 
-function lastView(m: { senderId: string; kind: string; readAt: Date | null; unsentAt: Date | null; meta: unknown }, me: string): LastMessageView {
+function lastView(m: { senderId: string; kind: string; deliveredAt: Date | null; readAt: Date | null; unsentAt: Date | null; meta: unknown }, me: string): LastMessageView {
   const meta = m.meta && typeof m.meta === 'object' ? (m.meta as Record<string, unknown>) : {};
   return {
     fromMe: m.senderId === me,
     kind: m.kind.toLowerCase() as LastMessageView['kind'],
+    delivered: m.senderId === me && !!(m.deliveredAt ?? m.readAt),
     read: m.senderId === me && !!m.readAt,
     unsent: !!m.unsentAt,
     event: typeof meta.event === 'string' ? meta.event : null,
