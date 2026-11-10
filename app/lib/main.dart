@@ -108,7 +108,7 @@ Future<void> main() async {
     referrals = RemoteReferralsProvider(api, realtime);
     partner = RemotePartnerProvider(api, realtime);
     discover = RemoteDiscoverProvider(api, realtime, social);
-    calls = RemoteCallsProvider(api, realtime, social, match);
+    calls = RemoteCallsProvider(api, realtime, social, match, session);
     filters = RemoteFiltersProvider(api);
   } else {
     session = SessionProvider(backend, invites: invites);

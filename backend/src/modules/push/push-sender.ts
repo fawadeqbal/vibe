@@ -28,17 +28,6 @@ export interface PushMessage {
   replaceKey?: string;
   /** Account and safety alerts, calls: go out even in quiet hours. */
   urgent?: boolean;
-  /**
-   * An incoming call: on Android a data-only, high-priority message that
-   * wakes the app even when it's closed, so it can ring full screen (it
-   * draws its own notification from `data`); dropped after `ttlSeconds`
-   * (the call is over by then). iOS still gets a normal alert.
-   */
-  ring?: { ttlSeconds: number };
-  /** Data-only (the app draws the notification itself), e.g. the missed call that stops its ringing. */
-  dataOnly?: boolean;
-  /** Only for the app, never shown (stop ringing): sent to Android apps that ring full screen, skipped elsewhere. */
-  silent?: boolean;
 }
 
 /** ok = delivered to FCM; invalid = drop this token; retry = transient. */
@@ -83,20 +72,13 @@ export class FcmPushSender implements PushSender {
       method: 'POST',
       headers: { Authorization: `Bearer ${access}` },
       body: {
-        message: msg.ring || msg.dataOnly
-          ? {
-              token,
-              data: { ...msg.data, category: msg.category, title: msg.title, body: msg.body },
-              android: { priority: 'HIGH', ...(msg.ring ? { ttl: `${Math.max(1, Math.round(msg.ring.ttlSeconds))}s` } : {}) },
-              apns: { headers: { 'apns-priority': '10' }, payload: { aps: { alert: { title: msg.title, body: msg.body }, sound: 'default' } } },
-            }
-          : {
-              token,
-              notification: { title: msg.title, body: msg.body },
-              data: { ...msg.data, category: msg.category },
-              android: { priority: 'HIGH', notification: { channel_id: msg.category, ...(msg.replaceKey ? { tag: msg.replaceKey } : {}) } },
-              apns: { payload: { aps: { sound: 'default', ...(msg.collapseKey ? { 'thread-id': msg.collapseKey } : {}) } } },
-            },
+        message: {
+          token,
+          notification: { title: msg.title, body: msg.body },
+          data: { ...msg.data, category: msg.category },
+          android: { priority: 'HIGH', notification: { channel_id: msg.category, ...(msg.replaceKey ? { tag: msg.replaceKey } : {}) } },
+          apns: { payload: { aps: { sound: 'default', ...(msg.collapseKey ? { 'thread-id': msg.collapseKey } : {}) } } },
+        },
       },
       acceptAnyStatus: true,
       timeoutMs: 10_000,

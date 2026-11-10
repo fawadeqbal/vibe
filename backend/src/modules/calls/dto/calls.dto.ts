@@ -32,32 +32,16 @@ export class AcceptCallDto {
   @IsOptional()
   @IsIn(['voice', 'video'])
   media?: 'voice' | 'video';
+
+  @ApiPropertyOptional({ description: 'Which of your devices picked up; your other devices close ("Answered on your other device")' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  deviceId?: string;
 }
 
 export class DeclineCallDto {
   @ApiPropertyOptional({ example: "Can't talk now", description: 'A quick reply, sent as a chat message' })
-  @IsOptional()
-  @IsString()
-  @Length(1, 200)
-  reply?: string;
-}
-
-export class CallPushActionDto {
-  @ApiProperty({ description: 'Who was called (from the push)' })
-  @IsString()
-  @Length(1, 64)
-  userId!: string;
-
-  @ApiProperty({ description: 'The token the call push carried' })
-  @IsString()
-  @Length(10, 64)
-  t!: string;
-
-  @ApiProperty({ enum: ['ringing', 'decline'] })
-  @IsIn(['ringing', 'decline'])
-  action!: 'ringing' | 'decline';
-
-  @ApiPropertyOptional({ example: 'Call me in 10 min' })
   @IsOptional()
   @IsString()
   @Length(1, 200)

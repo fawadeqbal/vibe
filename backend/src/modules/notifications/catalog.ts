@@ -52,12 +52,6 @@ export interface Content {
   button?: string;
   /** Longer text for the inbox and e-mail (default: body). */
   detail?: string;
-  /** An incoming call: the push wakes the phone to ring full screen, for this long. */
-  ringSeconds?: number;
-  /** Sent data-only (the app draws it), e.g. the missed call that stops the ringing. */
-  dataOnly?: boolean;
-  /** Nothing to show, only for the app (stop ringing): Android apps that ring full screen only. */
-  silent?: boolean;
 }
 
 export interface BuildCtx {
@@ -153,54 +147,19 @@ export const CATALOG: NotificationType[] = [
 
   // ── Calls ────────────────────────────────────────────────────────────
   {
-    key: 'call.incoming',
-    feed: 'never',
-    group: 'calls',
-    label: 'A friend is calling',
-    event: ServerEvent.CallIncoming,
-    channels: PUSH,
-    build: (p, ctx) => {
-      const from = who(p.from);
-      const video = p.media !== 'voice';
-      const ends = typeof p.expiresAt === 'string' ? Date.parse(p.expiresAt) : NaN;
-      return {
-        title: `${first(from.name, 'A friend')} is calling${video ? ' 📹' : ''}`,
-        body: video ? 'Video call on Vibe' : 'Voice call on Vibe',
-        // What the phone needs to ring full screen with Vibe closed.
-        // `to` + `ack`: the phone says "ringing" (or Decline) with Vibe closed, without a session.
-        data: link('call', { callId: p.callId, friendId: from.id, callerName: from.name ?? '', callerAvatar: from.avatarUrl ?? '', media: video ? 'video' : 'voice', expiresAt: typeof p.expiresAt === 'string' ? p.expiresAt : '', to: ctx.userId, ack: p.ack }),
-        collapseKey: `call:${p.callId}`,
-        ringSeconds: Number.isFinite(ends) ? Math.max(1, Math.round((ends - Date.now()) / 1000)) : 30,
-      };
-    },
-  },
-  {
     key: 'call.missed',
     feed: 'person',
     group: 'calls',
     label: 'Missed call',
-    event: ServerEvent.CallEnded,
+    event: ServerEvent.CallState,
     channels: PUSH,
-    build: (p) => {
-      if (p.reason !== 'no_answer' && p.reason !== 'cancelled') return null;
-      const from = p.from ? who(p.from) : null;
-      if (!from) return null;
-      // Data-only like the ring itself, so the phone stops ringing and shows this instead.
-      return { title: 'Missed video call', body: `From ${first(from.name, 'a friend')}. Tap to call back.`, data: link('calls', { userId: from.id, friendId: from.id, callId: p.callId }, 'chat'), collapseKey: `call:${p.callId}`, dataOnly: true };
-    },
-  },
-  {
-    // Not shown: tells a phone with Vibe closed to stop ringing, however the call ended.
-    key: 'call.stop',
-    feed: 'never',
-    group: 'calls',
-    label: 'A call stopped ringing',
-    event: ServerEvent.CallStopRinging,
-    channels: PUSH,
-    pushWhenOnline: true,
-    build: (p) => {
-      if (typeof p.callId !== 'string' || !p.callId) return null;
-      return { title: 'Call ended', body: '', data: link('call_stop', { callId: p.callId, reason: p.reason }), collapseKey: `call:${p.callId}`, dataOnly: true, silent: true };
+    // One plain notification to the person called. Nothing rings outside the app.
+    build: (p, ctx) => {
+      if (p.state !== 'ended' || !['unavailable', 'no_answer', 'cancelled', 'gone'].includes(String(p.reason))) return null;
+      const from = who(p.from);
+      if (!from.id || who(p.to).id !== ctx.userId) return null;
+      const kind = p.media === 'voice' ? 'voice' : 'video';
+      return { title: `Missed ${kind} call`, body: `From ${first(from.name, 'a friend')}. Tap to open the chat.`, data: link('chat', { friendId: from.id, callId: p.callId }), collapseKey: `call:${p.callId}` };
     },
   },
   {

@@ -113,16 +113,12 @@ export class PushService implements IntegrationReporter, OnModuleInit {
     await this.refresh().catch(() => undefined);
     if (!this.sender) return 0;
     if (!(await this.allowed(userId, msg))) return 0;
-    const tokens = await this.prisma.pushToken.findMany({ where: { userId }, select: { token: true, platform: true, appVersion: true } });
+    const tokens = await this.prisma.pushToken.findMany({ where: { userId }, select: { token: true } });
     let ok = 0;
     await Promise.all(
-      tokens.map(async ({ token, platform, appVersion }) => {
+      tokens.map(async ({ token }) => {
         try {
-          // Nothing to show: only an Android app that rings full screen needs it (anything else would show a blank alert).
-          if (msg.silent && (platform !== 'android' || !canRing(appVersion))) return;
-          // Data-only (ringing full screen) needs an app that draws it; older Android builds get the plain notification.
-          const plain = (msg.ring || msg.dataOnly) && platform === 'android' && !canRing(appVersion);
-          const r = await this.sender!.send(token, plain ? { ...msg, ring: undefined, dataOnly: undefined } : msg);
+          const r = await this.sender!.send(token, msg);
           if (r === 'ok') ok++;
           if (r === 'invalid') await this.prisma.pushToken.deleteMany({ where: { token } });
         } catch (e) {
@@ -161,12 +157,3 @@ export class PushService implements IntegrationReporter, OnModuleInit {
   }
 }
 
-/** Android builds from 0.2.0 draw call pushes themselves (full-screen ringing). */
-export const RING_FROM_VERSION = [0, 2, 0];
-export function canRing(appVersion: string | null | undefined): boolean {
-  const v = (appVersion ?? '').split(/[.+-]/).slice(0, 3).map((x) => Number.parseInt(x, 10) || 0);
-  for (let i = 0; i < 3; i++) {
-    if ((v[i] ?? 0) !== RING_FROM_VERSION[i]) return (v[i] ?? 0) > RING_FROM_VERSION[i];
-  }
-  return true;
-}

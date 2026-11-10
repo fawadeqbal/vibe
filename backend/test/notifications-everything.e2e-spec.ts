@@ -81,13 +81,17 @@ describe('notifications page = every notification', () => {
     expect(await t.prisma.userMessage.count({ where: { userId: u.id } })).toBeGreaterThanOrEqual(1);
   });
 
-  it('the ring of a live call never lands there (a missed call does)', async () => {
+  it('calls never ring as a notification; a missed call lands there, only for the person called', async () => {
     const a = await signUp(t, { name: 'Asad' });
     const b = await signUp(t, { name: 'Bina' });
     await withPhone(b, 3);
-    await notify().notify(b.id, 'call.incoming', { from: { id: a.id, name: 'Asad' }, callId: 'c1' });
-    await notify().notify(b.id, 'call.missed', { from: { id: a.id, name: 'Asad' }, callId: 'c1', reason: 'no_answer' });
+    const snap = (state: string, reason: string | null) => ({ callId: 'c1', state, reason, media: 'video', from: { id: a.id, name: 'Asad' }, to: { id: b.id, name: 'Bina' } });
+    await notify().notify(b.id, 'call.missed', snap('ringing', null));
+    await notify().notify(b.id, 'call.missed', snap('ended', 'declined'));
+    await notify().notify(a.id, 'call.missed', snap('ended', 'no_answer'));
+    await notify().notify(b.id, 'call.missed', snap('ended', 'no_answer'));
     await notify().settled();
     expect((await page(b)).items.map((i) => i.type)).toEqual(['call.missed']);
+    expect((await page(a)).items).toEqual([]);
   });
 });

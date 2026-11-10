@@ -4,8 +4,6 @@ analyzer:
     - android/**
     - ios/**
     - web/**
-    # Local plugins are analyzed in their own folder (cd packages/<name> && flutter analyze).
-    - packages/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

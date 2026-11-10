@@ -67,22 +67,15 @@ export const ServerEvent = {
 
   /** Video calls in a chat changed: `{ friendId, mine, theirs }` (both true = calls on). */
   CallConsent: 'call:consent',
-  /** A friend is calling you: `{ callId, from: PublicProfile, expiresAt }`. */
-  CallIncoming: 'call:incoming',
-  /** Your call is ringing on their side: `{ callId, to, expiresAt }` (also the POST reply). */
-  CallRinging: 'call:ringing',
-  /** A ringing call stopped: `{ callId, reason: 'declined' | 'no_answer' | 'cancelled' | 'accepted' | 'turned_off', reply? }`. Accepted calls continue as `match:found`. */
-  CallEnded: 'call:ended',
   /**
-   * To the person being called, on every device: this call has stopped
-   * ringing, however it ended (`reason`: cancelled, no_answer, declined,
-   * accepted — maybe on another of their devices). `{ callId, reason }`.
-   * The phone stops its ring and closes the incoming-call screen (also
-   * sent as a silent push, call.stop).
+   * A call between friends changed: to every device of both people, with
+   * the full snapshot (CallSnapshot: callId, state ringing | connecting |
+   * live | ended, reason, version, media, from, to, reached, answeredBy,
+   * matchId, reply, expiresAt, startedAt, endedAt). Devices keep the highest
+   * version and draw every call screen from it. Connecting continues as
+   * `match:found` (friendCall).
    */
-  CallStopRinging: 'call:stop',
-  /** Your call reached their phone and is ringing there (the app, or a push with Vibe closed): `{ callId }`. Until then: "Connecting". */
-  CallReached: 'call:reached',
+  CallState: 'call:state',
   /** Voice → video during a friend call: `{ matchId, state: 'asked' | 'on' | 'declined', from? }`. */
   CallVideo: 'call:video',
   /** Your friend is typing to you: `{ friendId }` (lasts ~5 s). */

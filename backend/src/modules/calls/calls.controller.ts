@@ -3,8 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CallsService } from './calls.service';
-import { Public } from '../../common/decorators/public.decorator';
-import { CallConsentDto, AcceptCallDto, CallPushActionDto, CallVideoDto, DeclineCallDto, RingDto } from './dto/calls.dto';
+import { CallConsentDto, AcceptCallDto, CallVideoDto, DeclineCallDto, RingDto } from './dto/calls.dto';
 
 @ApiTags('calls')
 @ApiBearerAuth()
@@ -37,7 +36,7 @@ export class CallsController {
   @HttpCode(200)
   @ApiOperation({
     summary:
-      'Ring a friend (both must have allowed calls). They get `call:incoming`; answered, both get `match:found` with friendCall: true.',
+      'Call a friend (both must have allowed calls). Returns the call snapshot; both get `call:state`. It rings only if they\'re in the app and free (else it ends at once: unavailable / busy). Answered: `match:found` with friendCall: true.',
   })
   ring(@CurrentUser('id') me: string, @Param('userId') userId: string, @Body() dto: RingDto) {
     return this.calls.ring(me, userId, dto?.media ?? 'video');
@@ -50,47 +49,50 @@ export class CallsController {
     return this.calls.video(me, matchId, dto.action);
   }
 
-  @Get('calls/incoming')
-  @ApiOperation({ summary: 'The call ringing for you right now, or null' })
-  async incoming(@CurrentUser('id') me: string) {
-    return { call: await this.calls.incoming(me) };
+  @Get('calls/current')
+  @ApiOperation({ summary: 'Your call that isn\'t over yet (any state), or null: what a device redraws from on connect, on returning to the app, and while a call screen is open' })
+  async current(@CurrentUser('id') me: string) {
+    return { call: await this.calls.current(me) };
+  }
+
+  @Get('calls/:callId')
+  @ApiOperation({ summary: 'One of your calls, as it is now (kept a day after it ends)' })
+  get(@CurrentUser('id') me: string, @Param('callId') callId: string) {
+    return this.calls.get(me, callId);
   }
 
   @Post('calls/:callId/ringing')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Your phone is ringing for this call (the app got it, or woke from the push): the caller sees Ringing instead of Connecting (`call:reached`)' })
+  @ApiOperation({ summary: 'Your device is showing this call: the caller\'s "Calling…" becomes "Ringing…"' })
   ringing(@CurrentUser('id') me: string, @Param('callId') callId: string) {
     return this.calls.reached(me, callId);
   }
 
-  @Public()
-  @Post('calls/:callId/push-action')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'From the call push with Vibe closed (no session): the phone is ringing, or Decline was tapped. `t` is the token the push carried.' })
-  pushAction(@Param('callId') callId: string, @Body() dto: CallPushActionDto) {
-    return this.calls.fromPush(callId, dto.userId, dto.t, dto.action, dto.reply);
-  }
-
   @Post('calls/:callId/accept')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Pick up' })
+  @ApiOperation({ summary: 'Pick up (the first device wins): connecting, then match:found to both. Too late: 409 CALL_NOT_FOUND' })
   accept(@CurrentUser('id') me: string, @Param('callId') callId: string, @Body() dto: AcceptCallDto) {
-    return this.calls.accept(me, callId, dto?.media === 'voice');
+    return this.calls.accept(me, callId, { voiceOnly: dto?.media === 'voice', deviceId: dto?.deviceId });
   }
 
   @Post('calls/:callId/decline')
   @HttpCode(200)
   @ApiOperation({ summary: 'Decline, optionally with a quick reply sent as a message' })
-  async decline(@CurrentUser('id') me: string, @Param('callId') callId: string, @Body() dto: DeclineCallDto) {
-    await this.calls.decline(me, callId, dto.reply);
-    return { ok: true };
+  decline(@CurrentUser('id') me: string, @Param('callId') callId: string, @Body() dto: DeclineCallDto) {
+    return this.calls.decline(me, callId, dto.reply);
   }
 
   @Post('calls/:callId/cancel')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Hang up before they answer (a missed call for them)' })
-  async cancel(@CurrentUser('id') me: string, @Param('callId') callId: string) {
-    await this.calls.cancel(me, callId);
-    return { ok: true };
+  @ApiOperation({ summary: 'The caller hangs up: cancelled while ringing (a missed call for them), hung_up while connecting' })
+  cancel(@CurrentUser('id') me: string, @Param('callId') callId: string) {
+    return this.calls.cancel(me, callId);
+  }
+
+  @Post('calls/:callId/up')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Your video or voice is flowing in this call; when both are, it\'s live' })
+  up(@CurrentUser('id') me: string, @Param('callId') callId: string) {
+    return this.calls.up(me, callId);
   }
 }

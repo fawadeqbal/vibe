@@ -7,9 +7,6 @@ class LocalMatchProvider extends MatchProvider {
     : super.base(wallet, social, session, cameraEnabled: cameraEnabled);
 
   final MockBackend _backend;
-
-  @override
-  AudioBackend createAudioBackend() => MemoryAudioBackend();
   final List<Timer> _timers = [];
   int _searchToken = 0;
   final List<DateTime> _recentSkips = [];

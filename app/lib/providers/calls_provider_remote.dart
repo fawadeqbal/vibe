@@ -1,8 +1,8 @@
 part of 'calls_provider.dart';
 
-/// Server mode.
+/// Server mode: every call screen is drawn from the server's snapshot.
 class RemoteCallsProvider extends CallsProvider {
-  RemoteCallsProvider(this._api, this._rt, SocialProvider social, MatchProvider match) : super.base(social, match) {
+  RemoteCallsProvider(this._api, this._rt, SocialProvider social, MatchProvider match, this._session) : super.base(social, match) {
     _subs = [
       _rt.on(Ev.callConsent).listen((e) {
         final id = e['friendId'];
@@ -10,71 +10,91 @@ class RemoteCallsProvider extends CallsProvider {
         _social.setCalls(id, ApiMap.callsView(e));
         unawaited(loadState(id));
       }),
-      _rt.on(Ev.callIncoming).listen((e) {
-        if (e['from'] is! Map) return;
-        setIncoming(IncomingCall(
-          callId: '${e['callId']}',
-          from: ApiMap.profile(Map<String, dynamic>.from(e['from'] as Map)),
-          expiresAt: ApiMap.date(e['expiresAt']) ?? DateTime.now().add(Duration(seconds: Economy.callRingSeconds)),
-          media: e['media'] == 'voice' ? CallMedia.voice : CallMedia.video,
-        ));
-        _ackRinging('${e['callId']}');
-        notifyListeners();
-      }),
-      _rt.on(Ev.callRinging).listen((e) {
-        final o = _outgoing;
-        if (o != null && o.callId == null) {
-          _outgoing = o.copyWith(callId: '${e['callId']}', reached: o.reached || e['reached'] == true);
-          notifyListeners();
-        }
-      }),
-      // Their phone is ringing now: "Connecting" → "Ringing".
-      _rt.on(Ev.callReached).listen((e) {
-        final o = _outgoing;
-        if (o != null && (o.callId == '${e['callId']}' || o.callId == null)) {
-          _outgoing = o.copyWith(reached: true);
-          notifyListeners();
-        }
-      }),
-      _rt.on(Ev.callEnded).listen(_onEnded),
-      // Hung up, rang out, or answered / declined on another of your devices.
-      _rt.on(Ev.callStop).listen((e) {
-        final id = '${e['callId']}';
-        unawaited(CallRinger.stop(id, reason: e['reason'] as String?));
-        if (_incoming?.callId == id) {
-          setIncoming(null);
-          notifyListeners();
-        }
+      _rt.on(Ev.callState).listen(_take),
+      // Back online: ask where the call is (a missed event can't leave a screen stuck).
+      _rt.connection.listen((on) {
+        if (on) unawaited(reconcile());
       }),
     ];
+    // While a call rings or connects, check every 10 s.
+    _poll = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_call?.active ?? false) unawaited(reconcile());
+    });
+    _match.addListener(_mediaUp);
   }
 
   final ApiClient _api;
   final RealtimeClient _rt;
+  final SessionProvider _session;
   late final List<StreamSubscription<dynamic>> _subs;
+  Timer? _poll;
+
+  /// This device, for "Answered on your other device".
+  static final String deviceId = 'app-${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+
+  CallSnap? _call;
+  String? _acceptTried;
+  bool _cancelWanted = false;
+  String? _dismissed;
+  final Set<String> _acked = {};
+  final Set<String> _upSent = {};
+
+  /// The newest snapshot of your call (any state).
+  CallSnap? get call => _call;
 
   Map<String, dynamic> _map(Object? r) => Map<String, dynamic>.from(r as Map);
 
-  /// Tell the caller it's ringing here (their "Connecting" turns into "Ringing"). Best effort.
-  void _ackRinging(String callId) => unawaited(_api.post('/calls/$callId/ringing').then((_) {}, onError: (_) {}));
-
-  void _onEnded(Map<String, dynamic> e) {
-    final id = '${e['callId']}';
-    final reason = e['reason'] as String?;
-    if (_incoming?.callId == id) {
-      setIncoming(null);
-      // A ring drawn while Vibe was in the background stops too.
-      unawaited(CallRinger.stop(id, reason: reason));
-    }
-    final o = _outgoing;
-    if (o != null && (o.callId == id || o.callId == null)) {
-      _outgoing = switch (reason) {
-        'declined' => o.copyWith(callId: id, status: OutgoingStatus.declined, reply: e['reply'] as String?),
-        'no_answer' => o.copyWith(callId: id, status: OutgoingStatus.noAnswer),
-        _ => null,
-      };
+  /// A snapshot from the server (an event or a reply): kept if it's newer, then every screen redraws.
+  void _take(Object? raw) {
+    if (raw is! Map) return;
+    final c = CallSnap.parse(_map(raw), ApiMap.profile);
+    if (c == null || !CallSnap.isNewer(_call, c)) return;
+    _call = c;
+    final v = callViewOf(c, _session.me?.id ?? '', deviceId, acceptTried: _acceptTried == c.callId);
+    final wasRinging = _incoming?.callId == c.callId;
+    setIncoming(v.incoming, full: wasRinging && incomingFull);
+    _outgoing = v.outgoing != null && _dismissed != '${c.callId}:out' ? v.outgoing : null;
+    _notice = v.notice != null && _dismissed != '${c.callId}:${v.notice!.kind.name}' ? v.notice : null;
+    // Their screen is showing it: the caller's "Calling…" becomes "Ringing…".
+    if (v.incoming != null && !c.reached && _acked.add(c.callId)) {
+      unawaited(_api.post('/calls/${c.callId}/ringing').then(_take, onError: (_) {}));
     }
     notifyListeners();
+  }
+
+  /// Your media is flowing in this friend call: tell the server (both up → live).
+  void _mediaUp() {
+    final c = _call;
+    if (c == null || c.state != CallStatus.connecting || !_match.friendCall || !_match.hasRemoteVideo) return;
+    if (c.matchId != null && _match.current?.id != null && _match.current!.id != c.matchId) return;
+    if (!_upSent.add(c.callId)) return;
+    unawaited(_api.post('/calls/${c.callId}/up').then(_take, onError: (_) => _upSent.remove(c.callId)));
+  }
+
+  @override
+  Future<void> reconcile() async {
+    if (!_api.hasSession) return;
+    try {
+      final cur = _map(await _api.get('/calls/current'))['call'];
+      if (cur is Map) return _take(cur);
+      // Nothing going on: if we still think a call is, ask about that one.
+      final c = _call;
+      if (c != null && c.state != CallStatus.ended) _take(await _api.get('/calls/${c.callId}'));
+    } on ApiException catch (_) {}
+  }
+
+  @override
+  void dismissOutgoing() {
+    final c = _call;
+    if (c != null) _dismissed = '${c.callId}:out';
+    super.dismissOutgoing();
+  }
+
+  @override
+  void dismissNotice() {
+    final n = _notice;
+    if (n != null) _dismissed = '${n.callId}:${n.kind.name}';
+    super.dismissNotice();
   }
 
   @override
@@ -94,29 +114,37 @@ class RemoteCallsProvider extends CallsProvider {
 
   @override
   Future<void> ring(Profile friend, [CallMedia media = CallMedia.video]) async {
+    // "Calling…" at once; the server's snapshot takes over when it answers.
+    _cancelWanted = false;
+    _dismissed = null;
     _outgoing = OutgoingCall(to: friend, media: media);
     notifyListeners();
     try {
-      final r = _map(await _api.post('/friends/${friend.id}/call', {'media': media.name}));
-      if (_outgoing?.to.id == friend.id) _outgoing = _outgoing!.copyWith(callId: '${r['callId']}', reached: _outgoing!.reached || r['reached'] == true);
+      _take(await _api.post('/friends/${friend.id}/call', {'media': media.name}));
+      final c = _call;
+      if (_cancelWanted && c != null && c.state == CallStatus.ringing) _take(await _api.post('/calls/${c.callId}/cancel'));
     } on ApiException catch (e) {
-      final status = switch (e.code) { 'CALL_BUSY' => OutgoingStatus.busy, 'CALL_PAUSED' => OutgoingStatus.paused, _ => OutgoingStatus.error };
-      _outgoing = OutgoingCall(to: friend, status: status, message: e.message, media: media);
+      final status = e.code == 'CALL_PAUSED' ? OutgoingStatus.paused : OutgoingStatus.error;
+      _outgoing = _cancelWanted ? null : OutgoingCall(to: friend, status: status, message: e.message, media: media);
       if (e.code == 'CALLS_NOT_ALLOWED') unawaited(loadState(friend.id));
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   @override
   Future<void> accept([CallMedia? media]) async {
     final c = _incoming;
     if (c == null) return;
+    _acceptTried = c.callId;
     setIncoming(null);
     notifyListeners();
     try {
-      await _api.post('/calls/${c.callId}/accept', media == CallMedia.voice ? {'media': 'voice'} : <String, dynamic>{});
+      _take(await _api.post('/calls/${c.callId}/accept', {'deviceId': deviceId, if (media == CallMedia.voice) 'media': 'voice'}));
     } on ApiException catch (_) {
-      // Already over (they hung up): the chat shows the missed call.
+      // Too late (they hung up, or another device answered): ask where it is.
+      try {
+        _take(await _api.get('/calls/${c.callId}'));
+      } on ApiException catch (_) {}
     }
   }
 
@@ -127,7 +155,7 @@ class RemoteCallsProvider extends CallsProvider {
     setIncoming(null);
     notifyListeners();
     try {
-      await _api.post('/calls/${c.callId}/decline', reply == null ? <String, dynamic>{} : {'reply': reply});
+      _take(await _api.post('/calls/${c.callId}/decline', reply == null ? <String, dynamic>{} : {'reply': reply}));
     } on ApiException catch (_) {}
   }
 
@@ -136,24 +164,12 @@ class RemoteCallsProvider extends CallsProvider {
     final c = _outgoing;
     _outgoing = null;
     notifyListeners();
-    if (c?.callId == null) return;
+    if (c?.callId == null) {
+      _cancelWanted = true; // still being placed: cancel it once it is
+      return;
+    }
     try {
-      await _api.post('/calls/${c!.callId}/cancel');
-    } on ApiException catch (_) {}
-  }
-
-  @override
-  Future<void> checkIncoming() async {
-    if (!_api.hasSession) return;
-    try {
-      final c = _map(await _api.get('/calls/incoming'))['call'];
-      if (c is Map) {
-        final m = Map<String, dynamic>.from(c);
-        // Ringing when the app opened (from a push): full screen straight away.
-        setIncoming(IncomingCall(callId: '${m['callId']}', from: ApiMap.profile(_map(m['from'])), expiresAt: ApiMap.date(m['expiresAt']) ?? DateTime.now(), media: m['media'] == 'voice' ? CallMedia.voice : CallMedia.video), full: true);
-        _ackRinging('${m['callId']}');
-        notifyListeners();
-      }
+      _take(await _api.post('/calls/${c!.callId}/cancel'));
     } on ApiException catch (_) {}
   }
 
@@ -162,6 +178,8 @@ class RemoteCallsProvider extends CallsProvider {
     for (final s in _subs) {
       s.cancel();
     }
+    _poll?.cancel();
+    _match.removeListener(_mediaUp);
     super.dispose();
   }
 }
