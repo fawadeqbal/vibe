@@ -66,6 +66,8 @@ export const Ev = {
   messagesRead: "message:read",
   /** Your messages reached your friend's phone or an open tab: `{ friendId, at }` (two grey ticks). */
   messagesDelivered: "message:delivered",
+  /** You cleared a chat on another of your devices: `{ friendId, at }` (your side only). */
+  chatCleared: "chat:cleared",
   rtcSignal: "rtc:signal",
   friendRequest: "social:friend-request",
   friendAccepted: "social:friend-accepted",

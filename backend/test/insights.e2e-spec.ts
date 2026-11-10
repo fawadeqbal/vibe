@@ -32,8 +32,9 @@ describe('insights', () => {
     await t.prisma.user.update({ where: { id: a.id }, data: { signupClient: 'android' } });
     await t.prisma.user.updateMany({ where: { id: { in: [b.id, c.id] } }, data: { signupClient: 'web' } });
     await t.prisma.referral.create({ data: { inviteeId: c.id, inviterId: a.id, code: 'X', source: 'link' } });
-    await call(a, b, 120); // a good call
-    await call(a, c, 5); // a quick skip
+    // Minutes ago, not half an hour: run just after midnight (Pakistan), half an hour back is yesterday's business day.
+    await call(a, b, 120, 3); // a good call
+    await call(a, c, 5, 2); // a quick skip
     await pay(a, 499);
     await pay(a, 199, 'coins_50');
     // Money through a test gateway (the dev card page) is not revenue.

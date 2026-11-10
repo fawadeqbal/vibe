@@ -28,6 +28,10 @@ class RemoteSocialProvider extends SocialProvider {
         final at = DateTime.tryParse('${e['at']}');
         if (id != null && at != null) noteSeen(id, at);
       }),
+      _rt.on(Ev.chatCleared).listen((e) {
+        final id = e['friendId'] as String?;
+        if (id != null) _cleared(id);
+      }),
       _rt.on(Ev.messagesDelivered).listen((e) {
         final id = e['friendId'] as String?;
         final at = DateTime.tryParse('${e['at']}');
@@ -381,6 +385,18 @@ class RemoteSocialProvider extends SocialProvider {
   Future<void> unsend(String friendId, String messageId) async {
     final r = await _api.delete('/friends/$friendId/messages/$messageId');
     if (r is Map) replaceMessage(friendId, ApiMap.message(Map<String, dynamic>.from(r)));
+  }
+
+  @override
+  Future<void> clearChat(String friendId) async {
+    await _api.delete('/friends/$friendId/messages');
+    _cleared(friendId);
+  }
+
+  void _cleared(String friendId) {
+    clearedLocally(friendId);
+    // The copy kept for a fast start goes too.
+    unawaited(_api.cache.write('chat_$friendId', null));
   }
 
   @override

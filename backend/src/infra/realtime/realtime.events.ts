@@ -85,6 +85,8 @@ export const ServerEvent = {
   MessagesRead: 'message:read',
   /** Your messages reached your friend's phone or an open tab: `{ friendId, at }` (two grey ticks). */
   MessagesDelivered: 'message:delivered',
+  /** You cleared a chat (on another of your devices): `{ friendId, at }`. Only your side; they keep theirs. */
+  ChatCleared: 'chat:cleared',
 
   RtcSignal: 'rtc:signal',
 

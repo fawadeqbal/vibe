@@ -68,6 +68,8 @@ interface SocialState {
   sendMedia: (friendId: string, kind: "photo" | "voice", file: Blob, info?: { seconds?: number; w?: number; h?: number; replyToId?: string | null }) => Promise<void>;
   react: (friendId: string, messageId: string, emoji: string | null) => Promise<void>;
   unsend: (friendId: string, messageId: string) => Promise<void>;
+  /** Clear chat: empties it for you only (they keep their messages), on all your devices. */
+  clearChat: (friendId: string) => Promise<void>;
   /** Change the text of your own message (within the unsend window): both see it marked "edited". */
   editMessage: (friendId: string, messageId: string, text: string) => Promise<void>;
   /** Tell them you're typing (throttled here: at most every 3 s). */
@@ -319,6 +321,11 @@ export const useSocial = create<SocialState>()((set, get) => {
       onUpdated(asMap(await api.delete(`/friends/${friendId}/messages/${messageId}`)));
     },
 
+    async clearChat(friendId) {
+      await api.delete(`/friends/${friendId}/messages`);
+      onCleared(friendId);
+    },
+
     async editMessage(friendId, messageId, text) {
       onUpdated(asMap(await api.patch(`/friends/${friendId}/messages/${messageId}`, { text })));
     },
@@ -515,6 +522,18 @@ realtime.on(Ev.messagesRead, (d) => {
   const at = typeof d.at === "string" ? new Date(d.at) : new Date();
   useSocial.setState((s) => ({ seenAt: { ...s.seenAt, [id]: at } }));
 });
+/** Your side of the chat is now empty: no messages, no last line, nothing unread. */
+function onCleared(friendId: string) {
+  useSocial.setState((s) => ({
+    chats: { ...s.chats, [friendId]: [] },
+    olderCursor: { ...s.olderCursor, [friendId]: null },
+    all: s.all.map((f) => (f.profile.id === friendId ? { ...f, lastMessage: null, lastMessageAt: null, last: null, unread: 0 } : f)),
+  }));
+}
+realtime.on(Ev.chatCleared, (d) => {
+  if (typeof d.friendId === "string") onCleared(d.friendId);
+});
+
 realtime.on(Ev.messagesDelivered, (d) => {
   if (typeof d.friendId !== "string") return;
   const id = d.friendId;

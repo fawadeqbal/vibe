@@ -459,6 +459,9 @@ class Friend {
   final StreakView streak;
   final CallsView calls;
 
+  /// After "Clear chat" (your side): no last message, nothing unread.
+  Friend cleared() => Friend(profile: profile, state: state, since: since, online: online, lastSeenAt: lastSeenAt, streak: streak, calls: calls);
+
   Friend copyWith({FriendState? state, String? lastMessage, DateTime? lastMessageAt, LastMessage? last, int? unread, bool? online, DateTime? lastSeenAt, StreakView? streak, CallsView? calls}) {
     return Friend(
       profile: profile,

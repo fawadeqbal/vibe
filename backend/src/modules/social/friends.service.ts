@@ -89,6 +89,11 @@ export class FriendsService {
   }
 
   /** The accepted friendship between two people, or throws NOT_FRIENDS. */
+  /** When you last cleared this chat (your side only); null = never. */
+  clearedFor(f: { userLowId: string; clearedLowAt: Date | null; clearedHighAt: Date | null }, me: string): Date | null {
+    return f.userLowId === me ? f.clearedLowAt : f.clearedHighAt;
+  }
+
   async requireFriends(me: string, other: string) {
     const f = await this.prisma.friendship.findUnique({ where: this.pairWhere(me, other) });
     if (!f || f.status !== FriendshipStatus.ACCEPTED) throw new AppError(ErrorCode.NOT_FRIENDS, 'You are not friends', HttpStatus.FORBIDDEN);
@@ -204,7 +209,12 @@ export class FriendsService {
         SELECT DISTINCT ON ("friendshipId") "friendshipId", "text", "giftId", "createdAt", "senderId", "kind", "deliveredAt", "readAt", "unsentAt", "meta"
           FROM "Message" WHERE "friendshipId" IN (${Prisma.join(ids)})
          ORDER BY "friendshipId", "createdAt" DESC`,
-      this.prisma.message.groupBy({ by: ['friendshipId'], where: { friendshipId: { in: ids }, senderId: { not: me }, readAt: null }, _count: { _all: true } }),
+      // Unread counts only what's after your own "Clear chat".
+      this.prisma.message.groupBy({
+        by: ['friendshipId'],
+        where: { senderId: { not: me }, readAt: null, OR: rows.map((f) => ({ friendshipId: f.id, ...(this.clearedFor(f, me) ? { createdAt: { gt: this.clearedFor(f, me)! } } : {}) })) },
+        _count: { _all: true },
+      }),
       this.realtime.onlineMap(otherIds),
       this.prisma.wallet.findUnique({ where: { userId: me }, select: { vipUntil: true } }),
     ]);
@@ -217,7 +227,10 @@ export class FriendsService {
       const otherId = f.userLowId === me ? f.userHighId : f.userLowId;
       const u = byUser.get(otherId);
       if (!u || u.status !== 'ACTIVE') return [];
-      const m = lastBy.get(f.id);
+      // Cleared on your side: nothing before then shows (they still have it).
+      const cleared = this.clearedFor(f, me);
+      const latest = lastBy.get(f.id);
+      const m = latest && (!cleared || latest.createdAt > cleared) ? latest : undefined;
       return [
         {
           profile: toPublicProfile(u, now),

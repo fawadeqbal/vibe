@@ -95,6 +95,7 @@ Future<bool> showChatMore(BuildContext context, {required Friend f, required Lis
                   for (final (i, (label, _, bad)) in callItems.indexed) row('calls$i', bad ? SolarIconsBold.phoneCallingRounded : SolarIconsBold.phone, label, bad: bad),
                 ],
                 const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1, color: V.lineSoft)),
+                row('clear', SolarIconsBold.trashBinMinimalistic, 'Clear chat', sub: 'For you only · $first keeps the messages'),
                 row('remove', SolarIconsBold.userMinusRounded, 'Remove friend', sub: 'You can still find each other on calls'),
                 row('report', SolarIconsBold.flag, 'Report $first', bad: true),
                 row('block', SolarIconsBold.forbiddenCircle, 'Block $first', sub: "$first can't message or meet you again", bad: true),
@@ -113,6 +114,19 @@ Future<bool> showChatMore(BuildContext context, {required Friend f, required Lis
   }
   if (pick.startsWith('calls')) {
     await callItems[int.parse(pick.substring(5))].$2();
+    return false;
+  }
+  if (pick == 'clear') {
+    if (!await _confirm(
+      context,
+      'Clear this chat?',
+      'All messages are removed for you, on all your devices. $first still has them, and nothing tells $first. New messages show up as usual.',
+      'Clear chat',
+    )) {
+      return false;
+    }
+    await social.clearChat(p.id);
+    if (context.mounted) toast(context, 'Chat cleared');
     return false;
   }
   if (pick == 'remove') {

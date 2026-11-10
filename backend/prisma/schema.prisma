@@ -740,6 +740,9 @@ model Friendship {
   /// Each side's level: video too (false = voice only). Calls work at the lower of the two.
   callsLowVideo    Boolean          @default(false)
   callsHighVideo   Boolean          @default(false)
+  /// "Clear chat", each side for itself: messages up to then are hidden for that person only.
+  clearedLowAt     DateTime?
+  clearedHighAt    DateTime?
 
   messages Message[]
 

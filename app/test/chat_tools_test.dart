@@ -103,6 +103,16 @@ void main() {
       expect(social.friend('u2')!.lastMessage, 'Message unsent');
     });
 
+    test('clear chat: empty for you, nothing unread, no last line; new messages show again', () async {
+      await social.sendMessage('u2', 'hello');
+      await social.clearChat('u2');
+      expect(social.messages('u2'), isEmpty);
+      final f = social.friend('u2')!;
+      expect((f.lastMessage, f.last, f.unread), (null, null, 0));
+      await social.sendMessage('u2', 'again');
+      expect(social.messages('u2').map((m) => m.text), ['again']);
+    });
+
     test('edit your own text: new text, marked edited', () async {
       await social.sendMessage('u2', 'helo');
       final m = social.messages('u2').last;

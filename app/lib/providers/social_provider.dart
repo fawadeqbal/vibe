@@ -151,6 +151,19 @@ abstract class SocialProvider extends ChangeNotifier {
   /// Takes back your own message (within `Economy.chatUnsendMinutes`).
   Future<void> unsend(String friendId, String messageId);
 
+  /// Clear chat: empties it for you only (they keep their messages), on all your devices.
+  Future<void> clearChat(String friendId);
+
+  /// Your side of the chat is now empty: no messages, no last line, nothing unread.
+  @protected
+  void clearedLocally(String friendId) {
+    _chats[friendId] = [];
+    _olderCursor[friendId] = null;
+    final i = _friends.indexWhere((x) => x.profile.id == friendId);
+    if (i >= 0) _friends[i] = _friends[i].cleared();
+    notifyListeners();
+  }
+
   /// Changes the text of your own message (within `Economy.chatUnsendMinutes`): both see "edited".
   Future<void> editMessage(String friendId, String messageId, String text);
 

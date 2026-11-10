@@ -78,6 +78,12 @@ export class FriendsController {
     return this.messages.list(me, userId, q);
   }
 
+  @Delete(':userId/messages')
+  @ApiOperation({ summary: 'Clear chat: empties it for you only (they keep their messages; nothing is sent to them)' })
+  clearChat(@CurrentUser('id') me: string, @Param('userId') userId: string) {
+    return this.messages.clear(me, userId);
+  }
+
   @Post(':userId/messages')
   // Apps retry on a weak connection with the same Idempotency-Key: the message goes out once.
   @Idempotent()

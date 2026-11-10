@@ -68,6 +68,24 @@ export function openChatMore({ f, callItems, onProfile, onGone }: { f: Friend; c
         ) : null}
         <div className="my-2 h-px bg-line-soft" />
         <Row
+          icon="delete_sweep"
+          title="Clear chat"
+          sub={`For you only · ${first} keeps the messages`}
+          onClick={run(async () => {
+            if (
+              !(await confirm({
+                title: "Clear this chat?",
+                body: `All messages are removed for you, on all your devices. ${first} still has them, and nothing tells ${first}. New messages show up as usual.`,
+                ok: "Clear chat",
+                okTone: "bad",
+              }))
+            )
+              return;
+            await useSocial.getState().clearChat(p.id);
+            toast("Chat cleared");
+          })}
+        />
+        <Row
           icon="person_remove"
           title="Remove friend"
           sub="You can still find each other on calls"
