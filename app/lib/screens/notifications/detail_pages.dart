@@ -10,7 +10,6 @@ import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
 import '../../models/activity.dart';
 import '../../models/calls.dart';
-import '../../models/engagement.dart';
 import '../../models/models.dart';
 import '../../models/payments.dart';
 import '../../providers/activity_provider.dart';

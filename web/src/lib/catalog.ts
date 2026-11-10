@@ -1,4 +1,4 @@
-import type { CoinPack, Country, Gift, VipPlan } from "./models";
+import type { CoinPack, Gift, VipPlan } from "./models";
 
 /**
  * Prices and rules — the numbers from BUSINESS.md. These are the defaults;
@@ -173,30 +173,8 @@ export const DEFAULT_GIFTS: Gift[] = [
   { id: "rocket", name: "Rocket", emoji: "🚀", coins: 1000 },
 ];
 
-export const COUNTRIES: Country[] = [
-  { code: "PK", name: "Pakistan", flag: "🇵🇰" },
-  { code: "IN", name: "India", flag: "🇮🇳" },
-  { code: "US", name: "United States", flag: "🇺🇸" },
-  { code: "GB", name: "United Kingdom", flag: "🇬🇧" },
-  { code: "TR", name: "Türkiye", flag: "🇹🇷" },
-  { code: "BR", name: "Brazil", flag: "🇧🇷" },
-  { code: "DE", name: "Germany", flag: "🇩🇪" },
-  { code: "FR", name: "France", flag: "🇫🇷" },
-  { code: "AE", name: "UAE", flag: "🇦🇪" },
-  { code: "SA", name: "Saudi Arabia", flag: "🇸🇦" },
-  { code: "ID", name: "Indonesia", flag: "🇮🇩" },
-  { code: "PH", name: "Philippines", flag: "🇵🇭" },
-  { code: "KR", name: "South Korea", flag: "🇰🇷" },
-  { code: "JP", name: "Japan", flag: "🇯🇵" },
-  { code: "MX", name: "Mexico", flag: "🇲🇽" },
-  { code: "NG", name: "Nigeria", flag: "🇳🇬" },
-  { code: "EG", name: "Egypt", flag: "🇪🇬" },
-  { code: "CA", name: "Canada", flag: "🇨🇦" },
-  { code: "AU", name: "Australia", flag: "🇦🇺" },
-  { code: "ES", name: "Spain", flag: "🇪🇸" },
-];
-
-export const country = (code: string | null | undefined): Country => COUNTRIES.find((c) => c.code === code) ?? COUNTRIES[0];
+// The full list lives in countries.ts (every country, A–Z).
+export { COUNTRIES, country } from "./countries";
 
 export const INTERESTS = [
   "Music",

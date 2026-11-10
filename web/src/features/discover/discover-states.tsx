@@ -158,9 +158,9 @@ export function DeckEmpty({
                 type="button"
                 aria-label={`Remove ${a.label}`}
                 onClick={() => onSetFilters(a.without)}
-                className="type-label inline-flex h-9 items-center gap-1.5 rounded-full bg-surface pr-2.5 pl-3.5 text-[13px] font-semibold text-text hover:bg-surface2"
+                className="type-label inline-flex h-9 max-w-full items-center gap-1.5 rounded-full bg-surface pr-2.5 pl-3.5 text-[13px] font-semibold text-text hover:bg-surface2"
               >
-                {a.label}
+                <span className="min-w-0 truncate">{a.label}</span>
                 <Icon name="close" size={16} className="text-text2" />
               </button>
             </li>

@@ -10,7 +10,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Select, TextArea, TextField } from "@/components/ui/text-field";
 import { Headline } from "@/components/ui/typography";
 import { errorMessage } from "@/lib/api/errors";
-import { COUNTRIES, country, INTERESTS } from "@/lib/catalog";
+import { country, INTERESTS } from "@/lib/catalog";
+import { countryOptions, DEFAULT_COUNTRY } from "@/lib/countries";
 import { cn } from "@/lib/cn";
 import { type Gender, genderLabel, GENDERS, type Intent, intentInfo, INTENTS } from "@/lib/models";
 import { useSession } from "@/stores/session";
@@ -121,7 +122,7 @@ export function ProfileForm({ editing = false, onSaved }: { editing?: boolean; o
       </div>
 
       <Label text="Country" className="mt-[18px]" />
-      <Select label="Country" value={countryCode} onChange={setCountryCode} options={COUNTRIES.map((c) => ({ value: c.code, label: `${c.flag}  ${c.name}` }))} />
+      <Select label="Country" value={countryCode} onChange={setCountryCode} options={countryOptions()} suggested={[DEFAULT_COUNTRY]} />
 
       <div id="profile-bio">
         <Label text="About you" className="mt-[18px]" />

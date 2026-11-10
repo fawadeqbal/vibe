@@ -3,11 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { Dropdown } from "@/components/ui/dropdown";
 import { Icon } from "@/components/ui/icon";
 import { Switch } from "@/components/ui/switch";
-import { COUNTRIES } from "@/lib/catalog";
+import { countryOptions } from "@/lib/countries";
 import { cn } from "@/lib/cn";
 import { ageLabel, DEFAULT_FILTERS, type SharedFilters, useFilters, usesExtraFilters, type WantedGender } from "@/stores/filters";
+import { useSession } from "@/stores/session";
 import { toast } from "@/stores/ui";
 
 import { AgeRange, openFilterPass } from "./filters-sheet";
@@ -26,6 +28,7 @@ const GENDERS: { value: WantedGender; label: string }[] = [
  */
 export function FiltersPanel({ className }: { className?: string }) {
   const router = useRouter();
+  const myCountry = useSession((s) => s.me?.country.code ?? "PK");
   const saved = useFilters((s) => s.filters);
   const unlocked = useFilters((s) => s.access.unlocked);
   const [f, setF] = useState<SharedFilters>(saved);
@@ -109,28 +112,22 @@ export function FiltersPanel({ className }: { className?: string }) {
         <AgeRange min={f.minAge} max={f.maxAge} onChange={(minAge, maxAge) => set({ minAge, maxAge }, 450)} />
       </div>
 
-      <label className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2.5">
         <span className="type-label flex items-center gap-1 text-[13px] text-text2">
           Country
           {!unlocked ? <Icon name="lock" size={13} className="text-muted" label="needs the filter pass" /> : null}
         </span>
-        <span className="relative flex items-center">
-          <Icon name="public" size={18} className="pointer-events-none absolute left-3.5 text-text2" />
-          <select
-            value={f.countryCode ?? ""}
-            onChange={(e) => set({ countryCode: e.target.value || null })}
-            className="type-label h-11 w-full appearance-none rounded-[14px] border border-line bg-white/4 pr-10 pl-10 text-[14px] text-text outline-none focus:border-violet"
-          >
-            <option value="">Anywhere</option>
-            {COUNTRIES.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.flag} {c.name}
-              </option>
-            ))}
-          </select>
-          <Icon name="expand_more" size={18} className="pointer-events-none absolute right-3.5 text-muted" />
-        </span>
-      </label>
+        <Dropdown
+          size="compact"
+          icon="public"
+          label="Country"
+          value={f.countryCode ?? ""}
+          onChange={(v) => set({ countryCode: v || null })}
+          options={[{ value: "", label: "Anywhere" }, ...countryOptions()]}
+          suggested={["", myCountry]}
+          searchPlaceholder="Search countries"
+        />
+      </div>
 
       <div className="flex items-center gap-3">
         <span className="flex min-w-0 flex-1 flex-col">

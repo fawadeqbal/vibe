@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../models/models.dart';
+import '../data/countries.dart';
 
 /// Static catalogue data: countries, packs, plans, gifts, interests and the
 /// pool of people the mock matcher draws from. A real backend serves the
@@ -8,30 +9,11 @@ import '../../models/models.dart';
 class MockData {
   MockData._();
 
-  static const countries = <Country>[
-    Country('PK', 'Pakistan', '🇵🇰'),
-    Country('IN', 'India', '🇮🇳'),
-    Country('US', 'United States', '🇺🇸'),
-    Country('GB', 'United Kingdom', '🇬🇧'),
-    Country('TR', 'Türkiye', '🇹🇷'),
-    Country('BR', 'Brazil', '🇧🇷'),
-    Country('DE', 'Germany', '🇩🇪'),
-    Country('FR', 'France', '🇫🇷'),
-    Country('AE', 'UAE', '🇦🇪'),
-    Country('SA', 'Saudi Arabia', '🇸🇦'),
-    Country('ID', 'Indonesia', '🇮🇩'),
-    Country('PH', 'Philippines', '🇵🇭'),
-    Country('KR', 'South Korea', '🇰🇷'),
-    Country('JP', 'Japan', '🇯🇵'),
-    Country('MX', 'Mexico', '🇲🇽'),
-    Country('NG', 'Nigeria', '🇳🇬'),
-    Country('EG', 'Egypt', '🇪🇬'),
-    Country('CA', 'Canada', '🇨🇦'),
-    Country('AU', 'Australia', '🇦🇺'),
-    Country('ES', 'Spain', '🇪🇸'),
-  ];
+  /// Every country, A–Z (core/data/countries.dart).
+  static const countries = allCountries;
 
-  static Country country(String code) => countries.firstWhere((c) => c.code == code, orElse: () => countries.first);
+  /// The country for a code; Pakistan when it's unknown.
+  static Country country(String code) => countryOf(code);
 
   /// Offline demo invite codes: code → (name, creator partner?). Any other
   /// well-formed code is unknown, like on the server.

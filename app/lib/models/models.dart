@@ -26,10 +26,13 @@ extension GenderLabel on Gender {
 enum GenderFilter { anyone, women, men }
 
 class Country {
-  const Country(this.code, this.name, this.flag);
+  const Country(this.code, this.name, this.flag, {this.aka});
   final String code;
   final String name;
   final String flag;
+
+  /// Other names people search by ("UAE Dubai").
+  final String? aka;
 }
 
 /// What someone is on Vibe for. Optional; shown on the profile, never used
