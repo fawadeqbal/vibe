@@ -2,6 +2,13 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsNumber, IsOptional, IsString, Length, Max, Min } from 'class-validator';
 
+export class EditMessageDto {
+  @ApiProperty({ example: 'hey! (fixed)' })
+  @IsString()
+  @Length(1, 1000)
+  text!: string;
+}
+
 export class SendMessageDto {
   @ApiProperty({ example: 'hey!' })
   @IsString()

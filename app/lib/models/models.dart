@@ -446,6 +446,7 @@ class ChatMessage {
     this.reactionMine,
     this.reactionTheirs,
     this.unsent = false,
+    this.edited = false,
     this.readAt,
     this.pending = false,
     this.failed = false,
@@ -471,6 +472,9 @@ class ChatMessage {
   /// Unsent by the sender: shown as "Message unsent".
   final bool unsent;
 
+  /// Its sender changed the text: "edited" under it.
+  final bool edited;
+
   /// When they read it (your messages).
   final DateTime? readAt;
 
@@ -490,7 +494,7 @@ class ChatMessage {
   String? get event => meta?['event'] as String?;
   String? get mediaUrl => meta?['url'] as String?;
 
-  ChatMessage copyWith({DateTime? readAt, String? reactionMine, String? reactionTheirs, bool clearMine = false, bool clearTheirs = false, bool? unsent, String? text, ReplyRef? replyTo, bool? pending, bool? failed}) => ChatMessage(
+  ChatMessage copyWith({DateTime? readAt, String? reactionMine, String? reactionTheirs, bool clearMine = false, bool clearTheirs = false, bool? unsent, bool? edited, String? text, ReplyRef? replyTo, bool? pending, bool? failed}) => ChatMessage(
         id: id,
         fromMe: fromMe,
         text: text ?? this.text,
@@ -502,6 +506,7 @@ class ChatMessage {
         reactionMine: clearMine ? null : (reactionMine ?? this.reactionMine),
         reactionTheirs: clearTheirs ? null : (reactionTheirs ?? this.reactionTheirs),
         unsent: unsent ?? this.unsent,
+        edited: edited ?? this.edited,
         readAt: readAt ?? this.readAt,
         pending: pending ?? this.pending,
         failed: failed ?? this.failed,

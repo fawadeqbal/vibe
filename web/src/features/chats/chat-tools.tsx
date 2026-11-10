@@ -78,12 +78,18 @@ export function EmojiPanel({ onPick }: { onPick: (e: string) => void }) {
 
 // ── hold a message ──────────────────────────────────────────────────────────
 
-export type MessageAction = { kind: "react"; emoji: string } | { kind: "reply" } | { kind: "copy" } | { kind: "unsend" } | { kind: "report" };
+export type MessageAction = { kind: "react"; emoji: string } | { kind: "reply" } | { kind: "copy" } | { kind: "edit" } | { kind: "unsend" } | { kind: "report" };
 
-/** Hold (or right-click) a message: react, reply, copy, unsend yours, report theirs. */
-export const openMessageMenu = (m: ChatMessage, canUnsend: boolean) => openSheet<MessageAction>((close) => <MessageMenu m={m} canUnsend={canUnsend} onDone={close} />);
+/** What you may do with your own message right now (both inside the unsend window). */
+export type MessageRights = { unsend: boolean; edit: boolean };
 
-function MessageMenu({ m, canUnsend, onDone }: { m: ChatMessage; canUnsend: boolean; onDone: (a?: MessageAction) => void }) {
+/** Hold (or right-click) a message: react, reply, copy, edit or unsend yours, report theirs. */
+export const openMessageMenu = (m: ChatMessage, rights: MessageRights, sentAt?: string) =>
+  openSheet<MessageAction>((close) => <MessageMenu m={m} rights={rights} sentAt={sentAt} onDone={close} />);
+
+const isText = (m: ChatMessage) => (m.kind === "text" || !m.kind) && !m.gift;
+
+function MessageMenu({ m, rights, sentAt, onDone }: { m: ChatMessage; rights: MessageRights; sentAt?: string; onDone: (a?: MessageAction) => void }) {
   const row = (icon: string, label: string, a: MessageAction, bad = false) => (
     <li>
       <button type="button" onClick={() => onDone(a)} className={cn("type-body flex h-12 w-full items-center gap-3 rounded-[12px] px-3 text-left text-[15px] hover:bg-white/6", bad ? "text-bad" : "text-text")}>
@@ -95,7 +101,15 @@ function MessageMenu({ m, canUnsend, onDone }: { m: ChatMessage; canUnsend: bool
   const preview = m.kind === "photo" ? "📷 Photo" : m.kind === "voice" ? "🎤 Voice message" : m.gift ? `${m.gift.emoji} ${m.gift.name}` : m.text;
   return (
     <div className="flex flex-col px-4 pt-2 pb-4">
-      <p className="type-body mx-1 mb-3 line-clamp-2 rounded-[14px] bg-surface2 px-3 py-2 text-[13.5px] text-text2">{preview}</p>
+      <div className="mx-1 mb-3 rounded-[14px] bg-surface2 px-3 py-2">
+        <p className="type-body line-clamp-2 text-[13.5px] text-text2">{preview}</p>
+        {sentAt ? (
+          <p className="type-label mt-0.5 text-[11px] text-muted">
+            {m.fromMe ? "Sent" : "Received"} {sentAt}
+            {m.edited ? " · edited" : ""}
+          </p>
+        ) : null}
+      </div>
       <div role="group" aria-label="React" className="flex justify-between rounded-full border border-line bg-surface px-1.5 py-1">
         {QUICK_REACTIONS.map((e) => (
           <button
@@ -112,36 +126,91 @@ function MessageMenu({ m, canUnsend, onDone }: { m: ChatMessage; canUnsend: bool
       </div>
       <ul className="mt-3 flex flex-col">
         {row("reply", "Reply", { kind: "reply" })}
-        {m.kind === "text" || (!m.kind && !m.gift) ? row("content_copy", "Copy", { kind: "copy" }) : null}
-        {canUnsend ? row("undo", "Unsend", { kind: "unsend" }, true) : null}
+        {isText(m) ? row("content_copy", "Copy", { kind: "copy" }) : null}
+        {rights.edit && isText(m) ? row("edit", "Edit", { kind: "edit" }) : null}
+        {rights.unsend ? row("undo", "Unsend", { kind: "unsend" }, true) : null}
         {!m.fromMe ? row("flag", "Report", { kind: "report" }, true) : null}
       </ul>
     </div>
   );
 }
 
-/** Long press on touch, right-click on desktop. */
-export function useHold(onHold: () => void) {
+/** How far to drag a message to reply to it. */
+const SWIPE_REPLY = 64;
+
+/**
+ * Long press on touch, right-click on desktop: `onHold`. Swipe a message to
+ * the right on touch: `onSwipe` (reply). The bubble follows the finger and
+ * its parent's `--swipe` (0–1) drives the reply hint beside it. Holding
+ * never selects text or opens the browser's own menu.
+ */
+export function useHold(onHold: () => void, onSwipe?: () => void) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const start = useRef<{ x: number; y: number; mode: "wait" | "swipe" | "scroll"; dx: number } | null>(null);
+  const held = useRef(0);
   const clear = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
   };
+  const place = (el: HTMLElement, dx: number, animate: boolean) => {
+    el.style.transition = animate ? "transform 180ms ease-out" : "none";
+    el.style.transform = dx ? `translateX(${dx}px)` : "";
+    el.parentElement?.style.setProperty("--swipe", String(Math.min(1, dx / SWIPE_REPLY)));
+  };
+  const fire = () => {
+    held.current = Date.now();
+    window.getSelection?.()?.removeAllRanges();
+    onHold();
+  };
   return {
     onContextMenu: (e: React.MouseEvent) => {
       e.preventDefault();
-      onHold();
+      // A long press also fires contextmenu on Android: the timer already opened the menu.
+      if (start.current || Date.now() - held.current < 1000) return;
+      fire();
     },
-    onTouchStart: () => {
+    onTouchStart: (e: React.TouchEvent) => {
       clear();
+      const t = e.touches[0];
+      start.current = { x: t.clientX, y: t.clientY, mode: "wait", dx: 0 };
       timer.current = setTimeout(() => {
         timer.current = null;
+        if (start.current?.mode !== "wait") return;
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate?.(12);
-        onHold();
+        fire();
       }, 450);
     },
-    onTouchEnd: clear,
-    onTouchMove: clear,
+    onTouchMove: (e: React.TouchEvent) => {
+      const s = start.current;
+      if (!s) return;
+      const t = e.touches[0];
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
+      if (s.mode === "wait") {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        clear();
+        s.mode = onSwipe && dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.4 ? "swipe" : "scroll";
+      }
+      if (s.mode !== "swipe") return;
+      // Follows the finger, then resists past the reply point.
+      const d = Math.max(0, dx < SWIPE_REPLY ? dx : SWIPE_REPLY + (dx - SWIPE_REPLY) * 0.25);
+      if (d >= SWIPE_REPLY && s.dx < SWIPE_REPLY && "vibrate" in navigator) navigator.vibrate?.(8);
+      s.dx = d;
+      place(e.currentTarget as HTMLElement, d, false);
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      clear();
+      const s = start.current;
+      start.current = null;
+      if (s?.mode !== "swipe") return;
+      place(e.currentTarget as HTMLElement, 0, true);
+      if (s.dx >= SWIPE_REPLY) onSwipe?.();
+    },
+    onTouchCancel: (e: React.TouchEvent) => {
+      clear();
+      if (start.current?.mode === "swipe") place(e.currentTarget as HTMLElement, 0, true);
+      start.current = null;
+    },
   };
 }
 

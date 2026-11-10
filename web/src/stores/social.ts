@@ -66,6 +66,8 @@ interface SocialState {
   sendMedia: (friendId: string, kind: "photo" | "voice", file: Blob, info?: { seconds?: number; w?: number; h?: number; replyToId?: string | null }) => Promise<void>;
   react: (friendId: string, messageId: string, emoji: string | null) => Promise<void>;
   unsend: (friendId: string, messageId: string) => Promise<void>;
+  /** Change the text of your own message (within the unsend window): both see it marked "edited". */
+  editMessage: (friendId: string, messageId: string, text: string) => Promise<void>;
   /** Tell them you're typing (throttled here: at most every 3 s). */
   typingTo: (friendId: string) => void;
   /** False when there aren't enough coins. */
@@ -314,6 +316,10 @@ export const useSocial = create<SocialState>()((set, get) => {
       onUpdated(asMap(await api.delete(`/friends/${friendId}/messages/${messageId}`)));
     },
 
+    async editMessage(friendId, messageId, text) {
+      onUpdated(asMap(await api.patch(`/friends/${friendId}/messages/${messageId}`, { text })));
+    },
+
     typingTo(friendId) {
       const now = Date.now();
       if ((typingSent[friendId] ?? 0) > now - 3000) return;
@@ -366,7 +372,7 @@ function onUpdated(m: Json) {
   useSocial.setState((s) => {
     const list = s.chats[friendId];
     if (!list) return {};
-    return { chats: { ...s.chats, [friendId]: list.map((x) => (x.id === msg.id ? { ...msg, gift: x.gift ?? msg.gift } : x.replyTo?.id === msg.id ? { ...x, replyTo: { ...x.replyTo, unsent: !!msg.unsent, text: msg.unsent ? "" : x.replyTo.text } } : x)) } };
+    return { chats: { ...s.chats, [friendId]: list.map((x) => (x.id === msg.id ? { ...msg, gift: x.gift ?? msg.gift } : x.replyTo?.id === msg.id ? { ...x, replyTo: { ...x.replyTo, unsent: !!msg.unsent, text: msg.unsent ? "" : msg.edited ? msg.text : x.replyTo.text } } : x)) } };
   });
 }
 

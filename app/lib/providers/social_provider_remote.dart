@@ -378,6 +378,12 @@ class RemoteSocialProvider extends SocialProvider {
     if (r is Map) replaceMessage(friendId, ApiMap.message(Map<String, dynamic>.from(r)));
   }
 
+  @override
+  Future<void> editMessage(String friendId, String messageId, String text) async {
+    final r = await _api.patch('/friends/$friendId/messages/$messageId', {'text': text});
+    if (r is Map) replaceMessage(friendId, ApiMap.message(Map<String, dynamic>.from(r)));
+  }
+
   final Map<String, DateTime> _typingSent = {};
 
   @override

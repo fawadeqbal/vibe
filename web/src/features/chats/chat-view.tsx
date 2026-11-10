@@ -57,6 +57,8 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
   const [text, setText] = useState("");
   const [panel, setPanel] = useState<Panel>("none");
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  /** Editing one of your messages: the composer holds its text and saves instead of sending. */
+  const [editing, setEditing] = useState<ChatMessage | null>(null);
   const callState = useCallState(friendId);
   const voice = useVoiceRecorder(Math.max(5, e.chatVoiceNoteMaxSeconds || 60));
   const back = () => router.push("/chats");
@@ -155,6 +157,18 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
     ev?.preventDefault();
     const t = text;
     if (!t.trim()) return;
+    if (editing) {
+      const m = editing;
+      setEditing(null);
+      setText("");
+      if (t.trim() === m.text.trim()) return;
+      try {
+        await useSocial.getState().editMessage(friendId, m.id, t);
+      } catch (err) {
+        toast(errorMessage(err), { error: true });
+      }
+      return;
+    }
     const reply = replyTo?.id ?? null;
     setText("");
     setReplyTo(null);
@@ -203,20 +217,42 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
     }
   };
 
+  const cancelEdit = () => {
+    setEditing(null);
+    setText("");
+  };
+
+  const startReply = (m: ChatMessage) => {
+    if (editing) cancelEdit();
+    setReplyTo(m);
+    input.current?.focus();
+  };
+
   const onHold = async (m: ChatMessage) => {
-    const a = await openMessageMenu(m, canUnsend(m, e.chatUnsendMinutes));
+    const mine = canUnsend(m, e.chatUnsendMinutes);
+    const a = await openMessageMenu(m, { unsend: mine, edit: mine && m.kind !== "photo" && m.kind !== "voice" }, time(m.at));
     if (!a) return;
     try {
       if (a.kind === "react") {
         rememberEmoji(a.emoji);
         await useSocial.getState().react(friendId, m.id, m.reactions?.mine === a.emoji ? null : a.emoji);
       } else if (a.kind === "reply") {
-        setReplyTo(m);
-        input.current?.focus();
+        startReply(m);
+      } else if (a.kind === "edit") {
+        setReplyTo(null);
+        setPanel("none");
+        setEditing(m);
+        setText(m.text);
+        requestAnimationFrame(() => {
+          const el = input.current;
+          el?.focus();
+          el?.setSelectionRange(el.value.length, el.value.length);
+        });
       } else if (a.kind === "copy") {
         await navigator.clipboard.writeText(m.text);
         toast("Copied");
       } else if (a.kind === "unsend") {
+        if (editing?.id === m.id) cancelEdit();
         await useSocial.getState().unsend(friendId, m.id);
       } else if (a.kind === "report") {
         const choice = await pickReport(p.name, "person");
@@ -298,7 +334,10 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
             }}
           />
         ) : (
-          <div ref={list} className="quiet-scroll flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-4 py-3 lg:px-7 lg:py-[18px]">
+          <div
+            ref={list}
+            className="quiet-scroll flex min-h-0 flex-1 flex-col-reverse overflow-x-hidden overflow-y-auto px-4 py-3 [-webkit-touch-callout:none] lg:px-7 lg:py-[18px] [@media(pointer:coarse)]:select-none"
+          >
             <div>
               <div ref={top} aria-hidden className="h-px" />
               {loadingOlder ? (
@@ -314,6 +353,7 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
                   f={f}
                   tail={endsRun(msgs, i)}
                   onHold={() => void onHold(m)}
+                  onReply={() => startReply(m)}
                   onCallBack={
                     f.calls.mine && f.calls.theirs
                       ? (video) => void useCalls.getState().ring(p, video && f.calls.mineVideo && f.calls.theirsVideo ? "video" : "voice")
@@ -335,7 +375,23 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
         {f.state === "friends" ? <CallsCard f={f} state={callState} /> : null}
 
         <div className="px-3 pt-2 pb-[calc(10px+var(--safe-bottom))] lg:border-t lg:border-line-soft lg:px-[22px] lg:pt-3.5 lg:pb-4">
-          {replyTo ? (
+          {editing ? (
+            <div className="mb-2 flex items-center gap-2 rounded-[14px] border-l-[3px] border-pink bg-pink/8 py-1.5 pr-1.5 pl-3">
+              <Icon name="edit" size={16} className="shrink-0 text-pink-soft" />
+              <span className="min-w-0 flex-1">
+                <span className="type-label block text-[11.5px] font-semibold text-pink-soft">Editing message</span>
+                <span className="type-body block truncate text-[12.5px] text-text2">{editing.text}</span>
+              </span>
+              <button
+                type="button"
+                aria-label="Cancel editing"
+                onClick={cancelEdit}
+                className="flex size-8 items-center justify-center rounded-full text-muted hover:text-text"
+              >
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+          ) : replyTo ? (
             <div className="mb-2 flex items-center gap-2 rounded-[14px] border-l-[3px] border-violet bg-violet/10 py-1.5 pr-1.5 pl-3">
               <span className="min-w-0 flex-1">
                 <span className="type-label block text-[11.5px] font-semibold text-lavender">Replying to {replyTo.fromMe ? "yourself" : first}</span>
@@ -383,7 +439,12 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
                     if (ev.target.value) useSocial.getState().typingTo(friendId);
                   }}
                   onFocus={() => panel === "emoji" && setPanel("none")}
-                  placeholder="Message"
+                  onKeyDown={(ev) => {
+                    if (ev.key !== "Escape") return;
+                    if (editing) cancelEdit();
+                    else if (replyTo) setReplyTo(null);
+                  }}
+                  placeholder={editing ? "Edit message" : "Message"}
                   aria-label="Message"
                   enterKeyHint="send"
                   className="type-body min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted"
@@ -401,7 +462,17 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
                   <Icon name="sentiment_satisfied" size={22} />
                 </button>
               </div>
-              {text.trim() ? (
+              {editing ? (
+                <CircleIconButton
+                  icon="check"
+                  label="Save edit"
+                  size={46}
+                  iconSize={21}
+                  type="submit"
+                  disabled={!text.trim()}
+                  className={cn("text-white", text.trim() ? "bg-violet" : "bg-violet/50")}
+                />
+              ) : text.trim() ? (
                 <CircleIconButton icon="send" label="Send" size={46} iconSize={19} type="submit" className="bg-violet text-white" />
               ) : e.chatVoiceNotesEnabled !== 0 ? (
                 <CircleIconButton
@@ -496,6 +567,7 @@ function Bubble({
   tail,
   focused = false,
   onHold,
+  onReply,
   onCallBack,
 }: {
   m: ChatMessage;
@@ -503,9 +575,10 @@ function Bubble({
   tail: boolean;
   focused?: boolean;
   onHold: () => void;
+  onReply: () => void;
   onCallBack?: (video: boolean) => void;
 }) {
-  const hold = useHold(onHold);
+  const hold = useHold(onHold, onReply);
   if (m.kind === "system") return <SystemLine m={m} onCallBack={onCallBack} />;
   const mine = m.fromMe;
   const gift = !!m.gift;
@@ -513,13 +586,28 @@ function Bubble({
   const url = typeof m.meta?.url === "string" ? m.meta.url : "";
   const first = f.profile.name.split(" ")[0];
   const reactions = [m.reactions?.theirs, m.reactions?.mine].filter((x): x is string => !!x);
+  const live = !m.unsent && !m.pending && !m.failed;
   return (
-    <div data-mid={m.id} className={cn("flex flex-col", tail ? "mb-2.5" : "mb-1", mine ? "items-end" : "items-start pl-[34px]", reactions.length && "mb-3.5")}>
+    <div
+      data-mid={m.id}
+      className={cn("group/msg flex flex-col", tail ? "mb-2.5" : "mb-1", mine ? "items-end" : "items-start pl-[34px]", reactions.length && "mb-3.5")}
+    >
+      <div className={cn("relative flex max-w-[78%] items-center gap-1", mine && "flex-row-reverse")}>
+      {live ? (
+        // Swipe right to reply: the hint grows beside the bubble as it moves (`--swipe`).
+        <span
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 right-full mr-1.5 flex size-8 items-center justify-center rounded-full bg-white/8 text-text"
+          style={{ opacity: "var(--swipe, 0)", transform: "translateY(-50%) scale(calc(0.6 + var(--swipe, 0) * 0.4))" }}
+        >
+          <Icon name="reply" size={18} />
+        </span>
+      ) : null}
       <div
-        {...(m.unsent || m.pending || m.failed ? {} : hold)}
+        {...(live ? hold : {})}
         title={time(m.at)}
         className={cn(
-          "relative max-w-[78%] rounded-[20px] select-none",
+          "relative min-w-0 touch-pan-y rounded-[20px] select-none [-webkit-touch-callout:none]",
           tail && (mine ? "rounded-br-[6px]" : "rounded-bl-[6px]"),
           m.unsent
             ? "border border-dashed border-white/16 px-3 py-2"
@@ -557,7 +645,12 @@ function Bubble({
               <PhotoMessage url={url} w={Number(m.meta?.w) || undefined} h={Number(m.meta?.h) || undefined} mine={mine} pending={m.pending} />
             ) : null}
             {m.kind === "voice" && url ? <VoiceNote url={url} seconds={Number(m.meta?.seconds) || 0} mine={mine} /> : null}
-            {!media ? <p className={cn("type-body text-[14.5px] leading-[1.4] break-words", mine && !gift ? "text-white" : "text-text")}>{m.text}</p> : null}
+            {!media ? (
+              <p className={cn("type-body text-[14.5px] leading-[1.4] break-words", mine && !gift ? "text-white" : "text-text")}>
+                {m.text}
+                {m.edited ? <span className={cn("ml-1.5 text-[11px] whitespace-nowrap", mine && !gift ? "text-white/60" : "text-muted")}>edited</span> : null}
+              </p>
+            ) : null}
           </>
         )}
         {m.pending ? (
@@ -593,6 +686,18 @@ function Bubble({
             {reactions.length > 1 ? <span className="ml-0.5 text-[11px] text-muted">2</span> : null}
           </button>
         ) : null}
+      </div>
+      {live ? (
+        // With a mouse: reply and more on hover, beside the bubble.
+        <span className="hidden shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/msg:opacity-100 focus-within:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:flex">
+          <button type="button" aria-label="Reply" title="Reply" onClick={onReply} className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-white/8 hover:text-text">
+            <Icon name="reply" size={18} />
+          </button>
+          <button type="button" aria-label="More actions" title="React, copy, edit…" onClick={onHold} className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-white/8 hover:text-text">
+            <Icon name="more_horiz" size={18} />
+          </button>
+        </span>
+      ) : null}
       </div>
       {mine && m.hidden && !m.unsent ? <HiddenNote className={cn(reactions.length && "mt-3.5")} /> : null}
     </div>

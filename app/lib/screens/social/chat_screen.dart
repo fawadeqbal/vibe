@@ -48,6 +48,9 @@ class _ChatScreenState extends State<ChatScreen> {
   late final AppServices _services = context.read<AppServices>();
 
   ChatMessage? _replyTo;
+
+  /// Editing one of your messages: the composer holds its text and saves instead of sending.
+  ChatMessage? _editing;
   bool _emoji = false;
   bool _recording = false;
 
@@ -87,6 +90,18 @@ class _ChatScreenState extends State<ChatScreen> {
     final social = context.read<SocialProvider>();
     final text = _text.text;
     if (text.trim().isEmpty) return;
+    final editing = _editing;
+    if (editing != null) {
+      _text.clear();
+      setState(() => _editing = null);
+      if (text.trim() == editing.text.trim()) return;
+      try {
+        await social.editMessage(widget.friendId, editing.id, text);
+      } on ApiException catch (e) {
+        if (mounted) toast(context, e.status == 409 ? 'Too late to edit this one' : e.message, error: true);
+      }
+      return;
+    }
     final reply = _replyTo?.id;
     _text.clear();
     setState(() => _replyTo = null);
@@ -222,6 +237,19 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _cancelEdit() {
+    _text.clear();
+    setState(() => _editing = null);
+  }
+
+  /// Reply from the menu or by swiping the message.
+  void _startReply(ChatMessage m) {
+    if (_editing != null) _cancelEdit();
+    HapticFeedback.selectionClick();
+    setState(() => _replyTo = m);
+    _focus.requestFocus();
+  }
+
   Future<void> _longPress(ChatMessage m, Friend f) async {
     if (m.isSystem) return;
     HapticFeedback.selectionClick();
@@ -232,11 +260,20 @@ class _ChatScreenState extends State<ChatScreen> {
         case ReactAction(:final emoji):
           await _social.react(widget.friendId, m.id, m.reactionMine == emoji ? null : emoji);
         case PlainAction(action: SimpleAction.reply):
-          setState(() => _replyTo = m);
+          _startReply(m);
+        case PlainAction(action: SimpleAction.edit):
+          setState(() {
+            _replyTo = null;
+            _tools = false;
+            _emoji = false;
+            _editing = m;
+          });
+          _text.value = TextEditingValue(text: m.text, selection: TextSelection.collapsed(offset: m.text.length));
           _focus.requestFocus();
         case PlainAction(action: SimpleAction.copy):
           await copyMessage(context, m);
         case PlainAction(action: SimpleAction.unsend):
+          if (_editing?.id == m.id) _cancelEdit();
           await _social.unsend(widget.friendId, m.id);
         case PlainAction(action: SimpleAction.report):
           final follows = context.read<FollowsProvider>();
@@ -469,6 +506,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         friendName: f.profile.name,
                         seen: seen && i == lastMine,
                         onLongPress: () => _longPress(m, f),
+                        onSwipe: () => _startReply(m),
                         onReactionTap: m.reactionMine != null ? () => _social.react(widget.friendId, m.id, null) : null,
                       );
                       if (m.id != widget.focusMessageId) return bubble;
@@ -492,7 +530,12 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (_replyTo != null && !_recording)
+                  if (_editing != null && !_recording)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _EditingBar(text: _editing!.text, onClose: _cancelEdit),
+                    )
+                  else if (_replyTo != null && !_recording)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: ReplyQuote(
@@ -558,7 +601,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     },
                                     style: VT.body(15),
                                     decoration: InputDecoration(
-                                      hintText: 'Message',
+                                      hintText: _editing != null ? 'Edit message' : 'Message',
                                       filled: false,
                                       border: InputBorder.none,
                                       enabledBorder: InputBorder.none,
@@ -569,7 +612,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                     ),
                                   ),
                                 ),
-                                if (_text.text.trim().isEmpty && Economy.chatVoiceNotesEnabled)
+                                if (_editing != null)
+                                  CircleIconButton(icon: Icons.check_rounded, size: 40, iconSize: 21, color: Colors.white, background: V.violet, tooltip: 'Save edit', onTap: _send)
+                                else if (_text.text.trim().isEmpty && Economy.chatVoiceNotesEnabled)
                                   CircleIconButton(
                                     icon: Icons.mic_rounded,
                                     size: 40,
@@ -601,7 +646,7 @@ class _ChatScreenState extends State<ChatScreen> {
 /// One message: text, gift, photo or voice note, with its reply quote,
 /// reaction, time and "Seen".
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.m, required this.friend, required this.tail, required this.friendName, required this.seen, required this.onLongPress, this.onReactionTap});
+  const _Bubble({required this.m, required this.friend, required this.tail, required this.friendName, required this.seen, required this.onLongPress, this.onSwipe, this.onReactionTap});
   final ChatMessage m;
   final Profile friend;
 
@@ -610,6 +655,9 @@ class _Bubble extends StatelessWidget {
   final String friendName;
   final bool seen;
   final VoidCallback onLongPress;
+
+  /// Swiped right: reply to it.
+  final VoidCallback? onSwipe;
   final VoidCallback? onReactionTap;
 
   @override
@@ -670,7 +718,15 @@ class _Bubble extends StatelessWidget {
           else if (m.kind == MessageKind.voice)
             VoiceNoteBubble(m: m)
           else
-            Text(m.text, style: VT.body(14.5, color: fg, height: 1.4)),
+            Text.rich(
+              TextSpan(
+                text: m.text,
+                children: [
+                  if (m.edited) TextSpan(text: '  edited', style: VT.label(11, color: plainMine ? Colors.white60 : V.muted, weight: FontWeight.w500)),
+                ],
+              ),
+              style: VT.body(14.5, color: fg, height: 1.4),
+            ),
           if (m.pending)
             Padding(
               padding: EdgeInsets.fromLTRB(photo ? 6 : 0, 2, photo ? 6 : 0, 0),
@@ -700,7 +756,10 @@ class _Bubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          GestureDetector(
+          _SwipeToReply(
+            enabled: onSwipe != null && !m.pending && !m.failed && !m.unsent,
+            onSwipe: () => onSwipe?.call(),
+            child: GestureDetector(
             onLongPress: m.pending || m.failed ? null : onLongPress,
             child: Stack(
               clipBehavior: Clip.none,
@@ -733,6 +792,7 @@ class _Bubble extends StatelessWidget {
               ],
             ),
           ),
+          ),
           if (mine && m.hidden && !m.unsent) Padding(padding: EdgeInsets.only(top: reactions.isNotEmpty ? 12 : 0), child: const HiddenNote()),
           if (seen)
             Padding(
@@ -742,6 +802,126 @@ class _Bubble extends StatelessWidget {
                 style: VT.label(10.5, color: V.muted, weight: FontWeight.w600),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Above the composer while editing one of your messages.
+class _EditingBar extends StatelessWidget {
+  const _EditingBar({required this.text, required this.onClose});
+  final String text;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: V.bg2,
+        borderRadius: BorderRadius.circular(12),
+        border: const Border(left: BorderSide(color: V.pink, width: 3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(SolarIconsOutline.pen, size: 16, color: V.pinkSoft),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Editing message', style: VT.label(11.5, color: V.pinkSoft, weight: FontWeight.w700)),
+                Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(12.5, color: V.text2)),
+              ],
+            ),
+          ),
+          IconButton(tooltip: 'Cancel editing', visualDensity: VisualDensity.compact, onPressed: onClose, icon: const Icon(Icons.close_rounded, size: 18, color: V.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Drag a message to the right to reply: it follows the finger, a reply
+/// icon grows behind it, and letting go past the mark replies.
+class _SwipeToReply extends StatefulWidget {
+  const _SwipeToReply({required this.enabled, required this.onSwipe, required this.child});
+  final bool enabled;
+  final VoidCallback onSwipe;
+  final Widget child;
+
+  @override
+  State<_SwipeToReply> createState() => _SwipeToReplyState();
+}
+
+class _SwipeToReplyState extends State<_SwipeToReply> with SingleTickerProviderStateMixin {
+  static const _mark = 64.0;
+  late final _back = AnimationController(vsync: this, duration: const Duration(milliseconds: 180));
+  double _dx = 0;
+  bool _passed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _back.addListener(() => setState(() => _dx = _from * (1 - Curves.easeOut.transform(_back.value))));
+  }
+
+  double _from = 0;
+
+  @override
+  void dispose() {
+    _back.dispose();
+    super.dispose();
+  }
+
+  void _update(DragUpdateDetails d) {
+    final raw = (_dx + d.delta.dx * (_dx >= _mark ? 0.25 : 1)).clamp(0.0, _mark * 1.5);
+    if (raw >= _mark && !_passed) HapticFeedback.selectionClick();
+    setState(() {
+      _passed = raw >= _mark;
+      _dx = raw;
+    });
+  }
+
+  void _end([DragEndDetails? _]) {
+    if (_passed) widget.onSwipe();
+    _passed = false;
+    _from = _dx;
+    _back.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+    final p = (_dx / _mark).clamp(0.0, 1.0);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (_) => _back.stop(),
+      onHorizontalDragUpdate: _update,
+      onHorizontalDragEnd: _end,
+      onHorizontalDragCancel: _end,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.centerLeft,
+        children: [
+          Positioned(
+            left: -40,
+            child: Opacity(
+              opacity: p,
+              child: Transform.scale(
+                scale: 0.6 + p * 0.4,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(color: V.surface2, shape: BoxShape.circle),
+                  child: const Icon(Icons.reply_rounded, size: 18, color: V.text),
+                ),
+              ),
+            ),
+          ),
+          Transform.translate(offset: Offset(_dx, 0), child: widget.child),
         ],
       ),
     );

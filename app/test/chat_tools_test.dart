@@ -102,6 +102,15 @@ void main() {
       expect(social.friend('u2')!.lastMessage, 'Message unsent');
     });
 
+    test('edit your own text: new text, marked edited', () async {
+      await social.sendMessage('u2', 'helo');
+      final m = social.messages('u2').last;
+      await social.editMessage('u2', m.id, ' hello ');
+      final edited = social.messages('u2').firstWhere((x) => x.id == m.id);
+      expect(edited.text, 'hello');
+      expect(edited.edited, isTrue);
+    });
+
     test('too late to unsend; photos and voice notes; switched off', () async {
       final old = ChatMessage(id: 'o', fromMe: true, text: 'x', at: DateTime.now().subtract(Duration(minutes: Economy.chatUnsendMinutes + 1)));
       expect(SocialProvider.canUnsend(old), isFalse);

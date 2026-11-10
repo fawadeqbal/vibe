@@ -171,6 +171,18 @@ class LocalSocialProvider extends SocialProvider {
     await _persist();
   }
 
+  @override
+  Future<void> editMessage(String friendId, String messageId, String text) async {
+    final m = _find(friendId, messageId);
+    if (m == null) return;
+    if (!m.fromMe) throw ApiException('FORBIDDEN', 'You can only edit your own messages', status: 403);
+    if (!SocialProvider.canUnsend(m) || m.kind != MessageKind.text) throw ApiException('CONFLICT', 'Too late to edit this one', status: 409);
+    final clean = text.trim();
+    if (clean.isEmpty || clean == m.text) return;
+    replaceMessage(friendId, m.copyWith(text: clean, edited: true));
+    await _persist();
+  }
+
   ChatMessage? _find(String friendId, String id) {
     for (final m in _chats[friendId] ?? const <ChatMessage>[]) {
       if (m.id == id) return m;

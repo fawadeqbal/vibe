@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowRight, Copy, Globe, Info, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowRight, Copy, Download, Globe, Info, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 
 import { buttonLabel, countryName, DID_LABELS, mediumLabel, placeLabel, SOURCE_LABELS, sourceLabel } from "./labels";
 import { DEFINITIONS } from "./definitions";
+import { exportMarketing } from "./export";
 import { averages, journey, neverPressed, notes, type Note, type Step, verdict } from "./read";
 import { DaysSwitch, Meter, periodLabel, SeeAll, share, useDays, useMarketing } from "./shared";
 
@@ -70,6 +71,7 @@ export function MarketingPage() {
                 Ignore my visits
               </a>
             ) : null}
+            <ExportButton days={days} />
             <DaysSwitch value={days} onChange={setDays} />
           </div>
         }
@@ -132,6 +134,30 @@ export function MarketingPage() {
 
       <LatestVisits r={r} href={`/marketing/visits${qs}`} days={days} />
     </div>
+  );
+}
+
+/** Downloads everything on this page for the chosen period — counts, steps, every list and every visit — as JSON. */
+function ExportButton({ days }: { days: number }) {
+  const [progress, setProgress] = React.useState<string | null>(null);
+  const run = async () => {
+    setProgress("Preparing…");
+    try {
+      const x = await exportMarketing(days, (done, total) => setProgress(total ? `Visits ${format.number(done)} / ${format.number(total)}` : "Preparing…"));
+      toast.success(`Exported ${periodLabel(days)}: ${format.number(x.visits.exported)} visits`, {
+        description: x.visits.complete ? undefined : `Stopped at ${format.number(x.visits.exported)} of ${format.number(x.visits.total)} visits. Pick a shorter period for the rest.`,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't export");
+    } finally {
+      setProgress(null);
+    }
+  };
+  return (
+    <Button variant="secondary" size="sm" className="text-xs" onClick={() => void run()} disabled={progress !== null} title={`Download ${periodLabel(days)} as JSON: every count, list and visit`}>
+      <Download className="size-3.5" />
+      {progress ?? "Export JSON"}
+    </Button>
   );
 }
 
