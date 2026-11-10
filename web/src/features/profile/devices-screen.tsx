@@ -94,7 +94,7 @@ export function DevicesScreen() {
   };
 
   return (
-    <Screen header={<AppBar title="Devices" onBack={() => (history.length > 1 ? router.back() : router.push("/me/settings"))} />} bodyClassName="pt-2">
+    <Screen header={<AppBar title="Devices" onBack={() => (history.length > 1 ? router.back() : router.push("/me/settings/account"))} />} bodyClassName="pt-2">
       <p className="type-body mb-3 px-1 text-[13.5px] leading-[1.5] text-text2">Where you&apos;re signed in to Vibe. Don&apos;t recognise one? Sign it out.</p>
       {items == null ? (
         failed ? (

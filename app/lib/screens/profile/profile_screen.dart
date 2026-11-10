@@ -1,24 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:solar_icons/solar_icons.dart';
 
-import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
-import '../../core/util/format.dart';
-import '../../models/models.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
-import '../invite/invite_screen.dart';
-import '../store/vip_screen.dart';
 import '../store/wallet_screen.dart';
 import 'me_overview.dart';
 import 'me_settings.dart';
 
 /// You, laid out like the profile pages people already know: photo and
 /// your three numbers, name and bio, Edit / Share / Preview, then what's
-/// left to fill in, your last matches and three shortcuts (`me_overview.dart`).
-/// Everything else lives behind ☰ in Settings and activity (`me_settings.dart`),
-/// one level down, with its own pages below that. Same as the web.
+/// left to fill in and your last matches (`me_overview.dart`). Below them,
+/// the five settings groups and Log out (`me_settings.dart`); each group
+/// pushes its own page. Same as the web.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key, required this.onOpenStore});
   final VoidCallback onOpenStore;
@@ -39,7 +33,6 @@ class ProfileScreen extends StatelessWidget {
               'Me',
               actions: [
                 CoinChip(coins: wallet.coins, showPlus: false, onTap: () => push(const WalletScreen())),
-                CircleIconButton(icon: SolarIconsOutline.hamburgerMenu, background: V.surface2, tooltip: 'Settings and activity', onTap: () => push(const SettingsMenuScreen())),
               ],
             ),
             Expanded(
@@ -51,28 +44,7 @@ class ProfileScreen extends StatelessWidget {
                   CompleteProfile(me: me),
                   const RecentMatches(),
                   const SizedBox(height: 26),
-                  GroupCard(
-                    children: [
-                      _Shortcut(
-                        icon: SolarIconsBold.wallet,
-                        title: 'Wallet',
-                        subtitle: '${Fmt.compact(wallet.coins)} coins · ${Fmt.compact(wallet.gems)} gems',
-                        onTap: () => push(const WalletScreen()),
-                      ),
-                      _Shortcut(
-                        icon: SolarIconsBold.crown,
-                        title: wallet.isVip ? 'You are VIP' : 'Get VIP',
-                        subtitle: wallet.isVip ? Fmt.until(wallet.wallet.vipUntil!) : 'Free filters, no ads, see who liked you',
-                        onTap: () => push(const VipScreen()),
-                      ),
-                      _Shortcut(
-                        icon: SolarIconsBold.gift,
-                        title: 'Invite friends',
-                        subtitle: 'Give ${Economy.inviteeRewardCoins}, get ${Economy.inviteRewardCoins} coins',
-                        onTap: () => push(const InviteScreen()),
-                      ),
-                    ],
-                  ),
+                  const SettingsButtons(),
                 ],
               ),
             ),
@@ -81,23 +53,4 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Shortcut extends StatelessWidget {
-  const _Shortcut({required this.icon, required this.title, required this.subtitle, required this.onTap});
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => GroupRow(
-        icon: icon,
-        iconColor: V.gold,
-        iconBg: V.gold.withValues(alpha: 0.12),
-        title: title,
-        subtitle: subtitle,
-        trailing: const Icon(SolarIconsOutline.altArrowRight, color: V.muted),
-        onTap: onTap,
-      );
 }

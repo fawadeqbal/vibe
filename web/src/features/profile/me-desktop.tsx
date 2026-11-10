@@ -11,7 +11,7 @@ import { Icon } from "@/components/ui/icon";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
 import { levelFraction, xpToNext } from "@/lib/engagement";
-import { compact, thousands, until } from "@/lib/format";
+import { compact, thousands } from "@/lib/format";
 import { type Badge, genderLabel, isProfileComplete, type Profile } from "@/lib/models";
 import { useCatalog } from "@/stores/catalog";
 import { useEngagement } from "@/stores/engagement";
@@ -24,13 +24,14 @@ import { isVip, useWallet } from "@/stores/wallet";
 
 import { changeProfilePhoto } from "./change-photo";
 import { previewProfile } from "./me-overview";
+import { SettingsButtons } from "./me-settings";
 import { profileSteps } from "./profile-steps";
 
 /**
  * Me on a desktop: a profile card across the top with your four numbers,
  * what's left to fill in and your level side by side, your last matches as
- * a grid, and money, VIP, invites and the settings people reach for most in
- * a column on the right. The phone layout is in `me-screen.tsx`.
+ * a grid, and your wallet with the five settings groups and Log out in a
+ * column on the right. The phone layout is in `me-screen.tsx`.
  */
 export function MeDesktop({ me }: { me: Profile }) {
   useEffect(() => {
@@ -47,11 +48,9 @@ export function MeDesktop({ me }: { me: Profile }) {
         </div>
         <MatchesCard />
       </div>
-      <aside aria-label="Money and invites" className="flex shrink-0 flex-col gap-5 xl:sticky xl:top-2 xl:w-[360px]">
+      <aside aria-label="Wallet and settings" className="flex shrink-0 flex-col gap-5 xl:sticky xl:top-2 xl:w-[360px]">
         <WalletCard />
-        <VipCard />
-        <InviteCard />
-        <QuickSettings />
+        <SettingsButtons />
       </aside>
     </div>
   );
@@ -430,80 +429,6 @@ function WalletCard() {
           Cash out
         </button>
       </div>
-    </section>
-  );
-}
-
-function SideLink({ href, icon, iconClass, title, subtitle, className, subClass = "text-text2" }: { href: string; icon: string; iconClass: string; title: string; subtitle: string; className?: string; subClass?: string }) {
-  return (
-    <Link href={href} className={cn("flex items-center gap-3.5 rounded-[24px] border px-[22px] py-[18px] transition-[filter] hover:brightness-110", className)}>
-      <span aria-hidden className={cn("flex size-11 shrink-0 items-center justify-center rounded-[14px]", iconClass)}>
-        <Icon name={icon} size={22} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="type-title block text-[15px] font-bold">{title}</span>
-        <span className={cn("type-body block truncate text-[12.5px]", subClass)}>{subtitle}</span>
-      </span>
-      <Icon name="chevron_right" className="text-muted" />
-    </Link>
-  );
-}
-
-function VipCard() {
-  const wallet = useWallet((s) => s.wallet);
-  const vip = isVip(wallet);
-  return (
-    <SideLink
-      href="/vip"
-      icon="workspace_premium"
-      iconClass="bg-gold/20 text-gold"
-      title={vip ? "You are VIP" : "Get VIP"}
-      subtitle={vip ? `${until(wallet.vipUntil!)} · free filters, no ads` : "Free filters, no ads, see who liked you"}
-      subClass="text-gold/75"
-      className="border-gold/30 bg-[linear-gradient(135deg,rgb(255_200_87/0.16),rgb(240_160_32/0.06))]"
-    />
-  );
-}
-
-function InviteCard() {
-  const economy = useCatalog((s) => s.economy);
-  return (
-    <SideLink
-      href="/invite"
-      icon="card_giftcard"
-      iconClass="bg-pink/16 text-pink-soft"
-      title="Invite friends"
-      subtitle={`Give ${economy.inviteeRewardCoins} coins, get ${economy.inviteRewardCoins}`}
-      className="border-line bg-surface"
-    />
-  );
-}
-
-function QuickSettings() {
-  const dataSaver = useMatch((s) => s.dataSaver);
-  const row = "flex items-center gap-3 rounded-[16px] px-3.5 py-3 transition-colors hover:bg-white/5";
-  return (
-    <section aria-label="Quick settings" className={cn(card, "p-2")}>
-      <Link href="/me/notifications" className={row}>
-        <Icon name="notifications_none" size={20} className="text-text2" />
-        <span className="type-label flex-1 text-[14px] font-semibold">Notifications</span>
-        <Icon name="chevron_right" size={20} className="text-muted" />
-      </Link>
-      <Link href="/me/settings/privacy" className={row}>
-        <Icon name="shield" size={20} className="text-text2" />
-        <span className="type-label flex-1 text-[14px] font-semibold">Privacy and safety</span>
-        <Icon name="chevron_right" size={20} className="text-muted" />
-      </Link>
-      <button type="button" onClick={() => useMatch.getState().setDataSaver(!dataSaver)} aria-pressed={dataSaver} className={cn(row, "w-full text-left")}>
-        <Icon name="data_saver_on" size={20} className="text-text2" />
-        <span className="type-label flex-1 text-[14px] font-semibold">Data saver</span>
-        <span className={cn("type-label text-[12.5px]", dataSaver ? "font-bold text-ok" : "text-text2")}>{dataSaver ? "On" : "Off"}</span>
-      </button>
-      <Link href="/me/settings" className={row}>
-        <Icon name="settings" size={20} className="text-text2" />
-        <span className="type-label flex-1 text-[14px] font-semibold">All settings</span>
-        <Icon name="chevron_right" size={20} className="text-muted" />
-      </Link>
     </section>
   );
 }
