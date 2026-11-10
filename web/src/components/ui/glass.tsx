@@ -79,7 +79,12 @@ export function GlassPill({
     </>
   );
   const base = cn("inline-flex min-w-0 max-w-full items-center border bg-glass", className);
-  if (!onClick) return <div className={base} style={style}>{content}</div>;
+  if (!onClick)
+    return (
+      <div className={base} style={style}>
+        {content}
+      </div>
+    );
   return (
     <button type="button" onClick={onClick} className={cn(base, "transition-[filter] hover:brightness-125")} style={style}>
       {content}
@@ -101,6 +106,7 @@ export function RoundControl({
   badge,
   labelColor,
   ariaLabel,
+  width,
 }: {
   icon: string;
   label?: ReactNode;
@@ -111,6 +117,8 @@ export function RoundControl({
   badge?: string;
   labelColor?: string;
   ariaLabel?: string;
+  /** Column width. Defaults to room for a label; pass `size` to sit flush in a stack. */
+  width?: number;
 }) {
   const disabled = !onClick;
   return (
@@ -120,7 +128,7 @@ export function RoundControl({
       disabled={disabled}
       aria-label={ariaLabel ?? (typeof label === "string" ? label : undefined)}
       className="group flex shrink-0 flex-col items-center"
-      style={{ width: Math.max(size, 60) }}
+      style={{ width: width ?? Math.max(size, 60) }}
     >
       <span className={cn("relative", disabled && "opacity-60")}>
         <span
@@ -136,10 +144,12 @@ export function RoundControl({
         >
           <Icon name={icon} size={size * 0.46} style={{ color: color(iconColor) }} />
         </span>
-        {badge ? <span className="type-label absolute -top-1 -right-1.5 rounded-[10px] bg-gold px-1.5 py-0.5 text-[10px] font-extrabold text-on-gold">{badge}</span> : null}
+        {badge ? (
+          <span className="type-label absolute -top-1 -right-1.5 rounded-[10px] bg-gold px-1.5 py-0.5 text-[10px] font-extrabold text-on-gold">{badge}</span>
+        ) : null}
       </span>
       {label != null ? (
-        <span className="type-label mt-1.5 max-w-full truncate text-[11px]" style={{ color: labelColor ?? "rgb(255 255 255 / .85)" }}>
+        <span data-rc-label className="type-label mt-1.5 max-w-full truncate text-[11px]" style={{ color: labelColor ?? "rgb(255 255 255 / .85)" }}>
           {label}
         </span>
       ) : null}

@@ -69,12 +69,12 @@ function PhoneLobby({ onStart }: { onStart: () => void }) {
           ) : (
             <span />
           )}
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col items-center gap-2.5">
             <FilterButton glass size={42} />
             {camLive ? (
               <>
-                <RoundControl icon="videocam_off" size={42} onClick={() => useMatch.getState().stopPreview()} ariaLabel="Turn camera preview off" />
-                <RoundControl icon="cameraswitch" size={42} onClick={() => void useMatch.getState().switchCamera()} ariaLabel="Switch camera" />
+                <RoundControl icon="videocam_off" size={42} width={42} onClick={() => useMatch.getState().stopPreview()} ariaLabel="Turn camera preview off" />
+                <RoundControl icon="cameraswitch" size={42} width={42} onClick={() => void useMatch.getState().switchCamera()} ariaLabel="Switch camera" />
               </>
             ) : null}
           </div>
@@ -113,7 +113,11 @@ function StartDock({ autoBlur, onStart }: { autoBlur: boolean; onStart: () => vo
       <button
         type="button"
         onClick={() => void openSafetySheet()}
-        aria-label={autoBlur ? "Safe start: both videos stay blurred for 3 seconds. How it works" : "Safety: report and block are one tap away in every call. How it works"}
+        aria-label={
+          autoBlur
+            ? "Safe start: both videos stay blurred for 3 seconds. How it works"
+            : "Safety: report and block are one tap away in every call. How it works"
+        }
         className="flex min-w-0 flex-1 items-center gap-2 rounded-full py-1 pr-2 pl-3 text-left hover:bg-white/4"
       >
         <Icon name="shield" size={20} className="shrink-0 text-trust" />

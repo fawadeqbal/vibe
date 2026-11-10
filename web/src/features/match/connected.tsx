@@ -75,31 +75,40 @@ export function Connected({ actions }: { actions: ConnectedActions }) {
       <SelfPip />
 
       <>
-        {/* The rail: everything you can do for this person, one thumb away. */}
-        <div className="absolute right-3 flex flex-col gap-3.5 bottom-[calc(112px+env(safe-area-inset-bottom))]">
-          <RoundControl
-            size={50}
-            icon={m.likedPartner ? "favorite" : "favorite_border"}
-            iconColor={m.likedPartner ? "pink" : "white"}
-            tint={m.likedPartner ? "pink" : undefined}
-            onClick={m.like}
-            label={m.likedPartner ? "Liked" : "Like"}
-          />
-          <FriendControl state={friendState} onAdd={actions.addFriend} />
-          <RoundControl size={50} icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
-          <RoundControl
-            size={50}
-            icon="casino"
-            iconColor={m.game ? "lavender" : "white"}
-            tint={m.game ? "violet" : undefined}
-            onClick={() => void playGame()}
-            label="Play"
-          />
-          <RoundControl size={50} icon="more_horiz" onClick={() => void openCallOptions(actions)} label="More" />
+        {/* The rail: everything you can do for this person, one thumb away. It
+            lives in the space between your picture and the composer; when that
+            space is short the labels go and the buttons stay. */}
+        <div
+          className="absolute right-3 w-16 [container-type:size]"
+          style={{ top: "calc(230px + env(safe-area-inset-top))", bottom: "calc(112px + env(safe-area-inset-bottom))" }}
+        >
+          <div className="flex h-full flex-col items-center justify-end gap-2.5 [&_[data-rc-label]]:mt-1 [@container(max-height:359px)]:[&_[data-rc-label]]:hidden [@container(max-height:269px)]:gap-1">
+            <RoundControl
+              size={46}
+              width={64}
+              icon={m.likedPartner ? "favorite" : "favorite_border"}
+              iconColor={m.likedPartner ? "pink" : "white"}
+              tint={m.likedPartner ? "pink" : undefined}
+              onClick={m.like}
+              label={m.likedPartner ? "Liked" : "Like"}
+            />
+            <FriendControl state={friendState} onAdd={actions.addFriend} />
+            <RoundControl size={46} width={64} icon="redeem" iconColor="gold" onClick={actions.gift} label="Gift" />
+            <RoundControl
+              size={46}
+              width={64}
+              icon="casino"
+              iconColor={m.game ? "lavender" : "white"}
+              tint={m.game ? "violet" : undefined}
+              onClick={() => void playGame()}
+              label="Play"
+            />
+            <RoundControl size={46} width={64} icon="more_horiz" onClick={() => void openCallOptions(actions)} label="More" />
+          </div>
         </div>
 
         {/* Chat and a game, bottom left, clear of the rail. */}
-        <div className="absolute left-3 flex flex-col gap-2.5 bottom-[calc(96px+env(safe-area-inset-bottom))]" style={{ right: 84 }}>
+        <div className="absolute left-3 flex flex-col gap-2.5 bottom-[calc(96px+env(safe-area-inset-bottom))]" style={{ right: 88 }}>
           {m.game ? <GameCard game={m.game} partnerName={p.name} /> : null}
           <ChatOverlay partnerName={p.name} compact={!!m.game} />
         </div>
@@ -235,7 +244,8 @@ export function PartnerStage({
       {camOff ? <CameraOffCover partner={partner} /> : null}
       <div
         className={cn(
-          "absolute inset-0 flex items-center justify-center bg-black/10 transition-opacity duration-600",
+          // Phone: clear of the action rail on the right.
+          "absolute inset-0 flex items-center justify-center bg-black/10 pr-[88px] pl-3 transition-opacity duration-600 lg:px-0",
           blurred ? "opacity-100" : "pointer-events-none opacity-0",
         )}
         style={{ backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}
@@ -255,7 +265,10 @@ export function SelfPip({ className, style }: { className?: string; style?: CSSP
   const me = useSession((s) => s.me);
   return (
     <div
-      className={cn("absolute overflow-hidden rounded-[18px] border-2 border-white/22 bg-surface2 shadow-[0_8px_24px_rgb(0_0_0/.4)]", className ?? "right-3 h-[136px] w-[96px] lg:h-[180px] lg:w-[128px]")}
+      className={cn(
+        "absolute overflow-hidden rounded-[18px] border-2 border-white/22 bg-surface2 shadow-[0_8px_24px_rgb(0_0_0/.4)]",
+        className ?? "right-3 h-[136px] w-[96px] lg:h-[180px] lg:w-[128px]",
+      )}
       style={style ?? { top: "calc(70px + env(safe-area-inset-top))" }}
     >
       {stream && camOn ? (
@@ -323,7 +336,8 @@ export function FriendControl({ state, onAdd, bare = false }: { state: FriendSta
   const label = state === "friends" ? "Friends" : state === "requested" ? "Sent" : state === "incoming" ? "Accept" : "Add friend";
   return (
     <RoundControl
-      size={bare ? 52 : 50}
+      size={bare ? 52 : 46}
+      width={bare ? undefined : 64}
       icon={icon}
       label={bare ? undefined : label}
       ariaLabel={bare ? (state === "requested" ? "Friend request sent" : label) : undefined}

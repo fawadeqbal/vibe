@@ -147,7 +147,7 @@ class GhostButton extends StatelessWidget {
 /// Round control for anything floating over video (match screen). Frosted
 /// by default; [tint] turns it into an "on" state (e.g. Liked → pink).
 class RoundControl extends StatelessWidget {
-  const RoundControl({super.key, required this.icon, required this.onTap, this.size = 52, this.color, this.background, this.label, this.badge, this.tint, this.labelColor});
+  const RoundControl({super.key, required this.icon, required this.onTap, this.size = 52, this.color, this.background, this.label, this.badge, this.tint, this.labelColor, this.width, this.showLabel = true});
 
   final IconData icon;
   final VoidCallback? onTap;
@@ -158,6 +158,12 @@ class RoundControl extends StatelessWidget {
   final String? badge;
   final Color? tint;
   final Color? labelColor;
+
+  /// Column width. Defaults to room for a label; pass `size` to sit flush in a stack.
+  final double? width;
+
+  /// When false the label is only read out, not drawn (tight rails).
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +187,7 @@ class RoundControl extends StatelessWidget {
       button: true,
       label: label,
       child: SizedBox(
-        width: math.max(size, 60),
+        width: width ?? math.max(size, 60),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -201,13 +207,13 @@ class RoundControl extends StatelessWidget {
                   ),
               ],
             ),
-            if (label != null)
+            if (label != null && showLabel)
               // The label is part of the target too.
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: onTap,
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 6),
+                  padding: EdgeInsets.only(top: width != null ? 4 : 6),
                   child: Text(label!, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(11, color: labelColor ?? Colors.white.withValues(alpha: 0.85))),
                 ),
               ),
