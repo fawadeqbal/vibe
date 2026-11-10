@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
-import { LedgerKind } from '@prisma/client';
+import { LedgerKind, UserStatus } from '@prisma/client';
 
 import { cursorArgs, CursorQueryDto, Page, toPage } from '../../common/dto/pagination.dto';
 import { AppError } from '../../common/errors/app-error';
@@ -13,6 +13,7 @@ import { EconomyService } from '../catalog/economy.service';
 import { LedgerService } from './ledger.service';
 import { EngagementService } from '../engagement/engagement.service';
 import { ProgressService } from '../engagement/progress.service';
+import { PROFILE_INCLUDE, PublicProfile, toPublicProfile } from '../users/user.mapper';
 import { isVip, toTransactionView, toWalletView, WALLET_INCLUDE, WalletView } from './wallet.mapper';
 import { MoveResult, WALLET_CHANGED, WalletChangedEvent } from './wallet.types';
 
@@ -51,13 +52,35 @@ export class WalletService {
     return isVip(w, this.clock.now());
   }
 
-  async transactions(userId: string, q: CursorQueryDto): Promise<Page<ReturnType<typeof toTransactionView>>> {
+  /** History, newest first; `currency` keeps only coin or only gem moves (paged on the server, not filtered on a page). */
+  async transactions(userId: string, q: CursorQueryDto & { currency?: 'coins' | 'gems' }): Promise<Page<ReturnType<typeof toTransactionView>>> {
     const rows = await this.prisma.ledgerEntry.findMany({
-      where: { userId },
+      where: { userId, ...(q.currency === 'coins' ? { coins: { not: 0 } } : q.currency === 'gems' ? { gems: { not: 0 } } : {}) },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       ...cursorArgs(q),
     });
     return toPage(rows, q.limit, toTransactionView);
+  }
+
+  /**
+   * One history entry for its detail page: the entry, your balances after
+   * it, and for a gift, what it was and who it was with (as they are now).
+   */
+  async transaction(userId: string, id: string) {
+    const e = await this.prisma.ledgerEntry.findFirst({ where: { id, userId } });
+    if (!e) throw AppError.notFound('Transaction');
+    const view = toTransactionView(e);
+    let gift: { name: string; emoji: string; coins: number; gems: number; sent: boolean; person: PublicProfile | null; at: string } | null = null;
+    if (view.giftTransferId) {
+      const t = await this.prisma.giftTransfer.findFirst({ where: { id: view.giftTransferId, OR: [{ fromId: userId }, { toId: userId }] } });
+      if (t) {
+        const sent = t.fromId === userId;
+        const other = await this.prisma.user.findFirst({ where: { id: sent ? t.toId : t.fromId, status: UserStatus.ACTIVE }, include: PROFILE_INCLUDE });
+        const g = this.economy.findGift(t.giftId);
+        gift = { name: g?.name ?? 'Gift', emoji: g?.emoji ?? '🎁', coins: t.coins, gems: t.gems, sent, person: other ? toPublicProfile(other, this.clock.now()) : null, at: t.createdAt.toISOString() };
+      }
+    }
+    return { ...view, balanceCoins: e.balanceCoins, balanceGems: e.balanceGems, gift };
   }
 
   /** Takes coins or throws INSUFFICIENT_COINS (402). */
@@ -85,11 +108,13 @@ export class WalletService {
         { tx },
       );
       if (!sent.applied) return null;
-      let received = await this.ledger.move(toId, { gems, kind: LedgerKind.GIFT_RECEIVED, title: `${gift.name} from ${ctx.fromName}` }, { tx });
-      if (bonus > 0) received = await this.ledger.move(toId, { gems: bonus, kind: LedgerKind.EARN, title: `Vibe Hour bonus · ${gift.name}` }, { tx });
+      // Every entry of this gift points at it, so its history line opens the gift (who, what).
+      const transfer = await tx.giftTransfer.create({ data: { giftId: gift.id, fromId, toId, coins: gift.coins, gems, matchId: ctx.matchId } });
+      await tx.ledgerEntry.update({ where: { id: sent.entry.id }, data: { reference: transfer.id } });
+      let received = await this.ledger.move(toId, { gems, kind: LedgerKind.GIFT_RECEIVED, title: `${gift.name} from ${ctx.fromName}`, reference: transfer.id }, { tx });
+      if (bonus > 0) received = await this.ledger.move(toId, { gems: bonus, kind: LedgerKind.EARN, title: `Vibe Hour bonus · ${gift.name}`, reference: transfer.id }, { tx });
       await tx.user.update({ where: { id: toId }, data: { giftsReceivedCount: { increment: 1 } } });
       await tx.user.update({ where: { id: fromId }, data: { giftsSentCount: { increment: 1 } } });
-      const transfer = await tx.giftTransfer.create({ data: { giftId: gift.id, fromId, toId, coins: gift.coins, gems, matchId: ctx.matchId } });
       return { transfer, gemsAfter: received.gems };
     });
     this.changed([fromId, toId]);

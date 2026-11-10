@@ -2,7 +2,15 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentMethod } from '@prisma/client';
 import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Length, Matches, Min } from 'class-validator';
 
+import { CursorQueryDto } from '../../../common/dto/pagination.dto';
 import { AD_PLATFORMS, AdPlatform } from '../ads/ad-views';
+
+export class TransactionsQueryDto extends CursorQueryDto {
+  @ApiPropertyOptional({ enum: ['coins', 'gems'], description: 'Only coin or only gem moves (leave out for all)' })
+  @IsOptional()
+  @IsIn(['coins', 'gems'])
+  currency?: 'coins' | 'gems';
+}
 
 export class AdPlatformDto {
   @ApiProperty({ enum: AD_PLATFORMS, description: 'Where the video plays: picks the network chosen in Settings → Ads' })

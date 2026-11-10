@@ -69,6 +69,31 @@ abstract class WalletProvider extends ChangeNotifier implements CheckoutBackend 
   List<Transaction> get transactions => List.unmodifiable(_tx.reversed);
   bool get loaded => _loaded;
 
+  /// History, newest first, a page at a time ([currency]: 'coins' or 'gems' keeps one kind).
+  /// Offline demo: pages through what's on the phone.
+  Future<ListPage<Transaction>> historyPage({String? cursor, String? currency, int limit = 30}) async {
+    final all = [
+      for (final t in transactions)
+        if (currency == null || (currency == 'coins' ? t.coins != 0 : t.gems != 0)) t,
+    ];
+    final from = cursor == null ? 0 : all.indexWhere((t) => t.id == cursor) + 1;
+    final page = all.skip(from).take(limit).toList();
+    return (items: page, next: from + limit < all.length && page.isNotEmpty ? page.last.id : null);
+  }
+
+  /// One history line's page; null when it's gone (not yours).
+  Future<TransactionDetail?> transactionDetail(String id) async {
+    final t = transactions.where((x) => x.id == id).firstOrNull;
+    return t == null ? null : TransactionDetail(tx: t, balanceCoins: coins, balanceGems: gems);
+  }
+
+  /// Every cash-out, newest first, a page at a time.
+  Future<ListPage<Cashout>> cashoutPage({String? cursor, int limit = 30}) async {
+    final from = cursor == null ? 0 : _cashouts.indexWhere((c) => c.id == cursor) + 1;
+    final page = _cashouts.skip(from).take(limit).toList();
+    return (items: page, next: from + limit < _cashouts.length && page.isNotEmpty ? page.last.id : null);
+  }
+
   /// Saved cash-out destinations (default first) and the rails that are on.
   List<PayoutAccount> get payoutAccounts => List.unmodifiable(_payoutAccounts);
   List<PaymentMethod> get payoutMethods => _payoutMethods;

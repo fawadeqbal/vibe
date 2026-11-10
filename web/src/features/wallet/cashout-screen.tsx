@@ -201,10 +201,11 @@ export function CashoutScreen() {
 
       {w.cashouts.length ? (
         <>
-          <SectionTitle text="Cash-outs" bottom={10} />
+          {/* The latest few; See all has every one, a page at a time. */}
+          <SectionTitle text="Cash-outs" action={w.cashouts.length > PREVIEW ? "See all" : undefined} onAction={() => router.push("/wallet/cashouts")} bottom={10} />
           <GroupCard>
-            {w.cashouts.map((c) => (
-              <CashoutRow key={c.id} c={c} money={money(c)} />
+            {w.cashouts.slice(0, PREVIEW).map((c) => (
+              <CashoutRow key={c.id} c={c} />
             ))}
           </GroupCard>
         </>
@@ -234,9 +235,18 @@ export function CashoutScreen() {
 
 const STATUS_TONE: Record<Cashout["status"], Tone> = { paid: "ok", rejected: "bad", review: "warn", requested: "gem", processing: "gem" };
 
-function CashoutRow({ c, money }: { c: Cashout; money: string }) {
+/** Lists show this many, then See all. */
+const PREVIEW = 5;
+
+const moneyOf = (c: Cashout) => (c.amountPkr != null ? `Rs ${thousands(c.amountPkr)}` : usd(c.usd));
+
+/** One cash-out; opens its page (how much, where to, where it is now). */
+export function CashoutRow({ c }: { c: Cashout }) {
+  const router = useRouter();
+  const money = moneyOf(c);
   return (
     <GroupRow
+      onClick={() => router.push(`/wallet/cashouts/${encodeURIComponent(c.id)}`)}
       icon="payments"
       iconColor="gem"
       iconBg={alpha("gem", 0.13)}

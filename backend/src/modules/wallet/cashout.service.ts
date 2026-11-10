@@ -2,6 +2,7 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Cashout, CashoutStatus, LedgerKind, PaymentMethod, PayoutAccount } from '@prisma/client';
 
+import { cursorArgs, CursorQueryDto, Page, toPage } from '../../common/dto/pagination.dto';
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { Clock, MS } from '../../common/utils/clock';
@@ -128,9 +129,16 @@ export class CashoutService {
     return this.view(c);
   }
 
+  /** The latest 50 (older apps read this; newer ones page through `page`). */
   async list(userId: string) {
     const rows = await this.prisma.cashout.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 50 });
     return rows.map((c) => this.view(c));
+  }
+
+  /** Every cash-out, newest first, a page at a time. */
+  async page(userId: string, q: CursorQueryDto): Promise<Page<ReturnType<CashoutService['view']>>> {
+    const rows = await this.prisma.cashout.findMany({ where: { userId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...cursorArgs(q) });
+    return toPage(rows, q.limit, (c) => this.view(c));
   }
 
   /** What the app sees of a cash-out (no internal provider/batch fields). */

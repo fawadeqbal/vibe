@@ -67,11 +67,34 @@ class RemoteWalletProvider extends WalletProvider {
   @override
   Future<void> refresh() async {
     try {
-      final page = await _api.get('/wallet/transactions', query: {'limit': '50'}) as Map;
+      // The Wallet page shows the latest 5 (one more says there are more); History pages through the rest.
+      final page = await _api.get('/wallet/transactions', query: {'limit': '6'}) as Map;
       // The base class shows `_tx` newest-last (it reverses), the API is newest-first.
       _tx = (page['items'] as List).map((e) => ApiMap.transaction(Map<String, dynamic>.from(e as Map))).toList().reversed.toList();
       notifyListeners();
     } on ApiException catch (_) {}
+  }
+
+  @override
+  Future<ListPage<Transaction>> historyPage({String? cursor, String? currency, int limit = 30}) async {
+    final page = Map<String, dynamic>.from(await _api.get('/wallet/transactions', query: {'limit': '$limit', 'cursor': ?cursor, 'currency': ?currency}) as Map);
+    return (items: [for (final e in page['items'] as List? ?? const []) ApiMap.transaction(Map<String, dynamic>.from(e as Map))], next: page['nextCursor'] as String?);
+  }
+
+  @override
+  Future<TransactionDetail?> transactionDetail(String id) async {
+    try {
+      return ApiMap.transactionDetail(Map<String, dynamic>.from(await _api.get('/wallet/transactions/${Uri.encodeComponent(id)}') as Map));
+    } on ApiException catch (e) {
+      if (e.status == 404 || e.status == 403) return null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ListPage<Cashout>> cashoutPage({String? cursor, int limit = 30}) async {
+    final page = Map<String, dynamic>.from(await _api.get('/wallet/cashout-history', query: {'limit': '$limit', 'cursor': ?cursor}) as Map);
+    return (items: [for (final c in page['items'] as List? ?? const []) Cashout.fromJson(Map<String, dynamic>.from(c as Map))], next: page['nextCursor'] as String?);
   }
 
   Future<T?> _claim<T>(String path, T Function(Map) pick, {Object? body, Set<String> nullOn = const {'ALREADY_CLAIMED', 'DAILY_LIMIT_REACHED'}}) async {

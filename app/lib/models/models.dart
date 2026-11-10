@@ -188,11 +188,19 @@ class Transaction {
     this.usd = 0,
     this.method,
     this.receipt,
+    this.purchaseId,
+    this.cashoutId,
+    this.giftTransferId,
   });
 
   final String id;
   final TxKind kind;
   final String title;
+
+  /// The record it's about (opens its own page): a purchase receipt, a cash-out, a gift.
+  final String? purchaseId;
+  final String? cashoutId;
+  final String? giftTransferId;
 
   /// Positive = coins in, negative = coins out.
   final int coins;
@@ -228,6 +236,33 @@ class DeviceSession {
     current: m['current'] == true,
   );
 }
+
+/// One history line's page (`/wallet/transactions/:id`): the entry, your
+/// balances after it, and for a gift what it was and who it was with.
+class TransactionDetail {
+  const TransactionDetail({required this.tx, required this.balanceCoins, required this.balanceGems, this.gift});
+  final Transaction tx;
+  final int balanceCoins;
+  final int balanceGems;
+  final GiftInfo? gift;
+}
+
+class GiftInfo {
+  const GiftInfo({required this.name, required this.emoji, required this.coins, required this.gems, required this.sent, this.person});
+  final String name;
+  final String emoji;
+  final int coins;
+  final int gems;
+
+  /// You sent it (false: you got it).
+  final bool sent;
+
+  /// Who it was with, as they are now (null: no longer on Vibe).
+  final Profile? person;
+}
+
+/// A page of a long list: the rows, and where the next page starts (null at the end).
+typedef ListPage<T> = ({List<T> items, String? next});
 
 enum PaymentMethod { googlePlay, appStore, jazzCash, easypaisa, card, bank }
 
