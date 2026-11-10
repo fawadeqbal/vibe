@@ -22,7 +22,7 @@ export type MatchStatus = "idle" | "searching" | "connected" | "ended";
 export type EndReason = "skipped" | "partnerLeft" | "stopped" | "reported";
 
 /** What `match:ended` adds for the recap: the mutual like and the reconnect price. */
-/** A friend call that just ended: the "Call ended" screen. */
+/** A friend call that just ended: CallHost takes you back to that chat. */
 export interface FriendCallEnded {
   friendId: string;
   partner: Profile;
@@ -1044,11 +1044,7 @@ realtime.on(Ev.matchMedia, (e) => {
   set({ partnerCamOn: e.camOn !== false, partnerMicOn: e.micOn !== false, partnerBlur: e.blur === true });
 });
 
-realtime.on(Ev.matchRematchSoon, (e) => {
-  if (get().status !== "searching") return;
-  const p = asMap(e.partner);
-  set({ rematchSoon: { partner: { id: String(p.id ?? ""), name: typeof p.name === "string" ? p.name : "", avatarUrl: typeof p.avatarUrl === "string" ? p.avatarUrl : "" }, at: mapDate(e.at) } });
-});
+// "Just you and Sara here" isn't shown: random matching just carries on (the server still pairs you again after a wait).
 
 /** Tell the partner when our camera or mic goes on or off (a hidden tab counts as camera off). */
 function tellMedia() {

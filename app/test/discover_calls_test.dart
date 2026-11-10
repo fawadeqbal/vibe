@@ -246,19 +246,12 @@ void main() {
       await tester.pump();
       expect(match.minimized, isFalse);
 
-      // Hanging up: "Call ended" with the length, and the way back.
+      // Hanging up: the app goes straight back to the chat (HomeShell listens to this).
       final ended = match.friendCallEnded.first;
       match.stop();
       final e = await ended;
       expect(e.partner.id, 'u9');
       expect(e.voice, isTrue);
-      unawaited(nav.currentState!.push(MaterialPageRoute(builder: (_) => FriendCallEndedScreen(ended: e, onChat: (_) {}))));
-      await settle(tester);
-      expect(find.text('Call ended'), findsOneWidget);
-      expect(find.textContaining('Voice call with Sana · '), findsOneWidget);
-      expect(find.text('Back to the chat'), findsOneWidget);
-      expect(find.text('Call again'), findsOneWidget);
-      expect(find.text('Send a gift'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(minutes: 1));
       calls.dispose();

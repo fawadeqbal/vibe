@@ -107,7 +107,7 @@ export function MatchScreen() {
         )
       ) : status === "searching" ? (
         <>
-          <Searching onRestart={() => void actions.start()} onReconnect={() => void actions.reconnect()} />
+          <Searching onRestart={() => void actions.start()} />
           <SkippedBar onUndo={() => void actions.reconnect()} onAddFriend={() => void actions.addLastFriend()} />
         </>
       ) : pausedUntil ? (

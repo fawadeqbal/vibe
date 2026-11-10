@@ -277,12 +277,11 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     _discover.addListener(_onDiscoverChanged);
     _calls = context.read<CallsProvider>();
     _calls.addListener(_onCallsChanged);
-    // A friend call ended: "Call ended" (back to the chat, call again, a gift).
+    // A friend call ended: straight back to the chat with them (no "Call ended" screen).
     _friendCallEnded = _match.friendCallEnded.listen((e) {
       if (!mounted) return;
-      final nav = Navigator.of(context);
-      nav.popUntil((r) => r.isFirst);
-      nav.push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => FriendCallEndedScreen(ended: e, onChat: _openChat)));
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      _openChat(e.partner.id);
     });
     _wallet.addListener(_onWalletChanged);
     _session.addListener(_onSessionChanged);
