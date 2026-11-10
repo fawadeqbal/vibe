@@ -12,3 +12,4 @@ uploads-private/
 # Local secrets — never commit
 .env.local
 .env.turn_test
+dump.rdb
