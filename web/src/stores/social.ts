@@ -4,7 +4,7 @@ import { newIdempotencyKey } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { asList, asMap, friend as mapFriend, type Json, message as mapMessage, profile as mapProfile, streak as mapStreak } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
-import type { ChatMessage, Friend, FriendState, Gift, Profile, StreakView } from "@/lib/models";
+import type { ChatMessage, Friend, FriendState, Gift, LastMessage, Profile, StreakView } from "@/lib/models";
 
 import { useCatalog } from "./catalog";
 import { api, realtime } from "./services";
@@ -372,7 +372,12 @@ function onUpdated(m: Json) {
   useSocial.setState((s) => {
     const list = s.chats[friendId];
     if (!list) return {};
-    return { chats: { ...s.chats, [friendId]: list.map((x) => (x.id === msg.id ? { ...msg, gift: x.gift ?? msg.gift } : x.replyTo?.id === msg.id ? { ...x, replyTo: { ...x.replyTo, unsent: !!msg.unsent, text: msg.unsent ? "" : msg.edited ? msg.text : x.replyTo.text } } : x)) } };
+    // The chat's last message changed (unsent, edited): its line in the list follows.
+    const isLast = list[list.length - 1]?.id === msg.id;
+    const all = isLast
+      ? s.all.map((f) => (f.profile.id === friendId && f.last ? { ...f, lastMessage: msg.unsent ? "" : msg.text, last: { ...f.last, unsent: !!msg.unsent } } : f))
+      : s.all;
+    return { all, chats: { ...s.chats, [friendId]: list.map((x) => (x.id === msg.id ? { ...msg, gift: x.gift ?? msg.gift } : x.replyTo?.id === msg.id ? { ...x, replyTo: { ...x.replyTo, unsent: !!msg.unsent, text: msg.unsent ? "" : msg.edited ? msg.text : x.replyTo.text } } : x)) } };
   });
 }
 
@@ -443,7 +448,15 @@ function onMessage(m: Json) {
   const all = s.all.map((f) => {
     if (f.profile.id !== friendId) return f;
     const unread = !msg.fromMe && msg.kind !== "system" && openChat !== friendId ? f.unread + 1 : f.unread;
-    return { ...f, lastMessage: msg.gift ? `${msg.gift.emoji} ${msg.gift.name}` : msg.text, lastMessageAt: msg.at, unread };
+    const last: LastMessage = {
+      fromMe: msg.fromMe,
+      kind: msg.kind ?? "text",
+      read: false,
+      unsent: false,
+      event: typeof msg.meta?.event === "string" ? msg.meta.event : null,
+      seconds: typeof msg.meta?.seconds === "number" ? msg.meta.seconds : null,
+    };
+    return { ...f, lastMessage: msg.gift ? `${msg.gift.emoji} ${msg.gift.name}` : msg.text, lastMessageAt: msg.at, last, unread };
   });
   useSocial.setState({ chats: { ...s.chats, [friendId]: [...list, msg] }, all });
   if (openChat === friendId && !msg.fromMe) s.markRead(friendId);

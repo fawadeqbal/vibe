@@ -26,6 +26,8 @@ export interface FriendView {
   since: string;
   lastMessage: string | null;
   lastMessageAt: string | null;
+  /** What the last message is, for the chats list: who sent it, its kind, read (yours) or unsent, a call event, a voice note's length. */
+  last: LastMessageView | null;
   unread: number;
   online: boolean;
   /** When they were last in the app (friends only; null for pending requests or never). */
@@ -34,6 +36,18 @@ export interface FriendView {
   streak: StreakView;
   /** Video calls in this chat: each side allowed them; both true = calls on. */
   calls: CallsView;
+}
+
+export interface LastMessageView {
+  fromMe: boolean;
+  kind: 'text' | 'gift' | 'system' | 'photo' | 'voice';
+  /** Yours, and they've read it. */
+  read: boolean;
+  unsent: boolean;
+  /** System lines: `call_missed`, `call_ended`… */
+  event: string | null;
+  /** Voice notes: length in seconds. */
+  seconds: number | null;
 }
 
 export interface CallsView {
@@ -182,8 +196,10 @@ export class FriendsService {
     const ids = rows.map((f) => f.id);
     const [users, last, unread, online, myWallet] = await Promise.all([
       this.prisma.user.findMany({ where: { id: { in: otherIds } }, include: PROFILE_INCLUDE }),
-      this.prisma.$queryRaw<{ friendshipId: string; text: string; giftId: string | null; createdAt: Date }[]>`
-        SELECT DISTINCT ON ("friendshipId") "friendshipId", "text", "giftId", "createdAt"
+      this.prisma.$queryRaw<
+        { friendshipId: string; text: string; giftId: string | null; createdAt: Date; senderId: string; kind: string; readAt: Date | null; unsentAt: Date | null; meta: unknown }[]
+      >`
+        SELECT DISTINCT ON ("friendshipId") "friendshipId", "text", "giftId", "createdAt", "senderId", "kind", "readAt", "unsentAt", "meta"
           FROM "Message" WHERE "friendshipId" IN (${Prisma.join(ids)})
          ORDER BY "friendshipId", "createdAt" DESC`,
       this.prisma.message.groupBy({ by: ['friendshipId'], where: { friendshipId: { in: ids }, senderId: { not: me }, readAt: null }, _count: { _all: true } }),
@@ -207,6 +223,7 @@ export class FriendsService {
           since: (f.acceptedAt ?? f.createdAt).toISOString(),
           lastMessage: m?.text ?? null,
           lastMessageAt: m?.createdAt.toISOString() ?? null,
+          last: m ? lastView(m, me) : null,
           unread: unreadBy.get(f.id) ?? 0,
           online: online[otherId] ?? false,
           lastSeenAt: f.status === FriendshipStatus.ACCEPTED ? (u.lastSeenAt?.toISOString() ?? null) : null,
@@ -220,6 +237,18 @@ export class FriendsService {
   async view(me: string, otherId: string): Promise<FriendView | undefined> {
     return (await this.list(me)).find((f) => f.profile.id === otherId);
   }
+}
+
+function lastView(m: { senderId: string; kind: string; readAt: Date | null; unsentAt: Date | null; meta: unknown }, me: string): LastMessageView {
+  const meta = m.meta && typeof m.meta === 'object' ? (m.meta as Record<string, unknown>) : {};
+  return {
+    fromMe: m.senderId === me,
+    kind: m.kind.toLowerCase() as LastMessageView['kind'],
+    read: m.senderId === me && !!m.readAt,
+    unsent: !!m.unsentAt,
+    event: typeof meta.event === 'string' ? meta.event : null,
+    seconds: typeof meta.seconds === 'number' ? meta.seconds : null,
+  };
 }
 
 const pairFields = (a: string, b: string) => {

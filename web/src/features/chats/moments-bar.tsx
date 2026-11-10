@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { Avatar } from "@/components/ui/avatar";
@@ -11,6 +12,7 @@ import { cn } from "@/lib/cn";
 import type { Profile } from "@/lib/models";
 import { useMoments } from "@/stores/moments";
 import { useSession } from "@/stores/session";
+import { friendsOf, useSocial } from "@/stores/social";
 import { openSheet, toast } from "@/stores/ui";
 
 import { openMomentViewer, type Reel } from "./moment-viewer";
@@ -18,16 +20,20 @@ import { openMomentViewer, type Reel } from "./moment-viewer";
 /**
  * Moments at the top of Chats: you first ("Your moment", + to add), then
  * the people you follow and your friends — a gradient ring while something
- * is unseen, grey once you've seen it all.
+ * is unseen, grey once you've seen it all — then friends who are online
+ * now with no moment (a green dot; tap to chat).
  */
 export function MomentsBar() {
   const me = useSession((s) => s.me);
   const mine = useMoments((s) => s.mine);
   const people = useMoments((s) => s.people);
+  const social = useSocial();
   if (!me) return null;
 
   const ownReel: Reel = { author: me, moments: mine, own: true };
   const reels: Reel[] = people.map((g) => ({ author: g.author, moments: g.moments, own: false }));
+  const withMoments = new Set(reels.map((r) => r.author.id));
+  const online = friendsOf(social).filter((f) => f.online && !withMoments.has(f.profile.id));
 
   return (
     <div className="no-scrollbar -mx-4 flex gap-3.5 overflow-x-auto px-4 pt-1 pb-3" role="list" aria-label="Moments">
@@ -49,6 +55,15 @@ export function MomentsBar() {
       </div>
       {reels.map((r, i) => (
         <PersonItem key={r.author.id} author={r.author} unseen={r.moments.some((m) => !m.seen)} onOpen={() => openMomentViewer(reels, i)} />
+      ))}
+      {online.map((f) => (
+        <div key={f.profile.id} role="listitem" className="flex w-[68px] shrink-0 flex-col items-center">
+          <Link href={`/chats/${f.profile.id}`} aria-label={`Chat with ${f.profile.name}, online`} className="relative">
+            <Avatar url={f.profile.avatarUrl} name={f.profile.name} size={64} />
+            <span className="absolute right-0.5 bottom-0.5 size-4 rounded-full border-[3px] border-bg bg-ok" />
+          </Link>
+          <span className="type-label mt-1.5 max-w-full truncate text-[11px] text-text2">{f.profile.name.split(" ")[0]}</span>
+        </div>
       ))}
     </div>
   );

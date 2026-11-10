@@ -161,7 +161,7 @@ void main() {
     expect(h.wallet.coins, Economy.welcomeCoins - Economy.streakRestoreCost);
     expect(h.social.friend('f2')!.streak.count, 9);
     expect(h.social.friend('f2')!.streak.atRisk, isTrue, reason: 'back, but talk today');
-    expect(find.text('9 · ends tonight'), findsOneWidget);
+    expect(find.byIcon(SolarIconsOutline.hourglass), findsOneWidget, reason: 'back, and it ends tonight');
     expect(find.textContaining('Streak restored'), findsOneWidget);
     await finish(t, h);
   });

@@ -144,6 +144,7 @@ class ApiMap {
     since: date(m['since']) ?? DateTime.now(),
     lastMessage: m['lastMessage'] as String?,
     lastMessageAt: date(m['lastMessageAt']),
+    last: m['last'] is Map ? LastMessage.fromJson(Map<String, dynamic>.from(m['last'] as Map)) : null,
     unread: i(m['unread']),
     online: m['online'] as bool? ?? false,
     lastSeenAt: date(m['lastSeenAt']),
