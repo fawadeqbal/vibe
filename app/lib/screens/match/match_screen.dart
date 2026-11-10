@@ -568,12 +568,12 @@ class _Lobby extends StatelessWidget {
                               const SizedBox(height: 10),
                               Tooltip(
                                 message: 'Turn camera preview off',
-                                child: RoundControl(icon: Icons.videocam_off_rounded, size: 42, onTap: m.stopPreview),
+                                child: RoundControl(icon: Icons.videocam_off_rounded, size: 42, width: 42, onTap: m.stopPreview),
                               ),
                               const SizedBox(height: 10),
                               Tooltip(
                                 message: 'Switch camera',
-                                child: RoundControl(icon: SolarIconsBold.cameraRotate, size: 42, onTap: () => m.switchCamera()),
+                                child: RoundControl(icon: SolarIconsBold.cameraRotate, size: 42, width: 42, onTap: () => m.switchCamera()),
                               ),
                             ],
                           ],
@@ -672,8 +672,18 @@ class _StartDock extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(autoBlur ? 'Safe start' : 'Safety on', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(13, color: Colors.white, weight: FontWeight.w700)),
-                            Text(autoBlur ? 'Blurred for 3 s' : 'Report in one tap', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(11.5, color: V.text2)),
+                            Text(
+                              autoBlur ? 'Safe start' : 'Safety on',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: VT.label(13, color: Colors.white, weight: FontWeight.w700),
+                            ),
+                            Text(
+                              autoBlur ? 'Blurred for 3 s' : 'Report in one tap',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: VT.body(11.5, color: V.text2),
+                            ),
                           ],
                         ),
                       ),
@@ -1723,51 +1733,67 @@ class _Connected extends StatelessWidget {
           top: media.padding.top + 70,
           child: _SelfPip(m: m),
         ),
-        // The rail: everything you can do for this person, one thumb away.
+        // The rail: everything you can do for this person, one thumb away. It
+        // lives between your picture and the composer; when that space is
+        // short the labels go and the buttons stay.
         Positioned(
           right: 12,
+          width: 64,
+          top: media.padding.top + 230,
           bottom: bottom + 112,
-          child: Column(
-            children: [
-              RoundControl(
-                size: 50,
-                icon: m.likedPartner ? SolarIconsBold.heart : SolarIconsOutline.heart,
-                color: m.likedPartner ? V.pink : Colors.white,
-                tint: m.likedPartner ? V.pink : null,
-                onTap: m.like,
-                label: m.likedPartner ? 'Liked' : 'Like',
-              ),
-              const SizedBox(height: 14),
-              RoundControl(
-                size: 50,
-                icon: switch (friendState) {
-                  FriendState.friends => SolarIconsBold.userCheckRounded,
-                  FriendState.requested => SolarIconsBold.hourglass,
-                  _ => SolarIconsBold.userPlusRounded,
-                },
-                onTap: friendState == FriendState.none || friendState == FriendState.incoming ? onAddFriend : null,
-                label: switch (friendState) {
-                  FriendState.friends => 'Friends',
-                  FriendState.requested => 'Sent',
-                  FriendState.incoming => 'Accept',
-                  _ => 'Add friend',
-                },
-                color: friendState == FriendState.friends ? V.ok : Colors.white,
-                tint: friendState == FriendState.incoming ? V.violet : null,
-              ),
-              const SizedBox(height: 14),
-              RoundControl(size: 50, icon: SolarIconsBold.gift, onTap: onGift, label: 'Gift', color: V.gold),
-              const SizedBox(height: 14),
-              RoundControl(size: 50, icon: SolarIconsBold.gamepadMinimalistic, onTap: onPlay, label: 'Play', color: m.game != null ? V.lavender : Colors.white, tint: m.game != null ? V.violet : null),
-              const SizedBox(height: 14),
-              RoundControl(size: 50, icon: SolarIconsBold.menuDots, onTap: () => _showCallOptions(context, m, onReport), label: 'More'),
-            ],
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final labels = box.maxHeight >= 360;
+              Widget rc(IconData icon, VoidCallback? onTap, String label, {Color? color, Color? tint}) =>
+                  RoundControl(size: 46, width: 64, icon: icon, onTap: onTap, label: label, showLabel: labels, color: color, tint: tint);
+              final gap = SizedBox(height: box.maxHeight >= 270 ? 10 : 4);
+              // Scale down rather than overflow on the very shortest screens.
+              return FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.bottomCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    rc(
+                      m.likedPartner ? SolarIconsBold.heart : SolarIconsOutline.heart,
+                      m.like,
+                      m.likedPartner ? 'Liked' : 'Like',
+                      color: m.likedPartner ? V.pink : Colors.white,
+                      tint: m.likedPartner ? V.pink : null,
+                    ),
+                    gap,
+                    rc(
+                      switch (friendState) {
+                        FriendState.friends => SolarIconsBold.userCheckRounded,
+                        FriendState.requested => SolarIconsBold.hourglass,
+                        _ => SolarIconsBold.userPlusRounded,
+                      },
+                      friendState == FriendState.none || friendState == FriendState.incoming ? onAddFriend : null,
+                      switch (friendState) {
+                        FriendState.friends => 'Friends',
+                        FriendState.requested => 'Sent',
+                        FriendState.incoming => 'Accept',
+                        _ => 'Add friend',
+                      },
+                      color: friendState == FriendState.friends ? V.ok : Colors.white,
+                      tint: friendState == FriendState.incoming ? V.violet : null,
+                    ),
+                    gap,
+                    rc(SolarIconsBold.gift, onGift, 'Gift', color: V.gold),
+                    gap,
+                    rc(SolarIconsBold.gamepadMinimalistic, onPlay, 'Play', color: m.game != null ? V.lavender : Colors.white, tint: m.game != null ? V.violet : null),
+                    gap,
+                    rc(SolarIconsBold.menuDots, () => _showCallOptions(context, m, onReport), 'More'),
+                  ],
+                ),
+              );
+            },
           ),
         ),
         // Chat and a game, bottom left, clear of the rail.
         Positioned(
           left: 12,
-          right: 84,
+          right: 88,
           bottom: bottom + 96,
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -2378,6 +2404,8 @@ class _PartnerStage extends StatelessWidget {
                   child: Container(
                     color: Colors.black.withValues(alpha: 0.1),
                     alignment: Alignment.center,
+                    // Clear of the action rail on the right.
+                    padding: const EdgeInsets.fromLTRB(12, 0, 88, 0),
                     child: GlassPill(label: 'Starts blurred · clearing in a moment', icon: SolarIconsBold.radialBlur, iconColor: V.trust, height: 34),
                   ),
                 )
