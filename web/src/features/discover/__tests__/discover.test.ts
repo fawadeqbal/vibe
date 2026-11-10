@@ -17,7 +17,11 @@ describe("discover labels", () => {
   it("shows activity on a card", () => {
     expect(activeLabel({ online: true, lastSeenAt: null })).toBe("Active now");
     expect(activeLabel({ online: false, lastSeenAt: null })).toBe("");
-    expect(activeLabel({ online: false, lastSeenAt: new Date(Date.now() - 3 * 3_600_000) })).toBe("Active 3h ago");
+    expect(activeLabel({ online: false, lastSeenAt: new Date(Date.now() - 3 * 3_600_000) })).toBe("Active 3 hours ago");
+    expect(activeLabel({ online: false, lastSeenAt: new Date(Date.now() - 12 * 60_000) })).toBe("Active 12 min ago");
+    expect(activeLabel({ online: false, lastSeenAt: new Date(Date.now() - 1 * 86_400_000) })).toBe("Active 1 day ago");
+    // Older than a week: a date, never "31/10 ago".
+    expect(activeLabel({ online: false, lastSeenAt: new Date(Date.now() - 20 * 86_400_000) })).toMatch(/^Active on \d{1,2} [A-Z][a-z]{2,3}$/);
   });
 });
 

@@ -25,10 +25,10 @@ export function Screen({
   background?: ReactNode;
   /** Padding of the scrolling column. Default: 20px sides, 32px bottom. */
   bodyClassName?: string;
-  /** "wide": the phone column, then up to 1040px on a desktop (two columns inside). */
-  width?: "sm" | "md" | "wide";
+  /** "wide": the phone column, then up to 1040px on a desktop (two columns inside). "xl": the same, up to 1180px. */
+  width?: "sm" | "md" | "wide" | "xl";
 }) {
-  const max = width === "sm" ? "max-w-[560px]" : width === "wide" ? "max-w-[680px] lg:max-w-[1040px] lg:px-3" : "max-w-[680px]";
+  const max = width === "sm" ? "max-w-[560px]" : width === "wide" ? "max-w-[680px] lg:max-w-[1040px] lg:px-3" : width === "xl" ? "max-w-[680px] lg:max-w-[1180px] lg:px-5" : "max-w-[680px]";
   return (
     <div className="relative flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
       {background}

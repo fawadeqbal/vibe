@@ -4,7 +4,6 @@ import { type CSSProperties, useState } from "react";
 
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
-import { agoShort } from "@/lib/format";
 import type { Intent, Profile } from "@/lib/models";
 import type { DiscoverCard as Card } from "@/stores/discover";
 
@@ -12,8 +11,15 @@ import type { DiscoverCard as Card } from "@/stores/discover";
 export function activeLabel(c: Pick<Card, "online" | "lastSeenAt">): string {
   if (c.online) return "Active now";
   if (!c.lastSeenAt) return "";
-  const s = agoShort(c.lastSeenAt);
-  return s === "now" ? "Active now" : `Active ${s} ago`;
+  // "Active 5 min ago", "Active 3 hours ago", "Active 2 days ago", then "Active on 31 Oct".
+  const m = Math.max(0, Math.floor((Date.now() - c.lastSeenAt.getTime()) / 60_000));
+  if (m < 1) return "Active now";
+  if (m < 60) return `Active ${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `Active ${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `Active ${d} day${d === 1 ? "" : "s"} ago`;
+  return `Active on ${c.lastSeenAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
 }
 
 /** What they're here for, as a short line: "Here for friends". */
