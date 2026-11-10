@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { COUNTRY_CODES } from '../catalog/countries';
+
 /**
  * Settings staff can change at runtime, without a deploy. Each one has a
  * type (zod), a default, and copy for the admin panel. Code reads them with
@@ -43,6 +45,20 @@ export const SETTINGS = {
     description: 'Turn off to stop new video matches (live calls finish normally).',
     schema: z.boolean(),
     default: true,
+  },
+  'region.blockEnabled': {
+    group: 'Region',
+    label: 'Block countries',
+    description: 'On = people in the countries below can\'t sign up, sign in, match or pay (checked from their internet address and phone number).',
+    schema: z.boolean(),
+    default: true,
+  },
+  'region.blockedCountries': {
+    group: 'Region',
+    label: 'Blocked countries',
+    description: 'Vibe isn\'t offered here. They\'re also left out of every country list. After a change, run npm run region:cloudflare (backend) so Cloudflare blocks them too.',
+    schema: z.array(z.enum(COUNTRY_CODES)).max(COUNTRY_CODES.length),
+    default: ['IN', 'IL', 'AF'],
   },
   'payouts.paused': {
     group: 'Payouts',

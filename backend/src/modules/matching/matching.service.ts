@@ -16,6 +16,7 @@ import { EconomyService } from '../catalog/economy.service';
 import { EngagementService } from '../engagement/engagement.service';
 import { ProgressService } from '../engagement/progress.service';
 import { ModerationService, USER_BANNED, UserBannedEvent } from '../moderation/moderation.service';
+import { RegionService } from '../region/region.service';
 import { BlocksService, USER_BLOCKED, UserBlockedEvent } from '../social/blocks.service';
 import { FriendsService } from '../social/friends.service';
 import { StreakService } from '../social/streak.service';
@@ -141,6 +142,7 @@ export class MatchingService {
     private readonly waves: WavesService,
     private readonly safety: ChatSafetyService,
     private readonly filters: FiltersService,
+    private readonly region: RegionService,
   ) {}
 
   // ── queue ─────────────────────────────────────────────────────────────
@@ -156,6 +158,8 @@ export class MatchingService {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { wallet: true } });
     if (!user || user.status !== 'ACTIVE') throw AppError.notFound('User');
     if (!isProfileReady(user)) throw new AppError(ErrorCode.PROFILE_INCOMPLETE, 'Add your name and age first', HttpStatus.FORBIDDEN);
+    // A profile in a blocked country can't match, whatever address it connects from.
+    await this.region.assertCountry(user.countryCode);
     const now = this.clock.now();
     const vip = isVip(user.wallet, now);
     // Gender and country need VIP, Vibe Hour or the filter pass (shared with Discover). Age and verified only are free.

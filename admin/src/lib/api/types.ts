@@ -538,16 +538,24 @@ export interface WebhookEventDetail extends WebhookEvent {
   headers: unknown;
 }
 
+/** GET admin/region/refusals: what blocked countries tried, last 7 days. */
+export interface RegionRefusals {
+  days: number;
+  total: number;
+  countries: { country: string; total: number; places: Record<string, number> }[];
+}
+
 export interface Setting {
   key: string;
   group: string;
   label: string;
   description: string;
-  type: "boolean" | "number" | "string" | "select";
+  /** `countries`: a list of ISO country codes (Region → Blocked countries). */
+  type: "boolean" | "number" | "string" | "select" | "countries";
   /** For `select`: the allowed values. */
   options?: string[];
-  value: boolean | number | string;
-  default: boolean | number | string;
+  value: boolean | number | string | string[];
+  default: boolean | number | string | string[];
   updatedAt: string | null;
   updatedById: string | null;
 }

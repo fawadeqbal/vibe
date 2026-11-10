@@ -6,12 +6,13 @@ import type { Server, ServerOptions } from 'socket.io';
 
 import { extractBearer, verifyAccessToken } from '../../common/guards/jwt-auth.guard';
 import { AppConfig } from '../../config/app-config.service';
+import { RegionService } from '../../modules/region/region.service';
 import { RedisService } from '../redis/redis.service';
 
 /**
  * Socket.IO over a Redis pub/sub adapter, so `server.to('user:123')` reaches
  * that user on whichever instance holds their socket. Every connection is
- * authenticated in middleware before any gateway sees it.
+ * region-checked and authenticated in middleware before any gateway sees it.
  */
 export class RedisIoAdapter extends IoAdapter {
   private readonly log = new Logger(RedisIoAdapter.name);
@@ -38,6 +39,14 @@ export class RedisIoAdapter extends IoAdapter {
     if (this.adapterConstructor) server.adapter(this.adapterConstructor);
 
     const jwt = this.app.get(JwtService);
+    const region = this.app.get(RegionService, { strict: false });
+    // Blocked countries can't open a socket (no matching, calls or chat).
+    server.use((socket, next) => {
+      region
+        .assertOrigin(socket.handshake.headers, socket.handshake.address, 'socket')
+        .then(() => next())
+        .catch((e) => next(new Error(e?.code ?? 'REGION_UNAVAILABLE')));
+    });
     server.use((socket, next) => {
       const token = (socket.handshake.auth?.token as string | undefined) ?? extractBearer(socket.handshake.headers.authorization);
       if (!token) return next(new Error('UNAUTHENTICATED'));

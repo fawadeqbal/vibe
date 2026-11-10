@@ -3,12 +3,14 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { SkipMaintenance } from '../settings/maintenance.guard';
+import { SkipRegion } from '../region/region.guard';
 import { LegalService } from './legal.service';
 
 /** The legal pages, for the website and the apps (no sign-in needed). */
 @ApiTags('app')
 @Public()
 @SkipMaintenance()
+@SkipRegion()
 @Controller('legal')
 export class LegalController {
   constructor(private readonly legal: LegalService) {}

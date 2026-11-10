@@ -23,6 +23,8 @@ export class ApiClient {
 
   /** Called when the session can't be refreshed any more (signed out elsewhere). */
   onSessionExpired?: () => void;
+  /** Called when the API says Vibe isn't offered in this country (451 REGION_UNAVAILABLE). */
+  onRegionBlocked?: (message: string) => void;
 
   constructor(private readonly base = config.restBase) {}
 
@@ -121,7 +123,9 @@ export class ApiClient {
     if (res.status === 401 && !retried && this.refresh && !path.startsWith("/auth/")) {
       if (await this.refreshSession()) return this.dispatch<T>(path, build, timeoutMs, true);
     }
-    throw ApiError.fromBody(res.status, body);
+    const error = ApiError.fromBody(res.status, body);
+    if (error.isRegionUnavailable) this.onRegionBlocked?.(error.message);
+    throw error;
   }
 
   /** Rotates the refresh token. Concurrent callers share one request. */

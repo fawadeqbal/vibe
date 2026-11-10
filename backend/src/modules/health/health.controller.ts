@@ -6,11 +6,13 @@ import { Public } from '../../common/decorators/public.decorator';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { SkipMaintenance } from '../settings/maintenance.guard';
+import { SkipRegion } from '../region/region.guard';
 
 @ApiTags('health')
 @Public()
 @SkipThrottle()
 @SkipMaintenance()
+@SkipRegion()
 @Controller('health')
 export class HealthController {
   constructor(

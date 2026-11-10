@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { COUNTRIES, country, countryOptions, DEFAULT_COUNTRY, findCountry, fold } from "../countries";
+import { COUNTRIES, country, countryOptions, DEFAULT_BLOCKED_COUNTRIES, DEFAULT_COUNTRY, findCountry, fold, isBlockedCountry, setBlockedCountries } from "../countries";
 
 describe("countries", () => {
   it("has every country once (ISO 3166-1 plus Kosovo), A–Z, each with a flag", () => {
@@ -26,5 +26,18 @@ describe("countries", () => {
     expect(find("ivory")).toContain("CI");
     expect(find("usa")).toContain("US");
     expect(find("pak")).toEqual(["PK"]);
+  });
+
+  it("leaves blocked countries out of the pickers, following the catalog", () => {
+    const codes = () => countryOptions().map((o) => o.value);
+    expect(codes()).toHaveLength(250 - DEFAULT_BLOCKED_COUNTRIES.length);
+    for (const c of ["IN", "IL", "AF"]) expect(codes()).not.toContain(c);
+    expect(isBlockedCountry("IN")).toBe(true);
+    setBlockedCountries(["BD"]);
+    expect(codes()).toContain("IN");
+    expect(codes()).not.toContain("BD");
+    setBlockedCountries(DEFAULT_BLOCKED_COUNTRIES);
+    // A blocked country still has a name (old profiles, chips).
+    expect(findCountry("IN")?.name).toBe("India");
   });
 });

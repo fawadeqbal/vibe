@@ -54,6 +54,10 @@ api.vibe.fawadiqbal.dev    { reverse_proxy vibe-api:3000 }
 admin.vibe.fawadiqbal.dev  { reverse_proxy vibe-admin:3001 }
 ```
 
+## Blocked countries
+
+Cloudflare rules that keep blocked countries out (the website and web app redirect to `/unavailable/`, the API answers 451): see [REGION.md](REGION.md).
+
 ## 3. Outside dashboards (when those keys are added)
 
 - Google OAuth web client: authorised JavaScript origin `https://app.vibe.fawadiqbal.dev`.

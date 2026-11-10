@@ -9,6 +9,7 @@ import { AppleJwsVerifier } from '../../integrations/apple/apple-jws';
 import { Integration, IntegrationMode, IntegrationReporter, IntegrationStatus, missingKeys, ProviderSwitch, resolveMode } from '../../integrations/core/integration.types';
 import { readSecret, readServiceAccount } from '../../integrations/core/secrets';
 import { GoogleAuth } from '../../integrations/google/google-auth';
+import { blockedCountries } from '../region/region.service';
 import { SettingsService } from '../settings/settings.service';
 import { BankTransferAdapter } from './adapters/bank-transfer.adapter';
 import { CardAdapter } from './adapters/card/card.adapter';
@@ -124,14 +125,15 @@ export class PaymentGateway implements IntegrationReporter {
     );
     if (ep.mode === 'live') this.easypaisa = this.epClient();
 
+    const cardBlocked = async () => blockedCountries(await settings.all());
     const name = config.get('CARD_GATEWAY');
     const factory = CARD_GATEWAYS[name];
     const real = name !== 'dev' && factory ? factory({ config, redis }) : undefined;
     const card = slot(
       PaymentMethod.CARD,
       real ? real.requiredEnv : ['CARD_GATEWAY'],
-      () => new CardAdapter(real!, config),
-      () => new CardAdapter(CARD_GATEWAYS.dev({ config, redis }), config),
+      () => new CardAdapter(real!, config, cardBlocked),
+      () => new CardAdapter(CARD_GATEWAYS.dev({ config, redis }), config, cardBlocked),
       [{ label: 'Card gateway webhook', url: config.url(`/v1/webhooks/card/${real?.name ?? name}`) }],
       real ? [`Gateway: ${real.name}`] : name !== 'dev' ? [`CARD_GATEWAY="${name}" is not a known gateway (see card/gateways/index.ts)`] : ['No real gateway yet: implement CardGateway and set CARD_GATEWAY (see card/gateways/index.ts).'],
       !!real && missingKeys(env, real.requiredEnv).length === 0,

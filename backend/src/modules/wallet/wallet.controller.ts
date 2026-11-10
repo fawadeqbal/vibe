@@ -16,6 +16,7 @@ import { MonetagPostback, MonetagProvider } from './ads/monetag.provider';
 import { RewardsService } from './rewards.service';
 import { WalletService } from './wallet.service';
 import { SkipMaintenance } from '../settings/maintenance.guard';
+import { SkipRegion } from '../region/region.guard';
 
 @ApiTags('wallet')
 @ApiBearerAuth()
@@ -132,6 +133,7 @@ export class WalletController {
 /** AdMob server-side verification callback (configure its URL in AdMob). */
 @ApiTags('webhooks')
 @SkipMaintenance()
+@SkipRegion()
 @Controller('webhooks/admob')
 export class AdMobWebhookController {
   constructor(private readonly admob: AdMobProvider) {}
@@ -151,6 +153,7 @@ export class AdMobWebhookController {
  */
 @ApiTags('webhooks')
 @SkipMaintenance()
+@SkipRegion()
 @Controller('webhooks/monetag')
 export class MonetagWebhookController {
   constructor(private readonly monetag: MonetagProvider) {}

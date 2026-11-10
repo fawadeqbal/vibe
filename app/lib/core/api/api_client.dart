@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
+
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
 
@@ -35,6 +37,10 @@ class ApiClient {
 
   /// Called when the session can't be refreshed any more (signed out elsewhere).
   void Function()? onSessionExpired;
+
+  /// Set once the API says Vibe isn't offered in this country (451
+  /// REGION_UNAVAILABLE): the app then shows only the region screen.
+  final ValueNotifier<bool> regionBlocked = ValueNotifier(false);
 
   String? get accessToken => _access;
   bool get hasSession => _refresh != null;
@@ -114,6 +120,7 @@ class ApiClient {
     final decoded = res.body.isEmpty ? null : _tryJson(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) return decoded;
     final err = ApiException.fromBody(res.statusCode, decoded);
+    if (err.isRegionUnavailable) regionBlocked.value = true;
     if (res.statusCode == 401 && !retried && _refresh != null && !path.startsWith('/auth/')) {
       if (await refreshSession()) return _dispatch(path, build, timeout: timeout, retried: true);
     }

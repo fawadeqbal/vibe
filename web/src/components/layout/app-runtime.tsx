@@ -3,11 +3,13 @@
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { useRegion } from "@/stores/region";
 import { startApp } from "@/stores/runtime";
 import { profileReady, useSession } from "@/stores/session";
 import { closeAllOverlays } from "@/stores/ui";
 
 import { OverlayHost, ToastHost } from "./overlay-host";
+import { RegionUnavailable } from "./region-unavailable";
 import { Splash } from "./splash";
 
 type Stage = "booting" | "signedOut" | "setup" | "permissions" | "ready";
@@ -63,6 +65,7 @@ export function AppRuntime({ children }: { children: ReactNode }) {
   const booting = useSession((s) => s.booting);
   const me = useSession((s) => s.me);
   const onboarded = useSession((s) => s.onboarded);
+  const regionBlocked = useRegion((s) => s.blocked);
   const [minDone, setMinDone] = useState(false);
   const [splashGone, setSplashGone] = useState(false);
 
@@ -75,7 +78,8 @@ export function AppRuntime({ children }: { children: ReactNode }) {
   // The hosted-payment return page runs in a popup: no gate, no splash.
   const bare = path === "/payment-return";
   const stage: Stage = booting ? "booting" : !me ? "signedOut" : !profileReady(me) ? "setup" : !onboarded ? "permissions" : "ready";
-  const target = bare ? null : redirectFor(stage, path);
+  // Not offered in this country: no first-run routing, just the region screen.
+  const target = bare || regionBlocked ? null : redirectFor(stage, path);
 
   useEffect(() => {
     if (!target) return;
@@ -99,7 +103,7 @@ export function AppRuntime({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {stage !== "booting" && !target ? children : null}
+      {regionBlocked ? <RegionUnavailable /> : stage !== "booting" && !target ? children : null}
       {!splashGone ? (
         <div className="relative z-[60] transition-opacity duration-250" style={{ opacity: ready ? 0 : 1 }}>
           <Splash />

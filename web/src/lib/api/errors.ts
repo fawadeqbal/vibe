@@ -22,6 +22,10 @@ export class ApiError extends Error {
   get isNetwork() {
     return this.code === "NETWORK";
   }
+  /** Vibe isn't offered in the caller's country (451). */
+  get isRegionUnavailable() {
+    return this.code === "REGION_UNAVAILABLE";
+  }
 
   static network(cause?: unknown): ApiError {
     return new ApiError("NETWORK", "Can't reach Vibe. Check your connection.", 0, { cause: String(cause ?? "") });

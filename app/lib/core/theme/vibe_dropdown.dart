@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:solar_icons/solar_icons.dart';
 
-import '../data/countries.dart' show allCountries, fold;
+import '../data/countries.dart' show allCountries, fold, isBlockedCountry;
 import 'vibe_theme.dart';
 import 'vibe_widgets.dart';
 
@@ -21,8 +21,12 @@ class DropdownOption {
   final String? keywords;
 }
 
-/// Every country as dropdown options: the flag, the name, and other names to search by.
-List<DropdownOption> countryOptions() => [for (final c in allCountries) DropdownOption(c.code, c.name, leading: c.flag, keywords: '${c.code} ${c.aka ?? ''}')];
+/// Every country as dropdown options: the flag, the name, and other names to
+/// search by. Countries Vibe isn't offered in are left out.
+List<DropdownOption> countryOptions() => [
+      for (final c in allCountries)
+        if (!isBlockedCountry(c.code)) DropdownOption(c.code, c.name, leading: c.flag, keywords: '${c.code} ${c.aka ?? ''}'),
+    ];
 
 /// Lists longer than this get a search box.
 const _searchFrom = 8;

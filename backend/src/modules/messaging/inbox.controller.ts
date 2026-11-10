@@ -11,6 +11,7 @@ import { Clock } from '../../common/utils/clock';
 import { AppConfig } from '../../config/app-config.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { SkipMaintenance } from '../settings/maintenance.guard';
+import { SkipRegion } from '../region/region.guard';
 import { verifyUnsubscribe } from './unsubscribe';
 
 class UnsubscribeQuery {
@@ -82,6 +83,7 @@ export class InboxController {
 @ApiTags('inbox')
 @Public()
 @SkipMaintenance()
+@SkipRegion()
 @Controller('email')
 export class UnsubscribeController {
   constructor(
