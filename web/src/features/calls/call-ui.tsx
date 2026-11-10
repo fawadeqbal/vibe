@@ -113,9 +113,14 @@ export function EndCallButton({
 }
 
 /** The frosted bar of controls at the bottom of a video call. */
-export function CallDock({ children }: { children: ReactNode }) {
+export function CallDock({ children, hidden = false }: { children: ReactNode; /** Faded out while a video call's controls are hidden. */ hidden?: boolean }) {
   return (
-    <div className="absolute inset-x-3 bottom-[calc(22px+env(safe-area-inset-bottom))] mx-auto flex max-w-[560px] items-start justify-around rounded-[30px] border border-white/10 bg-bg2/52 px-2.5 pt-3.5 pb-3 backdrop-blur-[18px]">
+    <div
+      className={cn(
+        "absolute inset-x-3 bottom-[calc(22px+env(safe-area-inset-bottom))] mx-auto flex max-w-[560px] items-start justify-around rounded-[30px] border border-white/10 bg-bg2/52 px-2.5 pt-3.5 pb-3 backdrop-blur-[18px] transition-[opacity,translate] duration-300 ease-out",
+        hidden && "pointer-events-none translate-y-3 opacity-0",
+      )}
+    >
       {children}
     </div>
   );
@@ -128,15 +133,23 @@ export function CallTopline({
   sub,
   onShrink,
   onReport,
+  hidden = false,
 }: {
   title: string;
   verified?: boolean;
   sub: string;
   onShrink: () => void;
   onReport?: () => void;
+  /** Faded out while a video call's controls are hidden. */
+  hidden?: boolean;
 }) {
   return (
-    <div className="absolute inset-x-0 top-0 flex items-center gap-2.5 px-3 pt-[calc(12px+env(safe-area-inset-top))]">
+    <div
+      className={cn(
+        "absolute inset-x-0 top-0 flex items-center gap-2.5 px-3 pt-[calc(12px+env(safe-area-inset-top))] transition-[opacity,translate] duration-300 ease-out",
+        hidden && "pointer-events-none -translate-y-2 opacity-0",
+      )}
+    >
       <button
         type="button"
         onClick={onShrink}

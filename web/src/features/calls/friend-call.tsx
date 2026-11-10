@@ -1,16 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, type PointerEvent, useEffect, useState } from "react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { GlassPill } from "@/components/ui/glass";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/cn";
 import { clock } from "@/lib/format";
 import type { Profile } from "@/lib/models";
 import { useMatch } from "@/stores/match";
 import { useSocial } from "@/stores/social";
-import { openSheet } from "@/stores/ui";
+import { openSheet, useUi } from "@/stores/ui";
 
 import { GameCard } from "@/features/match/game";
 import { PartnerStage, PartnerMediaPills, playGame } from "@/features/match/connected";
@@ -28,7 +29,8 @@ import {
   useVoiceLevel,
   VoiceBars,
 } from "./call-ui";
-import { usePip } from "./pip";
+import { useAutoHide } from "./auto-hide";
+import { PIP_FRAME, PIP_FRAME_BARE, usePip } from "./pip";
 
 export interface FriendCallActions {
   gift: () => void;
@@ -52,40 +54,59 @@ function useVideoAllowed(p: Profile) {
   return !friend || (friend.calls.mineVideo && friend.calls.theirsVideo);
 }
 
-/** A video call with a friend: their video, you in the corner, one frosted dock. Not the random-match screen. */
+/**
+ * A video call with a friend: their video, you in the corner, one frosted dock. Not the random-match screen.
+ * The header and dock hide 4 s after the last tap and come back on the next one; a tap on the video hides
+ * them at once. They stay up while a sheet is open, a game is on, the small picture is dragged, or before
+ * their video starts.
+ */
 export function FriendVideoCall({ actions }: { actions: FriendCallActions }) {
   const m = useMatch();
   const shrink = useShrink();
   const p = m.partner!;
   // Tap the small picture to swap it with the big one; drag it to any corner.
   const [swapped, setSwapped] = useState(false);
-  const { corner, style: pipStyle, handlers: pipHandlers, probe } = usePip(() => setSwapped((x) => !x));
+  const controls = useAutoHide();
+  const bare = !controls.shown;
+  const { corner, style: pipStyle, handlers: pipHandlers, probe, dragging } = usePip(() => setSwapped((x) => !x), bare ? PIP_FRAME_BARE : PIP_FRAME);
+  const sheetOpen = useUi((s) => s.overlays.length > 0);
+  const held = !m.remoteStream || sheetOpen || dragging || !!m.game;
+  const { hold, poke, toggle } = controls;
+  useEffect(() => hold(held), [hold, held]);
+  // A tap on the big picture shows or hides them; any other tap, key or mouse move keeps them up.
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => ((e.target as Element).closest("[data-call-stage]") ? toggle() : poke());
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => e.pointerType === "mouse" && poke();
   const tile = "absolute z-[15] cursor-grab touch-none overflow-hidden rounded-[18px] border-2 border-white/22 bg-surface2 shadow-[0_8px_24px_rgb(0_0_0/.4)] select-none active:cursor-grabbing";
   const tileProps = { ...pipHandlers, style: pipStyle, role: "button", tabIndex: 0, onKeyDown: (e: KeyboardEvent) => (e.key === "Enter" || e.key === " ") && setSwapped((x) => !x) };
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onKeyDownCapture={poke} onFocusCapture={poke}>
       <span ref={probe} aria-hidden className="pointer-events-none invisible absolute inset-x-0 top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)]" />
       {/* The same two pictures stay mounted (no flicker, their sound keeps playing); a swap only changes which is big. */}
       <div
         className={swapped ? tile : "absolute inset-0"}
-        {...(swapped ? { ...tileProps, "aria-label": `Show ${firstName(p)} big` } : { style: m.partnerBlur ? { filter: "blur(24px)", transform: "scale(1.08)" } : undefined })}
+        {...(swapped
+          ? { ...tileProps, "aria-label": `Show ${firstName(p)} big` }
+          : { "data-call-stage": "", style: m.partnerBlur ? { filter: "blur(24px)", transform: "scale(1.08)" } : undefined })}
       >
         <div className="absolute inset-0" style={swapped && m.partnerBlur ? { filter: "blur(10px)" } : undefined}>
           <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn} />
         </div>
       </div>
-      <div className={swapped ? "absolute inset-0" : tile} {...(swapped ? {} : { ...tileProps, "aria-label": "Show yourself big" })}>
+      <div className={swapped ? "absolute inset-0" : tile} {...(swapped ? { "data-call-stage": "" } : { ...tileProps, "aria-label": "Show yourself big" })}>
         <SelfVideo big={swapped} />
       </div>
       <div
-        className="pointer-events-none absolute inset-0"
+        className={cn("pointer-events-none absolute inset-0 transition-opacity duration-300", bare && "opacity-0")}
         style={{ background: "linear-gradient(to bottom, rgb(11 10 16 / .6), transparent 170px, transparent calc(100% - 260px), rgb(11 10 16 / .75))" }}
       />
-      <CallTopline title={p.name} verified={p.verified} sub={`${clock(m.elapsed)} · video call`} onShrink={() => shrink(p)} />
+      <CallTopline title={p.name} verified={p.verified} sub={`${clock(m.elapsed)} · video call`} onShrink={() => shrink(p)} hidden={bare} />
       <div
-        className="absolute flex flex-col items-start gap-2"
-        style={{ top: "calc(78px + env(safe-area-inset-top))", left: corner === "tl" ? 124 : 12, right: corner === "tr" ? 124 : 12 }}
+        className="absolute flex flex-col items-start gap-2 transition-[top] duration-300 ease-out"
+        style={{ top: `calc(${bare ? 18 : 78}px + env(safe-area-inset-top))`, left: corner === "tl" ? 124 : 12, right: corner === "tr" ? 124 : 12 }}
       >
+        {/* With the dock gone, your own mute and camera stay in sight. */}
+        {bare && !m.micOn ? <GlassPill label="You're muted" icon="mic_off" iconColor="bad" height={28} fontSize={12} /> : null}
+        {bare && !m.camOn ? <GlassPill label="Your camera is off" icon="videocam_off" height={28} fontSize={12} /> : null}
         {m.partnerBlur ? <GlassPill label={`${firstName(p)} turned on Blur me`} icon="blur_on" iconColor="trust" height={30} fontSize={12} /> : null}
         <PartnerMediaPills name={firstName(p)} />
       </div>
@@ -94,7 +115,7 @@ export function FriendVideoCall({ actions }: { actions: FriendCallActions }) {
           <GameCard game={m.game} partnerName={p.name} />
         </div>
       ) : null}
-      <CallDock>
+      <CallDock hidden={bare}>
         <CallCtl icon="cameraswitch" label="Flip" size={54} onClick={() => void m.switchCamera()} />
         <CallCtl icon={m.camOn ? "videocam" : "videocam_off"} label={m.camOn ? "Camera" : "Camera off"} on={!m.camOn} size={54} onClick={m.toggleCam} />
         <CallCtl icon={m.micOn ? "mic" : "mic_off"} label={m.micOn ? "Mute" : "Unmute"} on={!m.micOn} size={54} onClick={m.toggleMic} />

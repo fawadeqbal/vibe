@@ -15,6 +15,7 @@ import '../../providers/match_provider.dart';
 import '../../providers/social_provider.dart';
 import '../match/call_states.dart';
 import '../match/icebreakers.dart';
+import 'auto_hide.dart';
 import 'call_ui.dart';
 
 String _first(Profile p) => p.name.split(' ').first;
@@ -32,7 +33,11 @@ class FriendCallActions {
 
 /// A video call with a friend: their video, you in the corner, one frosted
 /// dock. Not the random-match screen. Tap the small picture to swap it with
-/// the big one; drag it to any corner. (web: features/calls/friend-call.tsx)
+/// the big one; drag it to any corner. The header and dock hide 4 s after the
+/// last tap and come back on the next one; a tap on the video hides them at
+/// once. They stay up while a sheet or game is open, the small picture is
+/// dragged, their video hasn't started, or a screen reader is on.
+/// (web: features/calls/friend-call.tsx)
 class FriendVideoCall extends StatefulWidget {
   const FriendVideoCall({super.key, required this.m, required this.actions});
   final MatchProvider m;
@@ -45,6 +50,37 @@ class FriendVideoCall extends StatefulWidget {
 class _FriendVideoCallState extends State<FriendVideoCall> {
   bool _swapped = false;
   PipCorner _corner = PipCorner.tr;
+  bool _dragging = false;
+  final _controls = AutoHide();
+
+  /// Whether the controls were up when this touch began (a tap on the video then hides them).
+  bool _downShown = true;
+  bool? _held;
+
+  @override
+  void initState() {
+    super.initState();
+    _controls.addListener(_changed);
+    _controls.poke();
+  }
+
+  void _changed() => setState(() {});
+
+  @override
+  void dispose() {
+    _controls.removeListener(_changed);
+    _controls.dispose();
+    super.dispose();
+  }
+
+  /// Hold the controls up for as long as [held]; applied after the frame (it may rebuild).
+  void _hold(bool held) {
+    if (held == _held) return;
+    _held = held;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _controls.hold(held);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,61 +88,99 @@ class _FriendVideoCallState extends State<FriendVideoCall> {
     final actions = widget.actions;
     final p = m.partner!;
     final pad = MediaQuery.of(context).padding;
+    final covered = !(ModalRoute.of(context)?.isCurrent ?? true);
+    _hold(!m.hasRemoteVideo || m.game != null || _dragging || covered || MediaQuery.accessibleNavigationOf(context));
+    final bare = !_controls.shown;
     final partner = _PartnerVideo(m: m, small: _swapped);
     const self = SelfVideo();
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (_swapped) const SelfVideo(big: true) else partner,
-        const IgnorePointer(child: VideoScrims(top: 170, bottom: 260, topAlpha: 0.6, bottomAlpha: 0.75, bottomMid: 0.4)),
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 0,
-          child: CallTopline(title: p.name, verified: p.verified, sub: '${Fmt.clock(m.elapsed)} · video call', onShrink: actions.shrink),
-        ),
-        Positioned(
-          left: _corner == PipCorner.tl ? 124 : 12,
-          right: _corner == PipCorner.tr ? 124 : 12,
-          top: pad.top + 78,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (m.partnerBlur) GlassPill(label: '${_first(p)} turned on Blur me', icon: SolarIconsBold.radialBlur, iconColor: V.trust, height: 30, fontSize: 12),
-              PartnerMediaPills(m: m, name: _first(p)),
-            ],
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) {
+        _downShown = _controls.shown;
+        _controls.poke();
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              if (_downShown) _controls.hide();
+            },
+            child: _swapped ? const SelfVideo(big: true) : partner,
           ),
-        ),
-        if (m.game != null)
+          IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: bare ? 0 : 1,
+              duration: const Duration(milliseconds: 300),
+              child: const VideoScrims(top: 170, bottom: 260, topAlpha: 0.6, bottomAlpha: 0.75, bottomMid: 0.4),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: FadeAway(
+              hidden: bare,
+              slide: -0.3,
+              child: CallTopline(title: p.name, verified: p.verified, sub: '${Fmt.clock(m.elapsed)} · video call', onShrink: actions.shrink),
+            ),
+          ),
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            left: _corner == PipCorner.tl ? 124 : 12,
+            right: _corner == PipCorner.tr ? 124 : 12,
+            top: pad.top + (bare ? 18 : 78),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // With the dock gone, your own mute and camera stay in sight.
+                if (bare && !m.micOn) const GlassPill(label: "You're muted", icon: Icons.mic_off_rounded, iconColor: V.bad, height: 28, fontSize: 12),
+                if (bare && !m.camOn) const GlassPill(label: 'Your camera is off', icon: Icons.videocam_off_rounded, height: 28, fontSize: 12),
+                if (m.partnerBlur) GlassPill(label: '${_first(p)} turned on Blur me', icon: SolarIconsBold.radialBlur, iconColor: V.trust, height: 30, fontSize: 12),
+                PartnerMediaPills(m: m, name: _first(p)),
+              ],
+            ),
+          ),
+          if (m.game != null)
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: pad.bottom + 130,
+              child: GameCard(m: m, round: m.game!),
+            ),
+          Positioned.fill(
+            child: PipLayer(
+              label: _swapped ? 'Show ${_first(p)} big' : 'Show yourself big',
+              onTap: () => setState(() => _swapped = !_swapped),
+              onCorner: (c) => setState(() => _corner = c),
+              onDrag: (d) => setState(() => _dragging = d),
+              top: bare ? 18 : 78,
+              bottom: bare ? 24 : 132,
+              child: _swapped ? partner : self,
+            ),
+          ),
           Positioned(
             left: 12,
             right: 12,
-            bottom: pad.bottom + 130,
-            child: GameCard(m: m, round: m.game!),
+            bottom: pad.bottom + 22,
+            child: FadeAway(
+              hidden: bare,
+              slide: 0.3,
+              child: CallDock(
+                children: [
+                  CallCtl(icon: SolarIconsBold.cameraRotate, label: 'Flip', size: 54, onTap: () => m.switchCamera()),
+                  CallCtl(icon: m.camOn ? SolarIconsBold.videocamera : Icons.videocam_off_rounded, label: m.camOn ? 'Camera' : 'Camera off', on: !m.camOn, size: 54, onTap: m.toggleCam),
+                  CallCtl(icon: m.micOn ? Icons.mic_rounded : Icons.mic_off_rounded, label: m.micOn ? 'Mute' : 'Unmute', on: !m.micOn, size: 54, onTap: m.toggleMic),
+                  CallCtl(icon: SolarIconsBold.menuDots, label: 'More', size: 54, onTap: () => showCallTools(context, m, actions)),
+                  EndCallButton(size: 58, onTap: m.stop),
+                ],
+              ),
+            ),
           ),
-        Positioned.fill(
-          child: PipLayer(
-            label: _swapped ? 'Show ${_first(p)} big' : 'Show yourself big',
-            onTap: () => setState(() => _swapped = !_swapped),
-            onCorner: (c) => setState(() => _corner = c),
-            child: _swapped ? partner : self,
-          ),
-        ),
-        Positioned(
-          left: 12,
-          right: 12,
-          bottom: pad.bottom + 22,
-          child: CallDock(
-            children: [
-              CallCtl(icon: SolarIconsBold.cameraRotate, label: 'Flip', size: 54, onTap: () => m.switchCamera()),
-              CallCtl(icon: m.camOn ? SolarIconsBold.videocamera : Icons.videocam_off_rounded, label: m.camOn ? 'Camera' : 'Camera off', on: !m.camOn, size: 54, onTap: m.toggleCam),
-              CallCtl(icon: m.micOn ? Icons.mic_rounded : Icons.mic_off_rounded, label: m.micOn ? 'Mute' : 'Unmute', on: !m.micOn, size: 54, onTap: m.toggleMic),
-              CallCtl(icon: SolarIconsBold.menuDots, label: 'More', size: 54, onTap: () => showCallTools(context, m, actions)),
-              EndCallButton(size: 58, onTap: m.stop),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

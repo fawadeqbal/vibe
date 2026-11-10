@@ -217,6 +217,26 @@ class CallDock extends StatelessWidget {
   }
 }
 
+/// Fades [child] away (and lets taps through to the video) while a video
+/// call's controls are hidden; [slide] nudges it toward its edge.
+class FadeAway extends StatelessWidget {
+  const FadeAway({super.key, required this.hidden, required this.child, this.slide = 0});
+  final bool hidden;
+  final double slide;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    ignoring: hidden,
+    child: AnimatedSlide(
+      offset: Offset(0, hidden ? slide : 0),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      child: AnimatedOpacity(opacity: hidden ? 0 : 1, duration: const Duration(milliseconds: 300), curve: Curves.easeOut, child: child),
+    ),
+  );
+}
+
 /// Top of a friend call: shrink to the chat, and who / how long, centred (Report on the right when given).
 class CallTopline extends StatelessWidget {
   const CallTopline({super.key, required this.title, required this.sub, required this.onShrink, this.verified = false, this.onReport});
@@ -372,12 +392,19 @@ PipCorner pipNearest(Offset at, Size size) {
 /// The small picture in a video call, like WhatsApp: drag it anywhere and it
 /// snaps to the nearest corner; tap it to swap it with the big picture.
 /// Fill the screen with it (it only takes touches on the tile itself).
+/// [top] and [bottom] keep it clear of the header and the controls; they
+/// shrink while the controls are hidden, so it slides to the edges.
 class PipLayer extends StatefulWidget {
-  const PipLayer({super.key, required this.child, required this.onTap, this.onCorner, this.label = 'Swap pictures'});
+  const PipLayer({super.key, required this.child, required this.onTap, this.onCorner, this.onDrag, this.label = 'Swap pictures', this.top = 78, this.bottom = 132});
   final Widget child;
   final VoidCallback onTap;
   final ValueChanged<PipCorner>? onCorner;
+
+  /// True while it's being dragged, false once it's let go.
+  final ValueChanged<bool>? onDrag;
   final String label;
+  final double top;
+  final double bottom;
 
   @override
   State<PipLayer> createState() => _PipLayerState();
@@ -392,7 +419,7 @@ class _PipLayerState extends State<PipLayer> {
     final pad = MediaQuery.paddingOf(context);
     return LayoutBuilder(builder: (context, box) {
       final size = box.biggest;
-      final pos = _drag ?? pipPoint(_corner, size, pad);
+      final pos = _drag ?? pipPoint(_corner, size, pad, top: widget.top, bottom: widget.bottom);
       return Stack(
         children: [
           AnimatedPositioned(
@@ -408,7 +435,10 @@ class _PipLayerState extends State<PipLayer> {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: widget.onTap,
-                onPanStart: (_) => setState(() => _drag = pos),
+                onPanStart: (_) {
+                  setState(() => _drag = pos);
+                  widget.onDrag?.call(true);
+                },
                 onPanUpdate: (d) => setState(() {
                   final p = (_drag ?? pos) + d.delta;
                   _drag = Offset(p.dx.clamp(0, size.width - pipWidth), p.dy.clamp(0, size.height - pipHeight));
@@ -420,8 +450,12 @@ class _PipLayerState extends State<PipLayer> {
                     _drag = null;
                   });
                   widget.onCorner?.call(c);
+                  widget.onDrag?.call(false);
                 },
-                onPanCancel: () => setState(() => _drag = null),
+                onPanCancel: () {
+                  setState(() => _drag = null);
+                  widget.onDrag?.call(false);
+                },
                 child: PipFrame(child: widget.child),
               ),
             ),

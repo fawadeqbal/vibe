@@ -17,6 +17,9 @@ export interface PipFrame {
 
 export const PIP_FRAME: PipFrame = { w: 100, h: 140, top: 78, bottom: 132, margin: 12 };
 
+/** While the call's controls are hidden: the header and dock are gone, so the tile moves up (and down) to the edges. */
+export const PIP_FRAME_BARE: PipFrame = { ...PIP_FRAME, top: 18, bottom: 24 };
+
 /** Where a tile sits in each corner of a `width` × `height` stage (pure: tested). */
 export function cornerPoint(corner: Corner, width: number, height: number, f: PipFrame, safeTop = 0, safeBottom = 0): { x: number; y: number } {
   const x = corner.endsWith("l") ? f.margin : Math.max(f.margin, width - f.w - f.margin);
@@ -109,5 +112,5 @@ export function usePip(onTap: () => void, frame: PipFrame = PIP_FRAME) {
     visibility: size.w ? ("visible" as const) : ("hidden" as const),
   };
 
-  return { corner, style, handlers, probe };
+  return { corner, style, handlers, probe, dragging: drag !== null };
 }
