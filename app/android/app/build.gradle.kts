@@ -48,6 +48,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // flutter_local_notifications (full-screen incoming calls) needs desugaring.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -108,4 +110,5 @@ dependencies {
     // Play Install Referrer: reads "vibe_ref=CODE&utm_source=S" once on the
     // first launch (MainActivity.kt → InviteCapture) for invite attribution.
     implementation("com.android.installreferrer:installreferrer:2.2")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

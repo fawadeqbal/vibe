@@ -25,6 +25,7 @@ import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../services/app_services.dart';
 import '../../services/invite/invite_capture.dart';
+import '../../services/push/call_ringer.dart';
 import '../../services/push/push_route.dart';
 import '../../services/wellbeing/break_reminder.dart';
 import '../discover/discover_screen.dart';
@@ -303,6 +304,10 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     _links = DeepLinks.stream.listen(_open);
     final launch = push.takeLaunchRoute();
     if (launch != null) WidgetsBinding.instance.addPostFrameCallback((_) => _open(launch));
+    // A call notification (Vibe was in the background or closed): show the call, or pick it up.
+    CallRinger.opened.addListener(_callOpened);
+    CallRinger.tapped.addListener(_missedTapped);
+    unawaited(CallRinger.launchAction());
     _followNotices = context.read<FollowsProvider>().notices.listen((n) {
       if (mounted) toast(context, n.text);
     });
@@ -328,8 +333,26 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     ]);
   }
 
+  Future<void> _callOpened() async {
+    final o = CallRinger.opened.value;
+    if (o == null) return;
+    CallRinger.opened.value = null;
+    await _calls.checkIncoming();
+    if (o.answer && mounted && _calls.incoming?.callId == o.callId) await _calls.accept();
+  }
+
+  void _missedTapped() {
+    final data = CallRinger.tapped.value;
+    if (data == null) return;
+    CallRinger.tapped.value = null;
+    final r = PushRoute.fromData(data);
+    if (r != null && mounted) _open(r);
+  }
+
   @override
   void dispose() {
+    CallRinger.opened.removeListener(_callOpened);
+    CallRinger.tapped.removeListener(_missedTapped);
     _taps?.cancel();
     _links?.cancel();
     _followNotices?.cancel();

@@ -3,7 +3,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CallsService } from './calls.service';
-import { CallConsentDto, AcceptCallDto, CallVideoDto, DeclineCallDto, RingDto } from './dto/calls.dto';
+import { Public } from '../../common/decorators/public.decorator';
+import { CallConsentDto, AcceptCallDto, CallPushActionDto, CallVideoDto, DeclineCallDto, RingDto } from './dto/calls.dto';
 
 @ApiTags('calls')
 @ApiBearerAuth()
@@ -53,6 +54,21 @@ export class CallsController {
   @ApiOperation({ summary: 'The call ringing for you right now, or null' })
   async incoming(@CurrentUser('id') me: string) {
     return { call: await this.calls.incoming(me) };
+  }
+
+  @Post('calls/:callId/ringing')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Your phone is ringing for this call (the app got it, or woke from the push): the caller sees Ringing instead of Connecting (`call:reached`)' })
+  ringing(@CurrentUser('id') me: string, @Param('callId') callId: string) {
+    return this.calls.reached(me, callId);
+  }
+
+  @Public()
+  @Post('calls/:callId/push-action')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'From the call push with Vibe closed (no session): the phone is ringing, or Decline was tapped. `t` is the token the push carried.' })
+  pushAction(@Param('callId') callId: string, @Body() dto: CallPushActionDto) {
+    return this.calls.fromPush(callId, dto.userId, dto.t, dto.action, dto.reply);
   }
 
   @Post('calls/:callId/accept')

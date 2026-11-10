@@ -277,12 +277,26 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(video ? SolarIconsBold.videocamera : SolarIconsBold.phone, size: 17, color: Colors.white.withValues(alpha: 0.8)),
+                          Icon(video ? SolarIconsBold.videocamera : SolarIconsBold.phone, size: 17, color: c.reached ? V.pinkSoft : Colors.white.withValues(alpha: 0.8)),
                           const SizedBox(width: 6),
-                          Text('Calling…', style: VT.body(14.5, color: Colors.white.withValues(alpha: 0.8))),
+                          Text(
+                            c.callId == null ? 'Calling…' : (c.reached ? 'Ringing…' : 'Connecting…'),
+                            style: VT.body(14.5, color: c.reached ? V.pinkSoft : Colors.white.withValues(alpha: 0.8), weight: FontWeight.w600),
+                          ),
                         ],
                       ),
                     ),
+                    if (c.callId != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
+                        child: Text(
+                          c.reached
+                              ? "${c.to.name.split(' ').first}'s phone is ringing, even if Vibe is closed."
+                              : "${c.to.name.split(' ').first}'s phone is offline or has no internet. It rings as soon as it's back, while you're still calling.",
+                          textAlign: TextAlign.center,
+                          style: VT.body(13, color: Colors.white.withValues(alpha: 0.6), height: 1.5),
+                        ),
+                      ),
                     const Spacer(),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
