@@ -33,7 +33,7 @@ export function DetailPage({ title, children, footer }: { title: string; childre
 
 /** The pinned buttons under a detail page. */
 export function DetailActions({ children }: { children: ReactNode }) {
-  return <div className="mx-auto flex w-full max-w-[560px] flex-col gap-2.5 px-4 pt-3 pb-[calc(20px+env(safe-area-inset-bottom))]">{children}</div>;
+  return <div className="mx-auto flex w-full max-w-[560px] flex-col gap-2.5 border-t border-line-soft bg-bg px-4 pt-3 pb-[calc(16px+var(--safe-bottom))]">{children}</div>;
 }
 
 export function DetailHero({ icon, tone, title, sub, variant }: { icon: string; tone: Tone; title: string; sub?: ReactNode; variant?: "round" | "outlined" }) {

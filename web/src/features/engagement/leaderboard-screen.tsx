@@ -68,7 +68,7 @@ export function LeaderboardScreen() {
     <Screen
       width="sm"
       header={<AppBar title="This week's top" onBack={() => (window.history.length > 1 ? router.back() : router.push("/me"))} />}
-      bodyClassName="pb-28"
+      bodyClassName="pb-3"
       footer={data && me ? <MeRow board={data} rank={mine!.rank} score={mine!.score} name={me.name} avatarUrl={me.avatarUrl} /> : null}
       pinned={<PillTabs tabs={TABS} value={board} onChange={setBoard} label="Leaderboard" />}
     >

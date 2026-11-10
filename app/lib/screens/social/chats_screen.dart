@@ -349,9 +349,6 @@ class _FriendRow extends StatelessWidget {
   }
 }
 
-/// Pinned row for "Messages from Vibe" (the team's messages from the admin
-/// panel), above friend requests.
-
 /// A hairline under a row, starting after the avatar (rows in a group).
 class _InsetDivider extends Decoration {
   const _InsetDivider(this.left);

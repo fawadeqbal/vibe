@@ -577,11 +577,11 @@ export function webPath(data: Record<string, string>): string {
     case 'verification':
       return '/me/verification';
     case 'team':
-      return data.messageId ? `/news/${q('messageId')}` : '/chats/inbox';
+      return data.messageId ? `/news/${q('messageId')}` : '/notifications';
     case 'recap':
       return '/me/recap';
     case 'inbox':
-      return '/chats/inbox';
+      return '/notifications';
     case 'notifications':
       return '/notifications';
     default:

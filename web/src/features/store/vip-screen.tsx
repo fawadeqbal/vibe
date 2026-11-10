@@ -93,10 +93,10 @@ export function VipScreen() {
           aria-hidden
         />
       }
-      bodyClassName="pt-2.5 pb-[220px]"
+      bodyClassName="pt-2.5 pb-4"
       footer={
         <div
-          className="px-5 pt-10 pb-[calc(16px+env(safe-area-inset-bottom))]"
+          className="-mt-8 px-5 pt-8 pb-[calc(16px+env(safe-area-inset-bottom))]"
           style={{ backgroundImage: "linear-gradient(to top, var(--color-bg) 72%, rgb(11 10 16 / 0) 100%)" }}
         >
           {!vip && plan ? (

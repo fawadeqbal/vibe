@@ -19,7 +19,7 @@ import '../../providers/social_provider.dart';
 import '../../services/push/push_route.dart';
 import '../profile/me_sections.dart';
 import '../social/chat_screen.dart';
-import '../social/inbox_screen.dart' show TeamAvatar;
+import '../social/team_avatar.dart' show TeamAvatar;
 import 'notification_style.dart';
 
 /// Notifications: every line opens the thing it is about — a person, a chat
