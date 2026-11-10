@@ -87,16 +87,14 @@ html[data-shift] [data-app-shell] {
 /*
  * The page itself never scrolls (the shell is the size of the screen), so it
  * never bounces either: on iPhone, swiping past the end of a list used to
- * drag the whole page, collapse Safari's bars and shake the screen. Lists
- * bounce on their own and stop there instead of passing the swipe on.
+ * drag the whole page, collapse Safari's bars and shake the screen. Only the
+ * page: setting it on everything inside stopped iPhone scrolling wherever a
+ * swipe started on something that doesn't scroll itself (Safari won't pass
+ * the swipe up to the list), so lists that need it opt in (the chat).
  */
 html,
 body {
   overscroll-behavior: none;
-}
-[data-app-shell],
-[data-app-shell] * {
-  overscroll-behavior-y: contain;
 }
 
 /* A reload in a tab that already saw the splash: never show it (lib/splash-once.ts). */

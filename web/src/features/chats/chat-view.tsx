@@ -336,7 +336,7 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
         ) : (
           <div
             ref={list}
-            className="quiet-scroll flex min-h-0 flex-1 flex-col-reverse overflow-x-hidden overflow-y-auto px-4 py-3 [-webkit-touch-callout:none] lg:px-7 lg:py-[18px] [@media(pointer:coarse)]:select-none"
+            className="quiet-scroll flex min-h-0 flex-1 flex-col-reverse overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 py-3 [-webkit-touch-callout:none] lg:px-7 lg:py-[18px] [@media(pointer:coarse)]:select-none"
           >
             <div>
               <div ref={top} aria-hidden className="h-px" />
