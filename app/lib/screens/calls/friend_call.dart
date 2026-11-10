@@ -31,37 +31,33 @@ class FriendCallActions {
 }
 
 /// A video call with a friend: their video, you in the corner, one frosted
-/// dock. Not the random-match screen. (web: features/calls/friend-call.tsx)
-class FriendVideoCall extends StatelessWidget {
+/// dock. Not the random-match screen. Tap the small picture to swap it with
+/// the big one; drag it to any corner. (web: features/calls/friend-call.tsx)
+class FriendVideoCall extends StatefulWidget {
   const FriendVideoCall({super.key, required this.m, required this.actions});
   final MatchProvider m;
   final FriendCallActions actions;
 
   @override
+  State<FriendVideoCall> createState() => _FriendVideoCallState();
+}
+
+class _FriendVideoCallState extends State<FriendVideoCall> {
+  bool _swapped = false;
+  PipCorner _corner = PipCorner.tr;
+
+  @override
   Widget build(BuildContext context) {
+    final m = widget.m;
+    final actions = widget.actions;
     final p = m.partner!;
     final pad = MediaQuery.of(context).padding;
+    final partner = _PartnerVideo(m: m, small: _swapped);
+    const self = SelfVideo();
     return Stack(
       fit: StackFit.expand,
       children: [
-        ImageFiltered(
-          enabled: m.partnerBlur,
-          imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24, tileMode: TileMode.clamp),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (m.hasRemoteVideo)
-                RTCVideoView(m.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-              else
-                Image(
-                  image: netImage(p.avatarUrl),
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => BlurredPhoto(url: '', brightness: 1),
-                ),
-              if (!m.partnerCamOn) CameraOffCover(partner: p),
-            ],
-          ),
-        ),
+        if (_swapped) const SelfVideo(big: true) else partner,
         const IgnorePointer(child: VideoScrims(top: 170, bottom: 260, topAlpha: 0.6, bottomAlpha: 0.75, bottomMid: 0.4)),
         Positioned(
           left: 0,
@@ -69,10 +65,9 @@ class FriendVideoCall extends StatelessWidget {
           top: 0,
           child: CallTopline(title: p.name, verified: p.verified, sub: '${Fmt.clock(m.elapsed)} · video call', onShrink: actions.shrink),
         ),
-        Positioned(right: 12, top: pad.top + 78, child: const SelfPreview()),
         Positioned(
-          left: 12,
-          right: 124,
+          left: _corner == PipCorner.tl ? 124 : 12,
+          right: _corner == PipCorner.tr ? 124 : 12,
           top: pad.top + 78,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,6 +84,14 @@ class FriendVideoCall extends StatelessWidget {
             bottom: pad.bottom + 130,
             child: GameCard(m: m, round: m.game!),
           ),
+        Positioned.fill(
+          child: PipLayer(
+            label: _swapped ? 'Show ${_first(p)} big' : 'Show yourself big',
+            onTap: () => setState(() => _swapped = !_swapped),
+            onCorner: (c) => setState(() => _corner = c),
+            child: _swapped ? partner : self,
+          ),
+        ),
         Positioned(
           left: 12,
           right: 12,
@@ -403,4 +406,35 @@ Future<void> showCallTools(BuildContext context, MatchProvider m, FriendCallActi
       ),
     ),
   );
+}
+
+/// Their video (or photo while it starts, or the camera-off cover), filling its box.
+class _PartnerVideo extends StatelessWidget {
+  const _PartnerVideo({required this.m, this.small = false});
+  final MatchProvider m;
+  final bool small;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = m.partner!;
+    final blur = small ? 10.0 : 24.0;
+    return ImageFiltered(
+      enabled: m.partnerBlur,
+      imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur, tileMode: TileMode.clamp),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (m.hasRemoteVideo)
+            RTCVideoView(m.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+          else
+            Image(
+              image: netImage(p.avatarUrl),
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => BlurredPhoto(url: '', brightness: 1),
+            ),
+          if (!m.partnerCamOn && !small) CameraOffCover(partner: p),
+        ],
+      ),
+    );
+  }
 }

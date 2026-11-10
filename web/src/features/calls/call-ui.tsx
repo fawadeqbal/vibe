@@ -168,11 +168,6 @@ export function CallTopline({
 
 /** You, picture-in-picture (blurred while "Blur me" is on). */
 export function SelfPreview({ top = 78, className }: { top?: number; className?: string }) {
-  const stream = useMatch((s) => s.localStream);
-  const camOn = useMatch((s) => s.camOn);
-  const front = useMatch((s) => s.frontCamera);
-  const blurMe = useMatch((s) => s.blurMe);
-  const hasVideo = !!stream?.getVideoTracks().length && camOn;
   return (
     <div
       className={cn(
@@ -181,17 +176,38 @@ export function SelfPreview({ top = 78, className }: { top?: number; className?:
       )}
       style={{ top: `calc(${top}px + env(safe-area-inset-top))` }}
     >
+      <SelfVideo />
+    </div>
+  );
+}
+
+/** Your camera filling its box (the corner tile, or the whole stage after a swap). */
+export function SelfVideo({ big = false }: { big?: boolean }) {
+  const stream = useMatch((s) => s.localStream);
+  const camOn = useMatch((s) => s.camOn);
+  const front = useMatch((s) => s.frontCamera);
+  const blurMe = useMatch((s) => s.blurMe);
+  const hasVideo = !!stream?.getVideoTracks().length && camOn;
+  return (
+    <>
       {hasVideo && stream ? (
-        <VideoView stream={stream} mirror={front} blur={blurMe ? 12 : 0} />
+        <VideoView stream={stream} mirror={front} blur={blurMe ? (big ? 24 : 12) : 0} />
       ) : (
-        <span className="absolute inset-0 flex items-center justify-center text-muted">
-          <Icon name="videocam_off" />
+        <span className="absolute inset-0 flex items-center justify-center bg-surface2 text-muted">
+          <Icon name="videocam_off" size={big ? 40 : 24} />
         </span>
       )}
       {blurMe ? (
-        <span className="absolute inset-x-1.5 bottom-1.5 rounded-full bg-bg2/70 px-2 py-0.5 text-center text-[10.5px] font-semibold text-trust">Blurred</span>
+        <span
+          className={cn(
+            "absolute rounded-full bg-bg2/70 text-center font-semibold text-trust",
+            big ? "bottom-[calc(150px+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 px-3 py-1 text-[12.5px]" : "inset-x-1.5 bottom-1.5 px-2 py-0.5 text-[10.5px]",
+          )}
+        >
+          Blurred
+        </span>
       ) : null}
-    </div>
+    </>
   );
 }
 
