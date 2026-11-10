@@ -3,19 +3,14 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { useNeedCoins } from "@/components/shared/dialogs";
-import { pickGift } from "@/components/shared/gift-sheet";
 import { VideoView } from "@/components/shared/video-view";
 import { Avatar } from "@/components/ui/avatar";
 import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { errorMessage } from "@/lib/api/errors";
-import { clock, duration } from "@/lib/format";
+import { clock } from "@/lib/format";
 import type { Profile } from "@/lib/models";
 import { type IncomingCall, type OutgoingCall, useCalls } from "@/stores/calls";
-import { type FriendCallEnded, useMatch } from "@/stores/match";
-import { useSocial } from "@/stores/social";
-import { toast } from "@/stores/ui";
+import { useMatch } from "@/stores/match";
 
 import { BlurredPhoto, CallCtl, CallEndCard, EndCallButton, PulseAvatar, RemoteAudio, SelfPreview } from "./call-ui";
 
@@ -25,7 +20,7 @@ const firstName = (p: Profile) => p.name.split(" ")[0] || p.name;
 /**
  * Friend calls, wherever you are in the app: the incoming ring (a banner,
  * or full screen), your own "Calling…" screen and how it ended, the hand-off
- * to the call screen, the call shrunk to the chat, and "Call ended".
+ * to the call screen, the call shrunk to the chat, and back to the chat when it ends.
  * Separate from random matches.
  */
 export function CallHost() {
@@ -47,6 +42,13 @@ export function CallHost() {
     else if (!minimized && path !== "/match") router.push("/match");
   }, [inFriendCall, minimized, path, router]);
 
+  // A friend call ended: straight back to the chat with them (no "Call ended" screen).
+  useEffect(() => {
+    if (!ended || inFriendCall) return;
+    useMatch.setState({ friendCallEnded: null });
+    router.push(`/chats/${ended.friendId}`);
+  }, [ended, inFriendCall, router]);
+
   // A call ringing before the app opened (from a push): straight to full screen.
   const [openedRinging, setOpenedRinging] = useState<string | null>(null);
   useEffect(() => {
@@ -61,7 +63,6 @@ export function CallHost() {
       {outgoing ? <Outgoing key={`${outgoing.to.id}-${outgoing.callId ?? "new"}-${outgoing.status}`} c={outgoing} /> : null}
       {incoming ? <Incoming key={incoming.callId} c={incoming} startFull={openedRinging === incoming.callId} /> : null}
       {inFriendCall && minimized ? <MiniCall /> : null}
-      {ended && !inFriendCall ? <FriendCallEndedScreen e={ended} /> : null}
     </>
   );
 }
@@ -354,48 +355,3 @@ function MiniCall() {
 
 // ── ended ────────────────────────────────────────────────────────────────
 
-/** After a friend call: back to the chat, call again, or send a gift. */
-function FriendCallEndedScreen({ e }: { e: FriendCallEnded }) {
-  const router = useRouter();
-  const needCoins = useNeedCoins();
-  const p = e.partner;
-  const close = () => useMatch.setState({ friendCallEnded: null });
-  const gift = async () => {
-    const g = await pickGift(p.name);
-    if (!g) return;
-    try {
-      if (await useSocial.getState().sendGift(p.id, g)) toast(`${g.name} sent to ${firstName(p)}`);
-      else await needCoins(`A ${g.name} costs ${g.coins} coins.`);
-    } catch (err) {
-      toast(errorMessage(err), { error: true });
-    }
-  };
-  return (
-    <div role="dialog" aria-modal="true" aria-label="Call ended" className="fixed inset-0 z-[76]">
-      <CallEndCard url={p.avatarUrl} name={p.name} title="Call ended" sub={`${e.voice ? "Voice" : "Video"} call with ${firstName(p)} · ${duration(e.seconds)}`}>
-        <GradientButton
-          label="Back to the chat"
-          icon="chat_bubble"
-          height={54}
-          onClick={() => {
-            close();
-            router.push(`/chats/${p.id}`);
-          }}
-        />
-        <div className="grid grid-cols-2 gap-2.5">
-          <GhostButton
-            label="Call again"
-            icon={e.voice ? "call" : "videocam"}
-            height={48}
-            expand
-            onClick={() => {
-              close();
-              void useCalls.getState().ring(p, e.voice ? "voice" : "video");
-            }}
-          />
-          <GhostButton label="Send a gift" icon="redeem" height={48} expand labelClassName="text-gold" onClick={() => void gift()} />
-        </div>
-      </CallEndCard>
-    </div>
-  );
-}

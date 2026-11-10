@@ -95,12 +95,7 @@ class RemoteMatchProvider extends MatchProvider {
           _restartConnection();
         }
       }),
-      _rt.on(Ev.matchRematchSoon).listen((e) {
-        if (_state != MatchState.searching) return;
-        final p = Map<String, dynamic>.from((e['partner'] as Map?) ?? const {});
-        _rematchSoon = RematchSoon(partnerId: '${p['id'] ?? ''}', name: p['name'] as String? ?? '', avatarUrl: p['avatarUrl'] as String? ?? '', at: DateTime.tryParse('${e['at'] ?? ''}')?.toLocal());
-        notifyListeners();
-      }),
+      // "Just you and Sara here" isn't shown: random matching just carries on (the server still pairs you again after a wait).
     ];
     // Our own socket dropped mid-call: say so; voice and video often keep going meanwhile.
     _connectionSub = _rt.connection.listen((up) {

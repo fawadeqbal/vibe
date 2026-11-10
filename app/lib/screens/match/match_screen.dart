@@ -439,7 +439,7 @@ class _MatchScreenState extends State<MatchScreen> {
               ),
               _ => _Lobby(m: m, onStart: _start, onOpenStore: widget.onOpenStore, onOpenMe: widget.onOpenMe),
             },
-            if (m.isSearching && m.rematchSoon == null)
+            if (m.isSearching)
               Positioned(
                 left: 12,
                 right: 12,
@@ -1337,13 +1337,10 @@ class _SearchingState extends State<_Searching> {
     final a = m.availability;
     final quiet = a != null && a.online == 0 && seconds >= 4;
     final slow = !quiet && seconds >= slowSearchSeconds;
-    final rematch = m.rematchSoon;
     final boosted = wallet.isBoosted;
 
     final Widget card;
-    if (rematch != null) {
-      card = RematchSoonCard(m: m, onCallNow: widget.onCallNow);
-    } else if (quiet) {
+    if (quiet) {
       card = const _VibeHourNudge();
     } else if (slow && filters.usesExtra) {
       card = _SearchCard(

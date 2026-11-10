@@ -4,18 +4,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Avatar } from "@/components/ui/avatar";
-import { GhostButton, GradientButton, TextButton } from "@/components/ui/button";
+import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Glass, RoundControl } from "@/components/ui/glass";
 import { Icon } from "@/components/ui/icon";
-import { CoinAmount, CoinChip } from "@/components/ui/money";
+import { CoinChip } from "@/components/ui/money";
 import { useNow } from "@/hooks/use-now";
 import { COUNTRIES } from "@/lib/catalog";
-import { clock, until } from "@/lib/format";
-import { clock12, freeReconnectLeft, vibeHourLive } from "@/lib/engagement";
+import { until } from "@/lib/format";
+import { clock12, vibeHourLive } from "@/lib/engagement";
 import { useCatalog } from "@/stores/catalog";
 import { useEngagement } from "@/stores/engagement";
 import { filterSummary, freeOnly, useFilters, usesExtraFilters } from "@/stores/filters";
-import { type RematchSoon, useMatch } from "@/stores/match";
+import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { toast } from "@/stores/ui";
 import { useWaitlist } from "@/stores/waitlist";
@@ -38,9 +38,8 @@ const countryName = (code: string) => COUNTRIES.find((c) => c.code === code)?.na
  * nobody else is on, it says so plainly ("You're first in line") and offers
  * to tell you instead.
  */
-export function Searching({ onRestart, onReconnect }: { onRestart: () => void; onReconnect: () => void }) {
+export function Searching({ onRestart }: { onRestart: () => void }) {
   const router = useRouter();
-  const rematch = useMatch((s) => s.rematchSoon);
   const wallet = useWallet((s) => s.wallet);
   const me = useSession((s) => s.me);
   const filters = useFilters((s) => s.filters);
@@ -103,9 +102,7 @@ export function Searching({ onRestart, onReconnect }: { onRestart: () => void; o
         </div>
 
         <div className="mt-5">
-          {rematch ? (
-            <RematchSoonCard soon={rematch} onCallNow={onReconnect} />
-          ) : quiet ? (
+          {quiet ? (
             <VibeHourNudge />
           ) : slow && usesExtraFilters(filters) ? (
             <Glass radius={18} className="flex items-center gap-2.5 bg-bg2/55 px-3.5 py-3">
@@ -192,44 +189,6 @@ export function Searching({ onRestart, onReconnect }: { onRestart: () => void; o
   );
 }
 
-/**
- * Only you and the person you just left are here: say so plainly, show when
- * you'll meet again, and offer to call them now or keep waiting for someone new.
- */
-export function RematchSoonCard({ soon, onCallNow }: { soon: RematchSoon; onCallNow: () => void }) {
-  const now = useNow(1000, !!soon.at);
-  const ended = useMatch((s) => s.ended);
-  const me = useSession((s) => s.me);
-  const left = soon.at ? Math.max(0, Math.ceil((soon.at.getTime() - now) / 1000)) : null;
-  const free = freeReconnectLeft(ended?.freeReconnectUntil ?? null, now) > 0;
-  const name = soon.partner.name || "them";
-  return (
-    <Glass radius={24} className="flex w-full flex-col items-center border-white/10 bg-bg2/70 p-5 text-center">
-      <span className="flex items-center">
-        <Avatar url={soon.partner.avatarUrl} name={name} size={52} ring />
-        <span className="-ml-3 rounded-full ring-4 ring-bg2">
-          <Avatar url={me?.avatarUrl ?? ""} name={me?.name ?? "You"} size={52} />
-        </span>
-      </span>
-      <span className="type-title mt-3 text-[18px] font-bold">Just you and {name} here</span>
-      <span className="type-body mt-1 max-w-[320px] text-[13.5px] leading-[1.5] text-text2">
-        Nobody else is looking right now.{" "}
-        {left == null ? "We'll keep looking for someone new." : left > 0 ? <>We&apos;ll put you two back together in <strong className="type-mono text-text">{clock(left)}</strong> if nobody new comes.</> : "Putting you back together…"}
-      </span>
-      <div className="mt-4 flex w-full flex-col gap-2">
-        <GradientButton
-          label={`Call ${name} now`}
-          icon="videocam"
-          onClick={onCallNow}
-          trailing={free ? <span className="type-label rounded-full bg-white/20 px-2 py-0.5 text-[11px]">Free</span> : ended ? <CoinAmount amount={ended.reconnectCost} size={12} /> : undefined}
-        />
-        <TextButton className="w-full text-text2" onClick={() => useMatch.setState({ rematchSoon: null })}>
-          Wait for new people
-        </TextButton>
-      </div>
-    </Glass>
-  );
-}
 
 /** In a quiet search: when everyone's on, and one tap to be reminded. */
 function VibeHourNudge() {

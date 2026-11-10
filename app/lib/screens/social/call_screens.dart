@@ -5,17 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
-import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
-import '../../core/util/format.dart';
 import '../../models/calls.dart';
 import '../../providers/calls_provider.dart';
 import '../../providers/match_provider.dart';
-import '../../providers/social_provider.dart';
 import '../calls/call_ui.dart';
-import '../match/gift_sheet.dart';
-import '../store/store_screen.dart';
 
 const _quickReplies = ["Can't talk now", 'Call me in 10 min', 'Text me instead'];
 
@@ -321,85 +316,3 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> {
   }
 }
 
-/// After a friend call: back to the chat, call again, or send a gift.
-class FriendCallEndedScreen extends StatelessWidget {
-  const FriendCallEndedScreen({super.key, required this.ended, required this.onChat});
-  final FriendCallEnded ended;
-  final ValueChanged<String> onChat;
-
-  Future<void> _gift(BuildContext context) async {
-    final p = ended.partner;
-    final g = await showGiftSheet(context, toName: p.name);
-    if (g == null || !context.mounted) return;
-    try {
-      if (await context.read<SocialProvider>().sendGift(p.id, g)) {
-        if (context.mounted) toast(context, '${g.name} sent to ${p.name.split(' ').first}');
-      } else if (context.mounted) {
-        final go = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Not enough coins'),
-            content: Text('A ${g.name} costs ${g.coins} coins.\n\nTop up, or earn free coins in the store.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Not now', style: TextStyle(color: V.text2)),
-              ),
-              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Get coins')),
-            ],
-          ),
-        );
-        if (go == true && context.mounted) Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StoreScreen(asPage: true)));
-      }
-    } on ApiException catch (e) {
-      if (context.mounted) toast(context, e.message, error: true);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = ended.partner;
-    final first = p.name.split(' ').first;
-    return Scaffold(
-      backgroundColor: V.bg,
-      body: CallEndCard(
-        url: p.avatarUrl,
-        name: p.name,
-        title: 'Call ended',
-        sub: '${ended.voice ? 'Voice' : 'Video'} call with $first · ${Fmt.duration(ended.length)}',
-        children: [
-          GradientButton(
-            label: 'Back to the chat',
-            icon: SolarIconsBold.chatRoundDots,
-            height: 54,
-            onTap: () {
-              Navigator.of(context).pop();
-              onChat(p.id);
-            },
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: GhostButton(
-                  label: 'Call again',
-                  icon: ended.voice ? SolarIconsBold.phone : SolarIconsBold.videocamera,
-                  height: 48,
-                  expand: true,
-                  onTap: () {
-                    final calls = context.read<CallsProvider>();
-                    Navigator.of(context).pop();
-                    unawaited(calls.ring(p, ended.voice ? CallMedia.voice : CallMedia.video));
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GhostButton(label: 'Send a gift', icon: SolarIconsBold.gift, height: 48, expand: true, color: V.gold, onTap: () => _gift(context)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
