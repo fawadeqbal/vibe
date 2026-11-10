@@ -132,11 +132,34 @@ class RemoteSocialProvider extends SocialProvider {
     _openChat = friendId;
     if (_loadedChats.contains(friendId)) return;
     try {
-      final page = await _api.get('/friends/$friendId/messages', query: {'limit': '100'}) as Map;
+      final page = await _api.get('/friends/$friendId/messages', query: {'limit': '$_chatPage'}) as Map;
       _chats[friendId] = (page['items'] as List).map((e) => ApiMap.message(Map<String, dynamic>.from(e as Map))).toList().reversed.toList();
+      _olderCursor[friendId] = page['nextCursor'] as String?;
       _loadedChats.add(friendId);
       notifyListeners();
     } on ApiException catch (_) {}
+  }
+
+  /// Messages per page: the newest when a chat opens, then this many more each time you scroll to the top.
+  static const _chatPage = 40;
+
+  @override
+  Future<void> loadOlder(String friendId) async {
+    final cursor = _olderCursor[friendId];
+    if (cursor == null || _loadingOlder.contains(friendId)) return;
+    _loadingOlder.add(friendId);
+    notifyListeners();
+    try {
+      final page = await _api.get('/friends/$friendId/messages', query: {'limit': '$_chatPage', 'cursor': cursor}) as Map;
+      final older = (page['items'] as List).map((e) => ApiMap.message(Map<String, dynamic>.from(e as Map))).toList().reversed;
+      final have = {for (final m in _chats[friendId] ?? const <ChatMessage>[]) m.id};
+      _chats[friendId] = [...older.where((m) => !have.contains(m.id)), ...?_chats[friendId]];
+      _olderCursor[friendId] = page['nextCursor'] as String?;
+    } on ApiException catch (_) {
+    } finally {
+      _loadingOlder.remove(friendId);
+      notifyListeners();
+    }
   }
 
   @override
