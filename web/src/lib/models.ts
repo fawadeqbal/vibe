@@ -224,6 +224,8 @@ export interface ChatMessage {
   reactions?: { mine: string | null; theirs: string | null };
   /** Unsent by the sender. */
   unsent?: boolean;
+  /** Its sender changed the text: "edited" next to it. */
+  edited?: boolean;
   /** When they read it (your messages). */
   readAt?: Date | null;
   /** Still sending (text) or uploading (photo/voice note), shown faded. */

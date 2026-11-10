@@ -129,6 +129,7 @@ class Json {
         if (c.kind != MessageKind.text && c.kind != MessageKind.gift) 'kind': c.kind.name,
         if (c.meta != null) 'meta': c.meta,
         if (c.unsent) 'unsent': true,
+        if (c.edited) 'edited': true,
         if (c.reactionMine != null) 'reactionMine': c.reactionMine,
         if (c.reactionTheirs != null) 'reactionTheirs': c.reactionTheirs,
         if (c.replyTo != null) 'replyTo': {'id': c.replyTo!.id, 'fromMe': c.replyTo!.fromMe, 'kind': c.replyTo!.kind, 'text': c.replyTo!.text, 'unsent': c.replyTo!.unsent},
@@ -143,6 +144,7 @@ class Json {
         kind: m['gift'] != null ? MessageKind.gift : MessageKind.values.firstWhere((k) => k.name == m['kind'], orElse: () => MessageKind.text),
         meta: m['meta'] is Map ? Map<String, dynamic>.from(m['meta'] as Map) : null,
         unsent: m['unsent'] == true,
+        edited: m['edited'] == true,
         reactionMine: m['reactionMine'] as String?,
         reactionTheirs: m['reactionTheirs'] as String?,
         replyTo: m['replyTo'] is Map

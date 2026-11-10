@@ -68,6 +68,26 @@ describe('chat tools', () => {
     await t.http.delete(`/v1/friends/${b.id}/messages/${late.id}`).set(a.auth).expect(409);
   });
 
+  it('edit: your own text, within the window; both see the new text marked edited', async () => {
+    const { a, b } = await friends();
+    const sb = await online(b);
+    const m = await say(a, b, 'see you at 5');
+    const updated = next(sb, 'message:updated');
+    const e = (await t.http.patch(`/v1/friends/${b.id}/messages/${m.id}`).set(a.auth).send({ text: '  see you at 6  ' }).expect(200)).body;
+    expect(e).toMatchObject({ id: m.id, text: 'see you at 6', edited: true, fromMe: true });
+    expect(await updated).toMatchObject({ id: m.id, text: 'see you at 6', edited: true, fromMe: false });
+    const list = (await t.http.get(`/v1/friends/${a.id}/messages`).set(b.auth).expect(200)).body.items;
+    expect(list.find((x: { id: string }) => x.id === m.id)).toMatchObject({ text: 'see you at 6', edited: true });
+    // Not theirs, not empty, not unsent, not after the window.
+    await t.http.patch(`/v1/friends/${a.id}/messages/${m.id}`).set(b.auth).send({ text: 'hijack' }).expect(403);
+    await t.http.patch(`/v1/friends/${b.id}/messages/${m.id}`).set(a.auth).send({ text: '   ' }).expect(400);
+    await t.http.delete(`/v1/friends/${b.id}/messages/${m.id}`).set(a.auth).expect(200);
+    await t.http.patch(`/v1/friends/${b.id}/messages/${m.id}`).set(a.auth).send({ text: 'back' }).expect(400);
+    await setRules({ chatUnsendMinutes: 0 });
+    const late = await say(a, b, 'too late');
+    await t.http.patch(`/v1/friends/${b.id}/messages/${late.id}`).set(a.auth).send({ text: 'fix' }).expect(409);
+  });
+
   it('photos and voice notes are stored and sent; the admin switches turn them off', async () => {
     const { a, b } = await friends();
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');

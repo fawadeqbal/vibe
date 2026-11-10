@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Patch, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
@@ -9,7 +9,7 @@ import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { CursorQueryDto } from '../../common/dto/pagination.dto';
 import { BlocksService } from './blocks.service';
-import { ReactDto, SendGiftDto, SendMediaDto, SendMessageDto } from './dto/social.dto';
+import { EditMessageDto, ReactDto, SendGiftDto, SendMediaDto, SendMessageDto } from './dto/social.dto';
 import { FriendsService } from './friends.service';
 import { LikesService } from './likes.service';
 import { MessagesService } from './messages.service';
@@ -95,6 +95,12 @@ export class FriendsController {
   @ApiOperation({ summary: 'React with one emoji (same again or empty removes it). Both get `message:updated`.' })
   react(@CurrentUser('id') me: string, @Param('userId') userId: string, @Param('messageId') messageId: string, @Body() dto: ReactDto) {
     return this.messages.react(me, userId, messageId, dto.emoji ?? null);
+  }
+
+  @Patch(':userId/messages/:messageId')
+  @ApiOperation({ summary: 'Edit your own text message (within chatUnsendMinutes). Both get `message:updated` with edited: true.' })
+  editMessage(@CurrentUser('id') me: string, @Param('userId') userId: string, @Param('messageId') messageId: string, @Body() dto: EditMessageDto) {
+    return this.messages.edit(me, userId, messageId, dto.text);
   }
 
   @Delete(':userId/messages/:messageId')

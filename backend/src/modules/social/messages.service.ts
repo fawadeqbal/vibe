@@ -56,6 +56,8 @@ export interface MessageView {
   reactions: { mine: string | null; theirs: string | null };
   /** Unsent by the sender: show "Message unsent". */
   unsent: boolean;
+  /** The sender changed the text: show "edited". */
+  edited: boolean;
 }
 
 export type MediaKind = 'photo' | 'voice';
@@ -120,6 +122,7 @@ export class MessagesService {
         : null,
       reactions: { mine: reactions[me] ?? null, theirs: reactions[friendId] ?? null },
       unsent: !!m.unsentAt,
+      edited: !!m.editedAt && !m.unsentAt,
     };
   }
 
@@ -259,6 +262,32 @@ export class MessagesService {
     const key = (m.meta as { key?: string } | null)?.key;
     const updated = await this.prisma.message.update({ where: { id: m.id }, data: { unsentAt: this.clock.now(), text: '', meta: Prisma.DbNull, reactions: Prisma.DbNull } });
     if (key) await this.storage.delete(key).catch(() => undefined);
+    await this.pushUpdate(updated, me, friendId);
+    return this.viewOf(updated, me, friendId);
+  }
+
+  /**
+   * Change the text of your own message, within the same window as unsend
+   * (chatUnsendMinutes). Screened like a new message; both get
+   * `message:updated` with the new text and `edited: true`.
+   */
+  async edit(me: string, friendId: string, messageId: string, text: string): Promise<MessageView> {
+    const clean = text.trim();
+    if (!clean) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Message is empty');
+    const m = await this.ownedMessage(me, friendId, messageId);
+    if (m.senderId !== me) throw new AppError(ErrorCode.FORBIDDEN, 'You can only edit your own messages', HttpStatus.FORBIDDEN);
+    if (m.unsentAt || m.kind !== MessageKind.TEXT) throw new AppError(ErrorCode.VALIDATION_FAILED, "That can't be edited");
+    const minutes = this.rules.chatUnsendMinutes;
+    if (minutes <= 0 || this.clock.now().getTime() - m.createdAt.getTime() > minutes * 60_000)
+      throw new AppError(ErrorCode.VALIDATION_FAILED, minutes > 0 ? `Messages can be edited for ${minutes} minutes` : 'Editing is off', HttpStatus.CONFLICT);
+    if (clean === m.text) return this.viewOf(m, me, friendId);
+    const f = await this.friends.requireFriends(me, friendId);
+    const safe = this.safety.screensFriends(f.acceptedAt ?? f.createdAt) ? await this.safety.screen({ userId: me, place: 'chat', refId: f.id, text: clean }) : { text: clean, hidden: false };
+    const meta = { ...((m.meta as Record<string, unknown> | null) ?? {}), ...(safe.hidden ? { hidden: true } : {}) };
+    const updated = await this.prisma.message.update({
+      where: { id: m.id },
+      data: { text: safe.text, editedAt: this.clock.now(), meta: Object.keys(meta).length ? (meta as Prisma.InputJsonObject) : Prisma.DbNull },
+    });
     await this.pushUpdate(updated, me, friendId);
     return this.viewOf(updated, me, friendId);
   }

@@ -150,6 +150,9 @@ abstract class SocialProvider extends ChangeNotifier {
   /// Takes back your own message (within `Economy.chatUnsendMinutes`).
   Future<void> unsend(String friendId, String messageId);
 
+  /// Changes the text of your own message (within `Economy.chatUnsendMinutes`): both see "edited".
+  Future<void> editMessage(String friendId, String messageId, String text);
+
   /// Tell them you're typing (throttled: at most every 3 s).
   void typingTo(String friendId) {}
 

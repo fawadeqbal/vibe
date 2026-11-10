@@ -196,6 +196,7 @@ export function message(m: Json, giftById: (id: unknown) => Gift | null): ChatMe
     replyTo: r ? { id: str(r.id), fromMe: bool(r.fromMe), kind: str(r.kind), text: str(r.text), unsent: bool(r.unsent) } : null,
     reactions: { mine: typeof re.mine === "string" ? re.mine : null, theirs: typeof re.theirs === "string" ? re.theirs : null },
     unsent: bool(m.unsent),
+    edited: bool(m.edited),
     readAt: date(m.readAt),
     hidden: meta?.hidden === true,
   };

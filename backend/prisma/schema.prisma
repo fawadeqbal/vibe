@@ -776,6 +776,8 @@ model Message {
   reactions    Json?
   /// Unsent by its sender: text and media are cleared, a "Message unsent" line stays.
   unsentAt     DateTime?
+  /// Its sender changed the text (within the unsend window): shown as "edited".
+  editedAt     DateTime?
 
   friendship Friendship @relation(fields: [friendshipId], references: [id], onDelete: Cascade)
 

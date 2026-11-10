@@ -168,15 +168,15 @@ class ReactAction extends MessageAction {
   final String emoji;
 }
 
-enum SimpleAction { reply, copy, unsend, report }
+enum SimpleAction { reply, copy, edit, unsend, report }
 
 class PlainAction extends MessageAction {
   const PlainAction(this.action);
   final SimpleAction action;
 }
 
-/// Long-press a message: react, reply, copy, unsend (yours, for a few
-/// minutes), report (theirs).
+/// Long-press a message: react, reply, copy, edit or unsend (yours, for a
+/// few minutes), report (theirs).
 Future<MessageAction?> showMessageMenu(BuildContext context, ChatMessage m) {
   final copyable = m.kind == MessageKind.text && !m.unsent;
   return showVibeSheet<MessageAction>(
@@ -225,6 +225,7 @@ Future<MessageAction?> showMessageMenu(BuildContext context, ChatMessage m) {
                   ),
                 if (!m.unsent) row(Icons.reply_rounded, 'Reply', SimpleAction.reply),
                 if (copyable) row(SolarIconsOutline.copy, 'Copy', SimpleAction.copy),
+                if (copyable && SocialProvider.canUnsend(m)) row(SolarIconsOutline.pen, 'Edit', SimpleAction.edit),
                 if (SocialProvider.canUnsend(m)) row(SolarIconsOutline.undoLeftRound, 'Unsend', SimpleAction.unsend, bad: true),
                 if (!m.fromMe) row(SolarIconsOutline.flag, 'Report', SimpleAction.report, bad: true),
               ],
