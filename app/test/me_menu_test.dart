@@ -148,6 +148,13 @@ Future<MeHarness> pumpSettings(WidgetTester t, {PartnerStatus partnerStatus = Pa
   return h;
 }
 
+/// Settings and activity → one of its five group buttons.
+Future<void> openGroup(WidgetTester t, String group) async {
+  await t.tap(find.text(group).last);
+  await t.pumpAndSettle();
+  expect(find.descendant(of: find.byType(AppBar), matching: find.text(group)), findsOneWidget, reason: group);
+}
+
 Future<void> scrollToRow(WidgetTester t, String title) async {
   await t.scrollUntilVisible(find.text(title), 200, scrollable: find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first);
   await t.pump();
@@ -199,33 +206,30 @@ void main() {
     await opens(t, 'Invite friends', InviteScreen, appBar: 'Invite friends', backTo: ProfileScreen);
   });
 
-  testWidgets('Settings and activity: five groups, every row', (t) async {
+  testWidgets('Settings and activity: five group buttons, every row inside them', (t) async {
     await pumpSettings(t);
-    for (final title in [
-      'Account & sign-in',
-      'Notifications',
-      'Time & wellbeing',
-      'Recent matches',
-      'Followers & friends',
-      'Progress & badges',
-      'Leaderboard',
-      'Get verified',
-      'Private account',
-      'Show my numbers',
-      'Blur the first 3 seconds',
-      'Blocked',
-      'Wallet',
-      'Get VIP',
-      'Cash out gems',
-      'Invite friends',
-      'Creator partner program',
-      'Help & safety centre',
-      'Terms & policies',
-    ]) {
-      await scrollToRow(t, title);
-      expect(find.text(title), findsOneWidget, reason: title);
+    const groups = <String, List<String>>{
+      'Account': ['Account & sign-in', 'Devices', 'Notifications', 'Time & wellbeing', 'Data saver'],
+      'Your activity': ['Recent matches', 'Followers & friends', 'Progress & badges', 'Leaderboard'],
+      'Privacy & safety': ['Get verified', 'Private account', 'Show my numbers', 'Blur the first 3 seconds', 'Show me in Discover', 'Blocked'],
+      'Wallet & invites': ['Wallet', 'Get VIP', 'Cash out gems', 'Invite friends', 'Creator partner program'],
+      'Help & about': ['Help & safety centre', 'Terms & policies'],
+    };
+    for (final g in groups.keys) {
+      expect(find.text(g), findsOneWidget, reason: g);
     }
-    expect(find.text('Your stats, links and payouts'), findsOneWidget);
+    // The rows themselves live one level down.
+    expect(find.text('Account & sign-in'), findsNothing);
+    for (final MapEntry(key: g, value: rows) in groups.entries) {
+      await openGroup(t, g);
+      for (final title in rows) {
+        await scrollToRow(t, title);
+        expect(find.text(title), findsOneWidget, reason: '$g → $title');
+      }
+      if (g == 'Wallet & invites') expect(find.text('Your stats, links and payouts'), findsOneWidget);
+      await t.pageBack();
+      await t.pumpAndSettle();
+    }
     await t.pageBack();
     await t.pumpAndSettle();
     expect(find.byType(ProfileScreen), findsOneWidget);
@@ -247,6 +251,7 @@ void main() {
 
   testWidgets('"Show my numbers" is the opposite of hide stats', (t) async {
     final h = await pumpSettings(t);
+    await openGroup(t, 'Privacy & safety');
     await scrollToRow(t, 'Show my numbers');
     final before = h.follows.settings.hideStats;
     final row = find.ancestor(of: find.text('Show my numbers'), matching: find.byType(GroupRow));
@@ -257,31 +262,33 @@ void main() {
   });
 
   // One test per row, so a broken screen names itself; Back returns to the menu.
-  const rows = <(String, Type, String?)>[
-    ('Account & sign-in', AccountSectionScreen, 'Account & sign-in'),
-    ('Notifications', NotificationsSectionScreen, 'Notifications'),
-    ('Time & wellbeing', WellbeingSectionScreen, 'Time & wellbeing'),
-    ('Recent matches', RecentMatchesScreen, 'Matches'),
-    ('Followers & friends', FollowListsScreen, null),
-    ('Progress & badges', ProgressSectionScreen, 'Progress & badges'),
-    ('Leaderboard', LeaderboardScreen, null),
-    ('Blocked', BlockedPeopleScreen, null),
-    ('Wallet', WalletScreen, 'Wallet'),
-    ('Get VIP', VipScreen, null),
-    ('Cash out gems', CashoutScreen, null),
-    ('Invite friends', InviteScreen, 'Invite friends'),
-    ('Help & safety centre', HelpSectionScreen, 'Help & safety centre'),
-    ('Terms & policies', LegalSectionScreen, 'Terms & policies'),
+  const rows = <(String, String, Type, String?)>[
+    ('Account', 'Account & sign-in', AccountSectionScreen, 'Account & sign-in'),
+    ('Account', 'Notifications', NotificationsSectionScreen, 'Notifications'),
+    ('Account', 'Time & wellbeing', WellbeingSectionScreen, 'Time & wellbeing'),
+    ('Your activity', 'Recent matches', RecentMatchesScreen, 'Matches'),
+    ('Your activity', 'Followers & friends', FollowListsScreen, null),
+    ('Your activity', 'Progress & badges', ProgressSectionScreen, 'Progress & badges'),
+    ('Your activity', 'Leaderboard', LeaderboardScreen, null),
+    ('Privacy & safety', 'Blocked', BlockedPeopleScreen, null),
+    ('Wallet & invites', 'Wallet', WalletScreen, 'Wallet'),
+    ('Wallet & invites', 'Get VIP', VipScreen, null),
+    ('Wallet & invites', 'Cash out gems', CashoutScreen, null),
+    ('Wallet & invites', 'Invite friends', InviteScreen, 'Invite friends'),
+    ('Help & about', 'Help & safety centre', HelpSectionScreen, 'Help & safety centre'),
+    ('Help & about', 'Terms & policies', LegalSectionScreen, 'Terms & policies'),
   ];
-  for (final (title, screen, appBar) in rows) {
-    testWidgets('"$title" pushes $screen', (t) async {
+  for (final (group, title, screen, appBar) in rows) {
+    testWidgets('$group → "$title" pushes $screen', (t) async {
       await pumpSettings(t);
+      await openGroup(t, group);
       await opens(t, title, screen, appBar: appBar);
     });
   }
 
   testWidgets('account page keeps log out and delete in the danger zone', (t) async {
     await pumpSettings(t);
+    await openGroup(t, 'Account');
     await scrollToRow(t, 'Account & sign-in');
     await t.tap(find.text('Account & sign-in'));
     await t.pumpAndSettle();
@@ -291,6 +298,7 @@ void main() {
 
   testWidgets('the partner row opens the native partner screen', (t) async {
     final h = await pumpSettings(t);
+    await openGroup(t, 'Wallet & invites');
     await opens(t, 'Creator partner program', PartnerScreen, appBar: 'Creator partners');
     // Opened once more: the active dashboard is there.
     await scrollToRow(t, 'Creator partner program');
@@ -314,11 +322,13 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.byTooltip('Settings and activity'));
     await t.pumpAndSettle();
+    await openGroup(t, 'Your activity');
     expect(find.text('5 recent calls'), findsOneWidget);
   });
 
   testWidgets('the partner row before applying', (t) async {
     await pumpSettings(t, partnerStatus: PartnerStatus.none);
+    await openGroup(t, 'Wallet & invites');
     await scrollToRow(t, 'Creator partner program');
     expect(find.text('Earn money for the people you bring'), findsOneWidget);
   });

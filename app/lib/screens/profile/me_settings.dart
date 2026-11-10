@@ -53,12 +53,29 @@ class _Item {
   bool matches(String q) => q.isEmpty || '$title ${subtitle ?? ''} $words'.toLowerCase().contains(q);
 }
 
-/// Settings and activity (Me → ☰): everything that isn't your profile, in
-/// five groups people know from other apps, with a search on top. Rows push
-/// their own page (Back returns here), and the simple on/off ones switch
-/// right in the row. Same as the web (`me-settings.tsx`).
+/// One group of the menu: a button on Settings and activity, its rows on its own page.
+class _Group {
+  const _Group(this.key, this.title, this.icon, this.summary, this.items, {this.color});
+  final String key;
+  final String title;
+  final IconData icon;
+  final Color? color;
+
+  /// What's inside, on the group's button.
+  final String summary;
+  final List<_Item> items;
+}
+
+/// Settings and activity (Me → ☰): five buttons, one per group (account,
+/// activity, privacy & safety, wallet, help), with a search on top that finds
+/// any row inside them. A group pushes its own page with its rows; rows push
+/// their own page and on/off ones switch in place. Same as the web
+/// (`me-settings.tsx`).
 class SettingsMenuScreen extends StatefulWidget {
-  const SettingsMenuScreen({super.key});
+  const SettingsMenuScreen({super.key, this.group});
+
+  /// Show only this group's rows ('account', 'activity', 'privacy', 'wallet', 'help').
+  final String? group;
 
   @override
   State<SettingsMenuScreen> createState() => _SettingsMenuScreenState();
@@ -101,9 +118,12 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
 
     final v = session.verification;
     final friends = social.friends.length;
-    final groups = <(String, List<_Item>)>[
-      (
-        'Your account',
+    final groups = <_Group>[
+      _Group(
+        'account',
+        'Account',
+        SolarIconsBold.userId,
+        'Sign-in, devices, notifications, quiet hours, data saver',
         [
           _Item(icon: SolarIconsBold.userId, title: 'Account & sign-in', subtitle: 'Sign-in methods, e-mail, delete account', words: 'email password google apple facebook login delete', open: (_) => const AccountSectionScreen()),
           _Item(icon: SolarIconsBold.devices, title: 'Devices', subtitle: "Where you're signed in; sign one out", words: 'sessions logged in phone browser computer sign out logout security', open: (_) => const DevicesScreen()),
@@ -118,8 +138,11 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
           ),
         ],
       ),
-      (
+      _Group(
+        'activity',
         'Your activity',
+        SolarIconsBold.history,
+        'Level ${engagement.level.level} · matches, friends, badges, leaderboard',
         [
           _Item(
             icon: SolarIconsBold.history,
@@ -146,8 +169,12 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
           _Item(icon: SolarIconsBold.ranking, color: V.lavender, title: 'Leaderboard', subtitle: "This week's top people", words: 'ranking top', open: (_) => const LeaderboardScreen()),
         ],
       ),
-      (
+      _Group(
+        'privacy',
         'Privacy & safety',
+        SolarIconsBold.shieldCheck,
+        color: V.trust,
+        '${me.verified ? 'Verified' : 'Get verified'} · private account, blur, Discover, blocked',
         [
           _Item(
             icon: SolarIconsBold.verifiedCheck,
@@ -207,8 +234,12 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
           ),
         ],
       ),
-      (
+      _Group(
+        'wallet',
         'Wallet & invites',
+        SolarIconsBold.wallet,
+        color: V.gold,
+        '${Fmt.compact(wallet.coins)} coins · ${Fmt.compact(wallet.gems)} gems · VIP, cash out, invites',
         [
           _Item(icon: SolarIconsBold.wallet, color: V.gold, title: 'Wallet', subtitle: '${Fmt.compact(wallet.coins)} coins · ${Fmt.compact(wallet.gems)} gems', words: 'coins gems buy money', open: (_) => const WalletScreen()),
           _Item(
@@ -224,8 +255,11 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
           _Item(icon: SolarIconsBold.handMoney, color: V.lavender, title: 'Creator partner program', subtitle: _partnerSubtitle(partner?.status), words: 'affiliate earn creator', onTap: () => openPartnerScreen(context)),
         ],
       ),
-      (
+      _Group(
+        'help',
         'Help & about',
+        SolarIconsBold.headphonesRound,
+        'Help & safety centre, terms',
         [
           _Item(icon: SolarIconsBold.headphonesRound, color: V.trust, title: 'Help & safety centre', subtitle: 'Staying safe, the rules, write to us', words: 'support report contact', open: (_) => const HelpSectionScreen()),
           _Item(icon: SolarIconsOutline.documentText, title: 'Terms & policies', subtitle: 'Terms, privacy, guidelines, child safety', words: 'legal terms privacy policy', open: (_) => const LegalSectionScreen()),
@@ -233,9 +267,29 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
       ),
     ];
 
+    // One group: its rows on their own page.
+    if (groups.where((g) => g.key == widget.group).firstOrNull case final open?) {
+      return MeSectionScaffold(
+        title: open.title,
+        children: [
+          const SizedBox(height: 8),
+          GroupCard(children: [for (final it in open.items) _row(context, it)]),
+          if (open.key == 'wallet' && session.referralClaimable) ...[const SizedBox(height: 10), const InviteCodeField()],
+          if (open.key == 'account' && wallet.isRemote) ...[
+            const SizedBox(height: 24),
+            GroupCard(
+              dividerInset: 52,
+              children: [GroupRow(bare: true, icon: SolarIconsOutline.trashBinTrash, iconColor: V.bad, title: 'Delete account', titleColor: V.bad, onTap: () => deleteAccountFlow(context))],
+            ),
+          ],
+        ],
+      );
+    }
+
     final shown = [
-      for (final (title, items) in groups)
-        if (items.where((i) => i.matches(_q)).toList() case final hits when hits.isNotEmpty) (title, hits),
+      if (_q.isNotEmpty)
+        for (final g in groups)
+          if (g.items.where((i) => i.matches(_q)).toList() case final hits when hits.isNotEmpty) (g.title, hits),
     ];
 
     return MeSectionScaffold(
@@ -246,7 +300,7 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
           style: VT.body(15),
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-            hintText: 'Search',
+            hintText: 'Search settings',
             isDense: true,
             prefixIcon: const Icon(SolarIconsOutline.magnifier, size: 20, color: V.muted),
             suffixIcon: _q.isEmpty
@@ -268,10 +322,22 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
           ),
         ),
       children: [
+        // Searching: the matching rows, under the group they live in.
         for (final (i, (title, items)) in shown.indexed) ...[
           SectionTitle(title, top: i == 0 ? 8 : 24, bottom: 10),
           GroupCard(children: [for (final it in items) _row(context, it)]),
-          if (title == 'Wallet & invites' && _q.isEmpty && session.referralClaimable) ...[const SizedBox(height: 10), const InviteCodeField()],
+        ],
+        if (_q.isEmpty) ...[
+          const SizedBox(height: 8),
+          GroupCard(
+            children: [
+              for (final g in groups)
+                _row(
+                  context,
+                  _Item(icon: g.icon, color: g.color, title: g.title, subtitle: g.summary, open: (_) => SettingsMenuScreen(group: g.key)),
+                ),
+            ],
+          ),
         ],
         if (_q.isNotEmpty && shown.isEmpty)
           Padding(
@@ -284,8 +350,6 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
             dividerInset: 52,
             children: [
               GroupRow(bare: true, icon: SolarIconsBold.logout_2, iconColor: V.bad, title: wallet.isRemote ? 'Log out' : 'Log out and reset the demo', titleColor: V.bad, onTap: () => signOutFlow(context)),
-              if (wallet.isRemote)
-                GroupRow(bare: true, icon: SolarIconsOutline.trashBinTrash, iconColor: V.bad, title: 'Delete account', titleColor: V.bad, onTap: () => deleteAccountFlow(context)),
             ],
           ),
           const SizedBox(height: 16),
