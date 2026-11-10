@@ -175,7 +175,7 @@ export function NotificationsView() {
   const tabs = <PillTabs label="Show" value={filter} onChange={setFilter} tabs={FILTERS} />;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)] lg:h-dvh">
+    <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)] lg:h-[var(--app-h,100dvh)]">
       <AppBar
         title="Notifications"
         onBack={desktop ? undefined : () => router.back()}

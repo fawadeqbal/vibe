@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRegion } from "@/stores/region";
 import { startApp } from "@/stores/runtime";
 import { profileReady, useSession } from "@/stores/session";
+import { useKeyboardViewport } from "@/hooks/use-keyboard-viewport";
 import { closeAllOverlays } from "@/stores/ui";
 
 import { LiveBannerHost } from "./live-banner";
@@ -70,6 +71,7 @@ export function AppRuntime({ children }: { children: ReactNode }) {
   const [minDone, setMinDone] = useState(false);
   const [splashGone, setSplashGone] = useState(false);
 
+  useKeyboardViewport();
   useEffect(() => {
     startApp();
     const t = setTimeout(() => setMinDone(true), SPLASH_MIN_MS);
