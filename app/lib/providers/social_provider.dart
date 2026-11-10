@@ -122,7 +122,13 @@ abstract class SocialProvider extends ChangeNotifier {
 
   /// The people you blocked, newest first (for "Blocked people").
   Future<List<BlockedPerson>> blockedPeople() async => const [];
+  /// Shows the message at once (faded) and, in server mode, keeps trying on a
+  /// weak connection (about half a minute, one Idempotency-Key so it's never
+  /// sent twice). Still offline after that: "Not sent · Tap to retry".
   Future<void> sendMessage(String friendId, String text, {String? replyToId});
+
+  /// "Tap to retry" on a message that didn't go out.
+  Future<void> retryMessage(String friendId, String messageId) async {}
   Future<bool> sendGift(String friendId, Gift gift);
   void markRead(String friendId);
 

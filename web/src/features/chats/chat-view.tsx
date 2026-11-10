@@ -507,7 +507,7 @@ function Bubble({
   return (
     <div data-mid={m.id} className={cn("flex flex-col", tail ? "mb-2.5" : "mb-1", mine ? "items-end" : "items-start pl-[34px]", reactions.length && "mb-3.5")}>
       <div
-        {...(m.unsent || m.pending ? {} : hold)}
+        {...(m.unsent || m.pending || m.failed ? {} : hold)}
         title={time(m.at)}
         className={cn(
           "relative max-w-[78%] rounded-[20px] select-none",
@@ -522,7 +522,7 @@ function Bubble({
                   ? "bg-gradient-to-br from-violet to-[#7c3aed] px-[13px] py-[9px]"
                   : "bg-surface2 px-[13px] py-[9px]",
           m.kind === "photo" && (mine ? "bg-violet" : "bg-surface2"),
-          m.pending && "opacity-70",
+          (m.pending || m.failed) && "opacity-70",
           "transition-shadow duration-500",
           focused && "shadow-[0_0_0_2px_var(--color-bg),0_0_0_4px_var(--color-pink-soft)]",
         )}
@@ -555,6 +555,15 @@ function Bubble({
           <p className={cn("type-label mt-0.5 text-[10px] font-medium", m.kind === "photo" && "px-1.5 pb-0.5", mine ? "text-white/70" : "text-muted")}>
             Sending…
           </p>
+        ) : m.failed ? (
+          <button
+            type="button"
+            onClick={() => void useSocial.getState().retryMessage(f.profile.id, m.id).catch(() => {})}
+            className="type-label mt-0.5 flex items-center gap-1 text-[10.5px] font-semibold text-white/90 underline-offset-2 hover:underline"
+          >
+            <Icon name="error_outline" size={13} />
+            Not sent · Tap to retry
+          </button>
         ) : null}
         {!mine && tail ? (
           <span className="absolute bottom-0 -left-[34px]">

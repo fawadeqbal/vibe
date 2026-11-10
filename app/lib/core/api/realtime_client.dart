@@ -37,6 +37,8 @@ class Ev {
 
   /// Your partner's camera / mic: `{ matchId, camOn, micOn }`.
   static const matchMedia = 'match:media';
+  static const matchPartnerConnection = 'match:partner-connection';
+  static const matchResumed = 'match:resumed';
 
   /// A moderator answered your appeal: `{ status, note }`.
   static const accountAppeal = 'account:appeal';

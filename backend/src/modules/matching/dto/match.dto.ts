@@ -84,11 +84,24 @@ export class MediaDto {
   @IsOptional()
   @IsBoolean()
   blur?: boolean;
+
+  /** The camera is on but video is paused because the connection is too weak (voice only for now). */
+  @IsOptional()
+  @IsBoolean()
+  weak?: boolean;
+}
+
+export class ResumeDto {
+  /** The call the app is still showing (from match:resumed). */
+  @IsString()
+  @Length(1, 64)
+  matchId!: string;
 }
 
 export class SignalDto {
-  @IsIn(['offer', 'answer', 'ice', 'hangup'])
-  type!: 'offer' | 'answer' | 'ice' | 'hangup';
+  /** `restart`: the callee lost the connection and asks the caller for a fresh offer (ICE restart). */
+  @IsIn(['offer', 'answer', 'ice', 'hangup', 'restart'])
+  type!: 'offer' | 'answer' | 'ice' | 'hangup' | 'restart';
 
   /** SDP or ICE candidate — opaque to the server. */
   @IsOptional()

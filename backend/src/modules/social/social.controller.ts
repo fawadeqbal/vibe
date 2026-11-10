@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put, Que
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { Idempotent } from '../../common/decorators/idempotent.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { OK } from '../../common/dto/ok.dto';
 import { AppError } from '../../common/errors/app-error';
@@ -75,6 +76,8 @@ export class FriendsController {
   }
 
   @Post(':userId/messages')
+  // Apps retry on a weak connection with the same Idempotency-Key: the message goes out once.
+  @Idempotent()
   send(@CurrentUser('id') me: string, @Param('userId') userId: string, @Body() dto: SendMessageDto) {
     return this.messages.send(me, userId, dto.text, dto.replyToId);
   }

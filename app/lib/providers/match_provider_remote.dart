@@ -75,7 +75,26 @@ class RemoteMatchProvider extends MatchProvider {
         _partnerCamOn = e['camOn'] != false;
         _partnerMicOn = e['micOn'] != false;
         _partnerBlur = e['blur'] == true;
+        _partnerWeak = e['weak'] == true;
         notifyListeners();
+      }),
+      // Their connection dropped: the call waits for them (the server gives them a grace period).
+      _rt.on(Ev.matchPartnerConnection).listen((e) {
+        if (e['matchId'] != _matchId) return;
+        _reconnecting = e['state'] == 'lost' ? CallReconnecting.partner : CallReconnecting.none;
+        notifyListeners();
+      }),
+      // We're back and the call is still on: say so (or the server ends it), then repair the media path if it broke.
+      _rt.on(Ev.matchResumed).listen((e) {
+        if (e['matchId'] != _matchId) return;
+        _rt.request('match:resume', {'matchId': e['matchId']}).catchError((_) => null);
+        _reconnecting = CallReconnecting.none;
+        notifyListeners();
+        final pc = _pc;
+        if (pc != null && pc.connectionState != RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+          _lastRestart = DateTime.fromMillisecondsSinceEpoch(0);
+          _restartConnection();
+        }
       }),
       _rt.on(Ev.matchRematchSoon).listen((e) {
         if (_state != MatchState.searching) return;
@@ -84,9 +103,33 @@ class RemoteMatchProvider extends MatchProvider {
         notifyListeners();
       }),
     ];
+    // Our own socket dropped mid-call: say so; voice and video often keep going meanwhile.
+    _connectionSub = _rt.connection.listen((up) {
+      if (_state != MatchState.connected) return;
+      if (!up) {
+        _reconnecting = CallReconnecting.me;
+        notifyListeners();
+      } else if (_reconnecting == CallReconnecting.me) {
+        _reconnecting = CallReconnecting.none;
+        notifyListeners();
+      }
+    });
+    unawaited(loadDataSaver());
   }
 
   final ApiClient _api;
+  StreamSubscription<bool>? _connectionSub;
+
+  /// Picks how much video to send from the call's own stats (see [_watchSignal]).
+  QualityGovernor _governor = QualityGovernor();
+
+  /// The level the video sender is set to (null = not set yet this call).
+  CallLevel? _sentLevel;
+
+  /// We made the offer in this call: ICE restarts start on our side.
+  bool _isCaller = false;
+  DateTime _lastRestart = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _restartTimer;
   final RealtimeClient _rt;
   late final List<StreamSubscription> _subs;
 
@@ -108,11 +151,13 @@ class RemoteMatchProvider extends MatchProvider {
   @override
   void tellMedia() {
     if (_state != MatchState.connected || _matchId == null) return;
-    final cam = camOn && !inBackground && !voiceCall;
-    final key = '${cam ? 'on' : 'off'}:${micOn ? 'on' : 'off'}:${blurMe ? 'blur' : ''}';
+    // Video paused for a weak line counts as camera off, and the partner hears why.
+    final weak = camOn && !inBackground && !voiceCall && _callLevel == CallLevel.audio;
+    final cam = camOn && !inBackground && !voiceCall && !weak;
+    final key = '${cam ? 'on' : 'off'}:${micOn ? 'on' : 'off'}:${blurMe ? 'blur' : ''}:${weak ? 'weak' : ''}';
     if (key == _toldMedia) return;
     _toldMedia = key;
-    _rt.request('match:media', {'camOn': cam, 'micOn': micOn, if (blurMe) 'blur': true}).catchError((_) => null);
+    _rt.request('match:media', {'camOn': cam, 'micOn': micOn, if (blurMe) 'blur': true, if (weak) 'weak': true}).catchError((_) => null);
   }
 
   /// Their video should keep moving: no new frames for ~4 s (camera on) means a weak line.
@@ -126,10 +171,15 @@ class RemoteMatchProvider extends MatchProvider {
         return;
       }
       final pc = _pc;
-      if (pc == null || !_hasRemoteVideo) return;
+      if (pc == null) return;
+      // Lost the path (network switch, long stall): find a new one without ending the call.
+      final st = pc.connectionState;
+      if (st == RTCPeerConnectionState.RTCPeerConnectionStateFailed || st == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) _restartConnection();
       var frames = -1;
+      final records = <({String type, Map<dynamic, dynamic> values})>[];
       try {
         for (final r in await pc.getStats()) {
+          records.add((type: r.type, values: r.values));
           if (r.type == 'inbound-rtp' && (r.values['kind'] ?? r.values['mediaType']) == 'video') {
             final f = r.values['framesDecoded'];
             if (f is num) frames = f.toInt();
@@ -138,7 +188,12 @@ class RemoteMatchProvider extends MatchProvider {
       } catch (_) {
         return;
       }
-      final stuck = frames >= 0 && frames == lastFrames && _partnerCamOn && !voiceCall;
+      // How much video this line can carry right now (voice always goes first).
+      if (st == RTCPeerConnectionState.RTCPeerConnectionStateConnected && !voiceCall) {
+        final level = _governor.push(sampleFrom(records));
+        if (level != _sentLevel) unawaited(_applyLevel(level));
+      }
+      final stuck = _hasRemoteVideo && frames >= 0 && frames == lastFrames && _partnerCamOn && !voiceCall;
       lastFrames = frames;
       stalls = stuck ? stalls + 1 : 0;
       final weak = stalls >= 2 || pc.connectionState == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected;
@@ -499,6 +554,10 @@ class RemoteMatchProvider extends MatchProvider {
     // ICE from the partner can arrive while the peer is still being set up;
     // it waits in _pendingIce, so only clear it when a new match begins.
     _pendingIce.clear();
+    _governor = QualityGovernor(dataSaver: dataSaver);
+    _sentLevel = null;
+    _callLevel = _governor.level;
+    _lastRestart = DateTime.fromMillisecondsSinceEpoch(0);
     _toldMedia = 'on:on';
     tellMedia();
     _watchSignal();
@@ -545,7 +604,11 @@ class RemoteMatchProvider extends MatchProvider {
     if (e['matchId'] != _matchId) return;
     _ticker?.cancel();
     _statsTimer?.cancel();
+    _restartTimer?.cancel();
     _weakSignal = false;
+    _reconnecting = CallReconnecting.none;
+    _partnerWeak = false;
+    _callLevel = CallLevel.good;
     _ticker = null;
     _peerStarting = null;
     _pendingIce.clear();
@@ -732,6 +795,21 @@ class RemoteMatchProvider extends MatchProvider {
     pc.onConnectionState = (s) {
       if (_pc != pc) return;
       debugPrint('rtc connection: $s');
+      _restartTimer?.cancel();
+      switch (s) {
+        case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
+          // (Re)connected: voice first, and video at what the line can carry.
+          unawaited(_tuneVoice(pc));
+          unawaited(_applyLevel(_governor.level));
+        case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
+          _restartConnection();
+        case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
+          // Usually a short blip that recovers on its own; if not, restart.
+          _restartTimer = Timer(const Duration(seconds: 3), () {
+            if (_pc == pc && pc.connectionState != RTCPeerConnectionState.RTCPeerConnectionStateConnected) _restartConnection();
+          });
+        default:
+      }
       // "disconnected" is usually a short network blip that recovers on its
       // own: keep the video up and only fall back to the photo on "failed".
       final up = switch (s) {
@@ -744,8 +822,10 @@ class RemoteMatchProvider extends MatchProvider {
         notifyListeners();
       }
     };
+    _isCaller = caller;
     if (caller) {
-      final offer = await pc.createOffer({'offerToReceiveAudio': true, 'offerToReceiveVideo': true});
+      final made = await pc.createOffer({'offerToReceiveAudio': true, 'offerToReceiveVideo': true});
+      final offer = RTCSessionDescription(tuneOpus(made.sdp ?? ''), 'offer');
       await pc.setLocalDescription(offer);
       await _rt.request('rtc:signal', {'type': 'offer', 'data': offer.toMap()}).catchError((_) => null);
     }
@@ -773,9 +853,16 @@ class RemoteMatchProvider extends MatchProvider {
               if (local != null) await t.sender.setStreams([local]).catchError((_) {});
             }
           }
-          final answer = await pc.createAnswer();
+          final made = await pc.createAnswer();
+          final answer = RTCSessionDescription(tuneOpus(made.sdp ?? ''), 'answer');
           await pc.setLocalDescription(answer);
           await _rt.request('rtc:signal', {'type': 'answer', 'data': answer.toMap()});
+        case 'restart':
+          // The other side lost the connection: offer a fresh path now.
+          if (_isCaller) {
+            _lastRestart = DateTime.fromMillisecondsSinceEpoch(0);
+            _restartConnection();
+          }
         case 'answer':
           await _pc?.setRemoteDescription(RTCSessionDescription(data['sdp'] as String?, data['type'] as String?));
           await _flushIce();
@@ -870,7 +957,7 @@ class RemoteMatchProvider extends MatchProvider {
     try {
       final cam = await navigator.mediaDevices.getUserMedia({
         'audio': false,
-        'video': {'facingMode': _frontCamera ? 'user' : 'environment', 'width': 720, 'height': 1280, 'frameRate': 24},
+        'video': {'facingMode': _frontCamera ? 'user' : 'environment', 'width': captureWidth, 'height': captureHeight, 'frameRate': captureFrameRate},
       });
       final track = cam.getVideoTracks().firstOrNull;
       if (track == null) return;
@@ -908,6 +995,80 @@ class RemoteMatchProvider extends MatchProvider {
     _pendingIce.clear();
   }
 
+  /// A new network path without ending the call (ICE restart): the caller
+  /// sends a fresh offer, the callee asks the caller for one. At most every 6 s.
+  void _restartConnection() {
+    final pc = _pc;
+    if (pc == null || _matchId == null || DateTime.now().difference(_lastRestart) < const Duration(seconds: 6)) return;
+    _lastRestart = DateTime.now();
+    if (!_isCaller) {
+      _rt.request('rtc:signal', {'type': 'restart'}).catchError((_) => null);
+      return;
+    }
+    unawaited(() async {
+      try {
+        final made = await pc.createOffer({'iceRestart': true});
+        if (_pc != pc) return;
+        final offer = RTCSessionDescription(tuneOpus(made.sdp ?? ''), 'offer');
+        await pc.setLocalDescription(offer);
+        await _rt.request('rtc:signal', {'type': 'offer', 'data': offer.toMap()});
+      } catch (err) {
+        debugPrint('ice restart failed: $err');
+      }
+    }());
+  }
+
+  /// Voice goes first on a crowded line: capped at what Opus needs, sent at high priority.
+  Future<void> _tuneVoice(RTCPeerConnection pc) async {
+    try {
+      for (final sender in await pc.getSenders()) {
+        if (sender.track?.kind != 'audio') continue;
+        final p = sender.parameters;
+        final e = p.encodings;
+        if (e == null || e.isEmpty) continue;
+        e[0].maxBitrate = audioMaxBitrate;
+        e[0].priority = RTCPriorityType.high;
+        e[0].networkPriority = RTCPriorityType.high;
+        await sender.setParameters(p);
+      }
+    } catch (_) {}
+  }
+
+  /// Sends video at [level]: smaller and slower on a weak line, paused when only voice fits.
+  Future<void> _applyLevel(CallLevel level) async {
+    final pc = _pc;
+    if (pc == null) return;
+    final profile = profiles[level]!;
+    try {
+      for (final t in await pc.getTransceivers()) {
+        if (t.receiver.track?.kind != 'video') continue;
+        final p = t.sender.parameters;
+        final e = p.encodings;
+        if (e == null || e.isEmpty) continue;
+        e[0].active = profile.video;
+        if (profile.video) {
+          e[0].maxBitrate = profile.maxBitrate;
+          e[0].maxFramerate = profile.maxFramerate;
+          e[0].scaleResolutionDownBy = profile.scaleResolutionDownBy;
+        }
+        await t.sender.setParameters(p);
+        break;
+      }
+    } catch (_) {}
+    _sentLevel = level;
+    if (_callLevel != level) {
+      _callLevel = level;
+      notifyListeners();
+    }
+    tellMedia();
+  }
+
+  @override
+  void onDataSaverChanged() {
+    _governor.setDataSaver(dataSaver);
+    if (_state == MatchState.connected) unawaited(_applyLevel(_governor.level));
+  }
+
   Future<void> _closePeer() async {
     final pc = _pc;
     _pc = null;
@@ -924,6 +1085,8 @@ class RemoteMatchProvider extends MatchProvider {
       s.cancel();
     }
     _statsTimer?.cancel();
+    _restartTimer?.cancel();
+    _connectionSub?.cancel();
     _closePeer();
     super.dispose();
   }

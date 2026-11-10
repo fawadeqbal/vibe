@@ -107,6 +107,13 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
           _Item(icon: SolarIconsBold.userId, title: 'Account & sign-in', subtitle: 'Sign-in methods, e-mail, delete account', words: 'email password google apple facebook login delete', open: (_) => const AccountSectionScreen()),
           _Item(icon: SolarIconsOutline.bell, title: 'Notifications', subtitle: 'Phone, inbox and e-mail, for each kind', words: 'push alerts sounds email', open: (_) => const NotificationsSectionScreen()),
           _Item(icon: SolarIconsBold.moonSleep, title: 'Time & wellbeing', subtitle: 'Quiet hours and break reminders', words: 'quiet hours break reminder sleep', open: (_) => const WellbeingSectionScreen()),
+          _Item(
+            icon: SolarIconsBold.wifiRouterMinimalistic,
+            title: 'Data saver',
+            subtitle: 'Calls use less data: smaller, slower video. Voice stays clear.',
+            words: 'mobile data low internet slow network bandwidth calls quality',
+            trailing: Switch(value: match.dataSaver, onChanged: match.setDataSaver),
+          ),
         ],
       ),
       (

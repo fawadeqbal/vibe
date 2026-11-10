@@ -57,7 +57,7 @@ class FriendVideoCall extends StatelessWidget {
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => BlurredPhoto(url: '', brightness: 1),
                 ),
-              if (!m.partnerCamOn) CameraOffCover(partner: p),
+              if (!m.partnerCamOn) CameraOffCover(partner: p, weak: m.partnerWeak),
             ],
           ),
         ),

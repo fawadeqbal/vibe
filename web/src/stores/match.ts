@@ -4,6 +4,7 @@ import { newIdempotencyKey } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { applyGameAnswer, asList, asMap, callGame, date as mapDate, type Json, matchRecord, profile as mapProfile } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
+import { AUDIO_MAX_BITRATE, browserWantsDataSaver, CAPTURE, type CallLevel, PROFILES, QualityGovernor, sampleFrom, tuneOpus } from "@/lib/call-quality";
 import { config } from "@/lib/config";
 import type { CallGame, ChatMessage, GameId, Gift, MatchRecord, Profile, ReportReason } from "@/lib/models";
 import { matchLengthSeconds } from "@/lib/models";
@@ -99,6 +100,15 @@ interface MatchState {
   partnerMicOn: boolean;
   /** Their video stopped arriving or the connection is wobbly ("video may freeze"). */
   weakSignal: boolean;
+  /** How much video we send right now (call-quality.ts): `audio` = video paused to keep the call going. */
+  callLevel: CallLevel;
+  /** Their video is paused because their connection is weak (they told us). */
+  partnerWeak: boolean;
+  /** A connection dropped and the call is waiting: ours (`me`) or theirs (`partner`). */
+  reconnecting: "none" | "me" | "partner";
+  /** Use less data on calls: smaller, slower video (remembered on this device). */
+  dataSaver: boolean;
+  setDataSaver: (on: boolean) => void;
   /** Only your last partner is waiting: who, and when you're put back together (null = never by itself). */
   rematchSoon: RematchSoon | null;
   cameraError: string | null;
@@ -190,6 +200,26 @@ let pageHidden = false;
 let idleTimer: ReturnType<typeof setTimeout> | undefined;
 let hiddenTimer: ReturnType<typeof setTimeout> | undefined;
 
+/** Camera capture for calls: 640×480 at 24 fps (call-quality.ts); the encoder sends less on a weak line. */
+const captureSize = { width: { ideal: CAPTURE.width }, height: { ideal: CAPTURE.height }, frameRate: { ideal: CAPTURE.frameRate, max: CAPTURE.frameRate } };
+const DATA_SAVER_KEY = "vibe.dataSaver";
+/** Data saver as set on this device, else on when the browser says data is precious. */
+function readDataSaver(): boolean {
+  try {
+    const v = window.localStorage.getItem(DATA_SAVER_KEY);
+    if (v != null) return v === "1";
+  } catch {}
+  return browserWantsDataSaver();
+}
+/** Picks how much video to send from the call's own stats (see watchSignal). */
+let governor = new QualityGovernor();
+/** The level the video sender is set to (null = not set yet this call). */
+let sentLevel: CallLevel | null = null;
+/** We made the offer in this call: ICE restarts start on our side. */
+let isCaller = false;
+let lastRestartAt = 0;
+let restartTimer: ReturnType<typeof setTimeout> | undefined;
+
 /**
  * Battery: the camera is only open while it is actually used.
  *  • searching / in a call → on;
@@ -234,9 +264,9 @@ export const useMatch = create<MatchState>()((set, get) => {
     if (gen !== cameraGen || get().localStream) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         // A voice call never opens the camera (until both turn video on).
-        video: get().voiceCall ? false : { facingMode: get().frontCamera ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } },
+        video: get().voiceCall ? false : { facingMode: get().frontCamera ? "user" : "environment", ...captureSize },
       });
       if (gen !== cameraGen) {
         // Released while it was opening (left the page, hid the tab…).
@@ -309,11 +339,24 @@ export const useMatch = create<MatchState>()((set, get) => {
     partnerCamOn: true,
     partnerMicOn: true,
     weakSignal: false,
+    callLevel: "good",
+    partnerWeak: false,
+    reconnecting: "none",
+    dataSaver: readDataSaver(),
     rematchSoon: null,
     cameraError: null,
     cameraErrorKind: null,
     previewOn: false,
     cameraActive: false,
+
+    setDataSaver(on) {
+      set({ dataSaver: on });
+      try {
+        window.localStorage.setItem(DATA_SAVER_KEY, on ? "1" : "0");
+      } catch {}
+      governor.setDataSaver(on);
+      void applyLevel(governor.level);
+    },
 
     async load() {
       if (!api.hasSession) return;
@@ -420,7 +463,7 @@ export const useMatch = create<MatchState>()((set, get) => {
       if (!old) return;
       const front = !get().frontCamera;
       try {
-        const fresh = await navigator.mediaDevices.getUserMedia({ video: { facingMode: front ? "user" : "environment" } });
+        const fresh = await navigator.mediaDevices.getUserMedia({ video: { facingMode: front ? "user" : "environment", ...captureSize } });
         const track = fresh.getVideoTracks()[0];
         if (!track) return;
         // Swap the video track in place so a live call keeps going.
@@ -812,8 +855,14 @@ realtime.on(Ev.matchFound, (e) => {
     partnerCamOn: true,
     partnerMicOn: true,
     weakSignal: false,
+    partnerWeak: false,
+    reconnecting: "none",
     rematchSoon: null,
   });
+  governor = new QualityGovernor(get().dataSaver);
+  sentLevel = null;
+  lastRestartAt = 0;
+  set({ callLevel: governor.level });
   toldMedia = "on:on:";
   tellMedia();
   watchSignal();
@@ -930,7 +979,8 @@ realtime.on(Ev.matchEnded, (e) => {
   if (e.matchId !== matchId) return;
   clearInterval(ticker);
   clearInterval(statsTimer);
-  set({ weakSignal: false });
+  clearTimeout(restartTimer);
+  set({ weakSignal: false, reconnecting: "none", partnerWeak: false, callLevel: "good" });
   clearTimeout(blurTimer);
   peerStarting = null;
   pendingIce = [];
@@ -983,9 +1033,33 @@ realtime.on(Ev.matchEnded, (e) => {
 
 realtime.on(Ev.rtcSignal, (e) => void onSignal(e));
 
+// Their connection dropped: the call waits for them (the server gives them a grace period).
+realtime.on(Ev.matchPartnerConnection, (e) => {
+  if (e.matchId !== matchId) return;
+  set({ reconnecting: e.state === "lost" ? "partner" : "none" });
+});
+
+// We're back and the call is still on. Say we're still in it (or the server ends it), then repair the media path if it broke meanwhile.
+realtime.on(Ev.matchResumed, (e) => {
+  if (e.matchId !== matchId) return;
+  realtime.request("match:resume", { matchId: e.matchId }).catch(() => {});
+  set({ reconnecting: "none" });
+  if (pc && pc.connectionState !== "connected") {
+    lastRestartAt = 0;
+    restartConnection();
+  }
+});
+
+// Our own socket dropped mid-call: say so; the voice and video often keep going meanwhile.
+realtime.onConnectionChange((up) => {
+  if (get().status !== "connected") return;
+  if (!up) set({ reconnecting: "me" });
+  else if (get().reconnecting === "me") set({ reconnecting: "none" });
+});
+
 realtime.on(Ev.matchMedia, (e) => {
   if (e.matchId !== matchId) return;
-  set({ partnerCamOn: e.camOn !== false, partnerMicOn: e.micOn !== false, partnerBlur: e.blur === true });
+  set({ partnerCamOn: e.camOn !== false, partnerMicOn: e.micOn !== false, partnerBlur: e.blur === true, partnerWeak: e.weak === true });
 });
 
 realtime.on(Ev.matchRematchSoon, (e) => {
@@ -998,11 +1072,13 @@ realtime.on(Ev.matchRematchSoon, (e) => {
 function tellMedia() {
   const s = useMatch.getState();
   if (s.status !== "connected" || !matchId) return;
-  const camOn = s.camOn && !pageHidden && !s.voiceCall;
-  const key = `${camOn ? "on" : "off"}:${s.micOn ? "on" : "off"}:${s.blurMe ? "blur" : ""}`;
+  // Video paused for a weak line counts as camera off, and the partner hears why.
+  const weak = s.camOn && !pageHidden && !s.voiceCall && s.callLevel === "audio";
+  const camOn = s.camOn && !pageHidden && !s.voiceCall && !weak;
+  const key = `${camOn ? "on" : "off"}:${s.micOn ? "on" : "off"}:${s.blurMe ? "blur" : ""}:${weak ? "weak" : ""}`;
   if (key === toldMedia) return;
   toldMedia = key;
-  realtime.request("match:media", { camOn, micOn: s.micOn, ...(s.blurMe ? { blur: true } : {}) }).catch(() => {});
+  realtime.request("match:media", { camOn, micOn: s.micOn, ...(s.blurMe ? { blur: true } : {}), ...(weak ? { weak: true } : {}) }).catch(() => {});
 }
 
 /** Their video should keep moving: no new frames for ~4 s (while their camera is on) means a weak connection. */
@@ -1014,16 +1090,25 @@ function watchSignal() {
     const s = useMatch.getState();
     if (s.status !== "connected") return clearInterval(statsTimer);
     const peer = pc;
-    if (!peer || !s.remoteStream) return;
+    if (!peer) return;
+    // Lost the path (network switch, long stall): find a new one without ending the call.
+    if (peer.connectionState === "failed" || peer.connectionState === "disconnected") restartConnection();
     let frames = -1;
+    const records: Record<string, unknown>[] = [];
     try {
-      (await peer.getStats()).forEach((r: { type?: string; kind?: string; framesDecoded?: number }) => {
+      (await peer.getStats()).forEach((r: Record<string, unknown>) => {
+        records.push(r);
         if (r.type === "inbound-rtp" && r.kind === "video" && typeof r.framesDecoded === "number") frames = r.framesDecoded;
       });
     } catch {
       return;
     }
-    const stuck = frames >= 0 && frames === lastFrames && s.partnerCamOn && !s.voiceCall;
+    // How much video this line can carry right now (voice always goes first).
+    if (peer.connectionState === "connected" && !s.voiceCall) {
+      const level = governor.push(sampleFrom(records));
+      if (level !== sentLevel) void applyLevel(level);
+    }
+    const stuck = !!s.remoteStream && frames >= 0 && frames === lastFrames && s.partnerCamOn && !s.voiceCall;
     lastFrames = frames;
     stalls = stuck ? stalls + 1 : 0;
     const weak = stalls >= 2 || peer.connectionState === "disconnected";
@@ -1080,14 +1165,25 @@ async function startPeer(caller: boolean) {
   };
   peer.onconnectionstatechange = () => {
     if (pc !== peer) return;
-    // "disconnected" is usually a short blip that recovers on its own: keep
-    // the video up and only fall back to the photo on "failed".
-    if (peer.connectionState === "failed" || peer.connectionState === "closed") set({ remoteStream: null });
+    const st = peer.connectionState;
+    clearTimeout(restartTimer);
+    if (st === "connected") {
+      // (Re)connected: voice first, and video at what the line can carry.
+      void tuneVoice(peer);
+      void applyLevel(governor.level);
+      if (get().weakSignal) set({ weakSignal: false });
+    } else if (st === "failed") restartConnection();
+    // "disconnected" is usually a short blip that recovers on its own; if not, restart.
+    else if (st === "disconnected") restartTimer = setTimeout(() => pc === peer && peer.connectionState !== "connected" && restartConnection(), 3000);
+    // Keep the last frame up through a restart; the photo comes back only when the call is over.
+    else if (st === "closed") set({ remoteStream: null });
   };
+  isCaller = caller;
   if (caller) {
     const offer = await peer.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-    await peer.setLocalDescription(offer);
-    await realtime.request("rtc:signal", { type: "offer", data: { sdp: offer.sdp, type: offer.type } }).catch(() => {});
+    const sdp = tuneOpus(offer.sdp ?? "");
+    await peer.setLocalDescription({ type: "offer", sdp });
+    await realtime.request("rtc:signal", { type: "offer", data: { sdp, type: "offer" } }).catch(() => {});
   }
 }
 
@@ -1106,10 +1202,18 @@ async function onSignal(e: Json) {
         // Answer the reserved video line as send-and-receive too (voice calls).
         for (const t of peer.getTransceivers()) if (t.receiver.track.kind === "video" && !t.sender.track) t.direction = "sendrecv";
         const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        await realtime.request("rtc:signal", { type: "answer", data: { sdp: answer.sdp, type: answer.type } });
+        const sdp = tuneOpus(answer.sdp ?? "");
+        await peer.setLocalDescription({ type: "answer", sdp });
+        await realtime.request("rtc:signal", { type: "answer", data: { sdp, type: "answer" } });
         break;
       }
+      case "restart":
+        // The other side lost the connection: offer a fresh path now.
+        if (isCaller) {
+          lastRestartAt = 0;
+          restartConnection();
+        }
+        break;
       case "answer":
         await pc?.setRemoteDescription({ sdp: String(data.sdp ?? ""), type: "answer" });
         await flushIce();
@@ -1153,7 +1257,7 @@ async function turnOnVideo() {
   set({ voiceCall: false, videoAsk: "none", camOn: true });
   tellMedia();
   try {
-    const cam = await navigator.mediaDevices.getUserMedia({ video: { facingMode: get().frontCamera ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } } });
+    const cam = await navigator.mediaDevices.getUserMedia({ video: { facingMode: get().frontCamera ? "user" : "environment", ...captureSize } });
     const track = cam.getVideoTracks()[0];
     const local = get().localStream;
     if (!track) return;
@@ -1175,6 +1279,72 @@ realtime.on(Ev.callVideo, (e) => {
   else if (e.state === "declined") set({ videoAsk: "none", lastError: "They'd rather stay on voice for now." });
   else if (e.state === "off") turnOffVideo();
 });
+
+/**
+ * A new network path without ending the call (ICE restart): the caller sends
+ * a fresh offer, the callee asks the caller for one. At most every 6 s.
+ */
+function restartConnection() {
+  const peer = pc;
+  if (!peer || !matchId || Date.now() - lastRestartAt < 6000) return;
+  lastRestartAt = Date.now();
+  if (!isCaller) {
+    realtime.request("rtc:signal", { type: "restart" }).catch(() => {});
+    return;
+  }
+  void (async () => {
+    try {
+      const offer = await peer.createOffer({ iceRestart: true });
+      if (pc !== peer) return;
+      const sdp = tuneOpus(offer.sdp ?? "");
+      await peer.setLocalDescription({ type: "offer", sdp });
+      await realtime.request("rtc:signal", { type: "offer", data: { sdp, type: "offer" } });
+    } catch (err) {
+      console.warn("ice restart failed", err);
+    }
+  })();
+}
+
+/** Voice goes first on a crowded line: capped at what Opus needs, sent at high priority. */
+async function tuneVoice(peer: RTCPeerConnection) {
+  for (const sender of peer.getSenders()) {
+    if (sender.track?.kind !== "audio") continue;
+    try {
+      const p = sender.getParameters();
+      if (!p.encodings?.length) continue;
+      p.encodings[0].maxBitrate = AUDIO_MAX_BITRATE;
+      p.encodings[0].priority = "high";
+      p.encodings[0].networkPriority = "high";
+      await sender.setParameters(p);
+    } catch {}
+  }
+}
+
+/** Sends video at `level` (call-quality.ts): smaller and slower on a weak line, paused when only voice fits. */
+async function applyLevel(level: CallLevel) {
+  const peer = pc;
+  if (!peer) return;
+  const profile = PROFILES[level];
+  const sender = peer.getTransceivers().find((t) => t.receiver.track.kind === "video")?.sender;
+  if (sender) {
+    try {
+      const p = sender.getParameters();
+      const e = p.encodings?.[0];
+      if (e) {
+        e.active = profile.video;
+        if (profile.video) {
+          e.maxBitrate = profile.maxBitrate;
+          e.maxFramerate = profile.maxFramerate;
+          e.scaleResolutionDownBy = profile.scaleResolutionDownBy;
+        }
+        await sender.setParameters(p);
+      }
+    } catch {}
+  }
+  sentLevel = level;
+  if (get().callLevel !== level) set({ callLevel: level });
+  tellMedia();
+}
 
 async function flushIce() {
   remoteDescriptionSet = true;

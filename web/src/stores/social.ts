@@ -48,7 +48,14 @@ interface SocialState {
   remove: (id: string) => Promise<void>;
   block: (p: Profile) => Promise<void>;
   unblock: (id: string) => Promise<void>;
+  /**
+   * Shows the message at once (faded) and keeps trying on a weak connection
+   * (about half a minute; the same Idempotency-Key, so it's never sent twice).
+   * Still offline after that: the bubble says "Not sent · Tap to retry".
+   */
   sendMessage: (friendId: string, text: string, replyToId?: string | null) => Promise<void>;
+  /** "Tap to retry" on a message that didn't go out. */
+  retryMessage: (friendId: string, messageId: string) => Promise<void>;
   /** A photo or voice note. Shown at once (faded) while it uploads. */
   sendMedia: (friendId: string, kind: "photo" | "voice", file: Blob, info?: { seconds?: number; w?: number; h?: number; replyToId?: string | null }) => Promise<void>;
   react: (friendId: string, messageId: string, emoji: string | null) => Promise<void>;
@@ -223,8 +230,19 @@ export const useSocial = create<SocialState>()((set, get) => {
     },
 
     async sendMessage(friendId, text, replyToId) {
-      if (!text.trim()) return;
-      onMessage(asMap(await api.post(`/friends/${friendId}/messages`, { text: text.trim(), ...(replyToId ? { replyToId } : {}) })));
+      const body = text.trim();
+      if (!body) return;
+      const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const temp: ChatMessage = { id: tempId, fromMe: true, kind: "text", text: body, at: new Date(), pending: true };
+      set((s) => ({ chats: { ...s.chats, [friendId]: [...(s.chats[friendId] ?? []), temp] } }));
+      unsent[tempId] = { text: body, replyToId: replyToId ?? null };
+      await deliver(friendId, tempId);
+    },
+
+    async retryMessage(friendId, messageId) {
+      if (!unsent[messageId]) return;
+      patchMessage(friendId, messageId, { pending: true, failed: false });
+      await deliver(friendId, messageId);
     },
 
     async sendMedia(friendId, kind, file, info = {}) {
@@ -323,6 +341,44 @@ function onUpdated(m: Json) {
     if (!list) return {};
     return { chats: { ...s.chats, [friendId]: list.map((x) => (x.id === msg.id ? { ...msg, gift: x.gift ?? msg.gift } : x.replyTo?.id === msg.id ? { ...x, replyTo: { ...x.replyTo, unsent: !!msg.unsent, text: msg.unsent ? "" : x.replyTo.text } } : x)) } };
   });
+}
+
+/** Text messages still going out (or that failed), by their temporary id. */
+const unsent: Record<string, { text: string; replyToId: string | null; key?: string }> = {};
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function patchMessage(friendId: string, id: string, patch: Partial<ChatMessage>) {
+  useSocial.setState((s) => ({ chats: { ...s.chats, [friendId]: (s.chats[friendId] ?? []).map((m) => (m.id === id ? { ...m, ...patch } : m)) } }));
+}
+
+/** Sends one queued message, retrying network failures with backoff (1, 2, 4, 8, 16 s). */
+async function deliver(friendId: string, tempId: string) {
+  const job = unsent[tempId];
+  if (!job) return;
+  job.key ??= newIdempotencyKey();
+  const drop = () => useSocial.setState((s) => ({ chats: { ...s.chats, [friendId]: (s.chats[friendId] ?? []).filter((m) => m.id !== tempId) } }));
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const m = asMap(await api.post(`/friends/${friendId}/messages`, { text: job.text, ...(job.replyToId ? { replyToId: job.replyToId } : {}) }, { "Idempotency-Key": job.key }));
+      delete unsent[tempId];
+      drop();
+      onMessage(m);
+      return;
+    } catch (e) {
+      // A retry while the first try is still being handled answers 409: wait for it like a network blip.
+      const transient = e instanceof ApiError && (e.isNetwork || (e.code === "CONFLICT" && e.status === 409));
+      if (!transient) {
+        delete unsent[tempId];
+        drop();
+        throw e;
+      }
+      if (attempt >= 5) {
+        patchMessage(friendId, tempId, { pending: false, failed: true });
+        return;
+      }
+      await pause(1000 * 2 ** attempt);
+    }
+  }
 }
 
 function onMessage(m: Json) {

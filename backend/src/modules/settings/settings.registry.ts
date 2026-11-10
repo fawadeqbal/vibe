@@ -46,6 +46,13 @@ export const SETTINGS = {
     schema: z.boolean(),
     default: true,
   },
+  'matching.reconnectGraceSeconds': {
+    group: 'Matching',
+    label: 'Wait for a dropped connection (seconds)',
+    description: 'When someone\'s connection drops mid-call (weak mobile data, switching Wi-Fi and data), the call waits this long for them to come back before it ends. 0 = end at once.',
+    schema: z.number().int().min(0).max(120),
+    default: 25,
+  },
   'region.blockEnabled': {
     group: 'Region',
     label: 'Block countries',

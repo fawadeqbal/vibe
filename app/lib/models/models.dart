@@ -387,6 +387,7 @@ class ChatMessage {
     this.unsent = false,
     this.readAt,
     this.pending = false,
+    this.failed = false,
     this.localBytes,
   });
   final String id;
@@ -412,8 +413,11 @@ class ChatMessage {
   /// When they read it (your messages).
   final DateTime? readAt;
 
-  /// Still uploading (photo / voice note).
+  /// Still sending (text) or uploading (photo / voice note).
   final bool pending;
+
+  /// Couldn't be sent after retrying on a weak connection: "Not sent · Tap to retry".
+  final bool failed;
 
   /// A photo or voice note from this device (before it's uploaded, and in the offline demo).
   final Uint8List? localBytes;
@@ -425,7 +429,7 @@ class ChatMessage {
   String? get event => meta?['event'] as String?;
   String? get mediaUrl => meta?['url'] as String?;
 
-  ChatMessage copyWith({DateTime? readAt, String? reactionMine, String? reactionTheirs, bool clearMine = false, bool clearTheirs = false, bool? unsent, String? text, ReplyRef? replyTo}) => ChatMessage(
+  ChatMessage copyWith({DateTime? readAt, String? reactionMine, String? reactionTheirs, bool clearMine = false, bool clearTheirs = false, bool? unsent, String? text, ReplyRef? replyTo, bool? pending, bool? failed}) => ChatMessage(
         id: id,
         fromMe: fromMe,
         text: text ?? this.text,
@@ -438,7 +442,8 @@ class ChatMessage {
         reactionTheirs: clearTheirs ? null : (reactionTheirs ?? this.reactionTheirs),
         unsent: unsent ?? this.unsent,
         readAt: readAt ?? this.readAt,
-        pending: pending,
+        pending: pending ?? this.pending,
+        failed: failed ?? this.failed,
         localBytes: localBytes,
       );
 }

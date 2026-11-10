@@ -55,6 +55,14 @@ describe('friends, chat, blocks, likes', () => {
 
     const msgs = await t.http.get(`/v1/friends/${a.id}/messages`).set(b.auth).expect(200);
     expect(msgs.body.items[0]).toMatchObject({ fromMe: false, text: 'send me your playlist later' });
+
+    // A weak connection: the app sends again with the same key; the message goes out once.
+    const key = { 'Idempotency-Key': 'retry-1' };
+    const first = (await t.http.post(`/v1/friends/${b.id}/messages`).set(a.auth).set(key).send({ text: 'are you there?' }).expect(201)).body;
+    const again = (await t.http.post(`/v1/friends/${b.id}/messages`).set(a.auth).set(key).send({ text: 'are you there?' }).expect(201)).body;
+    expect(again.id).toBe(first.id);
+    const after = await t.http.get(`/v1/friends/${a.id}/messages`).set(b.auth).expect(200);
+    expect(after.body.items.filter((m: { text: string }) => m.text === 'are you there?')).toHaveLength(1);
   });
 
   it('three free requests a day, then they cost coins', async () => {
