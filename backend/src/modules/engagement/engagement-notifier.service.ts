@@ -117,7 +117,7 @@ export class EngagementNotifier {
     await this.eachUser({ lastSeenAt: { gte: since } }, async (ids) => {
       const online = await this.realtime.onlineMap(ids);
       for (const id of ids.filter((x) => !online[x])) {
-        sent += (await this.notifications.notify(id, 'reminder.vibeHourLive', { minutes }, { online: false })).push;
+        sent += (await this.notifications.notify(id, 'reminder.vibeHourLive', { minutes }, { active: false })).push;
       }
     });
     return sent;
@@ -141,7 +141,7 @@ export class EngagementNotifier {
       const withApp = new Set((await this.prisma.pushToken.findMany({ where: { userId: { in: away } }, select: { userId: true }, distinct: ['userId'] })).map((t) => t.userId));
       const people = await this.prisma.user.findMany({ where: { id: { in: away.filter((x) => !withApp.has(x)) } }, select: { id: true, name: true, email: true, marketingEmails: true } });
       for (const id of withApp) {
-        sent += Math.min(1, (await this.notifications.notify(id, 'reminder.vibeHourSoon', { time, minutes }, { online: false })).push);
+        sent += Math.min(1, (await this.notifications.notify(id, 'reminder.vibeHourSoon', { time, minutes }, { active: false })).push);
       }
       for (const u of people) {
         if (!u.email || !u.marketingEmails) continue;
@@ -235,7 +235,7 @@ export class EngagementNotifier {
         const { unseen } = await this.discover.likedYouCounts(id);
         if (!unseen) continue;
         if ((await this.redis.client.set(`eng:likes-waiting:${id}`, '1', 'EX', LIKES_WAITING_EVERY_DAYS * 86_400, 'NX')) !== 'OK') continue;
-        const r = await this.notifications.notify(id, 'reminder.likesWaiting', { count: unseen }, { online: false });
+        const r = await this.notifications.notify(id, 'reminder.likesWaiting', { count: unseen }, { active: false });
         if (r.push || r.email) sent++;
       }
     }
@@ -250,11 +250,11 @@ export class EngagementNotifier {
     let sent = 0;
     await this.eachUser({ lastSeenAt: { gte: from } }, async (ids) => {
       const recaps = await this.recaps.forUsers(ids);
-      const online = await this.realtime.onlineMap(ids);
+      const active = await this.realtime.activeMap(ids);
       for (const id of ids) {
         const r = recaps.get(id)!;
         if (!recapWorthSending(r) || !(await this.firstForPair(`eng:recap:${week}:${id}`))) continue;
-        const res = await this.notifications.notify(id, 'reminder.recap', { likes: r.likesReceived, gifts: r.giftsReceived, gems: r.gemsEarned, detail: recapText(r) }, { online: !!online[id] });
+        const res = await this.notifications.notify(id, 'reminder.recap', { likes: r.likesReceived, gifts: r.giftsReceived, gems: r.gemsEarned, detail: recapText(r) }, { active: !!active[id] });
         if (res.inApp || res.push) sent++;
       }
     });

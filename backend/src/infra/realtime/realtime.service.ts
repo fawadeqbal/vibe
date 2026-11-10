@@ -5,7 +5,12 @@ import { RedisService } from '../redis/redis.service';
 import { ServerEventName, userRoom } from './realtime.events';
 
 const ONLINE_ZSET = 'presence:online';
+/** In the app right now: a socket whose app is in the foreground (or whose tab is in use). */
+const ACTIVE_ZSET = 'presence:active';
 const STALE_MS = 90_000;
+
+/** A socket counts as in use unless its client said otherwise (older apps never say). */
+const socketActive = (data: unknown) => (data as { active?: boolean } | undefined)?.active !== false;
 
 /**
  * The only way the rest of the code talks to sockets: push an event to a
@@ -135,6 +140,55 @@ export class RealtimeService {
     await this.redis.client.zadd(ONLINE_ZSET, ...(args as [number, string]));
   }
 
+  /**
+   * Looking at Vibe right now: the app in the foreground, or a website tab
+   * in use. Connected is not enough: a phone keeps its socket for minutes
+   * after you leave the app, and a tab can sit open all day. Pushes are
+   * skipped only for this (the app shows its own banner instead).
+   */
+  async isActive(userId: string): Promise<boolean> {
+    const score = await this.redis.client.zscore(ACTIVE_ZSET, userId);
+    return !!score && Date.now() - Number(score) < STALE_MS;
+  }
+
+  async activeMap(userIds: string[]): Promise<Record<string, boolean>> {
+    if (!userIds.length) return {};
+    const scores = await this.redis.client.zmscore(ACTIVE_ZSET, ...userIds);
+    const now = Date.now();
+    return Object.fromEntries(userIds.map((id, i) => [id, !!scores[i] && now - Number(scores[i]) < STALE_MS]));
+  }
+
+  /** After a socket came, went or changed foreground/background: is any of this person's sockets (on any instance) still in use? */
+  async refreshActive(userId: string): Promise<boolean> {
+    let active = false;
+    if (this.server) {
+      try {
+        active = (await this.server.in(userRoom(userId)).fetchSockets()).some((s) => socketActive(s.data));
+      } catch (e) {
+        this.logger.warn(`active check for ${userId} failed: ${(e as Error).message}`);
+      }
+    }
+    if (active) await this.redis.client.zadd(ACTIVE_ZSET, Date.now(), userId);
+    else await this.redis.client.zrem(ACTIVE_ZSET, userId);
+    return active;
+  }
+
+  /** User ids with an in-use socket on this instance (the interval keeps them fresh). */
+  localActiveUserIds(): string[] {
+    const ids = new Set<string>();
+    for (const s of this.server?.sockets.sockets.values() ?? []) {
+      const u = s.data.user as { id?: string } | undefined;
+      if (u?.id && socketActive(s.data)) ids.add(u.id);
+    }
+    return [...ids];
+  }
+
+  async heartbeatActive(userIds: string[]): Promise<void> {
+    if (!userIds.length) return;
+    const now = Date.now();
+    await this.redis.client.zadd(ACTIVE_ZSET, ...(userIds.flatMap((id) => [now, id]) as [number, string]));
+  }
+
   async isOnline(userId: string): Promise<boolean> {
     const score = await this.redis.client.zscore(ONLINE_ZSET, userId);
     return !!score && Date.now() - Number(score) < STALE_MS;
@@ -152,6 +206,7 @@ export class RealtimeService {
   }
 
   async pruneStale(): Promise<number> {
+    await this.redis.client.zremrangebyscore(ACTIVE_ZSET, '-inf', Date.now() - STALE_MS);
     return this.redis.client.zremrangebyscore(ONLINE_ZSET, '-inf', Date.now() - STALE_MS);
   }
 }

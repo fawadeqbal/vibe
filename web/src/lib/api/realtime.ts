@@ -88,6 +88,9 @@ export const Ev = {
 export type EventData = Record<string, unknown>;
 type Handler = (data: EventData) => void;
 
+/** No mouse, keys or scrolling for this long: the tab is open but nobody is looking. */
+const IDLE_MS = 2 * 60_000;
+
 /**
  * One Socket.IO connection for the whole app. Authenticates with the current
  * access token on every (re)connect, fans server pushes out to subscribers
@@ -99,6 +102,11 @@ export class RealtimeClient {
   private connectionWaiters = new Set<() => void>();
   private connectionListeners = new Set<(connected: boolean) => void>();
   connected = false;
+  /** What the server last heard: someone is using this tab (it skips phone pushes while any device is in use). */
+  private active = true;
+  private busy = false;
+  private lastInput = Date.now();
+  private stopTracking: (() => void) | null = null;
 
   /** Called whenever the socket goes up or down (a call shows "Reconnecting…"). Returns the unsubscribe function. */
   onConnectionChange(fn: (connected: boolean) => void): () => void {
@@ -128,7 +136,8 @@ export class RealtimeClient {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 8000,
       // `client`: browsers can't set headers on a WebSocket, so say which Vibe this is here (admin → who is on the web).
-      auth: (cb) => cb({ token: this.api.accessToken, client: "web" }),
+      // `active`: whether someone is using this tab, so a tab left open doesn't hold back phone pushes.
+      auth: (cb) => cb({ token: this.api.accessToken, client: "web", active: this.computeActive() }),
     });
     s.on("connect", () => this.setConnected(true));
     s.on("disconnect", () => this.setConnected(false));
@@ -147,10 +156,65 @@ export class RealtimeClient {
       this.handlers.get(event)?.forEach((h) => h(data as EventData));
     });
     this.socket = s;
+    this.trackActivity();
     s.connect();
   }
 
+  /** On a live call: in use even without mouse or keys. */
+  setBusy(busy: boolean) {
+    this.busy = busy;
+    this.reportActive();
+  }
+
+  private computeActive(): boolean {
+    if (typeof document === "undefined") return true;
+    if (this.busy) return true;
+    return document.visibilityState === "visible" && document.hasFocus() && Date.now() - this.lastInput < IDLE_MS;
+  }
+
+  private reportActive() {
+    const next = this.computeActive();
+    if (next === this.active) return;
+    this.active = next;
+    if (this.socket?.connected) this.socket.emit("presence:active", { active: next });
+  }
+
+  /**
+   * Tells the server when this tab is in use: visible, focused and touched
+   * in the last two minutes. Otherwise the person gets phone pushes even
+   * with Vibe open on a computer they walked away from.
+   */
+  private trackActivity() {
+    if (this.stopTracking || typeof window === "undefined") return;
+    let last = 0;
+    const input = () => {
+      const now = Date.now();
+      this.lastInput = now;
+      // Moving the mouse fires a lot; only re-check now and then (or when it changes the answer).
+      if (!this.active || now - last > 10_000) {
+        last = now;
+        this.reportActive();
+      }
+    };
+    const check = () => this.reportActive();
+    const inputs = ["pointerdown", "pointermove", "keydown", "wheel", "touchstart", "scroll"] as const;
+    for (const e of inputs) window.addEventListener(e, input, { passive: true, capture: true });
+    window.addEventListener("focus", input);
+    window.addEventListener("blur", check);
+    document.addEventListener("visibilitychange", check);
+    const timer = window.setInterval(check, 30_000);
+    this.stopTracking = () => {
+      for (const e of inputs) window.removeEventListener(e, input, { capture: true });
+      window.removeEventListener("focus", input);
+      window.removeEventListener("blur", check);
+      document.removeEventListener("visibilitychange", check);
+      window.clearInterval(timer);
+      this.stopTracking = null;
+    };
+  }
+
   disconnect() {
+    this.stopTracking?.();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
     this.socket = null;
@@ -193,6 +257,11 @@ export class RealtimeClient {
     const changed = this.connected !== v;
     this.connected = v;
     if (v) [...this.connectionWaiters].forEach((w) => w());
+    // The handshake carried the state at connect time; it may have changed while connecting.
+    if (v) {
+      this.active = this.computeActive();
+      this.socket?.emit("presence:active", { active: this.active });
+    }
     if (changed) this.connectionListeners.forEach((l) => l(v));
   }
 }

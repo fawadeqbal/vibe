@@ -16,10 +16,16 @@ export interface PushMessage {
   body: string;
   /** Tells the app where to go when tapped (string values only — FCM rule). */
   data: Record<string, string>;
-  /** Groups notifications (one per chat, etc.) and picks the Android channel. */
+  /** Picks the Android channel. */
   category: PushCategory;
-  /** Replaces an earlier notification with the same key (Android tag / iOS thread). */
+  /** Groups notifications that belong together (iOS thread: one chat's messages sit together). Never replaces. */
   collapseKey?: string;
+  /**
+   * Replaces the earlier notification with the same key (Android tag): only
+   * for a newer state of the same thing (a ringing call → missed call, a
+   * payment → paid). Everything else stacks until it's opened or cleared.
+   */
+  replaceKey?: string;
   /** Account and safety alerts, calls: go out even in quiet hours. */
   urgent?: boolean;
 }
@@ -70,7 +76,7 @@ export class FcmPushSender implements PushSender {
           token,
           notification: { title: msg.title, body: msg.body },
           data: { ...msg.data, category: msg.category },
-          android: { priority: 'HIGH', notification: { channel_id: msg.category, ...(msg.collapseKey ? { tag: msg.collapseKey } : {}) } },
+          android: { priority: 'HIGH', notification: { channel_id: msg.category, ...(msg.replaceKey ? { tag: msg.replaceKey } : {}) } },
           apns: { payload: { aps: { sound: 'default', ...(msg.collapseKey ? { 'thread-id': msg.collapseKey } : {}) } } },
         },
       },

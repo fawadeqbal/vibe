@@ -121,6 +121,7 @@ class RealtimeClient {
   final _events = StreamController<RealtimeEvent>.broadcast();
   final _connected = StreamController<bool>.broadcast();
   bool _isConnected = false;
+  bool _active = true;
 
   Stream<RealtimeEvent> get events => _events.stream;
   Stream<bool> get connection => _connected.stream;
@@ -143,7 +144,8 @@ class RealtimeClient {
           .setReconnectionDelay(1000)
           .setReconnectionDelayMax(8000)
           // `client`: which Vibe this is (android/ios), so admin can tell app users from web users.
-          .setAuthFn((cb) => cb({'token': _api.accessToken, if (_api.clientName != null) 'client': _api.clientName}))
+          // `active`: in the foreground or not, so a reconnect in the background still gets pushes.
+          .setAuthFn((cb) => cb({'token': _api.accessToken, if (_api.clientName != null) 'client': _api.clientName, 'active': _active}))
           .build(),
     );
     s.onConnect((_) => _setConnected(true));
@@ -190,6 +192,17 @@ class RealtimeClient {
       },
     );
     return done.future.timeout(const Duration(seconds: 12), onTimeout: () => throw ApiException.network('no reply to $event'));
+  }
+
+  /// The app came to the foreground (true) or left it (false). The server
+  /// sends phone pushes while no device is in the foreground, even though
+  /// the socket is still connected; in the foreground the app shows its own
+  /// banner instead.
+  void setActive(bool active) {
+    if (_active == active) return;
+    _active = active;
+    final s = _socket;
+    if (s != null && s.connected) s.emit('presence:active', {'active': active});
   }
 
   void _setConnected(bool v) {

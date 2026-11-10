@@ -1,4 +1,5 @@
 import { GoogleAuth } from '../../integrations/google/google-auth';
+import { replaceKeyFor } from '../notifications/notifications.service';
 import { FcmPushSender } from './push-sender';
 
 describe('FCM sender', () => {
@@ -14,7 +15,18 @@ describe('FCM sender', () => {
     const seen: { url?: string; body?: { message: Record<string, unknown> } } = {};
     expect(await sender(200, { name: 'm/1' }, seen as never).send('tok', msg)).toBe('ok');
     expect(seen.url).toBe('https://fcm.googleapis.com/v1/projects/proj/messages:send');
-    expect(seen.body?.message).toMatchObject({ token: 'tok', notification: { title: 'Hi' }, data: { route: 'chat', category: 'messages' }, android: { notification: { channel_id: 'messages', tag: 'chat:1' } } });
+    expect(seen.body?.message).toMatchObject({ token: 'tok', notification: { title: 'Hi' }, data: { route: 'chat', category: 'messages' }, android: { notification: { channel_id: 'messages' } }, apns: { payload: { aps: { 'thread-id': 'chat:1' } } } });
+    // Messages stack: no Android tag, so a second message doesn't replace the first.
+    expect((seen.body?.message.android as { notification: object }).notification).not.toHaveProperty('tag');
+  });
+
+  it('only a newer state of the same thing replaces the earlier notification', async () => {
+    const seen: { body?: { message: { android: { notification: Record<string, unknown> } } } } = {};
+    await sender(200, {}, seen as never).send('tok', { ...msg, collapseKey: 'call:9', replaceKey: 'call:9' });
+    expect(seen.body?.message.android.notification.tag).toBe('call:9');
+
+    for (const k of ['call:1', 'pay:2', 'ref:3', 'streak:4', 'vibe-hour', 'likes-waiting', 'recap']) expect(replaceKeyFor(k)).toBe(k);
+    for (const k of ['chat:1', 'wave:2', 'discover-liked', 'discover-super:3', 'discover-match:4', 'call-ask:5', 'wave-looking:6', undefined]) expect(replaceKeyFor(k)).toBeUndefined();
   });
 
   it('dead tokens are reported as invalid, server trouble as retry', async () => {

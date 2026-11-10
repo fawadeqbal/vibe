@@ -2,6 +2,7 @@ import { Logger, UseFilters } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import {
   ConnectedSocket,
+  MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
@@ -57,8 +58,11 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     if (!user) return void socket.disconnect(true);
     const client = socketClient(socket.handshake);
     socket.data.client = client;
+    // `active: false` in the handshake: the app reconnected while in the background.
+    socket.data.active = (socket.handshake.auth as { active?: unknown } | undefined)?.active !== false;
     await socket.join(userRoom(user.id));
     await this.realtime.markConnected(user.id);
+    if (socket.data.active) await this.realtime.heartbeatActive([user.id]);
     const firstSocket = (await this.realtime.socketCount(user.id)) <= 1;
     this.events.emit(SOCKET_CONNECTED, { userId: user.id, socketId: socket.id, firstSocket, client } satisfies SocketLifecycleEvent);
   }
@@ -70,6 +74,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       // This socket has already left its rooms, so only the person's other tabs and devices are counted.
       const lastSocket = (await this.realtime.socketCount(user.id)) === 0;
       if (lastSocket) await this.realtime.markOffline(user.id);
+      await this.realtime.refreshActive(user.id);
       this.events.emit(SOCKET_DISCONNECTED, { userId: user.id, socketId: socket.id, lastSocket } satisfies SocketLifecycleEvent);
     } catch (e) {
       // Shutting down (Redis already closed) — nothing left to clean up.
@@ -84,8 +89,21 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     return { ok: true };
   }
 
+  /**
+   * The app went to the background or came back; a tab was hidden, left
+   * idle or used again. While none of your sockets is in use, pushes go to
+   * your phone even though you're still connected.
+   */
+  @SubscribeMessage('presence:active')
+  async active(@ConnectedSocket() socket: Socket, @MessageBody() body: { active?: unknown } | undefined): Promise<{ ok: true; data: { active: boolean } }> {
+    socket.data.active = body?.active !== false;
+    const active = await this.realtime.refreshActive((socket.data.user as AuthUser).id);
+    return { ok: true, data: { active } };
+  }
+
   @Interval(30_000)
   async refreshPresence(): Promise<void> {
     await this.realtime.heartbeat(this.realtime.localUserIds());
+    await this.realtime.heartbeatActive(this.realtime.localActiveUserIds());
   }
 }

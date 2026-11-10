@@ -5,7 +5,7 @@ vi.mock("../services", () => ({
   realtime: { on: vi.fn(), onConnectionChange: vi.fn(), request: vi.fn(async () => ({})) },
 }));
 
-const { bannerFrom, useBanners, BANNER_MS } = await import("../banners");
+const { bannerFrom, useBanners, MAX_BANNERS } = await import("../banners");
 const { mergeNewest } = await import("../social");
 const { notificationPath } = await import("@/lib/notification-path");
 
@@ -22,17 +22,29 @@ describe("live notification banners", () => {
     expect(bannerFrom(show({ title: "" }), "/", notificationPath)).toBeNull();
   });
 
-  it("shows one at a time, queues the rest, and hides by itself", () => {
+  it("stacks newest first; nothing goes away by itself, only when tapped, closed, cleared or opened", () => {
     vi.useFakeTimers();
-    const b = (key: string, friendId = "") => bannerFrom(show({ key, data: { open: "chat", friendId } }), "/", notificationPath)!;
-    useBanners.getState().push(b("chat.message", "u1"));
-    useBanners.getState().push(b("chat.message", "u2"));
-    useBanners.getState().push(b("chat.message", "u2")); // a newer one from u2 replaces the queued one
-    expect(useBanners.getState().queue).toHaveLength(1);
-    vi.advanceTimersByTime(BANNER_MS);
-    expect(useBanners.getState().current?.data.friendId).toBe("u2");
-    vi.advanceTimersByTime(BANNER_MS);
-    expect(useBanners.getState().current).toBeNull();
+    const b = (friendId: string) => bannerFrom(show({ key: "chat.message", data: { open: "chat", friendId } }), "/", notificationPath)!;
+    const st = () => useBanners.getState();
+    st().clear();
+    st().push(b("u1"));
+    st().push(b("u2"));
+    st().push(b("u2")); // a second message from u2 is its own banner
+    expect(st().items.map((x) => x.data.friendId)).toEqual(["u2", "u2", "u1"]);
+    vi.advanceTimersByTime(60_000);
+    expect(st().items).toHaveLength(3);
+
+    st().dismiss(st().items[2].id);
+    expect(st().items.map((x) => x.data.friendId)).toEqual(["u2", "u2"]);
+    st().push(b("u3"));
+    st().setPath("/chats/u2"); // opened that chat: its banners are read
+    expect(st().items.map((x) => x.data.friendId)).toEqual(["u3"]);
+    st().clear();
+    expect(st().items).toEqual([]);
+
+    for (let i = 0; i < MAX_BANNERS + 5; i++) st().push(b(`x${i}`));
+    expect(st().items).toHaveLength(MAX_BANNERS);
+    expect(st().items[0].data.friendId).toBe(`x${MAX_BANNERS + 4}`);
   });
 });
 

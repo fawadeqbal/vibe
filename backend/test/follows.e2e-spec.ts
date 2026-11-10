@@ -1,6 +1,8 @@
+import { io as ioClient } from 'socket.io-client';
+
 import { DevPushSender } from '../src/modules/push/push-sender';
 import { PushService } from '../src/modules/push/push.service';
-import { connect, createTestApp, next, resetState, signUp, sleep, staffLogin, TestApp, TestUser, requestFriend } from './helpers';
+import { connect, createTestApp, emit, next, resetState, signUp, sleep, staffLogin, TestApp, TestUser, requestFriend } from './helpers';
 
 describe('follows and profiles', () => {
   let t: TestApp;
@@ -222,6 +224,52 @@ describe('follows and profiles', () => {
     await t.http.post(`/v1/follows/${b.id}`).set(a.auth).expect(200);
     expect(await banner).toMatchObject({ key: 'follow.new', group: 'friends', title: 'New follower', body: 'Priya started following you', data: { open: 'profile', userId: a.id } });
     expect(sent()).toEqual([]);
+    s.disconnect();
+  });
+
+  it('connected but in the background (app left, tab idle): the push goes, no banner', async () => {
+    const a = await signUp(t, { name: 'Priya' });
+    const c = await signUp(t, { name: 'Omar' });
+    const b = await signUp(t);
+    await met(a, b);
+    await met(c, b);
+    const token = 'fcm-token-follow-test-000003';
+    await t.http.post('/v1/me/push-tokens').set(b.auth).send({ token, platform: 'android' }).expect(200);
+    const sent = () => (t.app.get(PushService).sender as DevPushSender).sent.filter((x) => x.token === token).map((x) => x.msg);
+    const s = await connect(t, b);
+    expect(await emit(s, 'presence:active', { active: false })).toEqual({ active: false });
+    let banners = 0;
+    s.on('notification:show', () => banners++);
+    await t.http.post(`/v1/follows/${b.id}`).set(a.auth).expect(200);
+    await sleep(250);
+    expect(sent()).toEqual([expect.objectContaining({ title: 'New follower', body: 'Priya started following you' })]);
+    expect(banners).toBe(0);
+
+    // Back in the app: a banner again, no push.
+    expect(await emit(s, 'presence:active', { active: true })).toEqual({ active: true });
+    const banner = next(s, 'notification:show');
+    await t.http.post(`/v1/follows/${b.id}`).set(c.auth).expect(200);
+    expect(await banner).toMatchObject({ key: 'follow.new', body: 'Omar started following you' });
+    expect(sent()).toHaveLength(1);
+    s.disconnect();
+  });
+
+  it('an app that reconnects in the background says so in the handshake', async () => {
+    const a = await signUp(t, { name: 'Priya' });
+    const b = await signUp(t);
+    await met(a, b);
+    const token = 'fcm-token-follow-test-000004';
+    await t.http.post('/v1/me/push-tokens').set(b.auth).send({ token, platform: 'android' }).expect(200);
+    const sent = () => (t.app.get(PushService).sender as DevPushSender).sent.filter((x) => x.token === token);
+    const s = await new Promise<Awaited<ReturnType<typeof connect>>>((resolve, reject) => {
+      const sock = ioClient(t.url, { auth: { token: b.token, active: false }, transports: ['websocket'], forceNew: true, reconnection: false });
+      sock.once('connect', () => resolve(sock));
+      sock.once('connect_error', reject);
+    });
+    await sleep(100);
+    await t.http.post(`/v1/follows/${b.id}`).set(a.auth).expect(200);
+    await sleep(250);
+    expect(sent()).toHaveLength(1);
     s.disconnect();
   });
 });

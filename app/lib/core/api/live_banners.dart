@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'realtime_client.dart';
 
 /// One live notification while you're in the app (`notification:show`):
-/// the server sends it instead of a push when you're online.
+/// the server sends it instead of a push while you're using Vibe.
 class LiveBanner {
   const LiveBanner({required this.id, required this.key, required this.group, required this.title, required this.body, required this.data});
   final int id;
@@ -27,20 +27,18 @@ class LiveBanner {
   }
 }
 
-/// The banner queue (web: stores/banners.ts): one at a time for
-/// [showFor], at most 3 waiting; a newer one about the same thing (another
-/// message from Sara) replaces the waiting one.
+/// The live notifications stacked at the top (web: stores/banners.ts),
+/// newest first. Nothing goes away by itself or because another came: each
+/// stays until it's tapped, closed, cleared, or what it's about is opened.
 class LiveBanners extends ChangeNotifier {
-  LiveBanners({this.showFor = const Duration(seconds: 5)});
+  /// Kept at most (the oldest beyond this go; they're all on the Notifications page anyway).
+  static const max = 20;
 
-  final Duration showFor;
-  LiveBanner? _current;
-  final List<LiveBanner> _queue = [];
-  Timer? _timer;
+  final List<LiveBanner> _items = [];
   StreamSubscription<Map<String, dynamic>>? _sub;
 
-  LiveBanner? get current => _current;
-  int get waiting => _queue.length;
+  /// Newest first.
+  List<LiveBanner> get items => List.unmodifiable(_items);
 
   /// Listens to the socket. [skip]: you're already looking at it (that chat).
   void start(RealtimeClient rt, {bool Function(Map<String, dynamic> data)? skip}) {
@@ -52,28 +50,30 @@ class LiveBanners extends ChangeNotifier {
   }
 
   void push(LiveBanner b) {
-    if (_current == null) {
-      _current = b;
-      _timer?.cancel();
-      _timer = Timer(showFor, dismiss);
-      notifyListeners();
-      return;
-    }
-    _queue.removeWhere((q) => q.key == b.key && q.data['friendId'] == b.data['friendId']);
-    _queue.add(b);
-    if (_queue.length > 3) _queue.removeAt(0);
+    _items.insert(0, b);
+    if (_items.length > max) _items.removeRange(max, _items.length);
+    notifyListeners();
   }
 
-  void dismiss() {
-    _timer?.cancel();
-    _current = _queue.isEmpty ? null : _queue.removeAt(0);
-    if (_current != null) _timer = Timer(showFor, dismiss);
+  void dismiss(LiveBanner b) {
+    if (_items.remove(b)) notifyListeners();
+  }
+
+  /// Opened what some of them are about (that chat): those are read.
+  void dismissWhere(bool Function(LiveBanner b) test) {
+    final before = _items.length;
+    _items.removeWhere(test);
+    if (_items.length != before) notifyListeners();
+  }
+
+  void clear() {
+    if (_items.isEmpty) return;
+    _items.clear();
     notifyListeners();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
     _sub?.cancel();
     super.dispose();
   }
