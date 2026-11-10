@@ -1,7 +1,7 @@
 name: vibe_app
 description: "Vibe — meet someone new on video. Random 1:1 video chat with coins, gifts and VIP."
 publish_to: "none"
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ^3.11.0
@@ -17,6 +17,9 @@ dependencies:
   # hard-codes compileSdk 31 and permission_handler 11.x (android 12.x)
   # 33, so both need the versions that compile against 35/36.
   flutter_webrtc: ^1.6.2
+  # The incoming-call screen over the lock screen and the proximity sensor (Android).
+  vibe_calls:
+    path: packages/vibe_calls
   permission_handler: ^12.0.3
   http: ^1.6.0
   http_parser: ^4.1.2 # MediaType for multipart uploads

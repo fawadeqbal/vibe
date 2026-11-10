@@ -54,6 +54,8 @@ export const Ev = {
   callRinging: "call:ringing",
   /** A ringing call stopped: `{ callId, reason, reply?, from? }`. */
   callEnded: "call:ended",
+  /** To the person called, every device: it stopped ringing however it ended (answered or declined on another device too). `{ callId, reason }`. */
+  callStop: "call:stop",
   /** Your call is ringing on their phone (the app, or a push with Vibe closed): `{ callId }`. Until then: "Connecting". */
   callReached: "call:reached",
   /** Voice → video in a friend call: `{ matchId, state: "asked" | "on" | "declined", from? }`. */

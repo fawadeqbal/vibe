@@ -338,7 +338,18 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     if (o == null) return;
     CallRinger.opened.value = null;
     await _calls.checkIncoming();
-    if (o.answer && mounted && _calls.incoming?.callId == o.callId) await _calls.accept();
+    if (!o.answer || !mounted) return;
+    if (_calls.incoming?.callId == o.callId) return _calls.accept();
+    // It ended while the phone was opening Vibe (they hung up a moment earlier).
+    final friend = o.friendId == null ? null : context.read<SocialProvider>().friend(o.friendId!);
+    final p = friend?.profile;
+    final video = friend == null || (friend.calls.mineVideo && friend.calls.theirsVideo);
+    await showCallEndedSheet(
+      context,
+      name: p?.name ?? o.name ?? 'They',
+      avatarUrl: p?.avatarUrl,
+      onCallBack: p == null ? null : () => unawaited(_calls.ring(p, video ? CallMedia.video : CallMedia.voice)),
+    );
   }
 
   void _missedTapped() {

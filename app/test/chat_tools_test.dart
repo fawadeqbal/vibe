@@ -272,7 +272,13 @@ void main() {
       expect(find.text('Voice call'), findsOneWidget);
       expect(find.text('Camera stays off. Not recorded.'), findsOneWidget);
       expect(find.text('Turn on video'), findsOneWidget);
+      // Voice calls start on the earpiece ("Phone", an ear); one tap: the speaker.
+      await tester.pump();
+      expect(find.text('Phone'), findsOneWidget);
+      await tester.tap(find.text('Phone'));
+      await tester.pump();
       expect(find.text('Speaker'), findsOneWidget);
+      expect(match.audio.onSpeaker, isTrue);
       await tester.tap(find.text('Mute'));
       await tester.pump();
       expect(match.micOn, isFalse);

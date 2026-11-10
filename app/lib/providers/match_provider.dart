@@ -13,6 +13,7 @@ import '../core/api/realtime_client.dart';
 import '../core/mock/mock_backend.dart';
 import '../core/mock/mock_data.dart';
 import '../models/models.dart';
+import '../services/calls/call_audio.dart';
 import '../services/calls/call_quality.dart';
 import 'session_provider.dart';
 import 'social_provider.dart';
@@ -357,7 +358,17 @@ abstract class MatchProvider extends ChangeNotifier {
   bool _minimized = false;
   bool _blurMe = false;
   bool _partnerBlur = false;
-  bool _speakerOn = true;
+
+  /// Where the call's sound plays (earpiece, speaker, headphones) and the proximity sensor.
+  late final CallAudio audio = CallAudio(createAudioBackend())..addListener(_audioChanged);
+
+  /// The phone's real audio (server mode) or a stand-in (the offline demo).
+  @protected
+  AudioBackend createAudioBackend();
+
+  void _audioChanged() {
+    if (!_disposed) super.notifyListeners();
+  }
 
   /// The friend call is shrunk to the chat (the green bar and the small window).
   bool get minimized => _minimized;
@@ -378,15 +389,6 @@ abstract class MatchProvider extends ChangeNotifier {
   /// They turned on "Blur me": their video is shown blurred.
   bool get partnerBlur => _partnerBlur;
 
-  /// Loudspeaker (on) or the earpiece.
-  bool get speakerOn => _speakerOn;
-  Future<void> toggleSpeaker() async {
-    _speakerOn = !_speakerOn;
-    notifyListeners();
-    try {
-      await Helper.setSpeakerphoneOn(_speakerOn);
-    } catch (_) {}
-  }
 
   /// How loud the friend is right now (0–1), for "Sana is talking".
   Future<double> partnerVoiceLevel() async => 0;
@@ -419,7 +421,6 @@ abstract class MatchProvider extends ChangeNotifier {
     _friendCall = v;
     _voiceCall = v && voice;
     _videoAsk = VideoAsk.none;
-    _speakerOn = !(v && voice);
     _resetCallTools();
   }
 
@@ -655,6 +656,8 @@ abstract class MatchProvider extends ChangeNotifier {
   @override
   void notifyListeners() {
     if (_disposed) return;
+    // The call's sound follows too: live while connected, earpiece-first while voice only.
+    audio.sync(live: _state == MatchState.connected && _partner != null, voice: _voiceCall);
     final was = _syncedState;
     if (was != _state) {
       _syncedState = _state;
@@ -908,6 +911,9 @@ abstract class MatchProvider extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    audio
+      ..removeListener(_audioChanged)
+      ..dispose();
     _friendCallEnded.close();
     _ticker?.cancel();
     _idleTimer?.cancel();
