@@ -213,12 +213,6 @@ function ackRinging(callId: string) {
   api.post(`/calls/${callId}/ringing`).catch(() => {});
 }
 
-// Answered or declined on another of your devices (or hung up, rang out): stop ringing here.
-realtime.on(Ev.callStop, (e) => {
-  const id = String(e.callId);
-  if (useCalls.getState().incoming?.callId === id) useCalls.setState({ incoming: null });
-});
-
 realtime.on(Ev.callEnded, (e) => {
   const id = String(e.callId);
   const reason = typeof e.reason === "string" ? e.reason : "";

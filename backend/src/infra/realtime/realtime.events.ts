@@ -73,14 +73,6 @@ export const ServerEvent = {
   CallRinging: 'call:ringing',
   /** A ringing call stopped: `{ callId, reason: 'declined' | 'no_answer' | 'cancelled' | 'accepted' | 'turned_off', reply? }`. Accepted calls continue as `match:found`. */
   CallEnded: 'call:ended',
-  /**
-   * To the person being called, on every device: this call has stopped
-   * ringing, however it ended (`reason`: cancelled, no_answer, declined,
-   * accepted — maybe on another of their devices). `{ callId, reason }`.
-   * The phone stops its ring and closes the incoming-call screen (also
-   * sent as a silent push, call.stop).
-   */
-  CallStopRinging: 'call:stop',
   /** Your call reached their phone and is ringing there (the app, or a push with Vibe closed): `{ callId }`. Until then: "Connecting". */
   CallReached: 'call:reached',
   /** Voice → video during a friend call: `{ matchId, state: 'asked' | 'on' | 'declined', from? }`. */

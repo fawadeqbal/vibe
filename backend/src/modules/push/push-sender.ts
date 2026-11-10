@@ -37,8 +37,6 @@ export interface PushMessage {
   ring?: { ttlSeconds: number };
   /** Data-only (the app draws the notification itself), e.g. the missed call that stops its ringing. */
   dataOnly?: boolean;
-  /** Only for the app, never shown (stop ringing): sent to Android apps that ring full screen, skipped elsewhere. */
-  silent?: boolean;
 }
 
 /** ok = delivered to FCM; invalid = drop this token; retry = transient. */

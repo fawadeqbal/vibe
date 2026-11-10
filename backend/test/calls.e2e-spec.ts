@@ -323,35 +323,6 @@ describe('calls in chat', () => {
     ]);
   });
 
-  it('every way a call ends tells all the callee devices to stop ringing (call:stop)', async () => {
-    await setRules({ callRingSeconds: 10 });
-    const { a, b } = await callsOn();
-    const sb = await online(b);
-    const phone = await online(b); // their other device
-    const ring = async () =>
-      (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(200)).body.callId as string;
-    const stops = async (fn: (id: string) => Promise<unknown>, reason: string) => {
-      const id = await ring();
-      const here = next(sb, 'call:stop');
-      const there = next(phone, 'call:stop');
-      await fn(id);
-      expect(await here).toEqual({ callId: id, reason });
-      expect(await there).toEqual({ callId: id, reason });
-    };
-    await stops((id) => t.http.post(`/v1/calls/${id}/cancel`).set(a.auth).expect(200), 'cancelled');
-    await stops((id) => t.http.post(`/v1/calls/${id}/decline`).set(b.auth).send({}).expect(200), 'declined');
-    await stops(async (id) => {
-      await t.redis.client.zadd('calls:ringing', Date.now() - 1, id);
-      await t.app.get(CallsService).sweep();
-    }, 'no_answer');
-    const sa = await online(a);
-    await stops(async (id) => {
-      const found = next(sa, 'match:found');
-      await t.http.post(`/v1/calls/${id}/accept`).set(b.auth).expect(200);
-      await found;
-    }, 'accepted');
-  });
-
   it('an unanswered call rings out as a missed call', async () => {
     await setRules({ callRingSeconds: 10 });
     const { a, b } = await callsOn();

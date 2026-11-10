@@ -142,7 +142,7 @@ export class NotificationsService implements OnModuleInit {
     const result: NotifyResult = { push: 0, inApp: false, email: false };
     if (want.push) {
       const g = GROUP_PUSH[type.group];
-      result.push = await this.push.sendToUser(userId, { title: content.title, body: content.body, data: tapData, category: g.category, collapseKey: content.collapseKey, replaceKey: replaceKeyFor(content.collapseKey), urgent: g.urgent, ...(content.ringSeconds ? { ring: { ttlSeconds: content.ringSeconds } } : {}), ...(content.dataOnly ? { dataOnly: true } : {}), ...(content.silent ? { silent: true } : {}) });
+      result.push = await this.push.sendToUser(userId, { title: content.title, body: content.body, data: tapData, category: g.category, collapseKey: content.collapseKey, replaceKey: replaceKeyFor(content.collapseKey), urgent: g.urgent, ...(content.ringSeconds ? { ring: { ttlSeconds: content.ringSeconds } } : {}), ...(content.dataOnly ? { dataOnly: true } : {}) });
     }
     if (want.inApp) result.inApp = await this.toInbox(userId, content);
     if (want.email) result.email = await this.toEmail(userId, user, type, content, result.push > 0);

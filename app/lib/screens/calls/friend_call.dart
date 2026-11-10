@@ -13,7 +13,6 @@ import '../../core/util/format.dart';
 import '../../models/models.dart';
 import '../../providers/match_provider.dart';
 import '../../providers/social_provider.dart';
-import '../../services/calls/call_audio.dart';
 import '../match/call_states.dart';
 import '../match/icebreakers.dart';
 import 'auto_hide.dart';
@@ -265,7 +264,7 @@ class _FriendVoiceCallState extends State<FriendVoiceCall> {
                     runSpacing: 22,
                     children: [
                       cell(CallCtl(icon: m.micOn ? Icons.mic_rounded : Icons.mic_off_rounded, label: m.micOn ? 'Mute' : 'Unmute', on: !m.micOn, onTap: m.toggleMic)),
-                      cell(AudioRouteButton(audio: m.audio)),
+                      cell(CallCtl(icon: SolarIconsBold.soundwave, label: 'Speaker', on: m.speakerOn, onTap: m.toggleSpeaker)),
                       cell(
                         videoAllowed
                             ? CallCtl(
@@ -474,17 +473,7 @@ Future<void> showCallTools(BuildContext context, MatchProvider m, FriendCallActi
               child: Divider(height: 1, color: V.lineSoft),
             ),
             if (!m.voiceCall) row(ctx, SolarIconsBold.phone, 'Switch to voice only', 'Both cameras turn off', () => run(ctx, () => m.switchToVoice())),
-            Builder(builder: (_) {
-              final o = m.audio.current;
-              final where = o?.label ?? 'Speaker';
-              return row(
-                ctx,
-                audioIcon(o?.route ?? AudioRoute.speaker),
-                'Sound: $where',
-                m.audio.hasHeadphones ? 'Tap to choose where it plays' : (m.audio.onSpeaker ? 'Tap for the phone earpiece' : 'Tap for the speaker'),
-                () => m.audio.hasHeadphones ? showAudioPicker(ctx, m.audio) : m.audio.toggle(),
-              );
-            }),
+            row(ctx, SolarIconsBold.soundwave, 'Speaker', m.speakerOn ? 'On · tap for the phone earpiece' : 'Phone earpiece · tap for the speaker', m.toggleSpeaker),
             row(ctx, SolarIconsBold.flag, 'Report ${_first(p)}', 'The call ends and our team takes a look', () => run(ctx, actions.report), bad: true),
           ],
         ),
@@ -522,109 +511,4 @@ class _PartnerVideo extends StatelessWidget {
       ),
     );
   }
-}
-
-/// The icon for where a call's sound plays: an ear (the phone's earpiece), a
-/// speaker, Bluetooth, or headphones.
-IconData audioIcon(AudioRoute r) => switch (r) {
-  AudioRoute.earpiece => Icons.hearing_rounded,
-  AudioRoute.speaker => Icons.volume_up_rounded,
-  AudioRoute.bluetooth => Icons.bluetooth_audio_rounded,
-  AudioRoute.wired => Icons.headphones_rounded,
-};
-
-/// Where the sound plays, as one call button: "Phone" with an ear, "Speaker"
-/// (white while on), or the headphones' name. One tap switches earpiece ⇄
-/// speaker; with headphones or Bluetooth around (the small ⌄) it opens the list.
-class AudioRouteButton extends StatelessWidget {
-  const AudioRouteButton({super.key, required this.audio});
-  final CallAudio audio;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: audio,
-      builder: (context, _) {
-        final o = audio.current;
-        final label = o?.label ?? 'Phone';
-        final list = audio.hasHeadphones;
-        return CallCtl(
-          icon: audioIcon(o?.route ?? AudioRoute.earpiece),
-          label: label,
-          on: audio.onSpeaker,
-          semantics: list ? 'Sound plays through $label. Choose where' : (audio.onSpeaker ? 'Speaker on. Tap for the phone earpiece' : 'Sound on the phone earpiece. Tap for the speaker'),
-          badge: list
-              ? Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(color: V.surface3, shape: BoxShape.circle, border: Border.all(color: V.bg2, width: 2)),
-                  child: const Icon(Icons.expand_more_rounded, size: 15, color: Colors.white),
-                )
-              : null,
-          onTap: () => list ? showAudioPicker(context, audio) : audio.toggle(),
-        );
-      },
-    );
-  }
-}
-
-/// "Play the call through": the phone, the speaker, and any headphones or Bluetooth.
-Future<void> showAudioPicker(BuildContext context, CallAudio audio) {
-  return showVibeSheet(
-    context,
-    child: ListenableBuilder(
-      listenable: audio,
-      builder: (ctx, _) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 8),
-              child: Text('Play the call through', style: VT.title(18, weight: FontWeight.w700)),
-            ),
-            for (final o in audio.outputs)
-              Semantics(
-                button: true,
-                selected: audio.current == o,
-                child: InkWell(
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    unawaited(audio.choose(o));
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 11),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: audio.current == o ? V.pink.withValues(alpha: 0.16) : Colors.white.withValues(alpha: 0.06),
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          child: Icon(audioIcon(o.route), size: 22, color: audio.current == o ? V.pinkSoft : V.text2),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(o.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(15, color: V.text, weight: FontWeight.w600)),
-                              Text(o.detail, style: VT.body(12, color: V.text2)),
-                            ],
-                          ),
-                        ),
-                        if (audio.current == o) const Icon(Icons.check_rounded, size: 22, color: V.pinkSoft),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    ),
-  );
 }

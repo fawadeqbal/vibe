@@ -482,23 +482,6 @@ describe('engagement', () => {
       expect((await t.http.patch('/v1/me').set(u.auth).send({ breakReminderMinutes: null, quietHoursStart: null }).expect(200)).body).toMatchObject({ breakReminderMinutes: null, quietHoursStart: null, quietHoursEnd: 420 });
     });
 
-    it('a silent push (stop ringing) only goes to Android apps that ring full screen', async () => {
-      const u = await signUp(t, { name: 'Ring' });
-      const token = async (platform: string, appVersion?: string) => {
-        const tk = `fcm-${randomUUID()}`;
-        await t.http.post('/v1/me/push-tokens').set(u.auth).send({ token: tk, platform, ...(appVersion ? { appVersion } : {}) }).expect(200);
-        return tk;
-      };
-      const fresh = await token('android', '0.3.0');
-      const old = await token('android', '0.1.0');
-      const ios = await token('ios', '0.3.0');
-      const web = await token('web');
-      const push = t.app.get(PushService);
-      expect(await push.sendToUser(u.id, { title: 'Call ended', body: '', data: { open: 'call_stop', callId: 'c1' }, category: 'messages', urgent: true, dataOnly: true, silent: true })).toBe(1);
-      expect(pushesTo(fresh)).toHaveLength(1);
-      for (const tk of [old, ios, web]) expect(pushesTo(tk)).toEqual([]);
-    });
-
     it('quiet hours hold back social/engagement/inbox pushes, never messages; reminders are capped per day', async () => {
       const q = await signUp(t, { name: 'Quiet' });
       const other = await signUp(t, { name: 'Sana' });
