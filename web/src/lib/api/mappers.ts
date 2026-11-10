@@ -28,6 +28,7 @@ import type {
   StreakView,
   TeamMessage,
   Transaction,
+  TransactionDetail,
   TxKind,
   VibeHour,
   Wallet,
@@ -117,6 +118,19 @@ export function transaction(m: Json): Transaction {
     at: date(m.at) ?? new Date(),
     method: paymentMethodFromApi(m.method),
     receipt: optStr(m.receipt),
+    purchaseId: optStr(m.purchaseId),
+    cashoutId: optStr(m.cashoutId),
+    giftTransferId: optStr(m.giftTransferId),
+  };
+}
+
+export function transactionDetail(m: Json): TransactionDetail {
+  const g = m.gift && typeof m.gift === "object" ? asMap(m.gift) : null;
+  return {
+    ...transaction(m),
+    balanceCoins: int(m.balanceCoins),
+    balanceGems: int(m.balanceGems),
+    gift: g ? { name: str(g.name), emoji: str(g.emoji), coins: int(g.coins), gems: int(g.gems), sent: g.sent === true, person: g.person && typeof g.person === "object" ? profile(asMap(g.person)) : null } : null,
   };
 }
 

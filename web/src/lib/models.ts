@@ -136,6 +136,17 @@ export interface Transaction {
   at: Date;
   method?: PaymentMethod | null;
   receipt?: string | null;
+  /** The record it's about (opens its own page): a purchase receipt, a cash-out, a gift. */
+  purchaseId?: string | null;
+  cashoutId?: string | null;
+  giftTransferId?: string | null;
+}
+
+/** GET /wallet/transactions/:id: the entry, balances after it, and for a gift what and who. */
+export interface TransactionDetail extends Transaction {
+  balanceCoins: number;
+  balanceGems: number;
+  gift: { name: string; emoji: string; coins: number; gems: number; sent: boolean; person: Profile | null } | null;
 }
 
 export interface Wallet {

@@ -12,6 +12,7 @@ import '../../providers/session_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../profile/verification_flow.dart';
 import 'payout_account_form.dart';
+import 'wallet_history.dart';
 
 /// Gems → money: saved payout accounts, the request, and its history.
 /// Status changes arrive live (`cashout:updated`).
@@ -259,8 +260,14 @@ class _CashoutScreenState extends State<CashoutScreen> {
             ),
           ],
           if (wallet.cashouts.isNotEmpty) ...[
-            const SectionTitle('Cash-outs', bottom: 10),
-            GroupCard(children: [for (final c in wallet.cashouts) _cashoutRow(c)]),
+            // The latest few; See all has every one, a page at a time.
+            SectionTitle(
+              'Cash-outs',
+              action: wallet.cashouts.length > previewCount ? 'See all' : null,
+              onAction: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CashoutsScreen())),
+              bottom: 10,
+            ),
+            GroupCard(children: [for (final c in wallet.cashouts.take(previewCount)) CashoutRow(c: c)]),
           ],
           const SectionTitle('How gems work', bottom: 10),
           GroupCard(
@@ -329,24 +336,6 @@ class _CashoutScreenState extends State<CashoutScreen> {
     );
   }
 
-  Widget _cashoutRow(Cashout c) {
-    final color = switch (c.status) {
-      CashoutStatus.paid => V.ok,
-      CashoutStatus.rejected => V.bad,
-      CashoutStatus.review => V.warn,
-      _ => V.gem,
-    };
-    final sub = '${c.createdAt != null ? '${Fmt.date(c.createdAt!)} · ' : ''}${Fmt.thousands(c.gems)} gems · ${c.accountMasked}'
-        '${c.status == CashoutStatus.rejected && c.failureReason != null ? '\n${c.failureReason}' : ''}';
-    return GroupRow(
-      icon: SolarIconsBold.banknote,
-      iconColor: V.gem,
-      iconBg: V.gem.withValues(alpha: 0.13),
-      title: '${_money(c)} to ${c.method.label}',
-      subtitle: sub,
-      trailing: Tag(c.status.label, color: color),
-    );
-  }
 
 
 }

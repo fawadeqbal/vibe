@@ -86,6 +86,25 @@ class ApiMap {
     PaymentMethod.bank => 'BANK',
   };
 
+  static TransactionDetail transactionDetail(Map<String, dynamic> m) {
+    final g = m['gift'] is Map ? Map<String, dynamic>.from(m['gift'] as Map) : null;
+    return TransactionDetail(
+      tx: transaction(m),
+      balanceCoins: i(m['balanceCoins']),
+      balanceGems: i(m['balanceGems']),
+      gift: g == null
+          ? null
+          : GiftInfo(
+              name: g['name'] as String? ?? 'Gift',
+              emoji: g['emoji'] as String? ?? '🎁',
+              coins: i(g['coins']),
+              gems: i(g['gems']),
+              sent: g['sent'] == true,
+              person: g['person'] is Map ? profile(Map<String, dynamic>.from(g['person'] as Map)) : null,
+            ),
+    );
+  }
+
   static Transaction transaction(Map<String, dynamic> m) => Transaction(
     id: m['id'] as String,
     kind: switch (m['kind']) {
@@ -103,6 +122,9 @@ class ApiMap {
     at: date(m['at']) ?? DateTime.now(),
     method: method(m['method']),
     receipt: m['receipt'] as String?,
+    purchaseId: m['purchaseId'] as String?,
+    cashoutId: m['cashoutId'] as String?,
+    giftTransferId: m['giftTransferId'] as String?,
   );
 
   static Gift? gift(Object? id) {

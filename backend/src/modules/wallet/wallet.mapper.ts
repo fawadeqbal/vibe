@@ -72,6 +72,21 @@ export function toWalletView(w: WalletRow, clock: Clock, rules: Rules): WalletVi
 }
 
 /** Ledger row → the app's Transaction shape. */
+/**
+ * The record an entry is about, for its detail page: the purchase (receipt),
+ * the cash-out (status), or the gift (who and what). Older gift entries have
+ * no link; their page shows the entry alone.
+ */
+export function transactionLinks(e: Pick<LedgerEntry, 'kind' | 'reference' | 'idempotencyKey' | 'usdCents' | 'title'>): { purchaseId: string | null; cashoutId: string | null; giftTransferId: string | null } {
+  const ref = e.reference ?? null;
+  const fromKey = e.idempotencyKey?.startsWith('purchase:') ? e.idempotencyKey.slice('purchase:'.length) : null;
+  return {
+    purchaseId: e.kind === 'PURCHASE' ? fromKey : e.kind === 'REFUND' || (e.kind === 'VIP' && e.usdCents > 0) ? ref : null,
+    cashoutId: e.kind === 'CASHOUT' || e.kind === 'CASHOUT_REVERSAL' ? ref : null,
+    giftTransferId: e.kind === 'GIFT_SENT' || e.kind === 'GIFT_RECEIVED' || (e.kind === 'EARN' && e.title.startsWith('Vibe Hour bonus')) ? ref : null,
+  };
+}
+
 export function toTransactionView(e: LedgerEntry) {
   const kind = {
     PURCHASE: 'purchase',
@@ -96,5 +111,6 @@ export function toTransactionView(e: LedgerEntry) {
     method: e.method,
     receipt: e.reference,
     at: e.createdAt.toISOString(),
+    ...transactionLinks(e),
   };
 }

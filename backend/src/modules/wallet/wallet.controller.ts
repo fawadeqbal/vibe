@@ -7,7 +7,7 @@ import { Idempotent } from '../../common/decorators/idempotent.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CursorQueryDto } from '../../common/dto/pagination.dto';
 import { CashoutService } from './cashout.service';
-import { AdPlatformDto, AdRewardDto, CashoutDto, PayoutAccountDto } from './dto/wallet.dto';
+import { AdPlatformDto, AdRewardDto, CashoutDto, PayoutAccountDto, TransactionsQueryDto } from './dto/wallet.dto';
 import { PayoutAccountsService } from './payouts/payout-accounts.service';
 import { PayoutGateway } from './payouts/payout-gateway.service';
 import { AdMobProvider } from './ads/admob.provider';
@@ -38,8 +38,15 @@ export class WalletController {
   }
 
   @Get('transactions')
-  transactions(@CurrentUser('id') userId: string, @Query() q: CursorQueryDto) {
+  @ApiOperation({ summary: 'Your history, newest first, a page at a time (currency=coins|gems to keep one kind)' })
+  transactions(@CurrentUser('id') userId: string, @Query() q: TransactionsQueryDto) {
     return this.wallet.transactions(userId, q);
+  }
+
+  @Get('transactions/:id')
+  @ApiOperation({ summary: 'One history entry: amounts, balances after it, and for a gift what it was and who with' })
+  transaction(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.wallet.transaction(userId, id);
   }
 
   @Post('check-in')
@@ -98,6 +105,12 @@ export class WalletController {
   @Get('cashouts')
   listCashouts(@CurrentUser('id') userId: string) {
     return this.cashouts.list(userId);
+  }
+
+  @Get('cashout-history')
+  @ApiOperation({ summary: 'Every cash-out, newest first, a page at a time' })
+  cashoutPage(@CurrentUser('id') userId: string, @Query() q: CursorQueryDto) {
+    return this.cashouts.page(userId, q);
   }
 
   @Get('cashouts/:id')

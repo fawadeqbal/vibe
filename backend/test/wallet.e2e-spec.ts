@@ -113,4 +113,54 @@ describe('wallet, payments and VIP', () => {
     const sum = tx.body.items.reduce((a: number, i: { coins: number }) => a + i.coins, 0);
     expect(sum).toBe((await t.http.get('/v1/wallet').set(u.auth)).body.coins);
   });
+
+  it('history pages, filters by coins or gems on the server, and each line opens its record', async () => {
+    const a = await signUp(t, { name: 'Ayesha' });
+    const b = await signUp(t, { name: 'Bilal' });
+    const [low, high] = [a.id, b.id].sort();
+    await t.prisma.friendship.create({ data: { userLowId: low, userHighId: high, requesterId: a.id, status: 'ACCEPTED', acceptedAt: new Date() } });
+    const p = await buy(a.auth, { productType: 'COIN_PACK', productId: 'pro', method: 'GOOGLE_PLAY', receipt: `gp-${randomUUID()}` }).expect(201);
+    await t.http.post(`/v1/friends/${b.id}/gifts`).set(a.auth).send({ giftId: 'rose' }).expect(201);
+    await t.http.post('/v1/wallet/check-in').set(a.auth).expect(200);
+
+    const all = (await t.http.get('/v1/wallet/transactions?limit=2').set(a.auth).expect(200)).body;
+    expect(all.items).toHaveLength(2);
+    expect(all.nextCursor).toBeTruthy();
+    const rest = (await t.http.get(`/v1/wallet/transactions?limit=10&cursor=${all.nextCursor}`).set(a.auth).expect(200)).body;
+    const items = [...all.items, ...rest.items] as { id: string; kind: string; ledgerKind: string; coins: number; gems: number; purchaseId: string | null; giftTransferId: string | null }[];
+    expect(items.map((i) => i.ledgerKind)).toEqual(['EARN', 'GIFT_SENT', 'PURCHASE', 'EARN']);
+    expect(items.find((i) => i.ledgerKind === 'PURCHASE')?.purchaseId).toBe(p.body.id);
+
+    // The gift opens with what it was and who it went to.
+    const sentLine = items.find((i) => i.ledgerKind === 'GIFT_SENT')!;
+    const sent = (await t.http.get(`/v1/wallet/transactions/${sentLine.id}`).set(a.auth).expect(200)).body;
+    expect(sent).toMatchObject({ id: sentLine.id,  gift: { name: 'Rose', sent: true, person: { id: b.id, name: 'Bilal' } } });
+    expect(typeof sent.balanceCoins).toBe('number');
+    // …and on Bilal's side, the same gift with Ayesha.
+    const got = (await t.http.get('/v1/wallet/transactions?currency=gems').set(b.auth).expect(200)).body.items as { id: string; gems: number }[];
+    expect(got.length).toBeGreaterThan(0);
+    expect(got.every((i) => i.gems !== 0)).toBe(true);
+    const gotOne = (await t.http.get(`/v1/wallet/transactions/${got[0].id}`).set(b.auth).expect(200)).body;
+    expect(gotOne.gift).toMatchObject({ sent: false, person: { id: a.id } });
+    // Coins only: no gem lines.
+    const coins = (await t.http.get('/v1/wallet/transactions?currency=coins').set(b.auth).expect(200)).body.items as { coins: number }[];
+    expect(coins.every((i) => i.coins !== 0)).toBe(true);
+    // Not yours: not found.
+    await t.http.get(`/v1/wallet/transactions/${sentLine.id}`).set(b.auth).expect(404);
+  });
+
+  it('cash-outs page through, newest first', async () => {
+    const u = await signUp(t);
+    await t.prisma.wallet.update({ where: { userId: u.id }, data: { gems: 20000 } });
+    for (let i = 0; i < 3; i++) await t.http.post('/v1/wallet/cashouts').set(u.auth).set('Idempotency-Key', randomUUID()).send({ gems: 5000, method: 'EASYPAISA', account: '03001234567' }).expect(201);
+    const p1 = (await t.http.get('/v1/wallet/cashout-history?limit=2').set(u.auth).expect(200)).body;
+    expect(p1.items).toHaveLength(2);
+    const p2 = (await t.http.get(`/v1/wallet/cashout-history?limit=2&cursor=${p1.nextCursor}`).set(u.auth).expect(200)).body;
+    expect(p2).toMatchObject({ nextCursor: null });
+    expect(p2.items).toHaveLength(1);
+    const ids = [...p1.items, ...p2.items].map((c: { id: string }) => c.id);
+    expect(new Set(ids).size).toBe(3);
+    // The old list still answers (older apps).
+    expect((await t.http.get('/v1/wallet/cashouts').set(u.auth).expect(200)).body).toHaveLength(3);
+  });
 });
