@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { type KeyboardEvent, useState } from "react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { GlassPill } from "@/components/ui/glass";
@@ -22,11 +23,12 @@ import {
   EndCallButton,
   PulseAvatar,
   RemoteAudio,
-  SelfPreview,
+  SelfVideo,
   useSpeaker,
   useVoiceLevel,
   VoiceBars,
 } from "./call-ui";
+import { usePip } from "./pip";
 
 export interface FriendCallActions {
   gift: () => void;
@@ -55,18 +57,35 @@ export function FriendVideoCall({ actions }: { actions: FriendCallActions }) {
   const m = useMatch();
   const shrink = useShrink();
   const p = m.partner!;
+  // Tap the small picture to swap it with the big one; drag it to any corner.
+  const [swapped, setSwapped] = useState(false);
+  const { corner, style: pipStyle, handlers: pipHandlers, probe } = usePip(() => setSwapped((x) => !x));
+  const tile = "absolute z-[15] cursor-grab touch-none overflow-hidden rounded-[18px] border-2 border-white/22 bg-surface2 shadow-[0_8px_24px_rgb(0_0_0/.4)] select-none active:cursor-grabbing";
+  const tileProps = { ...pipHandlers, style: pipStyle, role: "button", tabIndex: 0, onKeyDown: (e: KeyboardEvent) => (e.key === "Enter" || e.key === " ") && setSwapped((x) => !x) };
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0" style={m.partnerBlur ? { filter: "blur(24px)", transform: "scale(1.08)" } : undefined}>
-        <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn} />
+      <span ref={probe} aria-hidden className="pointer-events-none invisible absolute inset-x-0 top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)]" />
+      {/* The same two pictures stay mounted (no flicker, their sound keeps playing); a swap only changes which is big. */}
+      <div
+        className={swapped ? tile : "absolute inset-0"}
+        {...(swapped ? { ...tileProps, "aria-label": `Show ${firstName(p)} big` } : { style: m.partnerBlur ? { filter: "blur(24px)", transform: "scale(1.08)" } : undefined })}
+      >
+        <div className="absolute inset-0" style={swapped && m.partnerBlur ? { filter: "blur(10px)" } : undefined}>
+          <PartnerStage partner={p} remote={m.remoteStream} blurred={m.blurred} camOff={!m.partnerCamOn} />
+        </div>
+      </div>
+      <div className={swapped ? "absolute inset-0" : tile} {...(swapped ? {} : { ...tileProps, "aria-label": "Show yourself big" })}>
+        <SelfVideo big={swapped} />
       </div>
       <div
         className="pointer-events-none absolute inset-0"
         style={{ background: "linear-gradient(to bottom, rgb(11 10 16 / .6), transparent 170px, transparent calc(100% - 260px), rgb(11 10 16 / .75))" }}
       />
       <CallTopline title={p.name} verified={p.verified} sub={`${clock(m.elapsed)} · video call`} onShrink={() => shrink(p)} />
-      <SelfPreview />
-      <div className="absolute left-3 flex flex-col items-start gap-2" style={{ top: "calc(78px + env(safe-area-inset-top))", right: 124 }}>
+      <div
+        className="absolute flex flex-col items-start gap-2"
+        style={{ top: "calc(78px + env(safe-area-inset-top))", left: corner === "tl" ? 124 : 12, right: corner === "tr" ? 124 : 12 }}
+      >
         {m.partnerBlur ? <GlassPill label={`${firstName(p)} turned on Blur me`} icon="blur_on" iconColor="trust" height={30} fontSize={12} /> : null}
         <PartnerMediaPills name={firstName(p)} />
       </div>

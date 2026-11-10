@@ -289,45 +289,146 @@ class SelfPreview extends StatelessWidget {
   const SelfPreview({super.key});
 
   @override
+  Widget build(BuildContext context) => const PipFrame(child: SelfVideo());
+}
+
+/// The small picture's frame: rounded, a light border and a shadow.
+class PipFrame extends StatelessWidget {
+  const PipFrame({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: pipWidth,
+        height: pipHeight,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 2),
+          color: V.surface2,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 24, offset: const Offset(0, 8))],
+        ),
+        child: child,
+      );
+}
+
+/// Your camera filling its box (the corner tile, or the whole screen after a swap).
+class SelfVideo extends StatelessWidget {
+  const SelfVideo({super.key, this.big = false});
+  final bool big;
+
+  @override
   Widget build(BuildContext context) {
     final m = context.watch<MatchProvider>();
-    return Container(
-      width: 100,
-      height: 140,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 2),
-        color: V.surface2,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 24, offset: const Offset(0, 8))],
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (m.hasLocalVideo && m.camOn && !m.voiceCall)
-            RTCVideoView(m.localRenderer, mirror: m.frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-          else
-            const Center(child: Icon(Icons.videocam_off_rounded, color: V.muted)),
-          if (m.blurMe) ...[
-            BackdropFilter(filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12), child: const SizedBox.expand()),
-            Positioned(
-              left: 6,
-              right: 6,
-              bottom: 6,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (m.hasLocalVideo && m.camOn && !m.voiceCall)
+          RTCVideoView(m.localRenderer, mirror: m.frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
+        else
+          ColoredBox(color: V.surface2, child: Center(child: Icon(Icons.videocam_off_rounded, color: V.muted, size: big ? 40 : 24))),
+        if (m.blurMe) ...[
+          BackdropFilter(filter: ImageFilter.blur(sigmaX: big ? 24 : 12, sigmaY: big ? 24 : 12), child: const SizedBox.expand()),
+          Positioned(
+            left: big ? null : 6,
+            right: big ? null : 6,
+            bottom: big ? MediaQuery.paddingOf(context).bottom + 150 : 6,
+            child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 2),
+                padding: EdgeInsets.symmetric(vertical: 2, horizontal: big ? 12 : 0),
                 decoration: BoxDecoration(color: V.bg2.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(999)),
-                child: Text(
-                  'Blurred',
-                  textAlign: TextAlign.center,
-                  style: VT.label(10.5, color: V.trust),
-                ),
+                child: Text('Blurred', textAlign: TextAlign.center, style: VT.label(big ? 12.5 : 10.5, color: V.trust)),
               ),
             ),
-          ],
+          ),
         ],
-      ),
+      ],
     );
+  }
+}
+
+const double pipWidth = 100;
+const double pipHeight = 140;
+
+enum PipCorner { tl, tr, bl, br }
+
+/// Where the small picture sits in each corner of a [size] screen, clear of
+/// the header ([top]) and the controls ([bottom]), safe areas included.
+Offset pipPoint(PipCorner c, Size size, EdgeInsets pad, {double top = 78, double bottom = 132, double margin = 12}) {
+  final left = c == PipCorner.tl || c == PipCorner.bl;
+  final upper = c == PipCorner.tl || c == PipCorner.tr;
+  final x = left ? margin : (size.width - pipWidth - margin).clamp(margin, double.infinity);
+  final y = upper ? top + pad.top : (size.height - pipHeight - bottom - pad.bottom).clamp(top + pad.top, double.infinity);
+  return Offset(x.toDouble(), y.toDouble());
+}
+
+/// The corner nearest to where it was let go.
+PipCorner pipNearest(Offset at, Size size) {
+  final left = at.dx + pipWidth / 2 < size.width / 2;
+  final upper = at.dy + pipHeight / 2 < size.height / 2;
+  return upper ? (left ? PipCorner.tl : PipCorner.tr) : (left ? PipCorner.bl : PipCorner.br);
+}
+
+/// The small picture in a video call, like WhatsApp: drag it anywhere and it
+/// snaps to the nearest corner; tap it to swap it with the big picture.
+/// Fill the screen with it (it only takes touches on the tile itself).
+class PipLayer extends StatefulWidget {
+  const PipLayer({super.key, required this.child, required this.onTap, this.onCorner, this.label = 'Swap pictures'});
+  final Widget child;
+  final VoidCallback onTap;
+  final ValueChanged<PipCorner>? onCorner;
+  final String label;
+
+  @override
+  State<PipLayer> createState() => _PipLayerState();
+}
+
+class _PipLayerState extends State<PipLayer> {
+  PipCorner _corner = PipCorner.tr;
+  Offset? _drag;
+
+  @override
+  Widget build(BuildContext context) {
+    final pad = MediaQuery.paddingOf(context);
+    return LayoutBuilder(builder: (context, box) {
+      final size = box.biggest;
+      final pos = _drag ?? pipPoint(_corner, size, pad);
+      return Stack(
+        children: [
+          AnimatedPositioned(
+            duration: _drag == null ? const Duration(milliseconds: 220) : Duration.zero,
+            curve: Curves.easeOutCubic,
+            left: pos.dx,
+            top: pos.dy,
+            width: pipWidth,
+            height: pipHeight,
+            child: Semantics(
+              button: true,
+              label: widget.label,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onTap,
+                onPanStart: (_) => setState(() => _drag = pos),
+                onPanUpdate: (d) => setState(() {
+                  final p = (_drag ?? pos) + d.delta;
+                  _drag = Offset(p.dx.clamp(0, size.width - pipWidth), p.dy.clamp(0, size.height - pipHeight));
+                }),
+                onPanEnd: (_) {
+                  final c = pipNearest(_drag ?? pos, size);
+                  setState(() {
+                    _corner = c;
+                    _drag = null;
+                  });
+                  widget.onCorner?.call(c);
+                },
+                onPanCancel: () => setState(() => _drag = null),
+                child: PipFrame(child: widget.child),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
   }
 }
 
