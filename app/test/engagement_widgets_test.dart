@@ -140,6 +140,23 @@ void main() {
     await finish(t, h);
   });
 
+  testWidgets('chats: every row keeps its time in one place at the right edge, whatever the name and streak', (t) async {
+    final now = DateTime.now();
+    final h = await pump(
+      t,
+      (h) => ChatsScreen(onFindPeople: () {}),
+      friends: [
+        Friend(profile: _p('f1', 'Meray'), state: FriendState.friends, since: now, lastMessage: 'a very long message that has to be cut off before the edge of the row', lastMessageAt: now.subtract(const Duration(minutes: 3)), streak: const StreakView(count: 2, best: 2, today: true)),
+        Friend(profile: _p('f2', 'Ibadkhan'), state: FriendState.friends, since: now, lastMessage: 'ok', lastMessageAt: now.subtract(const Duration(minutes: 5)), streak: const StreakView(count: 1, best: 1, today: true)),
+        Friend(profile: _p('f3', 'Mughal007 with a long name'), state: FriendState.friends, since: now, lastMessage: 'Hi', lastMessageAt: now.subtract(const Duration(hours: 7)), unread: 3),
+        Friend(profile: _p('f4', 'Al'), state: FriendState.friends, since: now, lastMessage: 'sai', lastMessageAt: now.subtract(const Duration(minutes: 54))),
+      ],
+    );
+    final edges = [for (final id in ['f1', 'f2', 'f3', 'f4']) t.getTopRight(find.byKey(ValueKey('time-$id'))).dx];
+    expect(edges.toSet(), hasLength(1), reason: 'times right-aligned in one column: $edges');
+    await finish(t, h);
+  });
+
   testWidgets('chats: streak chips on rows; a broken streak restores for coins', (t) async {
     final now = DateTime.now();
     final h = await pump(

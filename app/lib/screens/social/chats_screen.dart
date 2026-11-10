@@ -420,23 +420,35 @@ class _ChatRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Name, tick and streak on the left; the time always in the same place, at the right edge.
                     Row(
                       children: [
-                        Flexible(child: Text(f.profile.name, style: VT.title(15.5, weight: unread ? FontWeight.w700 : FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                        if (f.profile.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.verifiedCheck, size: 15, color: V.trust)),
-                        if (f.streak.count > 0) Padding(padding: const EdgeInsets.only(left: 6), child: _StreakPill(f.streak)),
-                        const Spacer(),
-                        Text(Fmt.agoShort(at), style: VT.number(12, color: unread ? V.pinkSoft : V.muted, weight: unread ? FontWeight.w600 : FontWeight.w500)),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(child: Text(f.profile.name, style: VT.title(15.5, weight: unread ? FontWeight.w700 : FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                              if (f.profile.verified) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(SolarIconsBold.verifiedCheck, size: 15, color: V.trust)),
+                              if (f.streak.count > 0) Padding(padding: const EdgeInsets.only(left: 6), child: _StreakPill(f.streak)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(Fmt.agoShort(at), key: ValueKey('time-${f.profile.id}'), textAlign: TextAlign.right, style: VT.number(12, color: unread ? V.pinkSoft : V.muted, weight: unread ? FontWeight.w600 : FontWeight.w500)),
                       ],
                     ),
                     const SizedBox(height: 3),
                     Row(
                       children: [
-                        if (f.streak.restorable) ...[
-                          Flexible(child: Text('Streak lost · ', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(13.5, color: V.muted))),
-                          RestoreStreakButton(friend: f),
-                          const Spacer(),
-                        ] else ...[
+                        if (f.streak.restorable)
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(child: Text('Streak lost · ', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(13.5, color: V.muted))),
+                                RestoreStreakButton(friend: f),
+                              ],
+                            ),
+                          )
+                        else ...[
                           if (!typing && p.ticks != null) ...[
                             Ticks(switch (p.ticks!) {
                               PreviewTicks.seen => MessageStatus.seen,
