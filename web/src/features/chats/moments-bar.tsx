@@ -30,7 +30,7 @@ export function MomentsBar() {
   const reels: Reel[] = people.map((g) => ({ author: g.author, moments: g.moments, own: false }));
 
   return (
-    <div className="no-scrollbar -mx-5 flex gap-3.5 overflow-x-auto px-5 pt-1 pb-3" role="list" aria-label="Moments">
+    <div className="no-scrollbar -mx-4 flex gap-3.5 overflow-x-auto px-4 pt-1 pb-3" role="list" aria-label="Moments">
       <div role="listitem" className="flex w-[76px] shrink-0 flex-col items-center">
         <span className="relative">
           <button type="button" aria-label={mine.length ? "View your moments" : "Add a moment"} onClick={() => (mine.length ? openMomentViewer([ownReel], 0) : void openMomentComposer())}>
