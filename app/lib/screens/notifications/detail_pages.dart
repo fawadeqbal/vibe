@@ -357,6 +357,113 @@ class PaymentReceiptScreen extends StatelessWidget {
   }
 }
 
+// ── A history line (gift, reward, spend) ─────────────────────────────────
+
+/// A wallet history line that isn't a purchase or a cash-out (those open
+/// their receipt and status pages): a gift with who it was with, a reward,
+/// a spend, with your balances after it.
+class TransactionDetailScreen extends StatelessWidget {
+  const TransactionDetailScreen({super.key, required this.id});
+  final String id;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Loader<TransactionDetail>(
+      key: ValueKey(id),
+      title: 'Details',
+      what: 'item',
+      load: () => context.read<WalletProvider>().transactionDetail(id),
+      builder: (context, d, _) {
+        final t = d.tx;
+        final gift = d.gift;
+        final person = gift?.person;
+        final gems = t.coins == 0 && t.gems != 0;
+        final v = gems ? t.gems : t.coins;
+        final (icon, color) = switch (t.kind) {
+          TxKind.purchase => (SolarIconsBold.bagSmile, V.gold),
+          TxKind.spend => (SolarIconsBold.bolt, V.gold),
+          TxKind.earn => (SolarIconsBold.playCircle, V.pinkSoft),
+          TxKind.gift => (SolarIconsBold.gift, V.gem),
+          TxKind.cashout => (SolarIconsBold.banknote, V.gem),
+          TxKind.vip => (SolarIconsBold.crown, V.gold),
+        };
+        return _DetailPage(
+          title: gift != null ? 'Gift' : 'Details',
+          actions: [
+            if (person != null) GradientButton(label: 'Message ${person.name.split(' ').first}', icon: SolarIconsBold.chatRoundDots, onTap: () => _push(context, ChatScreen(friendId: person.id))),
+            GhostButton(label: 'Something wrong? Get help', icon: SolarIconsOutline.headphonesRound, height: 48, expand: true, onTap: () => _push(context, const HelpSectionScreen())),
+          ],
+          children: [
+            const SizedBox(height: 16),
+            Center(
+              child: Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withValues(alpha: 0.06), spreadRadius: 8)]),
+                alignment: Alignment.center,
+                child: gift != null ? Text(gift.emoji, style: const TextStyle(fontSize: 38)) : Icon(icon, size: 36, color: color),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: '${v > 0 ? '+' : (v < 0 ? '−' : '')}${Fmt.thousands(v.abs())} '),
+                  TextSpan(text: gems ? 'gems' : 'coins', style: VT.body(16, color: V.text2)),
+                ]),
+                style: VT.number(38),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Center(child: Text(t.title, textAlign: TextAlign.center, style: VT.body(14, color: V.text2))),
+            if (gift != null) ...[
+              Padding(padding: const EdgeInsets.fromLTRB(4, 22, 4, 8), child: Text(gift.sent ? 'SENT TO' : 'FROM', style: VT.overline())),
+              GroupCard(
+                children: [
+                  InkWell(
+                    onTap: person == null ? null : () => _push(context, UserProfileScreen(userId: person.id)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          if (person != null) VAvatar(url: person.avatarUrl, name: person.name, size: 44, gapColor: V.surface) else const Icon(SolarIconsOutline.userCross, color: V.muted, size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(person?.name ?? 'Not on Vibe any more', maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.title(15)),
+                                Text(
+                                  '${gift.name} · ${Fmt.thousands(gift.coins)} coins${gift.sent ? '' : ' · you got ${Fmt.thousands(gift.gems)} gems'}',
+                                  style: VT.body(12.5, color: V.text2),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (person != null) const Icon(SolarIconsOutline.altArrowRight, color: V.muted, size: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            Padding(padding: const EdgeInsets.fromLTRB(4, 22, 4, 8), child: Text('DETAILS', style: VT.overline())),
+            _keyValues([
+              ('When', _text(_stamp(t.at))),
+              if (t.method != null) ('Paid with', _text(t.method!.label)),
+              if (t.usd > 0) ('Amount', _text(Fmt.usdCompact(t.usd))),
+              ('Coins after', _text(Fmt.thousands(d.balanceCoins))),
+              ('Gems after', _text(Fmt.thousands(d.balanceGems))),
+              ('Reference', _Copy(t.receipt != null && t.giftTransferId == null ? t.receipt! : t.id.substring(t.id.length > 8 ? t.id.length - 8 : 0).toUpperCase())),
+            ]),
+          ],
+        );
+      },
+    );
+  }
+}
+
 // ── Cash-out ─────────────────────────────────────────────────────────────
 
 /// A cash-out: how much, where to, and where it is now.

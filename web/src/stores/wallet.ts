@@ -140,7 +140,8 @@ export const useWallet = create<WalletState>()((set, get) => {
 
     async refresh() {
       try {
-        const page = asMap(await api.get("/wallet/transactions", { limit: 50 }));
+        // The Wallet page shows the latest 5 (one more says there are more); History pages through the rest.
+        const page = asMap(await api.get("/wallet/transactions", { limit: 6 }));
         // Newest first, as the API sends it.
         set({ transactions: asList(page.items).map((e) => transaction(asMap(e))) });
       } catch {}
