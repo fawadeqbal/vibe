@@ -70,9 +70,23 @@ describe("notificationPath", () => {
     expect(notificationPath({ route: "inbox" })).toBe("/chats/inbox");
     expect(notificationPath({ route: "chat", friendId: "u2" })).toBe("/chats/u2");
     expect(notificationPath({ route: "profile", userId: "u3" })).toBe("/u/u3");
-    expect(notificationPath({ route: "follow-requests", userId: "u4" })).toBe("/me/follows");
+    expect(notificationPath({ route: "follow-requests", userId: "u4" })).toBe("/me/follows?tab=requests");
     expect(notificationPath({ route: "wallet" })).toBe("/wallet");
     expect(notificationPath({ route: "discover" })).toBe("/discover");
     expect(notificationPath({})).toBe("/match");
+  });
+
+  it("opens the exact thing a notification is about (`open`), not where older apps went (`route`)", () => {
+    expect(notificationPath({ route: "chat", open: "chat", friendId: "u1", messageId: "m1" })).toBe("/chats/u1?m=m1");
+    expect(notificationPath({ route: "chat", open: "calls", userId: "u1", friendId: "u1" })).toBe("/u/u1/calls");
+    expect(notificationPath({ route: "chat", open: "profile", userId: "u2", friendId: "u2" })).toBe("/u/u2");
+    expect(notificationPath({ route: "discover", open: "liked-you" })).toBe("/discover/liked-you");
+    expect(notificationPath({ route: "wallet", open: "payment", purchaseId: "p1" })).toBe("/wallet/payments/p1");
+    expect(notificationPath({ route: "wallet", open: "cashout", cashoutId: "c1" })).toBe("/wallet/cashouts/c1");
+    expect(notificationPath({ route: "wallet", open: "goals" })).toBe("/wallet#goals");
+    expect(notificationPath({ route: "inbox", open: "account" }, "n9")).toBe("/me/status?note=n9");
+    expect(notificationPath({ route: "profile", open: "verification", userId: "me" })).toBe("/me/verification");
+    expect(notificationPath({ route: "inbox", open: "team", messageId: "x1" })).toBe("/news/x1");
+    expect(notificationPath({ route: "inbox", open: "recap" })).toBe("/me/recap");
   });
 });

@@ -122,6 +122,12 @@ export class CashoutService {
     await this.process(id);
   }
 
+  async get(userId: string, id: string) {
+    const c = await this.prisma.cashout.findFirst({ where: { id, userId } });
+    if (!c) throw AppError.notFound('Cash-out');
+    return this.view(c);
+  }
+
   async list(userId: string) {
     const rows = await this.prisma.cashout.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 50 });
     return rows.map((c) => this.view(c));

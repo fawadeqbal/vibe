@@ -100,7 +100,9 @@ function parseAction(v: unknown): PaymentAction | null {
     post: m.method === "POST",
     fields: Object.fromEntries(Object.entries(asMap(m.fields)).map(([k, x]) => [k, String(x)])),
     instructions: optStr(m.instructions),
-    bank: b ? { bankName: str(b.bankName), accountTitle: str(b.accountTitle), iban: str(b.iban), reference: str(b.reference), amount: String(b.amount ?? "") } : null,
+    bank: b
+      ? { bankName: str(b.bankName), accountTitle: str(b.accountTitle), iban: str(b.iban), reference: str(b.reference), amount: String(b.amount ?? "") }
+      : null,
   };
 }
 
@@ -119,6 +121,7 @@ export interface PurchaseView {
   action: PaymentAction | null;
   expiresAt: Date | null;
   failureReason: string | null;
+  createdAt: Date | null;
   completedAt: Date | null;
   /** The raw wallet view when the purchase succeeded in this response. */
   wallet: Json | null;
@@ -142,6 +145,7 @@ export function parsePurchase(m: Json): PurchaseView {
     action: parseAction(m.action),
     expiresAt: date(m.expiresAt),
     failureReason: optStr(m.failureReason),
+    createdAt: date(m.createdAt),
     completedAt: date(m.completedAt),
     wallet: m.wallet && typeof m.wallet === "object" ? (m.wallet as Json) : null,
   };
@@ -219,6 +223,8 @@ export interface Cashout {
   status: CashoutStatus;
   failureReason: string | null;
   createdAt: Date | null;
+  /** When it was sent (paid) or returned. */
+  processedAt: Date | null;
 }
 
 export const parseCashout = (m: Json): Cashout => ({
@@ -231,6 +237,7 @@ export const parseCashout = (m: Json): Cashout => ({
   status: cashoutStatusFromApi(m.status),
   failureReason: optStr(m.failureReason),
   createdAt: date(m.createdAt),
+  processedAt: date(m.processedAt),
 });
 
 // ── sign-in identities ───────────────────────────────────────────────────

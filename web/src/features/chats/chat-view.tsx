@@ -36,7 +36,8 @@ type Panel = "none" | "emoji" | "plus";
  * reactions; calls when you both allow them. Gifts here earn them gems too —
  * that is what keeps friends on the app between matches.
  */
-export function ChatView({ friendId }: { friendId: string }) {
+/** `focusId`: a message to scroll to and flash (a notification about a reaction or a gift). */
+export function ChatView({ friendId, focusId }: { friendId: string; focusId?: string }) {
   const router = useRouter();
   const needCoins = useNeedCoins();
   const f = useSocial((s) => s.all.find((x) => x.profile.id === friendId));
@@ -66,9 +67,23 @@ export function ChatView({ friendId }: { friendId: string }) {
     if (f && f.unread > 0) useSocial.getState().markRead(friendId);
   }, [f, friendId]);
 
+  // Opened at a message: scroll to it and flash it once; new messages after that scroll to the bottom as usual.
+  const [focus, setFocus] = useState(focusId ?? null);
+  const focusedAt = useRef<number | null>(null);
   useEffect(() => {
+    if (!focus || !msgs?.length) return;
+    const el = list.current?.querySelector(`[data-mid="${CSS.escape(focus)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    focusedAt.current = msgs.length;
+    const t = setTimeout(() => setFocus(null), 2400);
+    return () => clearTimeout(t);
+  }, [focus, msgs?.length]);
+
+  useEffect(() => {
+    if (focusId && (focusedAt.current == null || (msgs?.length ?? 0) <= focusedAt.current)) return;
     list.current?.scrollTo({ top: list.current.scrollHeight, behavior: "smooth" });
-  }, [msgs?.length, typing]);
+  }, [msgs?.length, typing, focusId]);
 
   // "Calls unlock when you've both said something": re-check once you have.
   const blockedByMessages = callState?.askBlockedBy === "messages";
@@ -238,6 +253,7 @@ export function ChatView({ friendId }: { friendId: string }) {
             {msgs.map((m, i) => (
               <Bubble
                 key={m.id}
+                focused={m.id === focus}
                 m={m}
                 f={f}
                 tail={endsRun(msgs, i)}
@@ -417,7 +433,21 @@ function endsRun(msgs: ChatMessage[], i: number): boolean {
   return !next || next.kind === "system" || next.fromMe !== msgs[i].fromMe;
 }
 
-function Bubble({ m, f, tail, onHold, onCallBack }: { m: ChatMessage; f: Friend; tail: boolean; onHold: () => void; onCallBack?: (video: boolean) => void }) {
+function Bubble({
+  m,
+  f,
+  tail,
+  focused = false,
+  onHold,
+  onCallBack,
+}: {
+  m: ChatMessage;
+  f: Friend;
+  tail: boolean;
+  focused?: boolean;
+  onHold: () => void;
+  onCallBack?: (video: boolean) => void;
+}) {
   const hold = useHold(onHold);
   if (m.kind === "system") return <SystemLine m={m} onCallBack={onCallBack} />;
   const mine = m.fromMe;
@@ -427,7 +457,7 @@ function Bubble({ m, f, tail, onHold, onCallBack }: { m: ChatMessage; f: Friend;
   const first = f.profile.name.split(" ")[0];
   const reactions = [m.reactions?.theirs, m.reactions?.mine].filter((x): x is string => !!x);
   return (
-    <div className={cn("flex flex-col", tail ? "mb-2.5" : "mb-1", mine ? "items-end" : "items-start pl-[34px]", reactions.length && "mb-3.5")}>
+    <div data-mid={m.id} className={cn("flex flex-col", tail ? "mb-2.5" : "mb-1", mine ? "items-end" : "items-start pl-[34px]", reactions.length && "mb-3.5")}>
       <div
         {...(m.unsent || m.pending ? {} : hold)}
         title={time(m.at)}
@@ -445,6 +475,8 @@ function Bubble({ m, f, tail, onHold, onCallBack }: { m: ChatMessage; f: Friend;
                   : "bg-surface2 px-[13px] py-[9px]",
           m.kind === "photo" && (mine ? "bg-violet" : "bg-surface2"),
           m.pending && "opacity-70",
+          "transition-shadow duration-500",
+          focused && "shadow-[0_0_0_2px_var(--color-bg),0_0_0_4px_var(--color-pink-soft)]",
         )}
       >
         {m.replyTo && !m.unsent ? (

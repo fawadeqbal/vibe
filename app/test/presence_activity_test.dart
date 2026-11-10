@@ -12,6 +12,7 @@ import 'package:vibe_app/providers/activity_provider.dart';
 import 'package:vibe_app/providers/follows_provider.dart';
 import 'package:vibe_app/providers/social_provider.dart';
 import 'package:vibe_app/providers/wallet_provider.dart';
+import 'package:vibe_app/screens/notifications/detail_pages.dart';
 import 'package:vibe_app/screens/notifications/notifications_screen.dart';
 import 'package:vibe_app/services/push/push_route.dart';
 
@@ -93,8 +94,10 @@ void main() {
       await tester.tap(find.byType(NotificationsBell));
       await tester.pumpAndSettle();
       expect(find.text('Notifications'), findsOneWidget);
-      expect(find.text('NEW'), findsOneWidget);
-      expect(find.text('EARLIER'), findsOneWidget);
+      // Grouped by day: the follow came minutes ago, the payment yesterday.
+      expect(find.text('TODAY'), findsOneWidget);
+      expect(find.text('THIS WEEK'), findsOneWidget);
+      expect(find.text('Mark all read'), findsOneWidget);
       expect(find.textContaining('Sana started following you'), findsOneWidget);
       expect(find.textContaining('Your coins are in your wallet'), findsOneWidget);
       expect(activity.unread, 0);
@@ -169,12 +172,95 @@ void main() {
         child: MaterialApp(theme: V.theme(), home: const NotificationsScreen()),
       ));
       await tester.pumpAndSettle();
+      // One strip on the page; the requests themselves one tap away.
+      expect(find.text('Zara wants to be friends'), findsOneWidget);
+      await tester.tap(find.text('Requests'));
+      await tester.pumpAndSettle();
       expect(find.text('FRIEND REQUESTS · 1'), findsOneWidget);
       expect(find.text('Zara Ali, 24'), findsOneWidget);
       await tester.tap(find.text('Accept'));
       await tester.pumpAndSettle();
       expect(social.stateOf('z1'), FriendState.friends);
       expect(find.text('FRIEND REQUESTS · 1'), findsNothing);
+    });
+
+    test('every notification opens the thing it is about (`open`), older ones where they used to go (`route`)', () {
+      expect(PushRoute.fromData({'route': 'chat', 'open': 'chat', 'friendId': 'u1', 'messageId': 'm1'}), const PushRoute(PushTarget.chat, friendId: 'u1', messageId: 'm1'));
+      expect(PushRoute.fromData({'route': 'chat', 'open': 'calls', 'userId': 'u1', 'friendId': 'u1'}), const PushRoute(PushTarget.calls, userId: 'u1'));
+      expect(PushRoute.fromData({'route': 'chat', 'open': 'profile', 'userId': 'u2', 'friendId': 'u2'}), const PushRoute(PushTarget.profile, userId: 'u2'));
+      expect(PushRoute.fromData({'route': 'discover', 'open': 'liked-you'}), const PushRoute(PushTarget.likedYou));
+      expect(PushRoute.fromData({'route': 'wallet', 'open': 'payment', 'purchaseId': 'p1'}), const PushRoute(PushTarget.payment, purchaseId: 'p1'));
+      expect(PushRoute.fromData({'route': 'wallet', 'open': 'cashout', 'cashoutId': 'c1'}), const PushRoute(PushTarget.cashout, cashoutId: 'c1'));
+      expect(PushRoute.fromData({'route': 'wallet', 'open': 'goals'}), const PushRoute(PushTarget.wallet));
+      expect(PushRoute.fromData({'route': 'inbox', 'open': 'account', 'noteId': 'n1'}), const PushRoute(PushTarget.account, noteId: 'n1'));
+      expect(PushRoute.fromData({'route': 'profile', 'open': 'verification', 'userId': 'me'}), const PushRoute(PushTarget.verification));
+      expect(PushRoute.fromData({'route': 'inbox', 'open': 'team', 'messageId': 'x1'}), const PushRoute(PushTarget.team, messageId: 'x1'));
+      expect(PushRoute.fromData({'route': 'inbox', 'open': 'recap'}), const PushRoute(PushTarget.recap));
+      // A payment without its id: the wallet.
+      expect(PushRoute.fromData({'route': 'wallet', 'open': 'payment'}), const PushRoute(PushTarget.wallet));
+    });
+
+    Widget pages(Widget home, {SocialProvider? social}) {
+      final backend = MockBackend();
+      final wallet = WalletProvider(backend);
+      return MultiProvider(
+        providers: [
+          ChangeNotifierProvider<WalletProvider>.value(value: wallet),
+          ChangeNotifierProvider<SocialProvider>.value(value: social ?? SocialProvider(backend, wallet)),
+          ChangeNotifierProvider<FollowsProvider>.value(value: FakeFollows({})),
+          ChangeNotifierProvider<ActivityProvider>.value(value: ActivityProvider()),
+        ],
+        child: MaterialApp(theme: V.theme(), home: home),
+      );
+    }
+
+    testWidgets('a cash-out opens with where it is; a gone one says so instead of opening something else', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      tester.view.physicalSize = const Size(412 * 3, 892 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(pages(const CashoutStatusScreen(id: 'demo-cashout')));
+      await tester.pumpAndSettle();
+      expect(find.text('Rs 4,500'), findsWidgets);
+      expect(find.text('Sent'), findsOneWidget);
+      expect(find.text('Requested'), findsWidgets);
+      expect(find.text('Open wallet'), findsOneWidget);
+
+      await tester.pumpWidget(pages(const CashoutStatusScreen(id: 'nope')));
+      await tester.pumpAndSettle();
+      expect(find.text('Not here any more'), findsOneWidget);
+    });
+
+    testWidgets('Account status: good standing, and the note a notification was about', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      tester.view.physicalSize = const Size(412 * 3, 892 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(pages(const AccountStatusScreen(noteId: 'demo-warning')));
+      await tester.pumpAndSettle();
+      expect(find.text('Your account is in good standing'), findsOneWidget);
+      expect(find.text('FROM THE VIBE TEAM'), findsOneWidget);
+      expect(find.textContaining('One of your Moments was removed'), findsOneWidget);
+    });
+
+    testWidgets('a missed call opens your calls with them', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      tester.view.physicalSize = const Size(412 * 3, 892 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final backend = MockBackend();
+      final wallet = WalletProvider(backend);
+      final social = SocialProvider(backend, wallet);
+      const bilal = Profile(id: 'b1', name: 'Bilal Ahmed', age: 25, gender: Gender.male, country: Country('PK', 'Pakistan', '🇵🇰'), avatarUrl: '', bio: '', interests: []);
+      social.receiveRequest(bilal);
+      await social.accept('b1');
+      final friend = social.friend('b1')!;
+      await tester.pumpWidget(pages(CallHistoryScreen(userId: friend.profile.id), social: social));
+      await tester.pumpAndSettle();
+      expect(find.text(friend.profile.name), findsOneWidget);
+      expect(find.text('Missed video call'), findsOneWidget);
+      expect(find.text('14 min'), findsOneWidget);
+      expect(find.text('Message'), findsOneWidget);
     });
   });
 }

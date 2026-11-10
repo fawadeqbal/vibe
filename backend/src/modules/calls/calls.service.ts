@@ -2,6 +2,7 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Interval } from '@nestjs/schedule';
 import { randomUUID } from 'node:crypto';
+import { FriendshipStatus, MessageKind } from '@prisma/client';
 
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -67,6 +68,19 @@ const minutesText = (s: number) => (s < 60 ? `${Math.max(1, s)} sec` : `${Math.r
  * Video Match screen, WebRTC, reports, gifts) marked as a friend call.
  * Every step leaves a line in the chat. Calls are never recorded.
  */
+const CALL_EVENTS = ['call_missed', 'call_declined', 'call_ended'];
+
+export interface CallLogEntry {
+  id: string;
+  kind: 'missed' | 'declined' | 'ended';
+  video: boolean;
+  /** How long it lasted (ended calls). */
+  seconds: number | null;
+  /** You rang (true), they rang (false), or unknown (null). */
+  outgoing: boolean | null;
+  createdAt: string;
+}
+
 @Injectable()
 export class CallsService {
   private readonly logger = new Logger(CallsService.name);
@@ -398,6 +412,29 @@ export class CallsService {
         await this.matching.endByStaff(matchId).catch(() => false);
       }
     });
+  }
+
+  /**
+   * Your calls with one friend, newest first, from the call lines in the chat
+   * (missed, declined, ended). `outgoing` is null when we can't tell who rang.
+   */
+  async history(me: string, userId: string): Promise<{ friendSince: string | null; streak: number; calls: CallLogEntry[] }> {
+    const f = await this.prisma.friendship.findUnique({ where: this.friends.pairWhere(me, userId) });
+    if (!f || f.status !== FriendshipStatus.ACCEPTED) throw AppError.notFound('Friend');
+    const rows = await this.prisma.message.findMany({
+      // (Not a prefix match: Postgres LIKE reads `_` as any letter, so `call_` would catch `calls_on`.)
+      where: { friendshipId: f.id, kind: MessageKind.SYSTEM, OR: CALL_EVENTS.map((e) => ({ meta: { path: ['event'], equals: e } })) },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    const calls = rows.map((m): CallLogEntry => {
+      const meta = (m.meta ?? {}) as { event?: string; video?: boolean; seconds?: number };
+      const kind = meta.event === 'call_missed' ? 'missed' : meta.event === 'call_declined' ? 'declined' : 'ended';
+      // Missed: the sender rang. Declined: the sender is who said no, so the other one rang.
+      const outgoing = kind === 'missed' ? m.senderId === me : kind === 'declined' ? m.senderId !== me : null;
+      return { id: m.id, kind, video: meta.video !== false, seconds: kind === 'ended' ? Number(meta.seconds ?? 0) : null, outgoing, createdAt: m.createdAt.toISOString() };
+    });
+    return { friendSince: f.acceptedAt?.toISOString() ?? null, streak: f.streakCount, calls };
   }
 
   /** A friend call ended: a line in the chat with how long it was. */

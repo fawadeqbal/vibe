@@ -57,7 +57,8 @@ class GradientButton extends StatelessWidget {
       opacity: enabled || busy ? 1 : 0.45,
       child: Container(
         height: height,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        // Short buttons (Accept, Follow back in a row) get tighter sides.
+        padding: EdgeInsets.symmetric(horizontal: height < 44 ? 13 : 24),
         decoration: BoxDecoration(
           gradient: gradient ?? V.brand,
           borderRadius: BorderRadius.circular(height / 2),
@@ -76,7 +77,7 @@ class GradientButton extends StatelessWidget {
               iconW,
               const SizedBox(width: 10),
             ],
-            Flexible(child: Text(label, overflow: TextOverflow.ellipsis, style: VT.title(16, color: foreground, weight: foreground == Colors.white ? FontWeight.w600 : FontWeight.w700))),
+            Flexible(child: Text(label, overflow: TextOverflow.ellipsis, style: VT.title(height < 44 ? 13.5 : 16, color: foreground, weight: foreground == Colors.white ? FontWeight.w600 : FontWeight.w700))),
             if (!busy && iconW != null && iconAfter) ...[const SizedBox(width: 10), iconW],
             if (trailing != null) ...[const SizedBox(width: 10), trailing!],
           ],

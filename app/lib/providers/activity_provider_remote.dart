@@ -94,6 +94,41 @@ class RemoteActivityProvider extends ActivityProvider {
     } on ApiException catch (_) {}
   }
 
+  /// GET [path], or null when it's gone (404 / not yours).
+  Future<Map<String, dynamic>?> _one(String path) async {
+    try {
+      final r = await _api.get(path);
+      return r is Map ? Map<String, dynamic>.from(r) : null;
+    } on ApiException catch (e) {
+      if (e.status == 404 || e.status == 403) return null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Cashout?> cashout(String id) async {
+    final m = await _one('/wallet/cashouts/${Uri.encodeComponent(id)}');
+    return m == null ? null : Cashout.fromJson(m);
+  }
+
+  @override
+  Future<AccountStatus> accountStatus() async => AccountStatus.fromJson(Map<String, dynamic>.from(await _api.get('/me/status') as Map));
+
+  @override
+  Future<TeamMessage?> teamMessage(String id) async {
+    final m = await _one('/inbox/${Uri.encodeComponent(id)}');
+    if (m == null) return null;
+    final msg = ApiMap.teamMessage(m);
+    if (!msg.read) unawaited(_api.post('/inbox/${Uri.encodeComponent(msg.id)}/read', const <String, dynamic>{}).then((_) {}, onError: (_) {}));
+    return msg;
+  }
+
+  @override
+  Future<CallHistory?> callHistory(String userId) async {
+    final m = await _one('/friends/${Uri.encodeComponent(userId)}/calls/history');
+    return m == null ? null : CallHistory.fromJson(m);
+  }
+
   @override
   void dispose() {
     for (final s in _subs) {

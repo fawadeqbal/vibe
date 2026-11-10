@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../discover/liked_you_screen.dart';
+import '../notifications/detail_pages.dart';
 import '../notifications/notifications_screen.dart';
 import '../../core/theme/vibe_dock.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -356,11 +358,10 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     super.dispose();
   }
 
-  /// A tapped notification: chat → that chat (streak at risk too),
-  /// friends/inbox → Chats (the weekly recap is an inbox message),
-  /// wallet → Wallet (win-back boost, goal reached), store → Store,
-  /// match → the lobby (Vibe Hour), invite → Invite friends, partner → the
-  /// partner dashboard in the browser.
+  /// A tapped notification opens the thing it is about: a chat (at the
+  /// message), a profile, your calls with someone, a receipt, a cash-out,
+  /// Account status, your verification, a team message, your week — or, for
+  /// older notifications, the nearest tab or screen.
   void _open(PushRoute r) {
     if (!mounted) return;
     final nav = Navigator.of(context);
@@ -373,7 +374,7 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     switch (r.target) {
       case PushTarget.chat:
         if (context.read<SocialProvider>().friend(r.friendId!) != null) {
-          nav.push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: r.friendId!)));
+          nav.push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: r.friendId!, focusMessageId: r.messageId)));
         } else {
           tab(Tabs.chats);
         }
@@ -403,6 +404,22 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
         nav.push(MaterialPageRoute(builder: (_) => const InviteScreen()));
       case PushTarget.partner:
         openPartnerPage(context);
+      case PushTarget.likedYou:
+        nav.push(MaterialPageRoute(builder: (_) => const LikedYouScreen()));
+      case PushTarget.calls:
+        nav.push(MaterialPageRoute(builder: (_) => CallHistoryScreen(userId: r.userId!)));
+      case PushTarget.payment:
+        nav.push(MaterialPageRoute(builder: (_) => PaymentReceiptScreen(id: r.purchaseId!)));
+      case PushTarget.cashout:
+        nav.push(MaterialPageRoute(builder: (_) => CashoutStatusScreen(id: r.cashoutId!)));
+      case PushTarget.account:
+        nav.push(MaterialPageRoute(builder: (_) => AccountStatusScreen(noteId: r.noteId)));
+      case PushTarget.verification:
+        nav.push(MaterialPageRoute(builder: (_) => const VerificationResultScreen()));
+      case PushTarget.team:
+        nav.push(MaterialPageRoute(builder: (_) => TeamMessageScreen(id: r.messageId!)));
+      case PushTarget.recap:
+        nav.push(MaterialPageRoute(builder: (_) => const WeeklyRecapScreen()));
     }
   }
 
