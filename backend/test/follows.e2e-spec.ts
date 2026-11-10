@@ -208,4 +208,20 @@ describe('follows and profiles', () => {
     await sleep(250);
     expect(sent()).toEqual([expect.objectContaining({ title: 'New follower', body: 'Priya started following you', category: 'social', data: { route: 'profile', open: 'profile', userId: a.id } })]);
   });
+
+  it('people in the app get a live banner instead of a push', async () => {
+    const a = await signUp(t, { name: 'Priya' });
+    const b = await signUp(t);
+    await met(a, b);
+    const token = 'fcm-token-follow-test-000002';
+    await t.http.post('/v1/me/push-tokens').set(b.auth).send({ token, platform: 'android' }).expect(200);
+    const sent = () => (t.app.get(PushService).sender as DevPushSender).sent.filter((x) => x.token === token);
+    const s = await connect(t, b);
+    await sleep(150);
+    const banner = next(s, 'notification:show');
+    await t.http.post(`/v1/follows/${b.id}`).set(a.auth).expect(200);
+    expect(await banner).toMatchObject({ key: 'follow.new', group: 'friends', title: 'New follower', body: 'Priya started following you', data: { open: 'profile', userId: a.id } });
+    expect(sent()).toEqual([]);
+    s.disconnect();
+  });
 });

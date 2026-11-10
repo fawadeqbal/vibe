@@ -1,3 +1,4 @@
+import '../../core/cache/cached_image.dart';
 import 'dart:async';
 import 'dart:ui';
 
@@ -101,7 +102,7 @@ class _LikedYouScreenState extends State<LikedYouScreen> {
                                     child: Stack(fit: StackFit.expand, children: [
                                       ImageFiltered(
                                         imageFilter: ImageFilter.blur(sigmaX: 14, sigmaY: 14, tileMode: TileMode.decal),
-                                        child: Transform.scale(scale: 1.2, child: u.startsWith('http') ? Image.network(u, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: V.surface)) : const ColoredBox(color: V.surface)),
+                                        child: Transform.scale(scale: 1.2, child: u.startsWith('http') ? Image(image: netImage(u), fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: V.surface)) : const ColoredBox(color: V.surface)),
                                       ),
                                       const Align(
                                         alignment: Alignment.bottomCenter,
@@ -161,7 +162,7 @@ class _LikedTile extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Stack(fit: StackFit.expand, children: [
-        if (p.avatarUrl.startsWith('http')) Image.network(p.avatarUrl, fit: BoxFit.cover, errorBuilder: (_, _, _) => const DecoratedBox(decoration: BoxDecoration(gradient: V.brand))) else const DecoratedBox(decoration: BoxDecoration(gradient: V.brand)),
+        if (p.avatarUrl.startsWith('http')) Image(image: netImage(p.avatarUrl), fit: BoxFit.cover, errorBuilder: (_, _, _) => const DecoratedBox(decoration: BoxDecoration(gradient: V.brand))) else const DecoratedBox(decoration: BoxDecoration(gradient: V.brand)),
         const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0.4, 1], colors: [Color(0x000B0A10), Color(0xE60B0A10)]))),
         if (card.superLikedMe)
           Positioned(

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../core/theme/every_minute.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
@@ -403,7 +404,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                       ],
                     ),
-                    Text(
+                    // "Last seen 5 min ago" keeps counting while the chat is open.
+                    EveryMinute(builder: (_) => Text(
                       typing ? 'typing…' : (Fmt.presence(f.online, f.lastSeenAt) ?? ''),
                       style: VT.label(
                         11.5,
@@ -414,7 +416,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             : V.muted,
                         weight: FontWeight.w500,
                       ),
-                    ),
+                    )),
                   ],
                 ),
               ),

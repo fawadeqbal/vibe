@@ -56,6 +56,12 @@ interface SocialState {
   sendMessage: (friendId: string, text: string, replyToId?: string | null) => Promise<void>;
   /** "Tap to retry" on a message that didn't go out. */
   retryMessage: (friendId: string, messageId: string) => Promise<void>;
+  /**
+   * Back online (the socket reconnected, the tab came back): fetch what
+   * happened meanwhile — the friends list with presence and last messages,
+   * and the newest messages of the open chat. Other chats reload when opened.
+   */
+  catchUp: () => Promise<void>;
   /** A photo or voice note. Shown at once (faded) while it uploads. */
   sendMedia: (friendId: string, kind: "photo" | "voice", file: Blob, info?: { seconds?: number; w?: number; h?: number; replyToId?: string | null }) => Promise<void>;
   react: (friendId: string, messageId: string, emoji: string | null) => Promise<void>;
@@ -135,6 +141,27 @@ export const useSocial = create<SocialState>()((set, get) => {
     },
 
     refreshFriends: () => (api.hasSession ? reloadFriends() : Promise.resolve()),
+
+    async catchUp() {
+      if (!api.hasSession) return;
+      const open = openChat;
+      for (const id of [...loadedChats]) if (id !== open) loadedChats.delete(id);
+      await Promise.all([
+        reloadFriends(),
+        reloadLikes(),
+        (async () => {
+          if (!open || !loadedChats.has(open)) return;
+          try {
+            const page = asMap(await api.get(`/friends/${open}/messages`, { limit: CHAT_PAGE }));
+            const fresh = asList(page.items)
+              .map((e) => mapMessage(asMap(e), giftById))
+              .reverse();
+            set((s) => ({ chats: { ...s.chats, [open]: mergeNewest(s.chats[open] ?? [], fresh) } }));
+            if (fresh.some((m) => !m.fromMe)) get().markRead(open);
+          } catch {}
+        })(),
+      ]);
+    },
 
     async ensureMessages(friendId) {
       openChat = friendId;
@@ -341,6 +368,20 @@ function onUpdated(m: Json) {
     if (!list) return {};
     return { chats: { ...s.chats, [friendId]: list.map((x) => (x.id === msg.id ? { ...msg, gift: x.gift ?? msg.gift } : x.replyTo?.id === msg.id ? { ...x, replyTo: { ...x.replyTo, unsent: !!msg.unsent, text: msg.unsent ? "" : x.replyTo.text } } : x)) } };
   });
+}
+
+/**
+ * The newest page from the server over what's on screen: older messages
+ * stay, the newest page replaces its range (edits, reactions, read marks),
+ * and messages still going out stay at the bottom.
+ */
+export function mergeNewest(current: ChatMessage[], fresh: ChatMessage[]): ChatMessage[] {
+  if (!fresh.length) return current;
+  const ids = new Set(fresh.map((m) => m.id));
+  const from = fresh[0].at.getTime();
+  const older = current.filter((m) => !ids.has(m.id) && !m.pending && !m.failed && m.at.getTime() < from);
+  const outgoing = current.filter((m) => (m.pending || m.failed) && !ids.has(m.id));
+  return [...older, ...fresh, ...outgoing];
 }
 
 /** Text messages still going out (or that failed), by their temporary id. */

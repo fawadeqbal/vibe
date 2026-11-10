@@ -10,6 +10,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { CircleIconButton } from "@/components/ui/button";
 import { HiddenNote } from "@/components/shared/hidden-note";
 import { Icon } from "@/components/ui/icon";
+import { useNow } from "@/hooks/use-now";
 import { Spinner } from "@/components/ui/spinner";
 import { KeyHint } from "@/components/ui/kbd";
 import { EmptyState } from "@/components/ui/misc";
@@ -44,6 +45,8 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
   const f = useSocial((s) => s.all.find((x) => x.profile.id === friendId));
   const msgs = useSocial((s) => s.chats[friendId]);
   const typing = useSocial((s) => !!s.typing[friendId]);
+  // "Last seen 5 min ago" keeps counting while the chat is open.
+  useNow(60_000);
   const seenAt = useSocial((s) => s.seenAt[friendId] ?? null);
   const e = useCatalog((s) => s.economy);
   const list = useRef<HTMLDivElement>(null);

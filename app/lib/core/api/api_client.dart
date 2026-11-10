@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
 
+import '../cache/api_cache.dart';
 import 'api_config.dart';
 import 'api_exception.dart';
 import 'token_store.dart';
@@ -15,8 +16,9 @@ import 'token_store.dart';
 /// refreshes it once on expiry (one refresh shared by concurrent calls),
 /// retries, and turns every failure into an [ApiException].
 class ApiClient {
-  ApiClient({String? baseUrl, http.Client? httpClient, TokenStore? tokens, Map<String, String> defaultHeaders = const {}})
-      : _base = baseUrl ?? ApiConfig.restBase,
+  ApiClient({String? baseUrl, http.Client? httpClient, TokenStore? tokens, Map<String, String> defaultHeaders = const {}, ApiCache? cache})
+      : cache = cache ?? ApiCache.memory(),
+        _base = baseUrl ?? ApiConfig.restBase,
         _http = httpClient ?? http.Client(),
         tokens = tokens ?? SecureTokenStore(),
         _defaultHeaders = Map.unmodifiable(defaultHeaders);
@@ -61,9 +63,18 @@ class ApiClient {
     _access = null;
     _refresh = null;
     await tokens.clear();
+    await cache.clear();
   }
 
-  Future<dynamic> get(String path, {Map<String, String>? query}) => _send('GET', path, query: query);
+  /// The last answers to a few GETs, kept on the phone (see [ApiCache]).
+  final ApiCache cache;
+
+  /// GET, and keep the answer under [cacheKey] for the next launch.
+  Future<dynamic> get(String path, {Map<String, String>? query, String? cacheKey}) async {
+    final r = await _send('GET', path, query: query);
+    if (cacheKey != null) unawaited(cache.write(cacheKey, r));
+    return r;
+  }
   Future<dynamic> post(String path, [Object? body, Map<String, String>? headers]) => _send('POST', path, body: body, headers: headers);
   Future<dynamic> patch(String path, [Object? body]) => _send('PATCH', path, body: body);
   Future<dynamic> put(String path, [Object? body]) => _send('PUT', path, body: body);

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../cache/cached_image.dart';
 import '../util/format.dart';
 import 'vibe_theme.dart';
 
@@ -572,8 +573,8 @@ class VAvatar extends StatelessWidget {
     Widget photo(double s) {
       Widget img = url.isEmpty
           ? fallback(s)
-          : Image.network(
-              url,
+          : Image(
+              image: netImage(url),
               width: s,
               height: s,
               fit: BoxFit.cover,

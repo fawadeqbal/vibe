@@ -38,8 +38,19 @@ class RemoteSocialProvider extends SocialProvider {
   String? _openChat;
 
   @override
+  String? get openChat => _openChat;
+
+  @override
   Future<void> load() async {
     if (!_api.hasSession) return;
+    // First load of this run: the chats list from last time, at once (see ApiCache).
+    if (!_loaded && _friends.isEmpty) {
+      final cached = await _api.cache.read('friends');
+      if (cached is List && _friends.isEmpty) {
+        _friends = cached.map((e) => ApiMap.friend(Map<String, dynamic>.from(e as Map))).toList();
+        notifyListeners();
+      }
+    }
     await Future.wait([_reloadFriends(), _reloadLikes(), _reloadBlocks()]);
     _loaded = true;
     notifyListeners();
@@ -47,7 +58,7 @@ class RemoteSocialProvider extends SocialProvider {
 
   Future<void> _reloadFriends() async {
     try {
-      final list = await _api.get('/friends') as List;
+      final list = await _api.get('/friends', cacheKey: 'friends') as List;
       _friends = list.map((e) => ApiMap.friend(Map<String, dynamic>.from(e as Map))).toList();
       notifyListeners();
     } on ApiException catch (_) {}
@@ -131,12 +142,36 @@ class RemoteSocialProvider extends SocialProvider {
   Future<void> ensureMessages(String friendId) async {
     _openChat = friendId;
     if (_loadedChats.contains(friendId)) return;
+    // The newest messages from last time, at once; the fresh page replaces them.
+    final key = 'chat_$friendId';
+    if (_chats[friendId] == null) {
+      final cached = await _api.cache.read(key);
+      if (cached is Map && cached['items'] is List && _chats[friendId] == null) {
+        _chats[friendId] = (cached['items'] as List).map((e) => ApiMap.message(Map<String, dynamic>.from(e as Map))).toList().reversed.toList();
+        notifyListeners();
+      }
+    }
     try {
-      final page = await _api.get('/friends/$friendId/messages', query: {'limit': '$_chatPage'}) as Map;
+      final page = await _api.get('/friends/$friendId/messages', query: {'limit': '$_chatPage'}, cacheKey: key) as Map;
       _chats[friendId] = (page['items'] as List).map((e) => ApiMap.message(Map<String, dynamic>.from(e as Map))).toList().reversed.toList();
       _olderCursor[friendId] = page['nextCursor'] as String?;
       _loadedChats.add(friendId);
       notifyListeners();
+    } on ApiException catch (_) {}
+  }
+
+  @override
+  Future<void> catchUp() async {
+    final open = _openChat;
+    _loadedChats.removeWhere((id) => id != open);
+    await load();
+    if (open == null || !_loadedChats.contains(open)) return;
+    try {
+      final page = await _api.get('/friends/$open/messages', query: {'limit': '$_chatPage'}) as Map;
+      final fresh = (page['items'] as List).map((e) => ApiMap.message(Map<String, dynamic>.from(e as Map))).toList().reversed.toList();
+      _chats[open] = mergeNewest(_chats[open] ?? const [], fresh);
+      notifyListeners();
+      if (fresh.any((m) => !m.fromMe)) markRead(open);
     } on ApiException catch (_) {}
   }
 

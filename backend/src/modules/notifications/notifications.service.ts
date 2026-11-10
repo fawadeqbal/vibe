@@ -32,6 +32,9 @@ export interface NotifyResult {
   email: boolean;
 }
 
+/** Types the app already shows its own way while open (ringing screen, lobby strip, goal and milestone celebrations, the warning dialog). */
+const NO_BANNER = new Set(['call.incoming', 'match.someoneLooking', 'goal.reached', 'referral.milestone', 'account.warning']);
+
 const NOTHING: NotifyResult = { push: 0, inApp: false, email: false };
 
 /**
@@ -104,15 +107,20 @@ export class NotificationsService implements OnModuleInit {
     // Only ask "online?" when it matters (it's what the app's own UI covers).
     const needsOnline = (want.push && !type.pushWhenOnline) || (want.email && !TRANSACTIONAL.has(type.group));
     const online = needsOnline ? (opts.online ?? (await this.realtime.isOnline(userId))) : false;
+    // In the app right now: a live banner there instead of a push (same opt-outs as the push).
+    const banner = online && want.push && !type.pushWhenOnline && !NO_BANNER.has(type.key);
     if (online && !type.pushWhenOnline) want.push = false;
     if (want.email && !TRANSACTIONAL.has(type.group) && (online || !user.marketingEmails)) want.email = false;
     // The Notifications page keeps `feed` types even when no channel goes out (e.g. no push while you're in the app).
     const always = type.feed === 'person' || type.feed === 'system';
-    if (!want.push && !want.inApp && !want.email && !always) return NOTHING;
+    if (!want.push && !want.inApp && !want.email && !always && !banner) return NOTHING;
 
     const content = await type.build(data, this.ctx(userId));
     if (!content) return NOTHING;
     if (always) await this.feed.record(userId, type, content);
+    if (banner) {
+      this.realtime.toUser(userId, ServerEvent.NotificationShow, { key: type.key, group: type.group, title: content.title, body: content.body, data: content.data, at: this.clock.now().toISOString() });
+    }
     if (!want.push && !want.inApp && !want.email) return NOTHING;
 
     const result: NotifyResult = { push: 0, inApp: false, email: false };

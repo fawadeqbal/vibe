@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/api/api_client.dart';
+import 'core/api/live_banners.dart';
 import 'core/api/realtime_client.dart';
 import 'core/api/system_notices.dart';
 import 'core/theme/vibe_theme.dart';
@@ -27,6 +28,7 @@ import 'services/invite/invite_capture.dart';
 import 'services/payments/store_billing.dart';
 import 'screens/calls/call_layer.dart';
 import 'screens/home/home_shell.dart';
+import 'screens/notifications/live_banner_overlay.dart';
 import 'screens/onboarding/permissions_screen.dart';
 import 'screens/onboarding/profile_setup_screen.dart';
 import 'screens/onboarding/signin_screen.dart';
@@ -44,7 +46,7 @@ class VibeApp extends StatefulWidget {
   State<VibeApp> createState() => _VibeAppState();
 }
 
-class _VibeAppState extends State<VibeApp> {
+class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
   bool _sawWelcome = false;
   bool _sessionLive = false;
   late final SessionProvider _session = context.read<SessionProvider>();
@@ -52,13 +54,31 @@ class _VibeAppState extends State<VibeApp> {
   late final AppServices _services = context.read<AppServices>();
   final _messenger = GlobalKey<ScaffoldMessengerState>();
   SystemNotices? _notices;
+
+  /// Live notifications while the app is open (server mode).
+  final _banners = LiveBanners();
+  StreamSubscription<bool>? _connection;
+  DateTime? _pausedAt;
+  DateTime _lastCatchUp = DateTime.fromMillisecondsSinceEpoch(0);
   StreamSubscription<StoreDelivery>? _deliveries;
 
   @override
   void initState() {
     super.initState();
     final rt = widget.realtime;
-    if (rt != null) _notices = SystemNotices(context.read<ApiClient>(), rt, _messenger)..start();
+    if (rt != null) {
+      _notices = SystemNotices(context.read<ApiClient>(), rt, _messenger)..start();
+      // Skip a banner about the chat you have open.
+      final social = context.read<SocialProvider>();
+      _banners.start(rt, skip: (data) => data['friendId'] != null && data['friendId'] == social.openChat && (data['open'] ?? data['route']) == 'chat');
+      // A reconnect (not the first connect): live events may have been missed.
+      var wasConnected = false;
+      _connection = rt.connection.listen((up) {
+        if (up && wasConnected) unawaited(_catchUp());
+        if (up) wasConnected = true;
+      });
+      WidgetsBinding.instance.addObserver(this);
+    }
     // Store purchases finished in the background (redelivered at launch, Play "pending" that cleared).
     _deliveries = _services.billing.deliveries.listen((d) {
       _messenger.currentState?.showSnackBar(SnackBar(content: Text(d.purchase.productType == ProductKind.vipPlan ? 'Your VIP is active' : 'Purchase complete: coins added')));
@@ -88,6 +108,9 @@ class _VibeAppState extends State<VibeApp> {
     _session.removeListener(_onSessionChanged);
     _catalog.removeListener(_redrawPrices);
     _notices?.stop();
+    _banners.dispose();
+    _connection?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _deliveries?.cancel();
     super.dispose();
   }
@@ -110,6 +133,39 @@ class _VibeAppState extends State<VibeApp> {
       _services.billing.setSignedIn(false);
       rt.disconnect();
     }
+  }
+
+  /// Back from the background after a while: fetch what changed meanwhile.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) _pausedAt ??= DateTime.now();
+    if (state == AppLifecycleState.resumed) {
+      final away = _pausedAt == null ? Duration.zero : DateTime.now().difference(_pausedAt!);
+      _pausedAt = null;
+      if (away > const Duration(seconds: 20)) unawaited(_catchUp());
+    }
+  }
+
+  /// Back online after missing live events (the socket dropped, the phone
+  /// slept): chats, presence, notifications and money are fetched again, so
+  /// every screen is right without pulling to refresh.
+  Future<void> _catchUp() async {
+    if (!_sessionLive || DateTime.now().difference(_lastCatchUp) < const Duration(seconds: 3)) return;
+    _lastCatchUp = DateTime.now();
+    Future<void> safe(Future<void>? f) async {
+      try {
+        await f;
+      } catch (_) {}
+    }
+
+    await Future.wait([
+      safe(context.read<SocialProvider>().catchUp()),
+      safe(context.read<ActivityProvider?>()?.refresh()),
+      safe(context.read<WalletProvider>().load()),
+      safe(context.read<InboxProvider>().load()),
+      safe(context.read<FollowsProvider>().load()),
+      safe(_catalog.load()),
+    ]);
   }
 
   /// Staff changed prices: redraw every screen (and open sheet) once, so no
@@ -163,7 +219,7 @@ class _VibeAppState extends State<VibeApp> {
       // Friend calls over every page: the ringing banner, a call shrunk to the chat.
       // Where Vibe isn't offered (451 from the API), only the region screen.
       builder: (context, child) {
-        final page = CallLayer(child: child ?? const SizedBox.shrink());
+        final page = LiveBannerOverlay(banners: _banners, child: CallLayer(child: child ?? const SizedBox.shrink()));
         final api = context.read<ApiClient?>();
         if (api == null) return page;
         return ValueListenableBuilder<bool>(

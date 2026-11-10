@@ -44,6 +44,8 @@ dependencies:
   solar_icons: ^0.2.0 # modern outline/bold icon pairs (tab dock)
   record: ^7.1.2
   audioplayers: ^6.8.1
+  cached_network_image: ^4.0.6
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:

@@ -1,3 +1,4 @@
+import '../../core/cache/cached_image.dart';
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
@@ -563,9 +564,7 @@ class _Lobby extends StatelessWidget {
                         const Spacer(),
                         Column(
                           children: [
-                            FilterButton(glass: true, size: 42, onOpen: () => showFiltersSheet(context)),
                             if (camLive) ...[
-                              const SizedBox(height: 10),
                               Tooltip(
                                 message: 'Turn camera preview off',
                                 child: RoundControl(icon: Icons.videocam_off_rounded, size: 42, width: 42, onTap: m.stopPreview),
@@ -636,68 +635,107 @@ class _Lobby extends StatelessWidget {
   }
 }
 
-/// The bottom of Home: one frosted dock. Safe start on the left (tap for how
-/// it works), Start on the right. 14px under the filter tags, 20px above the
-/// tab bar. (web: StartDock in features/match/lobby.tsx)
+/// The bottom of Home: three round buttons over your camera. Safe start
+/// (how calls stay safe) on the left, the big Start in the middle, Filters
+/// on the right (a dot when some are on). (web: StartDock in features/match/lobby.tsx)
 class _StartDock extends StatelessWidget {
   const _StartDock({required this.autoBlur, required this.onStart});
   final bool autoBlur;
   final VoidCallback onStart;
 
+  static const _shadow = [Shadow(color: Color(0x80000000), blurRadius: 6)];
+
+  Widget _label(String text) => Text(text, style: VT.label(12, color: Colors.white, weight: FontWeight.w600).copyWith(shadows: _shadow));
+
+  Widget _side({required String semantics, required Widget icon, required String label, required VoidCallback onTap, bool dot = false}) {
+    return Semantics(
+      button: true,
+      label: semantics,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              children: [
+                SizedBox(width: 52, child: Glass(radius: 26, height: 52, color: V.bg2.withValues(alpha: 0.55), padding: EdgeInsets.zero, child: Center(child: icon))),
+                if (dot)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(width: 9, height: 9, decoration: BoxDecoration(color: V.pink, shape: BoxShape.circle, border: Border.all(color: V.bg, width: 2))),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            _label(label),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Glass(
-      radius: 32,
-      height: 64,
-      color: V.bg2.withValues(alpha: 0.52),
-      padding: const EdgeInsets.all(6),
+    final filtersOn = context.select<FiltersProvider, bool>((p) => filtersSet(p.filters));
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: Semantics(
-              button: true,
-              label: autoBlur ? 'Safe start: both videos stay blurred for 3 seconds. How it works' : 'Safety: report and block are one tap away in every call. How it works',
-              excludeSemantics: true,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _side(
+                semantics: autoBlur ? 'Safe start: both videos stay blurred for 3 seconds. How it works' : 'Safety: report and block are one tap away in every call. How it works',
+                icon: const Icon(SolarIconsBold.shield, size: 22, color: V.trust),
+                label: autoBlur ? 'Safe start' : 'Safety',
                 onTap: () => showSafetySheet(context),
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Row(
-                    children: [
-                      const Icon(SolarIconsBold.shield, size: 20, color: V.trust),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              autoBlur ? 'Safe start' : 'Safety on',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: VT.label(13, color: Colors.white, weight: FontWeight.w700),
-                            ),
-                            Text(
-                              autoBlur ? 'Blurred for 3 s' : 'Report in one tap',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: VT.body(11.5, color: V.text2),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ),
           ),
           Semantics(
-            label: 'Start a video chat with someone new',
             button: true,
+            label: 'Start a video chat with someone new',
             excludeSemantics: true,
-            child: GradientButton(label: 'Start chat', icon: SolarIconsBold.videocamera, height: 52, expand: false, softGlow: true, onTap: onStart),
+            child: GestureDetector(
+              onTap: onStart,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.85), width: 2),
+                      boxShadow: const [BoxShadow(color: Color(0x73FF3D8F), blurRadius: 32)],
+                    ),
+                    child: Container(
+                      width: 70,
+                      height: 70,
+                      decoration: const BoxDecoration(gradient: V.brand, shape: BoxShape.circle),
+                      child: const Icon(SolarIconsBold.videocamera, size: 30, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _label('Start'),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _side(
+                semantics: filtersOn ? 'Filters (some are on)' : 'Filters',
+                icon: Icon(Icons.tune_rounded, size: 22, color: filtersOn ? V.pinkSoft : Colors.white),
+                label: 'Filters',
+                dot: filtersOn,
+                onTap: () => showFiltersSheet(context),
+              ),
+            ),
           ),
         ],
       ),
@@ -988,8 +1026,8 @@ class _EndedState extends State<_Ended> {
               colorFilter: const ColorFilter.matrix([0.3, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0, 0, 1, 0]),
               child: Transform.scale(
                 scale: 1.15,
-                child: Image.network(
-                  p.avatarUrl,
+                child: Image(
+                  image: netImage(p.avatarUrl),
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => const DecoratedBox(
                     decoration: BoxDecoration(
@@ -1975,8 +2013,8 @@ class _SelfPip extends StatelessWidget {
           else if (me != null && me.avatarUrl.isNotEmpty)
             Opacity(
               opacity: 0.7,
-              child: Image.network(
-                me.avatarUrl,
+              child: Image(
+                image: netImage(me.avatarUrl),
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.videocam_off_rounded, color: V.muted)),
               ),
@@ -2382,8 +2420,8 @@ class _PartnerStage extends StatelessWidget {
         if (m.hasRemoteVideo)
           RTCVideoView(m.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
         else
-          Image.network(
-            partner.avatarUrl,
+          Image(
+            image: netImage(partner.avatarUrl),
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => Container(
               decoration: const BoxDecoration(

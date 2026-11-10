@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'app.dart';
 import 'core/api/api_client.dart';
+import 'core/cache/api_cache.dart';
 import 'core/api/api_config.dart';
 import 'core/api/client_header.dart';
 import 'core/api/realtime_client.dart';
@@ -62,7 +63,7 @@ Future<void> main() async {
   // without it, everything runs offline on the mock.
   // X-Client tells the server this is the app (admin → App vs web): "android/0.1.5".
   final ApiClient? api = ApiConfig.enabled
-      ? ApiClient(defaultHeaders: {'X-Client': await clientHeader(), if (config.appStoreHeader != null) 'X-App-Store': config.appStoreHeader!})
+      ? ApiClient(cache: ApiCache.disk(), defaultHeaders: {'X-Client': await clientHeader(), if (config.appStoreHeader != null) 'X-App-Store': config.appStoreHeader!})
       : null;
   final RealtimeClient? realtime = api == null ? null : RealtimeClient(api);
 

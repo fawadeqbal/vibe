@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/cache/cached_image.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../models/discover.dart';
 import '../../models/models.dart';
@@ -225,7 +226,7 @@ class _Photo extends StatelessWidget {
       child: Center(child: Text(name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase(), style: VT.display(120, color: Colors.white.withValues(alpha: 0.35)))),
     );
     if (url.isEmpty || !url.startsWith('http')) return fallback;
-    return Image.network(url, fit: BoxFit.cover, alignment: const Alignment(0, -0.4), gaplessPlayback: true, errorBuilder: (_, _, _) => fallback, loadingBuilder: (_, child, progress) => progress == null ? child : fallback);
+    return Image(image: netImage(url), fit: BoxFit.cover, alignment: const Alignment(0, -0.4), gaplessPlayback: true, errorBuilder: (_, _, _) => fallback, loadingBuilder: (_, child, progress) => progress == null ? child : fallback);
   }
 }
 

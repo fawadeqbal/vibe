@@ -454,7 +454,10 @@ void main() {
     await t.pump();
     // Vibe Hour opens gender and country for everyone.
     expect(h.match.extraFiltersOpen?.call() ?? true, isTrue);
-    expect(find.text('Start chat'), findsOneWidget);
+    // The lobby's three buttons: Safe start, Start, Filters.
+    expect(find.text('Start'), findsOneWidget);
+    expect(find.text('Safe start'), findsOneWidget);
+    expect(find.text('Filters'), findsOneWidget);
     await t.tap(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'Your profile'));
     expect(openedMe, isTrue);
     await h.match.start();

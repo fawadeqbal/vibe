@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/cache/cached_image.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -109,7 +110,7 @@ class DiscoverProfileScreen extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        if (p.avatarUrl.startsWith('http')) Image.network(p.avatarUrl, fit: BoxFit.cover, alignment: const Alignment(0, -0.4), errorBuilder: (_, _, _) => const ColoredBox(color: V.surface)) else const ColoredBox(color: V.surface),
+                        if (p.avatarUrl.startsWith('http')) Image(image: netImage(p.avatarUrl), fit: BoxFit.cover, alignment: const Alignment(0, -0.4), errorBuilder: (_, _, _) => const ColoredBox(color: V.surface)) else const ColoredBox(color: V.surface),
                         const Align(
                           alignment: Alignment.bottomCenter,
                           child: SizedBox(

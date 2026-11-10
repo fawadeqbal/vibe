@@ -3,6 +3,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/cache/cached_image.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/util/format.dart';
@@ -142,8 +143,8 @@ class _MiniCall extends StatelessWidget {
               onTap: () => m.setMinimized(false),
               child: video
                   ? RTCVideoView(m.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-                  : Image.network(
-                      p.avatarUrl,
+                  : Image(
+                      image: netImage(p.avatarUrl),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Center(
                         child: VAvatar(url: '', name: p.name, size: 56),

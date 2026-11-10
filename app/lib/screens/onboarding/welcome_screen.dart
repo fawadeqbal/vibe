@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/cache/cached_image.dart';
 import '../../core/config/legal_links.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -283,7 +284,7 @@ class _HeroCards extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(f.url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+          Image(image: netImage(f.url), fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
           if (f.chip != null) Positioned(left: 10, top: 10, child: _chip(f.chip!, icon: f.chipIcon, iconColor: f.chipColor)),
           Positioned(left: 10, bottom: 10, child: _chip(f.caption)),
         ],

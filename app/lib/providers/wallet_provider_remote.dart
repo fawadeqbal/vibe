@@ -53,7 +53,12 @@ class RemoteWalletProvider extends WalletProvider {
   @override
   Future<void> load() async {
     if (!_api.hasSession) return;
-    _applyView(Map<String, dynamic>.from(await _api.get('/wallet') as Map));
+    // Coins and gems from last time, at once (see ApiCache); the fresh balance replaces them.
+    if (!_loaded) {
+      final cached = await _api.cache.read('wallet');
+      if (cached is Map) _applyView(Map<String, dynamic>.from(cached));
+    }
+    _applyView(Map<String, dynamic>.from(await _api.get('/wallet', cacheKey: 'wallet') as Map));
     await refresh();
     _loaded = true;
     notifyListeners();
