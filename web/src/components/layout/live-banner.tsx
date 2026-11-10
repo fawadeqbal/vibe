@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/icon";
 import { color } from "@/lib/colors";
 import { notificationPath } from "@/lib/notification-path";
 import { notificationStyle } from "@/lib/notification-style";
+import { readFromTap } from "@/stores/activity";
 import { type LiveBanner, startBanners, useBanners } from "@/stores/banners";
 
 let started = false;
@@ -63,6 +64,7 @@ function BannerCard({ b }: { b: LiveBanner }) {
   const close = () => useBanners.getState().dismiss(b.id);
   const open = () => {
     close();
+    readFromTap(b.data);
     router.push(notificationPath(b.data));
   };
   return (

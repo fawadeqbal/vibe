@@ -120,8 +120,7 @@ class LocalActivityProvider extends ActivityProvider {
 
   @override
   Future<void> markAllRead() async {
-    if (_unread == 0) return;
     _unread = 0;
-    notifyListeners();
+    _setRead(const [], all: true);
   }
 }

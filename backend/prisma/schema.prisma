@@ -63,6 +63,8 @@ model User {
   vibeHourReminder     Boolean    @default(false)
   /// Me → Notifications: channels turned off per group, e.g. {"reminders":{"push":false}}. Missing = on.
   notifyPrefs          Json?
+  /// Opened the Notifications page: lines up to here no longer count on the bell (they stay unread until tapped).
+  activitySeenAt       DateTime?
   onboardedAt          DateTime?
   bannedUntil          DateTime?
   /// Last time Discover was opened (for "welcome back").

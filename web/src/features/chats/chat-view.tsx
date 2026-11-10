@@ -22,6 +22,7 @@ import type { ChatMessage, Friend } from "@/lib/models";
 import { useCalls } from "@/stores/calls";
 import { useCatalog } from "@/stores/catalog";
 import { useFollows } from "@/stores/follows";
+import { CHAT_TYPES, useActivity } from "@/stores/activity";
 import { useSocial } from "@/stores/social";
 import { toast } from "@/stores/ui";
 
@@ -70,6 +71,11 @@ export function ChatView({ friendId, focusId }: { friendId: string; focusId?: st
   useEffect(() => {
     if (f && f.unread > 0) useSocial.getState().markRead(friendId);
   }, [f, friendId]);
+  // Its Notifications lines too (messages already read on another device still leave the line to clear).
+  const chatLines = useActivity((s) => s.items.filter((i) => !i.read && i.actor?.id === friendId && CHAT_TYPES.includes(i.type)).map((i) => i.id).join(","));
+  useEffect(() => {
+    if (chatLines) void useActivity.getState().markRead(chatLines.split(","));
+  }, [chatLines]);
 
   // The list is anchored to the bottom (flex-col-reverse): it opens on the newest message with no
   // scroll from the top, new messages stay in view, and older pages added on top don't move what you see.

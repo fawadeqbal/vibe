@@ -3,6 +3,8 @@ import type { Socket } from 'socket.io-client';
 import { RealtimeService } from '../src/infra/realtime/realtime.service';
 import { MatchingService } from '../src/modules/matching/matching.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
+import { DevPushSender } from '../src/modules/push/push-sender';
+import { PushService } from '../src/modules/push/push.service';
 import { PresenceNotifier } from '../src/modules/social/presence.notifier';
 import { connect, createTestApp, next, requestFriend, resetState, signUp, sleep, TestApp, TestUser } from './helpers';
 
@@ -185,11 +187,67 @@ describe('presence and notifications page', () => {
     const [first] = (await t.http.get('/v1/activity').set(c.auth).expect(200)).body.items;
     const ev = next(sc, 'activity:read');
     expect((await t.http.post('/v1/activity/read').set(c.auth).send({ ids: [first.id] }).expect(200)).body).toEqual({ unread: 1 });
-    expect(await ev).toEqual({ unread: 1 });
+    expect(await ev).toEqual({ unread: 1, ids: [first.id] });
     await t.http.post('/v1/activity/read').set(c.auth).send({}).expect(200);
     expect((await t.http.get('/v1/activity/unread').set(c.auth).expect(200)).body).toEqual({ unread: 0 });
     // Someone else's lines are untouched.
     expect(await t.prisma.activityItem.count({ where: { userId: { not: c.id }, readAt: { not: null } } })).toBe(0);
+  });
+
+  it('opening the page clears the bell; each line stays unread until opened', async () => {
+    const a = await signUp(t);
+    const b = await signUp(t);
+    const c = await signUp(t);
+    await met(a, c);
+    await met(b, c);
+    await requestFriend(t, a, c);
+    await t.app.get(NotificationsService).settled();
+    const sc = await open(c);
+    const seen = next(sc, 'activity:read');
+    expect((await t.http.post('/v1/activity/seen').set(c.auth).expect(200)).body).toEqual({ unread: 0 });
+    expect(await seen).toEqual({ unread: 0, ids: [] });
+    expect((await t.http.get('/v1/activity').set(c.auth).expect(200)).body.items.map((i: { read: boolean }) => i.read)).toEqual([false]);
+
+    // A new one after that counts again.
+    await sleep(5);
+    await requestFriend(t, b, c);
+    await t.app.get(NotificationsService).settled();
+    expect((await t.http.get('/v1/activity/unread').set(c.auth).expect(200)).body).toEqual({ unread: 1 });
+    // Answering a request reads its line.
+    await t.http.post(`/v1/friends/${a.id}/accept`).set(c.auth).expect((r) => expect(r.status).toBeLessThan(300));
+    const items = (await t.http.get('/v1/activity').set(c.auth).expect(200)).body.items as { actor: { id: string }; read: boolean }[];
+    expect(items.find((i) => i.actor.id === a.id)?.read).toBe(true);
+    expect(items.find((i) => i.actor.id === b.id)?.read).toBe(false);
+  });
+
+  it('a push carries its line; opening the chat (any way) reads the chat line', async () => {
+    const a = await signUp(t, { name: 'Sara' });
+    const c = await signUp(t);
+    await friends(a, c);
+    const token = 'fcm-token-activity-read-00001';
+    await t.http.post('/v1/me/push-tokens').set(c.auth).send({ token, platform: 'android' }).expect(200);
+    const sent = () => (t.app.get(PushService).sender as DevPushSender).sent.filter((x) => x.token === token).map((x) => x.msg);
+    await t.http.post(`/v1/friends/${c.id}/messages`).set(a.auth).send({ text: 'hi' }).expect(201);
+    await t.http.post(`/v1/friends/${c.id}/messages`).set(a.auth).send({ text: 'you there?' }).expect(201);
+    await t.app.get(NotificationsService).settled();
+    const [line] = (await t.http.get('/v1/activity').set(c.auth).expect(200)).body.items as { id: string; count: number; read: boolean }[];
+    expect(line).toMatchObject({ count: 2, read: false });
+    // Both pushes point at the same (collapsed) line, so tapping either one reads it.
+    expect(sent().map((m) => m.data.activityId)).toEqual([line.id, line.id]);
+    expect((await t.http.get('/v1/activity/unread').set(c.auth).expect(200)).body).toEqual({ unread: 1 });
+
+    // Opened the chat from the chat list (no tap on the push or the line).
+    const sc = await open(c);
+    const ev = next(sc, 'activity:read');
+    await t.http.post(`/v1/friends/${a.id}/read`).set(c.auth).expect((r) => expect(r.status).toBeLessThan(300));
+    expect(await ev).toEqual({ unread: 0, ids: [line.id] });
+    expect((await t.http.get('/v1/activity').set(c.auth).expect(200)).body.items[0]).toMatchObject({ id: line.id, read: true });
+
+    // Left the app; the next message starts a new unread line.
+    await close(sc);
+    await t.http.post(`/v1/friends/${c.id}/messages`).set(a.auth).send({ text: 'again' }).expect(201);
+    await t.app.get(NotificationsService).settled();
+    expect((await t.http.get('/v1/activity/unread').set(c.auth).expect(200)).body).toEqual({ unread: 1 });
   });
 
   it('pages through older notifications', async () => {

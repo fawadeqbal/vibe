@@ -8,6 +8,7 @@ import { orderedPair } from '../../common/utils/text';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { ServerEvent } from '../../infra/realtime/realtime.events';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
+import { ActivityFeedService } from '../notifications/activity-feed.service';
 import { PROFILE_INCLUDE, PublicProfile, toPublicProfile } from '../users/user.mapper';
 import { RewardsService } from '../wallet/rewards.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -63,6 +64,7 @@ export class FriendsService {
     private readonly realtime: RealtimeService,
     private readonly clock: Clock,
     private readonly streaks: StreakService,
+    private readonly feed: ActivityFeedService,
   ) {}
 
   pairWhere(a: string, b: string): Prisma.FriendshipWhereUniqueInput {
@@ -146,6 +148,7 @@ export class FriendsService {
     await this.prisma.friendship.update({ where: { id: f.id }, data: { status: FriendshipStatus.ACCEPTED, acceptedAt: this.clock.now() } });
     const meUser = await this.prisma.user.findUniqueOrThrow({ where: { id: me }, include: PROFILE_INCLUDE });
     this.realtime.toUser(requesterId, ServerEvent.FriendAccepted, { friend: await this.view(requesterId, meUser.id) });
+    await this.feed.markReadAbout(me, requesterId, ['friend.request']);
   }
 
   /** Take back a request you sent (and haven't had accepted). Their pending request disappears live. */
@@ -156,6 +159,7 @@ export class FriendsService {
 
   async decline(me: string, requesterId: string): Promise<void> {
     await this.prisma.friendship.deleteMany({ where: { ...pairFields(me, requesterId), status: FriendshipStatus.PENDING, requesterId } });
+    await this.feed.markReadAbout(me, requesterId, ['friend.request']);
   }
 
   async remove(me: string, other: string): Promise<void> {

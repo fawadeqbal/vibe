@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 /// the server's `webPath` and the web's `notificationPath`.
 @immutable
 class PushRoute {
-  const PushRoute(this.target, {this.friendId, this.userId, this.purchaseId, this.cashoutId, this.messageId, this.noteId});
+  const PushRoute(this.target, {this.friendId, this.userId, this.purchaseId, this.cashoutId, this.messageId, this.noteId, this.activityId});
 
   final PushTarget target;
   final String? friendId;
@@ -23,6 +23,12 @@ class PushRoute {
   /// The line on the Notifications page (Account status highlights it).
   final String? noteId;
 
+  /// The Notifications page line this push, banner or row stands for: opening it reads the line.
+  final String? activityId;
+
+  PushRoute _withActivity(String? id) =>
+      id == null ? this : PushRoute(target, friendId: friendId, userId: userId, purchaseId: purchaseId, cashoutId: cashoutId, messageId: messageId, noteId: noteId, activityId: id);
+
   /// Null for data the app doesn't route (a newer server, missing route).
   static PushRoute? fromData(Map<String, dynamic> data) {
     String? s(String k) {
@@ -31,7 +37,7 @@ class PushRoute {
     }
 
     final open = s('open') ?? s('route');
-    return switch (open) {
+    final PushRoute? route = switch (open) {
       // A chat (at a message when there is one); without a friend id, the friends list.
       'chat' => s('friendId') != null ? PushRoute(PushTarget.chat, friendId: s('friendId'), messageId: s('messageId')) : const PushRoute(PushTarget.friends),
       // A friend request: their profile (Accept / Decline); without a person, the Notifications page.
@@ -61,6 +67,7 @@ class PushRoute {
       'recap' => const PushRoute(PushTarget.recap),
       _ => null,
     };
+    return route?._withActivity(s('activityId'));
   }
 
   @override
@@ -72,9 +79,10 @@ class PushRoute {
       other.purchaseId == purchaseId &&
       other.cashoutId == cashoutId &&
       other.messageId == messageId &&
-      other.noteId == noteId;
+      other.noteId == noteId &&
+      other.activityId == activityId;
   @override
-  int get hashCode => Object.hash(target, friendId, userId, purchaseId, cashoutId, messageId, noteId);
+  int get hashCode => Object.hash(target, friendId, userId, purchaseId, cashoutId, messageId, noteId, activityId);
   @override
   String toString() => 'PushRoute($target${friendId != null ? ', $friendId' : ''}${userId != null ? ', $userId' : ''})';
 }

@@ -130,18 +130,19 @@ export class NotificationsService implements OnModuleInit {
 
     const content = await type.build(data, this.ctx(userId));
     if (!content) return NOTHING;
-    if (always) await this.feed.record(userId, type, content);
+    // The Notifications page line. Every push lands there too (chat lines collapse per chat), so it's
+    // written first: its id rides along in the push and the banner, and opening either marks it read.
+    const line = always || (want.push && type.feed !== 'never' && (await this.push.hasDevice(userId))) ? await this.feed.record(userId, type, content) : null;
+    const tapData = line ? { ...content.data, activityId: line } : content.data;
     if (banner) {
-      this.realtime.toUser(userId, ServerEvent.NotificationShow, { key: type.key, group: type.group, title: content.title, body: content.body, data: content.data, at: this.clock.now().toISOString() });
+      this.realtime.toUser(userId, ServerEvent.NotificationShow, { key: type.key, group: type.group, title: content.title, body: content.body, data: tapData, at: this.clock.now().toISOString() });
     }
     if (!want.push && !want.inApp && !want.email) return NOTHING;
 
     const result: NotifyResult = { push: 0, inApp: false, email: false };
     if (want.push) {
       const g = GROUP_PUSH[type.group];
-      result.push = await this.push.sendToUser(userId, { title: content.title, body: content.body, data: content.data, category: g.category, collapseKey: content.collapseKey, replaceKey: replaceKeyFor(content.collapseKey), urgent: g.urgent });
-      // Every other push lands on the Notifications page too (chat lines collapse per chat).
-      if (result.push > 0 && !type.feed) await this.feed.record(userId, type, content);
+      result.push = await this.push.sendToUser(userId, { title: content.title, body: content.body, data: tapData, category: g.category, collapseKey: content.collapseKey, replaceKey: replaceKeyFor(content.collapseKey), urgent: g.urgent });
     }
     if (want.inApp) result.inApp = await this.toInbox(userId, content);
     if (want.email) result.email = await this.toEmail(userId, user, type, content, result.push > 0);

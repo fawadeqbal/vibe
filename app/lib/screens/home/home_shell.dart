@@ -13,6 +13,7 @@ import '../../core/theme/vibe_widgets.dart';
 import '../../core/theme/web_glyphs.dart';
 import '../../models/calls.dart';
 import '../../models/follows.dart';
+import '../../providers/activity_provider.dart';
 import '../../providers/calls_provider.dart';
 import '../../providers/discover_provider.dart';
 import '../../providers/engagement_provider.dart';
@@ -363,6 +364,8 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
   /// older notifications, the nearest tab or screen.
   void _open(PushRoute r) {
     if (!mounted) return;
+    // Opened from its push, its banner or its row: that Notifications line is read.
+    if (r.activityId != null) unawaited(context.read<ActivityProvider>().markRead([r.activityId!]));
     final nav = Navigator.of(context);
     // A tab: close whatever is on top (the Notifications page, a profile…) so the tab shows.
     void tab(int i) {

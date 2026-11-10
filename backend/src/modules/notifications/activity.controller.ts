@@ -34,6 +34,13 @@ export class ActivityController {
     return { unread: await this.feed.unread(me) };
   }
 
+  @Post('seen')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Opened the Notifications page: the bell badge goes to 0 (lines stay unread until opened)' })
+  seen(@CurrentUser('id') me: string) {
+    return this.feed.markSeen(me);
+  }
+
   @Post('read')
   @HttpCode(200)
   @ApiOperation({ summary: 'Mark some (ids) or all notifications as read' })

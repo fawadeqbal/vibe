@@ -142,12 +142,20 @@ void main() {
         child: MaterialApp(theme: V.theme(), home: const NotificationsScreen()),
       ));
       await tester.pumpAndSettle();
+      // Opening the page clears the bell; the lines stay highlighted until opened.
+      expect(activity.unread, 0);
+      final line = activity.items.firstWhere((i) => i.title == 'Payment received');
+      expect(activity.items.where((i) => !i.read), isNotEmpty);
       await tester.tap(find.textContaining('Payment received'));
       await tester.pump();
-      expect(opened, [const PushRoute(PushTarget.wallet)]);
+      expect(opened, [PushRoute(PushTarget.wallet, activityId: line.id)]);
+      // The home shell reads a line when it opens its route (HomeShell._open); here, by hand.
+      final unreadLine = activity.items.firstWhere((i) => !i.read);
+      await activity.markRead([unreadLine.id]);
+      expect(activity.items.firstWhere((i) => i.id == unreadLine.id).read, isTrue);
       await tester.tap(find.textContaining('Sana started following you'));
       await tester.pump();
-      expect(opened.last, const PushRoute(PushTarget.profile, userId: 'demo-sana'));
+      expect(opened.last, const PushRoute(PushTarget.profile, userId: 'demo-sana', activityId: 'demo-follow'));
     });
 
     testWidgets('friend requests (theirs and yours) are on the Notifications page now', (tester) async {

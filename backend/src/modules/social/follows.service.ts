@@ -11,6 +11,7 @@ import { ServerEvent } from '../../infra/realtime/realtime.events';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { EconomyService } from '../catalog/economy.service';
+import { ActivityFeedService } from '../notifications/activity-feed.service';
 import { PRIVACY_OPENED, PrivacyOpenedEvent } from '../users/profile.rules';
 import { PROFILE_INCLUDE, PublicProfile, toPublicProfile } from '../users/user.mapper';
 import { BlocksService, USER_BLOCKED, UserBlockedEvent } from './blocks.service';
@@ -43,6 +44,7 @@ export class FollowsService {
     private readonly clock: Clock,
     private readonly redis: RedisService,
     private readonly economy: EconomyService,
+    private readonly feed: ActivityFeedService,
   ) {}
 
   async state(me: string, other: string): Promise<FollowState> {
@@ -84,10 +86,12 @@ export class FollowsService {
     const ok = await this.prisma.tx((tx) => this.activate(tx, followerId, me));
     if (!ok) throw AppError.notFound('Follow request');
     this.realtime.toUser(followerId, ServerEvent.FollowAccepted, { by: await this.publicProfile(me) });
+    await this.feed.markReadAbout(me, followerId, ['follow.request']);
   }
 
   async decline(me: string, followerId: string): Promise<void> {
     await this.prisma.follow.deleteMany({ where: { followerId, followeeId: me, status: FollowStatus.PENDING } });
+    await this.feed.markReadAbout(me, followerId, ['follow.request']);
   }
 
   async removeFollower(me: string, followerId: string): Promise<void> {
