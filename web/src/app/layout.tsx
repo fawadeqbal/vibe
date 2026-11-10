@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 
 import { AppRuntime } from "@/components/layout/app-runtime";
+import { SPLASH_SCRIPT } from "@/lib/splash-once";
 
 import "./globals.css";
 
@@ -52,7 +53,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
+    <html lang="en" className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Before the first paint: a reload in a tab that already saw the splash doesn't flash it. */}
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_SCRIPT }} />
+      </head>
       <body>
         <AppRuntime>{children}</AppRuntime>
       </body>

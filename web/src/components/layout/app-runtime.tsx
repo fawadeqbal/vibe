@@ -7,6 +7,7 @@ import { useRegion } from "@/stores/region";
 import { startApp } from "@/stores/runtime";
 import { profileReady, useSession } from "@/stores/session";
 import { useKeyboardViewport } from "@/hooks/use-keyboard-viewport";
+import { markSplashSeen, splashSkipped } from "@/lib/splash-once";
 import { closeAllOverlays } from "@/stores/ui";
 
 import { LiveBannerHost } from "./live-banner";
@@ -74,7 +75,8 @@ export function AppRuntime({ children }: { children: ReactNode }) {
   useKeyboardViewport();
   useEffect(() => {
     startApp();
-    const t = setTimeout(() => setMinDone(true), SPLASH_MIN_MS);
+    // The animation plays once per tab (lib/splash-once.ts); a reload goes straight in.
+    const t = setTimeout(() => setMinDone(true), splashSkipped() ? 0 : SPLASH_MIN_MS);
     return () => clearTimeout(t);
   }, []);
 
@@ -108,7 +110,8 @@ export function AppRuntime({ children }: { children: ReactNode }) {
   const ready = !booting && minDone;
   useEffect(() => {
     if (!ready) return;
-    const t = setTimeout(() => setSplashGone(true), 250);
+    markSplashSeen();
+    const t = setTimeout(() => setSplashGone(true), splashSkipped() ? 0 : 250);
     return () => clearTimeout(t);
   }, [ready]);
 
@@ -118,7 +121,7 @@ export function AppRuntime({ children }: { children: ReactNode }) {
     <>
       {regionBlocked ? <RegionUnavailable /> : stage !== "booting" && !target ? children : null}
       {!splashGone ? (
-        <div className="relative z-[60] transition-opacity duration-250" style={{ opacity: ready ? 0 : 1 }}>
+        <div data-splash-overlay className="relative z-[60] transition-opacity duration-250" style={{ opacity: ready ? 0 : 1 }}>
           <Splash />
         </div>
       ) : null}
