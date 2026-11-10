@@ -67,7 +67,10 @@ export class StaffTokenService {
     const session = await this.prisma.staffSession.findUnique({ where: { refreshHash: hash }, include: { staff: { select: { status: true } } } });
     if (!session) throw AppError.unauthenticated('Invalid session');
     if (session.revokedAt) {
-      const replay = await this.redis.getJson<StaffTokens>(ROTATED(hash));
+      // Just rotated by a parallel refresh (two tabs) that may not have saved its result yet: wait for it
+      // instead of treating it as a stolen token and ending the sign-in.
+      const fresh = this.clock.now().getTime() - session.revokedAt.getTime() < GRACE_SECONDS * 1000;
+      const replay = fresh ? await this.waitForRotation(hash) : await this.redis.getJson<StaffTokens>(ROTATED(hash));
       if (replay) return { tokens: replay, staffId: session.staffId };
       this.logger.warn(`Staff refresh token reuse for ${session.staffId}; ending that sign-in`);
       await this.revokeWhere({ family: session.family });
@@ -77,16 +80,23 @@ export class StaffTokenService {
     const claimed = await this.prisma.staffSession.updateMany({ where: { id: session.id, revokedAt: null }, data: { revokedAt: this.clock.now() } });
     if (claimed.count === 0) {
       // Lost a race with a parallel refresh; wait briefly for its result.
-      for (let i = 0; i < 10; i++) {
-        const replay = await this.redis.getJson<StaffTokens>(ROTATED(hash));
-        if (replay) return { tokens: replay, staffId: session.staffId };
-        await new Promise((r) => setTimeout(r, 50));
-      }
+      const replay = await this.waitForRotation(hash);
+      if (replay) return { tokens: replay, staffId: session.staffId };
       throw AppError.unauthenticated('Session revoked');
     }
     const tokens = await this.issue(session.staffId, client, session);
     await this.redis.setJson(ROTATED(hash), tokens, GRACE_SECONDS);
     return { tokens, staffId: session.staffId };
+  }
+
+  /** The tokens a parallel refresh of the same token produced, waiting up to ~1 s for it to finish. */
+  private async waitForRotation(hash: string): Promise<StaffTokens | null> {
+    for (let i = 0; i < 20; i++) {
+      const replay = await this.redis.getJson<StaffTokens>(ROTATED(hash));
+      if (replay) return replay;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return null;
   }
 
   async revokeToken(refreshToken: string): Promise<void> {
