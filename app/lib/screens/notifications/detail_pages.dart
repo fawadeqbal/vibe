@@ -24,7 +24,7 @@ import '../match/call_states.dart' show AppealSheet;
 import '../profile/me_sections.dart';
 import '../profile/verification_flow.dart';
 import '../social/chat_screen.dart';
-import '../social/inbox_screen.dart' show TeamAvatar;
+import '../social/team_avatar.dart' show TeamAvatar;
 import '../store/store_screen.dart';
 import '../store/vip_screen.dart';
 import '../store/wallet_screen.dart';

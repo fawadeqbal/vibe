@@ -39,7 +39,6 @@ import '../profile/user_profile_screen.dart';
 import '../social/call_screens.dart';
 import '../social/chat_screen.dart';
 import '../social/chats_screen.dart';
-import '../social/inbox_screen.dart';
 import '../store/store_screen.dart';
 import '../store/wallet_screen.dart';
 
@@ -384,8 +383,9 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
         tab(Tabs.chats);
       case PushTarget.notifications:
         nav.push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+      // Messages from Vibe live on the Notifications page now (one place for everything).
       case PushTarget.inbox:
-        nav.push(MaterialPageRoute(builder: (_) => const InboxScreen()));
+        nav.push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
       case PushTarget.wallet:
         nav.push(MaterialPageRoute(builder: (_) => const WalletScreen()));
       case PushTarget.store:

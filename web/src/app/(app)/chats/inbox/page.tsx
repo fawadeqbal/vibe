@@ -1,7 +1,6 @@
-import { InboxView } from "@/features/chats/inbox-view";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Messages from Vibe" };
-
+/** "Messages from Vibe" lives on the Notifications page now (one place for everything); old links land there. */
 export default function Page() {
-  return <InboxView />;
+  redirect("/notifications");
 }

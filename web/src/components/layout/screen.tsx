@@ -19,7 +19,7 @@ export function Screen({
   /** Under the header and outside the scroll (a search box, tabs): stays put while the list under it scrolls. */
   pinned?: ReactNode;
   children: ReactNode;
-  /** Pinned under the body (e.g. VIP's sticky call to action). */
+  /** Pinned under the body (buttons, VIP's call to action): the body scrolls above it, so nothing hides behind it. */
   footer?: ReactNode;
   /** Decoration behind everything (glows). */
   background?: ReactNode;
@@ -37,7 +37,7 @@ export function Screen({
       <div className="quiet-scroll relative min-h-0 flex-1 overflow-y-auto">
         <div className={cn("mx-auto w-full px-5 pb-8", max, bodyClassName)}>{children}</div>
       </div>
-      {footer ? <div className={cn("absolute inset-x-0 bottom-0 mx-auto w-full", max)}>{footer}</div> : null}
+      {footer ? <div className={cn("relative mx-auto w-full shrink-0", max)}>{footer}</div> : null}
     </div>
   );
 }

@@ -267,4 +267,3 @@ function FriendRow({ f, last, active, onRestore }: { f: Friend; last: boolean; a
   );
 }
 
-/** Pinned row for "Messages from Vibe" (the team's messages), above friend requests. */

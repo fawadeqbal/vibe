@@ -16,8 +16,10 @@ import { useEffect } from "react";
  *    old browsers without `100dvh`),
  *  - `html[data-keyboard="open"]` while the keyboard is up, so the home-bar
  *    gap under message boxes goes away (`--safe-bottom: 0`),
- *  - if the browser slid the page to show the field, it's put back, since
- *    the shell already fits above the keyboard.
+ *  - `--app-top` = where the visible area starts on the page: when a browser
+ *    slides the page to show the field (iOS does, while the keyboard comes
+ *    up), the shell moves with it instead of being scrolled back, so the
+ *    header never jumps or flickers.
  */
 export function useKeyboardViewport() {
   useEffect(() => {
@@ -26,25 +28,26 @@ export function useKeyboardViewport() {
     // The tallest the page has been in this orientation: the keyboard is "open" when we're well under it.
     let full = 0;
     let orientation = window.innerWidth > window.innerHeight;
-    let frame = 0;
     const update = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const landscape = window.innerWidth > window.innerHeight;
-        if (landscape !== orientation) {
-          orientation = landscape;
-          full = 0;
-        }
-        const h = vv ? vv.height : window.innerHeight;
-        full = Math.max(full, h, vv ? 0 : window.innerHeight);
-        // A text field has focus and the page lost a keyboard's worth of height.
-        const typing = isTextField(document.activeElement);
-        const open = typing && full - h > 120;
-        root.style.setProperty("--app-h", `${Math.round(h)}px`);
-        if (open) root.dataset.keyboard = "open";
-        else delete root.dataset.keyboard;
-        if (open && (window.scrollY !== 0 || (vv && vv.offsetTop !== 0))) window.scrollTo(0, 0);
-      });
+      const landscape = window.innerWidth > window.innerHeight;
+      if (landscape !== orientation) {
+        orientation = landscape;
+        full = 0;
+      }
+      const h = vv ? vv.height : window.innerHeight;
+      full = Math.max(full, h, vv ? 0 : window.innerHeight);
+      // A text field has focus and the page lost a keyboard's worth of height.
+      const typing = isTextField(document.activeElement);
+      const open = typing && full - h > 120;
+      // Set right away (no frame later): the shell follows the keyboard as it slides.
+      root.style.setProperty("--app-h", `${Math.round(h)}px`);
+      const top = Math.max(0, Math.round(vv ? vv.pageTop : window.scrollY));
+      root.style.setProperty("--app-top", `${top}px`);
+      // Only while slid: the shell moves then (and only then changes how things inside it stack).
+      if (top > 0) root.dataset.shift = "1";
+      else delete root.dataset.shift;
+      if (open) root.dataset.keyboard = "open";
+      else delete root.dataset.keyboard;
     };
     update();
     vv?.addEventListener("resize", update);
@@ -55,7 +58,6 @@ export function useKeyboardViewport() {
     document.addEventListener("focusin", update);
     document.addEventListener("focusout", update);
     return () => {
-      cancelAnimationFrame(frame);
       vv?.removeEventListener("resize", update);
       vv?.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
@@ -63,6 +65,8 @@ export function useKeyboardViewport() {
       document.removeEventListener("focusin", update);
       document.removeEventListener("focusout", update);
       root.style.removeProperty("--app-h");
+      root.style.removeProperty("--app-top");
+      delete root.dataset.shift;
       delete root.dataset.keyboard;
     };
   }, []);

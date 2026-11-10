@@ -44,11 +44,12 @@ export function notificationPath(data: Record<string, string>, noteId?: string):
     case "verification":
       return "/me/verification";
     case "team":
-      return data.messageId ? `/news/${q("messageId")}` : "/chats/inbox";
+      return data.messageId ? `/news/${q("messageId")}` : "/notifications";
     case "recap":
       return "/me/recap";
+    // Messages from Vibe are on the Notifications page now.
     case "inbox":
-      return "/chats/inbox";
+      return "/notifications";
     case "notifications":
       return "/notifications";
     default:

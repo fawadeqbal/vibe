@@ -38,7 +38,6 @@ import 'package:vibe_app/screens/onboarding/profile_setup_screen.dart';
 import 'package:vibe_app/screens/onboarding/signin_screen.dart';
 import 'package:vibe_app/screens/onboarding/welcome_screen.dart';
 import 'package:vibe_app/screens/social/chat_screen.dart';
-import 'package:vibe_app/screens/social/inbox_screen.dart';
 import 'package:vibe_app/screens/splash_screen.dart';
 import 'package:vibe_app/services/app_services.dart';
 import 'package:vibe_app/services/invite/invite_capture.dart';
@@ -464,11 +463,6 @@ void main() {
     await tab(t, h, 'Chats');
     await snap(t, '20_chats_empty');
   }, withFriends: false);
-
-  shot('22_inbox', (t, h) async {
-    await t.pumpWidget(h.app(const InboxScreen()));
-    await snap(t, '22_inbox');
-  });
 
   shot('21_store_vip', (t, h) async {
     await tab(t, h, 'Store');

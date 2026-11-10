@@ -47,7 +47,7 @@ describe('notification links and the pages they open', () => {
       [link('team', { messageId: 'n1' }, 'inbox'), '/news/n1'],
       [link('recap', {}, 'inbox'), '/me/recap'],
       // Old rows on the Notifications page (no `open`) still go where they used to.
-      [{ route: 'inbox' }, '/chats/inbox'],
+      [{ route: 'inbox' }, '/notifications'],
       [{ route: 'friends', userId: 'u4' }, '/u/u4'],
       [{}, '/match'],
     ];

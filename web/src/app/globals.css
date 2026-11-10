@@ -79,6 +79,11 @@
   --animate-swipe-hint: vibe-swipe-hint 1.8s ease-in-out infinite;
 }
 
+/* The browser slid the page for the keyboard (iOS): the app moves with what you see, so nothing jumps. */
+html[data-shift] [data-app-shell] {
+  transform: translate3d(0, var(--app-top, 0px), 0);
+}
+
 /* A reload in a tab that already saw the splash: never show it (lib/splash-once.ts). */
 html[data-splash="skip"] [data-splash-overlay] {
   display: none;

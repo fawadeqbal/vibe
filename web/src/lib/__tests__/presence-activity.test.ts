@@ -68,7 +68,7 @@ describe("notificationPath", () => {
     expect(notificationPath({ route: "friends", userId: "u1" })).toBe("/u/u1");
     expect(notificationPath({ route: "friends" })).toBe("/notifications");
     expect(notificationPath({ route: "notifications" })).toBe("/notifications");
-    expect(notificationPath({ route: "inbox" })).toBe("/chats/inbox");
+    expect(notificationPath({ route: "inbox" })).toBe("/notifications");
     expect(notificationPath({ route: "chat", friendId: "u2" })).toBe("/chats/u2");
     expect(notificationPath({ route: "profile", userId: "u3" })).toBe("/u/u3");
     expect(notificationPath({ route: "follow-requests", userId: "u4" })).toBe("/me/follows?tab=requests");
