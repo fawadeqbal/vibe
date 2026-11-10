@@ -66,7 +66,7 @@ export function ChatsList() {
       />
       {empty ? (
         <>
-          <div className="px-5">
+          <div className="px-4">
             <MomentsBar />
           </div>
           <EmptyState
@@ -79,7 +79,7 @@ export function ChatsList() {
           />
         </>
       ) : (
-        <div className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-4 pb-8">
+        <div className="quiet-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-8">
           <label className="flex h-12 items-center gap-2.5 rounded-full border border-line bg-surface px-4">
             <Icon name="search" variant="outlined" size={20} className="shrink-0 text-muted" />
             <input
