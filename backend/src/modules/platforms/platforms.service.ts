@@ -73,8 +73,11 @@ export class PlatformsService {
     const before = await this.redis.client.getset(key, client);
     await this.redis.client.expire(key, 7 * 24 * 3600);
     if (before === client) return;
+    // Two clients connecting at once (app and website) race here: write whichever Redis holds now,
+    // so the database ends on the same last one.
+    const latest = ((await this.redis.client.get(key)) as ClientKind | null) ?? client;
     // (NOT lastClient = x would skip people with no value yet: SQL NULL never matches.)
-    await this.prisma.user.updateMany({ where: { id: userId, OR: [{ lastClient: null }, { lastClient: { not: client } }] }, data: { lastClient: client } });
+    await this.prisma.user.updateMany({ where: { id: userId, OR: [{ lastClient: null }, { lastClient: { not: latest } }] }, data: { lastClient: latest } });
   }
 
   async report(days: number): Promise<PlatformsReport> {
