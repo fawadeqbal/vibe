@@ -31,6 +31,7 @@ import 'screens/onboarding/permissions_screen.dart';
 import 'screens/onboarding/profile_setup_screen.dart';
 import 'screens/onboarding/signin_screen.dart';
 import 'screens/onboarding/welcome_screen.dart';
+import 'screens/region_unavailable_screen.dart';
 import 'screens/splash_screen.dart';
 
 class VibeApp extends StatefulWidget {
@@ -65,6 +66,9 @@ class _VibeAppState extends State<VibeApp> {
     _catalog.addListener(_redrawPrices);
     // Restore everything once; the splash shows meanwhile.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // The catalog is public: loading it now also tells a visitor from a
+      // country Vibe isn't offered in, before they try to sign in.
+      if (rt != null) unawaited(_catalog.load());
       await _session.restore();
       // After the restore, so a link opened by someone signed in isn't
       // stored as a sign-up code.
@@ -157,7 +161,16 @@ class _VibeAppState extends State<VibeApp> {
       scaffoldMessengerKey: _messenger,
       navigatorObservers: [vibeRouteObserver],
       // Friend calls over every page: the ringing banner, a call shrunk to the chat.
-      builder: (context, child) => CallLayer(child: child ?? const SizedBox.shrink()),
+      // Where Vibe isn't offered (451 from the API), only the region screen.
+      builder: (context, child) {
+        final page = CallLayer(child: child ?? const SizedBox.shrink());
+        final api = context.read<ApiClient?>();
+        if (api == null) return page;
+        return ValueListenableBuilder<bool>(
+          valueListenable: api.regionBlocked,
+          builder: (context, blocked, _) => blocked ? const RegionUnavailableScreen() : page,
+        );
+      },
       theme: V.theme(),
       home: Consumer<SessionProvider>(
         // The animated splash stays up until boot is done and its entrance

@@ -274,5 +274,15 @@ export const fold = (s: string) =>
     .replace(/[’']/g, "'")
     .toLowerCase();
 
-/** Options for a `Dropdown`: the flag, the name, and the other names to search by. */
-export const countryOptions = () => COUNTRIES.map((c) => ({ value: c.code, label: c.name, leading: c.flag, keywords: `${c.code} ${c.aka ?? ""}` }));
+/**
+ * Countries Vibe isn't offered in (admin → Settings → Region): left out of
+ * every country list. The catalog (`blockedCountries`) replaces the default.
+ */
+export const DEFAULT_BLOCKED_COUNTRIES = ["IN", "IL", "AF"];
+let blocked = new Set(DEFAULT_BLOCKED_COUNTRIES);
+export const setBlockedCountries = (codes: readonly string[]) => void (blocked = new Set(codes));
+export const isBlockedCountry = (code: string | null | undefined) => !!code && blocked.has(code);
+
+/** Options for a `Dropdown`: the flag, the name, and the other names to search by (blocked countries left out). */
+export const countryOptions = () =>
+  COUNTRIES.filter((c) => !blocked.has(c.code)).map((c) => ({ value: c.code, label: c.name, leading: c.flag, keywords: `${c.code} ${c.aka ?? ""}` }));

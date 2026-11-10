@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../core/api/api_client.dart';
 import '../core/api/api_exception.dart';
 import '../core/api/realtime_client.dart';
+import '../core/data/countries.dart' show setBlockedCountries;
 import '../core/mock/mock_data.dart';
 import '../models/models.dart';
 
@@ -122,6 +123,8 @@ class CatalogProvider extends ChangeNotifier {
         ),
     ];
     final gifts = [for (final g in list('gifts')) Gift(id: g['id'] as String, name: g['name'] as String, emoji: g['emoji'] as String, coins: (g['coins'] as num).toInt())];
+    // Countries Vibe isn't offered in: left out of every country picker.
+    if (c['blockedCountries'] is List) setBlockedCountries([for (final x in c['blockedCountries'] as List) if (x is String) x]);
     // Never leave the store empty because of a bad response.
     if (packs.isNotEmpty) MockData.packs = List.unmodifiable(packs);
     if (plans.isNotEmpty) MockData.plans = List.unmodifiable(plans);

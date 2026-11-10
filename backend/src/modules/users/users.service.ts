@@ -12,6 +12,7 @@ import { PrismaService, Tx } from '../../infra/prisma/prisma.service';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { StorageProvider } from '../../infra/storage/storage.provider';
 import { EconomyService } from '../catalog/economy.service';
+import { RegionService } from '../region/region.service';
 import { ImageSafetyService } from '../safety/image-safety.service';
 import { WalletService } from '../wallet/wallet.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -54,6 +55,7 @@ export class UsersService {
     private readonly economy: EconomyService,
     private readonly config: AppConfig,
     private readonly images: ImageSafetyService,
+    private readonly region: RegionService,
   ) {}
 
   /**
@@ -119,6 +121,8 @@ export class UsersService {
     if (dto.age !== undefined && dto.age < this.economy.rules.minAge) {
       throw new AppError(ErrorCode.UNDERAGE, `Vibe is for people ${this.economy.rules.minAge} and over`, HttpStatus.FORBIDDEN);
     }
+    // Not a country Vibe is offered in (admin → Settings → Region).
+    await this.region.assertCountry(dto.countryCode);
     const before = await this.findActive(id);
     // A new profile photo must be one this person uploaded through POST /me/avatar (and so passed the photo checks):
     // an outside URL would skip them.

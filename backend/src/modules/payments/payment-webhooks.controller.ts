@@ -11,6 +11,7 @@ import { AppleJwsError, AppleJwsVerifier } from '../../integrations/apple/apple-
 import { WebhookInbox } from '../../integrations/core/webhook-inbox.service';
 import { GoogleAuth } from '../../integrations/google/google-auth';
 import { SkipMaintenance } from '../settings/maintenance.guard';
+import { SkipRegion } from '../region/region.guard';
 import { withQuery } from './adapters/card/card.adapter';
 import { PaymentGateway } from './payment-gateway.service';
 import { PaymentsService } from './payments.service';
@@ -28,6 +29,7 @@ type RawRequest = Request & { rawBody?: Buffer };
 @ApiTags('webhooks')
 @Public()
 @SkipMaintenance()
+@SkipRegion()
 @Controller('webhooks')
 export class PaymentWebhooksController {
   private readonly logger = new Logger(PaymentWebhooksController.name);
@@ -153,6 +155,7 @@ export class PaymentWebhooksController {
 @ApiTags('payments')
 @Public()
 @SkipMaintenance()
+@SkipRegion()
 @Controller('payments/dev-checkout')
 export class DevCheckoutController {
   constructor(

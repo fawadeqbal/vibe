@@ -11,6 +11,7 @@ import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { RealtimeService } from '../../../infra/realtime/realtime.service';
 import { AnnouncementsService } from '../../announcements/announcements.service';
 import { MatchingService } from '../../matching/matching.service';
+import { RegionService } from '../../region/region.service';
 import { SettingsService } from '../../settings/settings.service';
 import { P } from '../core/permissions';
 import { Audit, CurrentStaff, RequirePermissions, StaffApi } from '../core/staff-api.decorator';
@@ -86,6 +87,7 @@ export class OpsController {
     private readonly announcements: AnnouncementsService,
     private readonly settings: SettingsService,
     private readonly clock: Clock,
+    private readonly region: RegionService,
   ) {}
 
   // ── live ──────────────────────────────────────────────────────────────────
@@ -184,6 +186,13 @@ export class OpsController {
     }
     const r = await this.settings.set(key, dto.value, me.id);
     return { key: r.key, value: r.value, previous: r.previous };
+  }
+
+  @Get('region/refusals')
+  @RequirePermissions(P.OpsSettings)
+  @ApiOperation({ summary: 'Requests refused from blocked countries over the last 7 days, by country' })
+  regionRefusals() {
+    return this.region.refusals(7);
   }
 
   @Get('online/:userId')

@@ -4,6 +4,7 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { SkipMaintenance } from '../settings/maintenance.guard';
+import { SkipRegion } from '../region/region.guard';
 
 const CACHE_MS = 10_000;
 
@@ -15,6 +16,7 @@ const CACHE_MS = 10_000;
 @ApiTags('stats')
 @Public()
 @SkipMaintenance()
+@SkipRegion()
 @Controller('stats')
 export class StatsController {
   private cached: { online: number; at: number } | null = null;

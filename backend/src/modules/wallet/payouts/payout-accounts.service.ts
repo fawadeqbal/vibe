@@ -7,6 +7,7 @@ import { Clock } from '../../../common/utils/clock';
 import { SecretBox } from '../../../common/utils/secret-box';
 import { AppConfig } from '../../../config/app-config.service';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
+import { RegionService } from '../../region/region.service';
 import { maskDestination, normaliseAccount } from './account-rules';
 import { PAYOUT_METHODS, PayoutDestination } from './payout-adapter';
 
@@ -33,6 +34,7 @@ export class PayoutAccountsService {
     private readonly prisma: PrismaService,
     private readonly clock: Clock,
     config: AppConfig,
+    private readonly region: RegionService,
   ) {
     this.box = new SecretBox(config.dataKey('payouts'));
   }
@@ -48,6 +50,9 @@ export class PayoutAccountsService {
 
   async add(userId: string, input: NewPayoutAccount): Promise<PayoutAccount> {
     if (!PAYOUT_METHODS.includes(input.method)) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Choose JazzCash, Easypaisa or a bank account');
+    // Nothing from a blocked country: phone numbers (+91, +972, +93 by default) or IBANs.
+    if (input.method === PaymentMethod.BANK) await this.region.assertIban(input.account);
+    else await this.region.assertPhone(input.account, 'payout');
     const n = normaliseAccount(input.method, input.account);
     if (!n.ok) throw new AppError(ErrorCode.VALIDATION_FAILED, n.message);
     if (input.method === PaymentMethod.BANK && !input.bankName) throw new AppError(ErrorCode.VALIDATION_FAILED, 'Enter the bank name');

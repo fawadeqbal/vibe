@@ -14,6 +14,7 @@ import { PaymentEvents } from '../../integrations/core/payment-events.service';
 import { ProviderError } from '../../integrations/core/provider-http';
 import type { CoinPack, VipPlan } from '../catalog/economy';
 import { EconomyService } from '../catalog/economy.service';
+import { RegionService } from '../region/region.service';
 import { SettingsService } from '../settings/settings.service';
 import { LedgerService } from '../wallet/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -72,6 +73,7 @@ export class PaymentsService {
     private readonly realtime: RealtimeService,
     private readonly redis: RedisService,
     private readonly emitter: EventEmitter2,
+    private readonly region: RegionService,
   ) {}
 
   // ── catalogue ────────────────────────────────────────────────────────
@@ -150,6 +152,8 @@ export class PaymentsService {
     const prior = await this.prisma.purchase.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
     if (prior && !(prior.status === PurchaseStatus.FAILED && STORE_METHODS.includes(prior.method) && dto.receipt)) return this.view(prior);
     if (prior) return this.view(await this.retryStore(prior, dto));
+    // No wallet numbers from blocked countries (+91, +972, +93 by default).
+    await this.region.assertPhone(dto.phone);
     const adapter = await this.gateway.adapter(dto.method);
     const { usdCents, snapshot } = this.product(dto.productType, dto.productId);
     const amount = await this.amountFor(dto.method, usdCents);

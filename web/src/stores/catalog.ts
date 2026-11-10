@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { asList, asMap, type Json, num, optStr, str } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
 import { DEFAULT_ECONOMY, DEFAULT_GIFTS, DEFAULT_PACKS, DEFAULT_PLANS, type Economy } from "@/lib/catalog";
+import { setBlockedCountries } from "@/lib/countries";
 import type { CoinPack, Gift, VipPlan } from "@/lib/models";
 
 import { api, realtime } from "./services";
@@ -128,6 +129,8 @@ export const useCatalog = create<CatalogState>()((set, get) => ({
     }));
     const gifts: Gift[] = list("gifts").map((g) => ({ id: str(g.id), name: str(g.name), emoji: str(g.emoji), coins: Math.trunc(num(g.coins)) }));
     const version = String(c.version ?? "");
+    // Countries Vibe isn't offered in: left out of every country picker.
+    if (Array.isArray(c.blockedCountries)) setBlockedCountries(c.blockedCountries.filter((x): x is string => typeof x === "string"));
     // Never leave the store empty because of a bad response.
     set((s) => ({
       economy,

@@ -13,6 +13,8 @@ export class CardAdapter implements PaymentAdapter {
   constructor(
     readonly gateway: CardGateway,
     private readonly config: AppConfig,
+    /** Blocked card-issuer countries (admin → Settings → Region). */
+    private readonly blocked: () => Promise<ReadonlySet<string>> = async () => new Set(),
   ) {
     this.provider = `card-${gateway.name}`;
   }
@@ -28,6 +30,7 @@ export class CardAdapter implements PaymentAdapter {
       returnUrl: back('done'),
       cancelUrl: back('cancelled'),
       webhookUrl: this.config.url(`/v1/webhooks/card/${this.gateway.name}`),
+      blockedCardCountries: [...(await this.blocked())].sort(),
     });
     return {
       status: 'pending',
@@ -42,7 +45,14 @@ export class CardAdapter implements PaymentAdapter {
     const ref = ctx.purchase.providerRef;
     if (!ref) return { status: 'failed', reason: 'Checkout was never started' };
     const s = await this.gateway.getStatus(ref);
-    if (s.status === 'paid') return { status: 'succeeded', providerRef: s.providerRef };
+    if (s.status === 'paid') {
+      // A card issued in a blocked country got through the gateway: don't deliver, and flag the charge for a refund.
+      const cc = s.cardCountry?.toUpperCase();
+      if (cc && (await this.blocked()).has(cc)) {
+        return { status: 'failed', reason: "Cards issued in this country can't be used on Vibe. The charge will be refunded.", code: 'CARD_REGION', raw: { refundNeeded: true, providerRef: s.providerRef, cardCountry: cc } };
+      }
+      return { status: 'succeeded', providerRef: s.providerRef };
+    }
     if (s.status === 'pending') return { status: 'pending', action: 'redirect', providerRef: ref };
     return { status: 'failed', reason: s.reason, code: s.status };
   }

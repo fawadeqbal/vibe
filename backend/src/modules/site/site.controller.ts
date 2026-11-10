@@ -7,6 +7,7 @@ import type { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { SkipMaintenance } from '../settings/maintenance.guard';
+import { SkipRegion } from '../region/region.guard';
 import { AttributionDto } from './site.dto';
 import { AppDownloadService } from './app-download.service';
 import { SiteService } from './site.service';
@@ -26,6 +27,7 @@ export class SiteController {
    */
   @Public()
   @SkipMaintenance()
+  @SkipRegion()
   @Get('download/android')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'Count an Android download and redirect (302) to the latest APK' })
@@ -41,6 +43,7 @@ export class SiteController {
    */
   @Public()
   @SkipMaintenance()
+  @SkipRegion()
   @Post('events')
   @HttpCode(204)
   @Header('Access-Control-Allow-Origin', '*')

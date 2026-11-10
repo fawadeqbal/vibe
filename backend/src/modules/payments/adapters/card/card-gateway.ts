@@ -34,6 +34,12 @@ export interface CheckoutInput {
   cancelUrl: string;
   /** Our webhook URL for this gateway. */
   webhookUrl: string;
+  /**
+   * Card issuer countries Vibe doesn't accept (admin → Settings → Region,
+   * ISO codes). Pass them to the gateway's own issuer-country block if it has
+   * one, so those cards are declined before they're charged.
+   */
+  blockedCardCountries: string[];
 }
 
 export interface CheckoutSession {
@@ -45,7 +51,12 @@ export interface CheckoutSession {
 }
 
 export type CardStatus =
-  | { status: 'paid'; providerRef: string }
+  | {
+      status: 'paid';
+      providerRef: string;
+      /** The card's issuing country (from its BIN), if the gateway says. A blocked one is refused and refunded. */
+      cardCountry?: string;
+    }
   | { status: 'pending' }
   | { status: 'failed' | 'expired'; reason: string };
 

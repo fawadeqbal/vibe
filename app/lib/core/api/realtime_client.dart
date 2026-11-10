@@ -146,6 +146,11 @@ class RealtimeClient {
     s.onConnect((_) => _setConnected(true));
     s.onDisconnect((_) => _setConnected(false));
     s.onConnectError((err) async {
+      // Not offered in this country: stop trying (the app shows the region screen).
+      if ('$err'.contains('REGION_UNAVAILABLE')) {
+        _api.regionBlocked.value = true;
+        return disconnect();
+      }
       // Expired token: refresh, then the next reconnect attempt uses the new one.
       if ('$err'.contains('TOKEN_EXPIRED') || '$err'.contains('UNAUTHENTICATED')) await _api.refreshSession();
     });

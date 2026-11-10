@@ -123,8 +123,14 @@ export class RealtimeClient {
     s.on("connect", () => this.setConnected(true));
     s.on("disconnect", () => this.setConnected(false));
     s.on("connect_error", async (err) => {
+      const reason = String(err?.message ?? err);
+      // Not offered in this country: stop trying (the app shows the region screen).
+      if (reason === "REGION_UNAVAILABLE") {
+        this.api.onRegionBlocked?.("");
+        return this.disconnect();
+      }
       // Expired token: refresh; the next reconnect attempt sends the new one.
-      if (/TOKEN_EXPIRED|UNAUTHENTICATED/.test(String(err?.message ?? err))) await this.api.refreshSession();
+      if (/TOKEN_EXPIRED|UNAUTHENTICATED/.test(reason)) await this.api.refreshSession();
     });
     s.onAny((event: string, data: unknown) => {
       if (!data || typeof data !== "object") return;

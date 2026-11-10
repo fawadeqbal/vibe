@@ -21,6 +21,10 @@ export enum ErrorCode {
   RATE_LIMITED = 'RATE_LIMITED',
   INTERNAL = 'INTERNAL',
   MAINTENANCE = 'MAINTENANCE',
+  /** The visitor is in a country Vibe isn't offered in (451; admin → Settings → Region). */
+  REGION_UNAVAILABLE = 'REGION_UNAVAILABLE',
+  /** A profile country, phone number, IBAN or card from a blocked country (400; the field is wrong, not the visitor). */
+  COUNTRY_NOT_SUPPORTED = 'COUNTRY_NOT_SUPPORTED',
 
   // auth
   UNAUTHENTICATED = 'UNAUTHENTICATED',

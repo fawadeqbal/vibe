@@ -39,6 +39,8 @@ import { ReferralsModule } from './modules/referrals/referrals.module';
 import { MailTemplatesModule } from './modules/messaging/mail-templates.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { MaintenanceGuard } from './modules/settings/maintenance.guard';
+import { RegionGuard } from './modules/region/region.guard';
+import { RegionModule } from './modules/region/region.module';
 import { LegalModule } from './modules/legal/legal.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SocialModule } from './modules/social/social.module';
@@ -97,6 +99,7 @@ function canPrettyPrint(): boolean {
     IntegrationsModule,
     MailModule,
     SettingsModule,
+    RegionModule,
     LegalModule,
     MailTemplatesModule,
 
@@ -128,8 +131,10 @@ function canPrettyPrint(): boolean {
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
-    // Order matters: authenticate (app users or staff), then rate-limit per
-    // caller, then maintenance mode (app routes only), then roles.
+    // Order matters: blocked countries first (451 before any 401), then
+    // authenticate (app users or staff), then rate-limit per caller, then
+    // maintenance mode (app routes only), then roles.
+    { provide: APP_GUARD, useClass: RegionGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: StaffAuthGuard },
     { provide: APP_GUARD, useClass: UserThrottlerGuard },

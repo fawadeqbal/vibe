@@ -83,7 +83,7 @@ export class SettingsService implements OnModuleInit, OnModuleDestroy {
         group: def.group,
         label: def.label,
         description: def.description,
-        type: t === 'ZodBoolean' ? 'boolean' : t === 'ZodNumber' ? 'number' : t === 'ZodEnum' ? 'select' : 'string',
+        type: t === 'ZodBoolean' ? 'boolean' : t === 'ZodNumber' ? 'number' : t === 'ZodEnum' ? 'select' : t === 'ZodArray' ? 'countries' : 'string',
         ...(t === 'ZodEnum' ? { options: schema._def.values ?? [] } : {}),
         value: values[key],
         default: defaultFor(key, this.config.isProduction),

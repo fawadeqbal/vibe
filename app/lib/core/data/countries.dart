@@ -261,6 +261,14 @@ const defaultCountryCode = 'PK';
 
 final Map<String, Country> _byCode = {for (final c in allCountries) c.code: c};
 
+/// Countries Vibe isn't offered in (admin → Settings → Region): left out of
+/// every country list. The catalog's `blockedCountries` replaces the default.
+const defaultBlockedCountries = {'IN', 'IL', 'AF'};
+Set<String> _blocked = {...defaultBlockedCountries};
+Set<String> get blockedCountries => _blocked;
+void setBlockedCountries(Iterable<String> codes) => _blocked = {...codes};
+bool isBlockedCountry(String? code) => code != null && _blocked.contains(code);
+
 Country countryOf(String? code) => _byCode[code] ?? _byCode[defaultCountryCode]!;
 Country? findCountry(String? code) => code == null ? null : _byCode[code];
 
