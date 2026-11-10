@@ -118,6 +118,8 @@ export class PushService implements IntegrationReporter, OnModuleInit {
     await Promise.all(
       tokens.map(async ({ token, platform, appVersion }) => {
         try {
+          // Nothing to show: only an Android app that rings full screen needs it (anything else would show a blank alert).
+          if (msg.silent && (platform !== 'android' || !canRing(appVersion))) return;
           // Data-only (ringing full screen) needs an app that draws it; older Android builds get the plain notification.
           const plain = (msg.ring || msg.dataOnly) && platform === 'android' && !canRing(appVersion);
           const r = await this.sender!.send(token, plain ? { ...msg, ring: undefined, dataOnly: undefined } : msg);

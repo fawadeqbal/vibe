@@ -1,0 +1,19 @@
+name: vibe_calls
+description: Vibe's Android call plumbing — the incoming-call screen over the lock screen (Vibe itself opens only on Answer) and the proximity sensor for earpiece calls.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.38.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.fawadiqbal.vibe.calls
+        pluginClass: VibeCallsPlugin

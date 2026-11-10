@@ -93,6 +93,11 @@ class Ev {
   /// A ringing call stopped: `{ callId, reason, reply?, from? }`.
   static const callEnded = 'call:ended';
 
+  /// To the person being called, on every device: it stopped ringing,
+  /// however it ended (`{ callId, reason }`; accepted / declined may be on
+  /// another of your devices). Stops the ring and the call screen.
+  static const callStop = 'call:stop';
+
   /// Voice call → video: `{ matchId, state: asked|on|declined, from? }`.
   static const callVideo = 'call:video';
 

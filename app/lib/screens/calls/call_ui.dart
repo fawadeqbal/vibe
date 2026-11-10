@@ -98,7 +98,7 @@ class _PulseAvatarState extends State<PulseAvatar> with SingleTickerProviderStat
 
 /// A phone-call control: round, label under it. [on] = the white "active" look (muted, camera off).
 class CallCtl extends StatelessWidget {
-  const CallCtl({super.key, required this.icon, required this.label, this.onTap, this.on = false, this.size = 60, this.background, this.color, this.semantics});
+  const CallCtl({super.key, required this.icon, required this.label, this.onTap, this.on = false, this.size = 60, this.background, this.color, this.semantics, this.badge});
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -107,6 +107,9 @@ class CallCtl extends StatelessWidget {
   final Color? background;
   final Color? color;
   final String? semantics;
+
+  /// A small mark on the button's corner (e.g. ⌄ when it opens a list).
+  final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -127,16 +130,22 @@ class CallCtl extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ClipOval(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                    child: Container(
-                      width: size,
-                      height: size,
-                      color: bg,
-                      child: Icon(icon, size: size * 0.42, color: fg),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ClipOval(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                        child: Container(
+                          width: size,
+                          height: size,
+                          color: bg,
+                          child: Icon(icon, size: size * 0.42, color: fg),
+                        ),
+                      ),
                     ),
-                  ),
+                    if (badge != null) Positioned(right: -2, bottom: -2, child: badge!),
+                  ],
                 ),
                 const SizedBox(height: 7),
                 Text(

@@ -56,6 +56,8 @@ export interface Content {
   ringSeconds?: number;
   /** Sent data-only (the app draws it), e.g. the missed call that stops the ringing. */
   dataOnly?: boolean;
+  /** Nothing to show, only for the app (stop ringing): Android apps that ring full screen only. */
+  silent?: boolean;
 }
 
 export interface BuildCtx {
@@ -185,6 +187,20 @@ export const CATALOG: NotificationType[] = [
       if (!from) return null;
       // Data-only like the ring itself, so the phone stops ringing and shows this instead.
       return { title: 'Missed video call', body: `From ${first(from.name, 'a friend')}. Tap to call back.`, data: link('calls', { userId: from.id, friendId: from.id, callId: p.callId }, 'chat'), collapseKey: `call:${p.callId}`, dataOnly: true };
+    },
+  },
+  {
+    // Not shown: tells a phone with Vibe closed to stop ringing, however the call ended.
+    key: 'call.stop',
+    feed: 'never',
+    group: 'calls',
+    label: 'A call stopped ringing',
+    event: ServerEvent.CallStopRinging,
+    channels: PUSH,
+    pushWhenOnline: true,
+    build: (p) => {
+      if (typeof p.callId !== 'string' || !p.callId) return null;
+      return { title: 'Call ended', body: '', data: link('call_stop', { callId: p.callId, reason: p.reason }), collapseKey: `call:${p.callId}`, dataOnly: true, silent: true };
     },
   },
   {

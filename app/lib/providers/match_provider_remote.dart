@@ -7,6 +7,9 @@ part of 'match_provider.dart';
 /// When the partner has no camera stream (e.g. a dev bot), the match screen
 /// falls back to their photo, exactly like the offline mock.
 class RemoteMatchProvider extends MatchProvider {
+  @override
+  AudioBackend createAudioBackend() => WebrtcAudioBackend();
+
   RemoteMatchProvider(this._api, this._rt, WalletProvider wallet, SocialProvider social, SessionProvider session, {bool cameraEnabled = true})
     : super.base(wallet, social, session, cameraEnabled: cameraEnabled) {
     _subs = [

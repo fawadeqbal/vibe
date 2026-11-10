@@ -394,6 +394,7 @@ export class CallsService {
     if (!c) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
     await this.redis.client.del(DECLINES(c.from, c.to));
     this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId, reason: 'accepted' });
+    this.stopRinging(c, 'accepted');
     const video = c.video && !voiceOnly;
     const matchId = await this.matching.startFriendCall(c.from, c.to, { voice: !video });
     if (matchId) await this.redis.client.hset(LIVE, matchId, JSON.stringify({ a: c.from, b: c.to, startedAt: Date.now(), video }));
@@ -406,6 +407,7 @@ export class CallsService {
     const c = await this.finish(callId);
     if (!c) return;
     this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId, reason: 'declined', reply: reply ?? null });
+    this.stopRinging(c, 'declined');
     if (reply?.trim()) await this.messages.send(me, c.from, reply.trim().slice(0, 200)).catch(() => undefined);
     await this.messages
       .system(c.friendshipId, me, c.from, `${kindText(c.video)} call declined`, { event: 'call_declined', video: c.video })
@@ -427,6 +429,7 @@ export class CallsService {
     const from = await this.profile(c.from);
     this.realtime.toUser(c.to, ServerEvent.CallEnded, { callId: c.id, reason, from });
     this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId: c.id, reason });
+    this.stopRinging(c, reason);
     await this.messages
       .system(c.friendshipId, c.from, c.to, `Missed ${c.video ? 'video' : 'voice'} call`, { event: 'call_missed', video: c.video })
       .catch(() => undefined);
@@ -436,8 +439,18 @@ export class CallsService {
     const id = await this.redis.client.get(USER(a));
     const c = id ? await this.ringing(id) : null;
     if (!c || ![c.from, c.to].includes(b)) return;
-    if (await this.finish(c.id))
+    if (await this.finish(c.id)) {
       for (const uid of [c.from, c.to]) this.realtime.toUser(uid, ServerEvent.CallEnded, { callId: c.id, reason });
+      this.stopRinging(c, reason);
+    }
+  }
+
+  /**
+   * Whatever ended it, every device of the person being called stops ringing:
+   * the app over the socket, a phone with Vibe closed through a silent push.
+   */
+  private stopRinging(c: RingingCall, reason: CallEndReason): void {
+    this.realtime.toUser(c.to, ServerEvent.CallStopRinging, { callId: c.id, reason });
   }
 
   /** Unanswered calls ring out; friend calls past the longest allowed length end. */

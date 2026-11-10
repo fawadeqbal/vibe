@@ -1,0 +1,44 @@
+group 'dev.fawadiqbal.vibe.calls'
+version '0.1.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.11.1'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'dev.fawadiqbal.vibe.calls'
+    compileSdk = 36
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    defaultConfig {
+        minSdk = 24
+    }
+
+    lint {
+        disable 'InvalidPackage'
+    }
+}
+
+dependencies {
+    // NotificationCompat.CallStyle (the system's incoming-call notification) and Person.
+    implementation 'androidx.core:core:1.13.1'
+}

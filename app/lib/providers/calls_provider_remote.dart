@@ -37,6 +37,15 @@ class RemoteCallsProvider extends CallsProvider {
         }
       }),
       _rt.on(Ev.callEnded).listen(_onEnded),
+      // Hung up, rang out, or answered / declined on another of your devices.
+      _rt.on(Ev.callStop).listen((e) {
+        final id = '${e['callId']}';
+        unawaited(CallRinger.stop(id, reason: e['reason'] as String?));
+        if (_incoming?.callId == id) {
+          setIncoming(null);
+          notifyListeners();
+        }
+      }),
     ];
   }
 
@@ -52,7 +61,11 @@ class RemoteCallsProvider extends CallsProvider {
   void _onEnded(Map<String, dynamic> e) {
     final id = '${e['callId']}';
     final reason = e['reason'] as String?;
-    if (_incoming?.callId == id) setIncoming(null);
+    if (_incoming?.callId == id) {
+      setIncoming(null);
+      // A ring drawn while Vibe was in the background stops too.
+      unawaited(CallRinger.stop(id, reason: reason));
+    }
     final o = _outgoing;
     if (o != null && (o.callId == id || o.callId == null)) {
       _outgoing = switch (reason) {
