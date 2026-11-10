@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/cache/cached_image.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -389,8 +390,8 @@ class _MomentViewerScreenState extends State<MomentViewerScreen> with SingleTick
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.network(
-                m.mediaUrl,
+              Image(
+                image: netImage(m.mediaUrl),
                 key: ValueKey(m.id),
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF2B1B4D), V.bg], begin: Alignment.topCenter, end: Alignment.bottomCenter))),

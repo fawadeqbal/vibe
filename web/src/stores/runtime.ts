@@ -91,9 +91,44 @@ async function sendVisitAttribution() {
   }
 }
 
+/**
+ * Back online after missing live events (the socket dropped, the tab slept):
+ * fetch what changed meanwhile, so chats, presence, notifications and money
+ * are right without a reload.
+ */
+let lastCatchUp = 0;
+export async function catchUp() {
+  if (!live || Date.now() - lastCatchUp < 3000) return;
+  lastCatchUp = Date.now();
+  await Promise.allSettled([
+    useSocial.getState().catchUp(),
+    useActivity.getState().refresh(),
+    useWallet.getState().refresh(),
+    useInbox.getState().load(),
+    useFollows.getState().load(),
+    useCatalog.getState().load(),
+  ]);
+}
+
+let hiddenAt = 0;
+function watchResync() {
+  let wasConnected = false;
+  realtime.onConnectionChange((up) => {
+    // A reconnect (not the first connect): events may have been missed.
+    if (up && wasConnected) void catchUp();
+    if (up) wasConnected = true;
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) hiddenAt = Date.now();
+    else if (hiddenAt && Date.now() - hiddenAt > 20_000) void catchUp();
+  });
+  window.addEventListener("online", () => void catchUp());
+}
+
 export function startApp() {
   if (started) return;
   started = true;
+  watchResync();
   // An invite link (?ref=CODE&s=SOURCE) can land on any page: keep it for sign-up.
   useReferrals.getState().captureFromLocation();
   // A link from the marketing site (?vid=…): keep the visit for sign-up attribution.

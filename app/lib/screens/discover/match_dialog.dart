@@ -1,3 +1,4 @@
+import '../../core/cache/cached_image.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -99,7 +100,7 @@ class _MatchDialogState extends State<_MatchDialog> {
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 30, offset: const Offset(0, 14))],
           ),
           child: url.startsWith('http')
-              ? Image.network(url, fit: BoxFit.cover, semanticLabel: name, errorBuilder: (_, _, _) => const ColoredBox(color: V.surface))
+              ? Image(image: netImage(url), fit: BoxFit.cover, semanticLabel: name, errorBuilder: (_, _, _) => const ColoredBox(color: V.surface))
               : DecoratedBox(
                   decoration: const BoxDecoration(gradient: V.brand),
                   child: Center(child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: VT.display(56, color: Colors.white.withValues(alpha: 0.6)))),

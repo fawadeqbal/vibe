@@ -1,3 +1,4 @@
+import '../../core/cache/cached_image.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -252,7 +253,7 @@ class _ProfileCardState extends State<ProfileCard> {
           ? Stack(
               fit: StackFit.expand,
               children: [
-                Image.network(me.avatarUrl, fit: BoxFit.cover, errorBuilder: (_, _, _) => const SizedBox.shrink()),
+                Image(image: netImage(me.avatarUrl), fit: BoxFit.cover, errorBuilder: (_, _, _) => const SizedBox.shrink()),
                 Positioned(
                   left: 0,
                   right: 0,
@@ -418,7 +419,7 @@ class _ProfileHeaderState extends State<ProfileHeader> {
                           decoration: BoxDecoration(shape: BoxShape.circle, color: V.surface2, border: Border.all(color: V.bg, width: 3)),
                           clipBehavior: Clip.antiAlias,
                           child: hasPhoto
-                              ? Image.network(me.avatarUrl, fit: BoxFit.cover, width: 92, height: 92, errorBuilder: (_, _, _) => const SizedBox.shrink())
+                              ? Image(image: netImage(me.avatarUrl), fit: BoxFit.cover, width: 92, height: 92, errorBuilder: (_, _, _) => const SizedBox.shrink())
                               : Center(
                                   child: _uploading
                                       ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3, color: V.pinkSoft))

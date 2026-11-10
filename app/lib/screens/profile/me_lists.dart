@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/theme/every_minute.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
@@ -69,7 +70,8 @@ class FriendsListScreen extends StatelessWidget {
               itemCount: friends.length,
               itemBuilder: (_, i) {
                 final f = friends[i];
-                return PersonRow(
+                // "Last seen 5 min ago" keeps counting.
+                return EveryMinute(builder: (_) => PersonRow(
                   person: f.profile,
                   online: f.online,
                   line: Fmt.presence(f.online, f.lastSeenAt) ?? 'Friends since ${Fmt.ago(f.since)}',
@@ -79,7 +81,7 @@ class FriendsListScreen extends StatelessWidget {
                     height: 34,
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(friendId: f.profile.id))),
                   ),
-                );
+                ));
               },
             ),
     );

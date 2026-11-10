@@ -63,6 +63,7 @@ class Ev {
 
   /// A new line on the Notifications page: `{ item, unread }`.
   static const activityNew = 'activity:new';
+  static const notificationShow = 'notification:show';
 
   /// Notifications were read (maybe on another device): `{ unread }`.
   static const activityRead = 'activity:read';

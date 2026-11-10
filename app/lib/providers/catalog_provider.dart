@@ -149,8 +149,13 @@ class RemoteCatalogProvider extends CatalogProvider {
 
   @override
   Future<void> load() async {
+    // Prices from last time at once (see ApiCache); the server re-checks every price anyway.
+    if (version == 'default') {
+      final cached = await _api.cache.read('catalog');
+      if (cached is Map) apply(Map<String, dynamic>.from(cached));
+    }
     try {
-      apply(Map<String, dynamic>.from(await _api.get('/catalog') as Map));
+      apply(Map<String, dynamic>.from(await _api.get('/catalog', cacheKey: 'catalog') as Map));
     } on ApiException catch (_) {
       // Keep the values we have; prices are re-checked by the server anyway.
     }

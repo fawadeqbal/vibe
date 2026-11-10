@@ -39,8 +39,20 @@ class RemoteActivityProvider extends ActivityProvider {
   @override
   Future<void> load() async {
     if (!_api.hasSession) return;
+    // The newest notifications from last time, at once (see ApiCache).
+    if (!_loaded) {
+      final cached = await _api.cache.read('activity');
+      if (cached != null && !_loaded) {
+        try {
+          final p = _parse(cached);
+          _items = p.items;
+          _unread = p.unread;
+          notifyListeners();
+        } catch (_) {}
+      }
+    }
     try {
-      final p = _parse(await _api.get('/activity', query: {'limit': '$_pageSize'}));
+      final p = _parse(await _api.get('/activity', query: {'limit': '$_pageSize'}, cacheKey: 'activity'));
       _items = p.items;
       _cursor = p.cursor;
       _hasMore = _cursor != null;

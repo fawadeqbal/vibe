@@ -77,6 +77,7 @@ export const Ev = {
   goalReached: "wallet:goal-reached",
   inboxMessage: "inbox:message",
   activityNew: "activity:new",
+  notificationShow: "notification:show",
   activityRead: "activity:read",
   catalogUpdated: "catalog:updated",
   referralUpdated: "referral:updated",

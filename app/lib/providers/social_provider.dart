@@ -103,6 +103,11 @@ abstract class SocialProvider extends ChangeNotifier {
   /// The page before the oldest one loaded (scrolling up).
   Future<void> loadOlder(String friendId) async {}
 
+  /// Back online (the socket reconnected, the app came back): fetch what
+  /// happened meanwhile — friends with presence and last messages, and the
+  /// newest messages of the open chat. Other chats reload when opened.
+  Future<void> catchUp() => load();
+
   /// The chat screen for [friendId] closed.
   void leaveChat(String friendId) {}
 
@@ -126,6 +131,9 @@ abstract class SocialProvider extends ChangeNotifier {
   /// weak connection (about half a minute, one Idempotency-Key so it's never
   /// sent twice). Still offline after that: "Not sent · Tap to retry".
   Future<void> sendMessage(String friendId, String text, {String? replyToId});
+
+  /// The chat on screen right now (a live banner about it is skipped).
+  String? get openChat => null;
 
   /// "Tap to retry" on a message that didn't go out.
   Future<void> retryMessage(String friendId, String messageId) async {}
@@ -253,4 +261,18 @@ abstract class SocialProvider extends ChangeNotifier {
   /// Test seam.
   @visibleForTesting
   void debugSetStreak(String friendId, StreakView streak) => setStreak(friendId, streak);
+}
+
+/// The newest page from the server over what's on screen: older messages
+/// stay, the newest page replaces its range (reactions, read marks), and
+/// messages still going out stay at the bottom. (web: mergeNewest)
+List<ChatMessage> mergeNewest(List<ChatMessage> current, List<ChatMessage> fresh) {
+  if (fresh.isEmpty) return current;
+  final ids = {for (final m in fresh) m.id};
+  final from = fresh.first.at;
+  return [
+    ...current.where((m) => !ids.contains(m.id) && !m.pending && !m.failed && m.at.isBefore(from)),
+    ...fresh,
+    ...current.where((m) => (m.pending || m.failed) && !ids.contains(m.id)),
+  ];
 }

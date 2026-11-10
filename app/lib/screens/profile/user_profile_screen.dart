@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
 
+import '../../core/theme/every_minute.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/theme/intent_icons.dart';
 import '../../core/theme/vibe_theme.dart';
@@ -258,7 +259,8 @@ class _UserProfileBodyState extends State<UserProfileBody> {
           ],
         ),
         const SizedBox(height: 2),
-        Builder(builder: (_) {
+        // "Active 5 min ago" keeps counting.
+        EveryMinute(builder: (_) {
           final status = v.tier == ProfileTier.friends ? Fmt.presence(live.$1 ?? v.online, live.$2 ?? v.lastSeenAt) : null;
           return Text([('${p.country.flag} ${p.country.name}'), p.gender.label, if (status != null) (status == 'Online' ? 'Active now' : status)].join(' · '), style: VT.body(13, color: V.text2));
         }),

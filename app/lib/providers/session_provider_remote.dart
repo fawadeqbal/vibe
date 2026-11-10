@@ -17,6 +17,11 @@ class RemoteSessionProvider extends SessionProvider {
   String? get inviteCode => _inviteCode;
 
   void _applyMe(Map<String, dynamic> m) {
+    // A different person than the cached one: drop their cache first.
+    final cachedId = _me?.id;
+    if (cachedId != null && m['id'] != null && m['id'] != cachedId) unawaited(_api.cache.clear());
+    // Next launch opens with this at once (see ApiCache).
+    unawaited(_api.cache.write('me', m));
     _me = ApiMap.profile(m);
     _onboarded = m['onboarded'] as bool? ?? false;
     _inviteCode = m['inviteCode'] as String?;
@@ -43,18 +48,34 @@ class RemoteSessionProvider extends SessionProvider {
     try {
       await _api.restore();
       if (_api.hasSession) {
-        try {
-          _applyMe(Map<String, dynamic>.from(await _api.get('/me') as Map));
-          unawaited(_syncTimezone());
-        } on ApiException catch (e) {
-          if (e.isUnauthenticated) await _api.clearSession();
-          // Offline at launch: stay signed out of the UI until we can reach the server.
+        // Open at once with what we had last time (even offline); the fresh profile follows.
+        final cached = await _api.cache.read('me');
+        if (cached is Map) {
+          _applyMe(Map<String, dynamic>.from(cached));
+          unawaited(_refreshMe());
+        } else {
+          await _refreshMe();
         }
       }
       await refreshPermissions();
     } finally {
       _booting = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _refreshMe() async {
+    try {
+      _applyMe(Map<String, dynamic>.from(await _api.get('/me') as Map));
+      unawaited(_syncTimezone());
+      if (!_booting) notifyListeners();
+    } on ApiException catch (e) {
+      if (e.isUnauthenticated) {
+        await _api.clearSession();
+        _me = null;
+        if (!_booting) notifyListeners();
+      }
+      // Offline at launch: the cached profile (if any) stays; without one, signed out of the UI until we can reach the server.
     }
   }
 

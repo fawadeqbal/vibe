@@ -14,7 +14,6 @@ import { useCatalog } from "./catalog";
 import { api, realtime } from "./services";
 import { useFilters } from "./filters";
 import { useSession } from "./session";
-import { toast } from "./ui";
 import { useSocial } from "./social";
 
 export type MatchStatus = "idle" | "searching" | "connected" | "ended";
@@ -960,10 +959,8 @@ realtime.on(Ev.accountBanned, (e) => {
 });
 
 realtime.on(Ev.accountAppeal, (e) => {
-  if (e.status === "ACCEPTED") {
-    useSession.setState({ pausedUntil: null });
-    toast("We looked again and lifted the pause. Welcome back!");
-  }
+  // The live banner (notification:show) says how it went.
+  if (e.status === "ACCEPTED") useSession.setState({ pausedUntil: null });
   void useSession.getState().refreshMe();
 });
 

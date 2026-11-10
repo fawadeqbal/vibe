@@ -8,6 +8,7 @@ import { startApp } from "@/stores/runtime";
 import { profileReady, useSession } from "@/stores/session";
 import { closeAllOverlays } from "@/stores/ui";
 
+import { LiveBannerHost } from "./live-banner";
 import { OverlayHost, ToastHost } from "./overlay-host";
 import { RegionUnavailable } from "./region-unavailable";
 import { Splash } from "./splash";
@@ -111,6 +112,7 @@ export function AppRuntime({ children }: { children: ReactNode }) {
       ) : null}
       <OverlayHost />
       <ToastHost />
+      {regionBlocked || stage !== "ready" ? null : <LiveBannerHost />}
     </>
   );
 }

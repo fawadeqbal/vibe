@@ -12,14 +12,17 @@ import { Kbd, typingIn } from "@/components/ui/kbd";
 import { OnlineDot } from "@/components/ui/misc";
 import { CoinChip } from "@/components/ui/money";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { cn } from "@/lib/cn";
 import { compact } from "@/lib/format";
 import { useActivity } from "@/stores/activity";
+import { useFilters } from "@/stores/filters";
 import { useMatch } from "@/stores/match";
 import { useSession } from "@/stores/session";
 import { useWaitlist } from "@/stores/waitlist";
 import { useWallet } from "@/stores/wallet";
 
-import { FilterButton, FilterTags } from "@/features/filters/filter-chips";
+import { filtersSet, FilterTags } from "@/features/filters/filter-chips";
+import { openFiltersSheet } from "@/features/filters/filters-sheet";
 import { FiltersPanel } from "@/features/filters/filters-panel";
 import { VibeHourInvite } from "@/features/engagement/vibe-hour-invite";
 
@@ -59,7 +62,7 @@ function PhoneLobby({ onStart }: { onStart: () => void }) {
           <VibeHourInvite compact />
         </div>
 
-        {/* Filters on top of the camera buttons; the preview's own buttons only while it's on. */}
+        {/* The preview's own buttons, only while it's on (Filters is at the bottom). */}
         <div className="relative mt-3 flex items-start justify-between px-4">
           {camLive ? (
             <Glass radius={15} className="flex h-[30px] items-center gap-1.5 bg-bg2/50 py-0">
@@ -70,7 +73,6 @@ function PhoneLobby({ onStart }: { onStart: () => void }) {
             <span />
           )}
           <div className="flex flex-col items-center gap-2.5">
-            <FilterButton glass size={42} />
             {camLive ? (
               <>
                 <RoundControl icon="videocam_off" size={42} width={42} onClick={() => useMatch.getState().stopPreview()} ariaLabel="Turn camera preview off" />
@@ -103,39 +105,42 @@ function PhoneLobby({ onStart }: { onStart: () => void }) {
 }
 
 /**
- * The bottom of Home on a phone: one frosted dock. Safe start on the left
- * (tap for how it works), Start on the right. 14px under the filter tags,
- * 20px above the tab bar.
+ * The bottom of Home on a phone: three round buttons over your camera.
+ * Safe start (how calls stay safe) on the left, the big Start in the
+ * middle, Filters on the right (a dot when some are on).
  */
 function StartDock({ autoBlur, onStart }: { autoBlur: boolean; onStart: () => void }) {
+  const filtersOn = useFilters((s) => filtersSet(s.filters));
+  const side = "flex size-[52px] items-center justify-center rounded-full border border-white/12 bg-bg2/55 backdrop-blur-[18px] transition-[filter] hover:brightness-125";
+  const label = "type-label text-[12px] font-semibold text-white [text-shadow:0_1px_6px_rgb(0_0_0/0.5)]";
   return (
-    <div className="mt-3.5 flex h-16 items-center rounded-full border border-white/10 bg-bg2/52 p-1.5 backdrop-blur-[18px]">
+    <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-end">
       <button
         type="button"
         onClick={() => void openSafetySheet()}
-        aria-label={
-          autoBlur
-            ? "Safe start: both videos stay blurred for 3 seconds. How it works"
-            : "Safety: report and block are one tap away in every call. How it works"
-        }
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-full py-1 pr-2 pl-3 text-left hover:bg-white/4"
+        aria-label={autoBlur ? "Safe start: both videos stay blurred for 3 seconds. How it works" : "Safety: report and block are one tap away in every call. How it works"}
+        className="flex flex-col items-center gap-1.5 justify-self-start pl-2"
       >
-        <Icon name="shield" size={20} className="shrink-0 text-trust" />
-        <span className="flex min-w-0 flex-col leading-[1.2]">
-          <span className="truncate text-[13px] font-bold text-white">{autoBlur ? "Safe start" : "Safety on"}</span>
-          <span className="truncate text-[11.5px] text-text2">{autoBlur ? "Blurred for 3 s" : "Report in one tap"}</span>
+        <span className={side}>
+          <Icon name="shield" size={22} className="text-trust" />
         </span>
+        <span className={label}>{autoBlur ? "Safe start" : "Safety"}</span>
       </button>
-      <GradientButton
-        label="Start chat"
-        icon="videocam"
-        height={52}
-        expand={false}
-        softGlow
-        onClick={onStart}
-        aria-label="Start a video chat with someone new"
-        className="shrink-0 px-6"
-      />
+      <button type="button" onClick={onStart} aria-label="Start a video chat with someone new" className="group flex flex-col items-center gap-1.5">
+        <span className="rounded-full p-[3px] shadow-[0_0_32px_rgb(255_61_143/0.45)] ring-2 ring-white/85 transition-transform group-active:scale-95">
+          <span className="bg-brand flex size-[70px] items-center justify-center rounded-full">
+            <Icon name="videocam" size={30} className="text-white" />
+          </span>
+        </span>
+        <span className={label}>Start</span>
+      </button>
+      <button type="button" onClick={openFiltersSheet} aria-label={filtersOn ? "Filters (some are on)" : "Filters"} className="flex flex-col items-center gap-1.5 justify-self-end pr-2">
+        <span className={cn(side, "relative", filtersOn ? "text-pink-soft" : "text-white")}>
+          <Icon name="tune" size={22} />
+          {filtersOn ? <span aria-hidden className="absolute top-2 right-2 size-[9px] rounded-full border-2 border-bg bg-pink" /> : null}
+        </span>
+        <span className={label}>Filters</span>
+      </button>
     </div>
   );
 }

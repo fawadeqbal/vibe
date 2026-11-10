@@ -1,3 +1,4 @@
+import '../../core/cache/cached_image.dart';
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
@@ -52,8 +53,8 @@ class FriendVideoCall extends StatelessWidget {
               if (m.hasRemoteVideo)
                 RTCVideoView(m.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
               else
-                Image.network(
-                  p.avatarUrl,
+                Image(
+                  image: netImage(p.avatarUrl),
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => BlurredPhoto(url: '', brightness: 1),
                 ),

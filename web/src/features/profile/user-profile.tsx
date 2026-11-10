@@ -7,6 +7,7 @@ import { Screen } from "@/components/layout/screen";
 import { confirm, useNeedCoins } from "@/components/shared/dialogs";
 import { BadgeRow } from "@/components/shared/level-chip";
 import { pickReport } from "@/components/shared/report-sheet";
+import { useNow } from "@/hooks/use-now";
 import { Avatar } from "@/components/ui/avatar";
 import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Glass } from "@/components/ui/glass";
@@ -38,6 +39,8 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
   const follow = useFollows((s) => followStateOf(s, userId));
   const friend = useSocial((s) => friendStateOf(s, userId));
   const asFriend = useSocial((s) => s.all.find((f) => f.profile.id === userId && f.state === "friends"));
+  // Presence comes live through the friends list; "Active 5 min ago" keeps counting.
+  useNow(60_000);
   const streak = asFriend?.streak ?? null;
   const me = useSession((st) => st.me);
   /** undefined = loading, null = may not see it. */
@@ -169,7 +172,7 @@ export function UserProfileBody({ userId, inCall = false, onGone }: { userId: st
       <div className="flex items-center">
         <span className="relative shrink-0">
           <Avatar url={p.avatarUrl} name={p.name} size={92} ring />
-          {view.online ? <span className="absolute right-1 bottom-1 size-[20px] rounded-full border-[3px] border-bg bg-ok" /> : null}
+          {(asFriend?.online ?? view.online) ? <span className="absolute right-1 bottom-1 size-[20px] rounded-full border-[3px] border-bg bg-ok" /> : null}
         </span>
         <span className="ml-4 grid flex-1 grid-cols-3 text-center">
           <Stat

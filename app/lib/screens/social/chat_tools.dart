@@ -1,3 +1,4 @@
+import '../../core/cache/cached_image.dart';
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
@@ -315,7 +316,7 @@ class _PhotoBubbleState extends State<PhotoBubble> {
     final bytes = widget.m.localBytes;
     if (bytes != null) return MemoryImage(bytes);
     final url = widget.m.mediaUrl;
-    return url == null ? null : NetworkImage(url);
+    return url == null ? null : netImage(url);
   }
 
   @override

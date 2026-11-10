@@ -16,6 +16,11 @@ export const ServerEvent = {
   InboxMessage: 'inbox:message',
   /** A new line on the Notifications page: `{ item, unread }`. */
   ActivityNew: 'activity:new',
+  /**
+   * A notification while you're in the app (its push was skipped because you're online):
+   * `{ key, group, title, body, data, at }`. The app shows a banner; tapping opens `data.open`.
+   */
+  NotificationShow: 'notification:show',
   /** Notifications were read (on another device too): `{ unread }`. */
   ActivityRead: 'activity:read',
   /** Staff changed prices or rules; re-read GET /catalog. */
