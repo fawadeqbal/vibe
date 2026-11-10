@@ -1,13 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { startSelfieVerification, verificationSubtitle, VerifyPill } from "@/components/shared/selfie-verification";
 import { Icon } from "@/components/ui/icon";
 import { GroupCard, GroupRow } from "@/components/ui/panel";
 import { Switch } from "@/components/ui/switch";
-import { SectionTitle } from "@/components/ui/typography";
 import { type AffiliateStatus } from "@/lib/affiliate";
 import { alpha, type Tone } from "@/lib/colors";
 import { androidDownloadUrl } from "@/lib/config";
@@ -29,15 +28,13 @@ import { openBlockedPeople } from "./blocked-people";
 import { SETTINGS_GROUPS, type SettingsGroupKey } from "./settings-groups";
 import { deleteAccountFlow, MeSection, signOutFlow } from "./me-sections";
 
-/** One row of the menu: what it shows, plus words people might search for. */
+/** One row of a settings group. */
 interface Item {
   key: string;
   icon: string;
   tone?: Tone;
   title: string;
   subtitle?: string;
-  /** Extra search words ("password", "email"…). */
-  words?: string;
   href?: string;
   onClick?: () => void;
   /** A switch or pill instead of the chevron. */
@@ -57,14 +54,12 @@ interface Group {
 }
 
 /**
- * Settings and activity (Me → ☰): five buttons, one per group (account,
- * activity, privacy & safety, wallet, help), with a search on top that finds
- * any row inside them. A group opens its own page (`/me/settings/<group>`)
- * with its rows; rows open their own page and on/off ones switch in place.
+ * Settings: five groups (account, activity, privacy & safety, wallet, help).
+ * Their buttons and Log out sit on Me (`SettingsButtons`); a group opens its
+ * own page (`/me/settings/<group>`, `SettingsGroupPage`) with its rows. Rows
+ * open their own page and on/off ones switch in place. Same as the app.
  */
-export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
-  const router = useRouter();
-  const [q, setQ] = useState("");
+function useSettingsGroups(): Group[] {
   const session = useSession();
   const me = session.me;
   const wallet = useWallet((s) => s.wallet);
@@ -100,16 +95,16 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
         icon: "manage_accounts",
         summary: "Sign-in, devices, notifications, quiet hours, data saver",
         items: [
-          { key: "account", icon: "manage_accounts", title: "Account & sign-in", subtitle: "Sign-in methods, e-mail, delete account", words: "email password google apple facebook login delete", href: "/me/account" },
-          { key: "devices", icon: "devices", title: "Devices", subtitle: "Where you're signed in; sign one out", words: "sessions logged in phone browser computer sign out logout security", href: "/me/devices" },
-          { key: "notifications", icon: "notifications_none", title: "Notifications", subtitle: "Phone, inbox and e-mail, for each kind", words: "push alerts sounds email", href: "/me/notifications" },
-          { key: "wellbeing", icon: "bedtime", title: "Time & wellbeing", subtitle: "Quiet hours and break reminders", words: "quiet hours break reminder vibe hour sleep", href: "/me/wellbeing" },
+          { key: "account", icon: "manage_accounts", title: "Account & sign-in", subtitle: "Sign-in methods, e-mail, delete account", href: "/me/account" },
+          { key: "devices", icon: "devices", title: "Devices", subtitle: "Where you're signed in; sign one out", href: "/me/devices" },
+          { key: "notifications", icon: "notifications_none", title: "Notifications", subtitle: "Phone, inbox and e-mail, for each kind", href: "/me/notifications" },
+          { key: "wellbeing", icon: "bedtime", title: "Time & wellbeing", subtitle: "Quiet hours and break reminders", href: "/me/wellbeing" },
           {
             key: "data",
             icon: "signal_cellular_alt",
             title: "Data saver",
             subtitle: "Calls use less data: smaller, slower video. Voice stays clear.",
-            words: "mobile data low internet slow network bandwidth calls quality",
+           
             trailing: <Switch checked={dataSaver} label="Data saver" onChange={(on) => useMatch.getState().setDataSaver(on)} />,
           },
         ],
@@ -120,17 +115,17 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
         icon: "history",
         summary: level ? `Level ${level.level} · matches, friends, badges, leaderboard` : "Matches, friends, badges, leaderboard",
         items: [
-          { key: "matches", icon: "history", title: "Recent matches", subtitle: history.length ? `${history.length} recent ${history.length === 1 ? "call" : "calls"}` : "Your last calls show up here", words: "history calls", href: "/me/matches" },
+          { key: "matches", icon: "history", title: "Recent matches", subtitle: history.length ? `${history.length} recent ${history.length === 1 ? "call" : "calls"}` : "Your last calls show up here", href: "/me/matches" },
           {
             key: "follows",
             icon: "people_alt",
             title: "Followers & friends",
             subtitle: `${compact(follows.followers)} ${follows.followers === 1 ? "follower" : "followers"} · ${compact(friends)} ${friends === 1 ? "friend" : "friends"}`,
-            words: "following requests",
+           
             href: "/me/follows",
           },
-          { key: "progress", icon: "emoji_events", tone: "lavender", title: "Progress & badges", subtitle: level ? `Level ${level.level} · ${compact(level.xp)} XP` : "Your level and badges", words: "xp level streak", href: "/me/progress" },
-          { key: "leaderboard", icon: "leaderboard", tone: "lavender", title: "Leaderboard", subtitle: "This week's top people", words: "ranking top", href: "/leaderboard" },
+          { key: "progress", icon: "emoji_events", tone: "lavender", title: "Progress & badges", subtitle: level ? `Level ${level.level} · ${compact(level.xp)} XP` : "Your level and badges", href: "/me/progress" },
+          { key: "leaderboard", icon: "leaderboard", tone: "lavender", title: "Leaderboard", subtitle: "This week's top people", href: "/leaderboard" },
         ],
       },
       {
@@ -146,7 +141,7 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
             tone: "trust",
             title: me.verified ? "Verified profile" : "Get verified",
             subtitle: verificationSubtitle(v, me.verified),
-            words: "selfie badge",
+           
             trailing: me.verified ? <Icon name="check_circle" className="text-trust" /> : v.status === "pending" ? undefined : <VerifyPill busy={session.busy} onClick={() => void startSelfieVerification()} />,
           },
           {
@@ -154,7 +149,7 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
             icon: "lock",
             title: "Private account",
             subtitle: "New followers need your OK first",
-            words: "privacy followers approve",
+           
             trailing: <Switch checked={follows.privateAccount} label="Private account" onChange={(on) => void savePrivacy({ privateAccount: on })} />,
           },
           {
@@ -162,7 +157,7 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
             icon: "visibility",
             title: "Show my numbers",
             subtitle: "Matches, likes and gifts on your profile",
-            words: "stats hide privacy",
+           
             trailing: <Switch checked={!follows.hideStats} label="Show my numbers" onChange={(on) => void savePrivacy({ hideStats: !on })} />,
           },
           {
@@ -170,7 +165,7 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
             icon: "blur_on",
             title: "Blur the first 3 seconds",
             subtitle: "Both videos start blurred",
-            words: "safety video",
+           
             trailing: <Switch checked={autoBlur} label="Blur the first 3 seconds" onChange={(x) => useMatch.getState().setAutoBlur(x)} />,
           },
           {
@@ -178,7 +173,7 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
             icon: "visibility",
             title: "Show me in Discover",
             subtitle: "Off: nobody new sees your card",
-            words: "hide visible discover card",
+           
             trailing: (
               <Switch
                 checked={showInDiscover}
@@ -192,7 +187,7 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
               />
             ),
           },
-          { key: "blocked", icon: "block", title: "Blocked", subtitle: blocked.length ? `${blocked.length} blocked · tap to unblock` : "Nobody blocked", words: "unblock block", onClick: () => void openBlockedPeople() },
+          { key: "blocked", icon: "block", title: "Blocked", subtitle: blocked.length ? `${blocked.length} blocked · tap to unblock` : "Nobody blocked", onClick: () => void openBlockedPeople() },
         ],
       },
       {
@@ -202,11 +197,11 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
         tone: "gold",
         summary: `${compact(wallet.coins)} coins · ${compact(wallet.gems)} gems · VIP, cash out, invites`,
         items: [
-          { key: "wallet", icon: "account_balance_wallet", tone: "gold", title: "Wallet", subtitle: `${compact(wallet.coins)} coins · ${compact(wallet.gems)} gems`, words: "coins gems buy money", href: "/wallet" },
-          { key: "vip", icon: "workspace_premium", tone: "gold", title: vip ? "You are VIP" : "Get VIP", subtitle: vip ? until(wallet.vipUntil!) : "Free filters, no ads, see who liked you", words: "premium subscription", href: "/vip" },
-          { key: "cashout", icon: "payments", tone: "gem", title: "Cash out gems", subtitle: "JazzCash, Easypaisa or bank", words: "withdraw money payout", href: "/wallet/cashout" },
-          { key: "invite", icon: "card_giftcard", tone: "gold", title: "Invite friends", subtitle: `Give ${economy.inviteeRewardCoins}, get ${economy.inviteRewardCoins} coins`, words: "referral code share", href: "/invite" },
-          { key: "partner", icon: "campaign", tone: "lavender", title: "Creator partner program", subtitle: partnerSubtitle(partner), words: "affiliate earn creator", href: "/partner" },
+          { key: "wallet", icon: "account_balance_wallet", tone: "gold", title: "Wallet", subtitle: `${compact(wallet.coins)} coins · ${compact(wallet.gems)} gems`, href: "/wallet" },
+          { key: "vip", icon: "workspace_premium", tone: "gold", title: vip ? "You are VIP" : "Get VIP", subtitle: vip ? until(wallet.vipUntil!) : "Free filters, no ads, see who liked you", href: "/vip" },
+          { key: "cashout", icon: "payments", tone: "gem", title: "Cash out gems", subtitle: "JazzCash, Easypaisa or bank", href: "/wallet/cashout" },
+          { key: "invite", icon: "card_giftcard", tone: "gold", title: "Invite friends", subtitle: `Give ${economy.inviteeRewardCoins}, get ${economy.inviteRewardCoins} coins`, href: "/invite" },
+          { key: "partner", icon: "campaign", tone: "lavender", title: "Creator partner program", subtitle: partnerSubtitle(partner), href: "/partner" },
         ],
       },
       {
@@ -215,114 +210,87 @@ export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
         icon: "support_agent",
         summary: "Help & safety centre, the Android app, terms",
         items: [
-          { key: "help", icon: "support_agent", tone: "trust", title: "Help & safety centre", subtitle: "Staying safe, the rules, write to us", words: "support report contact", href: "/me/help" },
+          { key: "help", icon: "support_agent", tone: "trust", title: "Help & safety centre", subtitle: "Staying safe, the rules, write to us", href: "/me/help" },
           {
             key: "android",
             icon: "android",
             tone: "trust",
             title: "Get the Android app",
             subtitle: "Free download · no Play Store needed",
-            words: "apk download phone",
+           
             trailing: <Icon name="download" className="text-muted" />,
             onClick: () => {
               window.location.href = androidDownloadUrl("web_me");
             },
             hidden: !androidApp,
           },
-          { key: "legal", icon: "description", title: "Terms & policies", subtitle: "Terms, privacy, guidelines, child safety", words: "legal terms privacy policy", href: "/me/legal" },
+          { key: "legal", icon: "description", title: "Terms & policies", subtitle: "Terms, privacy, guidelines, child safety", href: "/me/legal" },
         ],
       },
     ];
   }, [me, wallet, session.verificationState, session.busy, economy, level, follows, autoBlur, dataSaver, showInDiscover, history.length, blocked.length, friends, partner, androidApp]);
+  return groups;
+}
 
-  if (!me) return null;
-  const iconBg = (tone?: Tone) => (tone ? alpha(tone === "lavender" ? "violet" : tone, tone === "lavender" ? 0.14 : 0.12) : undefined);
-  const rows = (items: Item[]) =>
-    items.map((i) => (
-      <GroupRow
-        key={i.key}
-        icon={i.icon}
-        iconColor={i.tone ?? "text2"}
-        iconBg={iconBg(i.tone)}
-        title={i.title}
-        subtitle={i.subtitle}
-        trailing={i.trailing ?? (i.href || i.onClick ? <Icon name="chevron_right" className="text-muted" /> : undefined)}
-        onClick={i.href ? () => router.push(i.href!) : i.onClick}
-      />
-    ));
+const iconBg = (tone?: Tone) => (tone ? alpha(tone === "lavender" ? "violet" : tone, tone === "lavender" ? 0.14 : 0.12) : undefined);
 
-  // One group: its rows on their own page.
-  const open = group ? groups.find((g) => g.key === group) : undefined;
-  if (open) {
-    return (
-      <MeSection title={open.title} parent="/me/settings">
-        <GroupCard className="mt-2.5">{rows(open.items.filter((i) => !i.hidden))}</GroupCard>
-        {open.key === "wallet" ? <InviteCodeField className="mt-2.5" /> : null}
-        {open.key === "account" ? (
-          <GroupCard className="mt-6" dividerInset={52}>
-            <GroupRow bare icon="delete" iconVariant="outlined" iconColor="bad" title="Delete account" titleColor="bad" onClick={() => void deleteAccountFlow()} />
-          </GroupCard>
-        ) : null}
-      </MeSection>
-    );
-  }
-
-  const needle = q.trim().toLowerCase();
-  const matches = (i: Item) => !needle || `${i.title} ${i.subtitle ?? ""} ${i.words ?? ""}`.toLowerCase().includes(needle);
-  const shown = needle ? groups.map((g) => ({ ...g, items: g.items.filter((i) => !i.hidden && matches(i)) })).filter((g) => g.items.length) : [];
-
+/** Me: the five group buttons, then Log out. */
+export function SettingsButtons({ className }: { className?: string }) {
+  const router = useRouter();
+  const groups = useSettingsGroups();
+  if (!groups.length) return null;
   return (
-    <MeSection
-      title="Settings and activity"
-      parent="/me"
-      pinned={
-        <label className="relative mt-1 block">
-          <Icon name="search" size={20} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
-          <input
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search settings"
-            aria-label="Search settings"
-            className="type-body h-11 w-full rounded-[14px] border border-line bg-surface2 pr-4 pl-11 text-[15px] text-text outline-none placeholder:text-muted focus:border-violet"
+    <section aria-label="Settings" className={className}>
+      <GroupCard>
+        {groups.map((g) => (
+          <GroupRow
+            key={g.key}
+            icon={g.icon}
+            iconColor={g.tone ?? "text2"}
+            iconBg={iconBg(g.tone)}
+            title={g.title}
+            subtitle={g.summary}
+            trailing={<Icon name="chevron_right" className="text-muted" />}
+            onClick={() => router.push(`/me/settings/${g.key}`)}
           />
-        </label>
-      }
-    >
-      {needle ? (
-        // Searching: the matching rows, under the group they live in.
-        shown.map((g, gi) => (
-          <section key={g.key} aria-label={g.title}>
-            <SectionTitle text={g.title} top={gi === 0 ? 10 : 24} bottom={10} />
-            <GroupCard>{rows(g.items)}</GroupCard>
-          </section>
-        ))
-      ) : (
-        <GroupCard className="mt-2.5">
-          {groups.map((g) => (
+        ))}
+      </GroupCard>
+      <GroupCard className="mt-4" dividerInset={52}>
+        <GroupRow bare icon="logout" iconColor="bad" title="Log out" titleColor="bad" onClick={() => void signOutFlow()} />
+      </GroupCard>
+      <p className="type-body mt-3 text-center text-[11px] text-muted">Vibe web 0.1</p>
+    </section>
+  );
+}
+
+/** Me → one settings group: its rows. */
+export function SettingsGroupPage({ group }: { group: SettingsGroupKey }) {
+  const router = useRouter();
+  const open = useSettingsGroups().find((g) => g.key === group);
+  if (!open) return null;
+  return (
+    <MeSection title={open.title} parent="/me">
+      <GroupCard className="mt-2.5">
+        {open.items
+          .filter((i) => !i.hidden)
+          .map((i) => (
             <GroupRow
-              key={g.key}
-              icon={g.icon}
-              iconColor={g.tone ?? "text2"}
-              iconBg={iconBg(g.tone)}
-              title={g.title}
-              subtitle={g.summary}
-              trailing={<Icon name="chevron_right" className="text-muted" />}
-              onClick={() => router.push(`/me/settings/${g.key}`)}
+              key={i.key}
+              icon={i.icon}
+              iconColor={i.tone ?? "text2"}
+              iconBg={iconBg(i.tone)}
+              title={i.title}
+              subtitle={i.subtitle}
+              trailing={i.trailing ?? (i.href || i.onClick ? <Icon name="chevron_right" className="text-muted" /> : undefined)}
+              onClick={i.href ? () => router.push(i.href!) : i.onClick}
             />
           ))}
+      </GroupCard>
+      {open.key === "wallet" ? <InviteCodeField className="mt-2.5" /> : null}
+      {open.key === "account" ? (
+        <GroupCard className="mt-6" dividerInset={52}>
+          <GroupRow bare icon="delete" iconVariant="outlined" iconColor="bad" title="Delete account" titleColor="bad" onClick={() => void deleteAccountFlow()} />
         </GroupCard>
-      )}
-
-      {needle && !shown.length ? <p className="type-body mt-10 text-center text-[14px] text-text2">Nothing matches “{q.trim()}”.</p> : null}
-
-      {!needle ? (
-        <>
-          <GroupCard className="mt-6" dividerInset={52}>
-            <GroupRow bare icon="logout" iconColor="bad" title="Log out" titleColor="bad" onClick={() => void signOutFlow()} />
-          </GroupCard>
-          <p className="type-body mt-4 text-center text-[11px] text-muted">Vibe web 0.1</p>
-        </>
       ) : null}
     </MeSection>
   );

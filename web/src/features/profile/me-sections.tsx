@@ -28,10 +28,10 @@ const TRUST = { iconColor: "trust" as const, iconBg: alpha("trust", 0.12) };
 /**
  * The pages behind Me: a back button, a title and the section. Back steps
  * one level: to where you came from, or (opened straight from a link) to
- * the page above it, which for most of these is Settings and activity.
+ * the page above it (their settings group on Me).
  */
 /** `pinned`: stays put above the scrolling content (e.g. the settings search). */
-export function MeSection({ title, children, footer, pinned, parent = "/me/settings" }: { title: string; children: ReactNode; footer?: string; pinned?: ReactNode; parent?: string }) {
+export function MeSection({ title, children, footer, pinned, parent = "/me" }: { title: string; children: ReactNode; footer?: string; pinned?: ReactNode; parent?: string }) {
   const router = useRouter();
   return (
     <Screen width="sm" header={<AppBar title={title} onBack={() => (history.length > 1 ? router.back() : router.push(parent))} />} pinned={pinned} bodyClassName="pt-1">
@@ -44,7 +44,7 @@ export function MeSection({ title, children, footer, pinned, parent = "/me/setti
 /** Me → Progress & badges. */
 export function ProgressPage() {
   return (
-    <MeSection title="Progress & badges" footer="Good calls, likes, gifts and streaks earn XP. Badges stay on your profile.">
+    <MeSection title="Progress & badges" parent="/me/settings/activity" footer="Good calls, likes, gifts and streaks earn XP. Badges stay on your profile.">
       <ProgressCard />
       <BadgeGrid />
       <HowToEarnXp />
@@ -55,7 +55,7 @@ export function ProgressPage() {
 /** Settings → Notifications: for each kind of news, which of phone, inbox and e-mail it reaches. */
 export function NotificationsPage() {
   return (
-    <MeSection title="Notifications" footer="Account and safety messages always reach you, so they can't be turned off.">
+    <MeSection title="Notifications" parent="/me/settings/account" footer="Account and safety messages always reach you, so they can't be turned off.">
       <NotifyChoices />
     </MeSection>
   );
@@ -64,7 +64,7 @@ export function NotificationsPage() {
 /** Settings → Time & wellbeing: quiet hours, break reminders, the Vibe Hour nudge. */
 export function WellbeingPage() {
   return (
-    <MeSection title="Time & wellbeing">
+    <MeSection title="Time & wellbeing" parent="/me/settings/account">
       <WellbeingSection title={false} />
     </MeSection>
   );
@@ -74,7 +74,7 @@ export function WellbeingPage() {
 export function AccountPage() {
   const emailUpdates = useSession((s) => s.emailUpdates);
   return (
-    <MeSection title="Account & sign-in">
+    <MeSection title="Account & sign-in" parent="/me/settings/account">
       <SectionTitle text="Sign-in methods" top={4} />
       <SignInMethodsCard />
       <SectionTitle text="E-mail" top={22} />
@@ -107,7 +107,7 @@ export function AccountPage() {
 /** Settings → Terms & policies: the four public pages on the site. */
 export function LegalPage() {
   return (
-    <MeSection title="Terms & policies" footer="These open on the Vibe website.">
+    <MeSection title="Terms & policies" parent="/me/settings/help" footer="These open on the Vibe website.">
       <GroupCard dividerInset={52}>
         {LEGAL.map((l) => (
           <GroupRow key={l.slug} bare icon={l.icon} iconVariant="outlined" title={l.title} trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => openSitePage(l.slug)} />
@@ -127,7 +127,7 @@ const LEGAL = [
 /** Settings → Help & safety centre: how to stay safe, the rules, and a person to write to. */
 export function HelpPage() {
   return (
-    <MeSection title="Help & safety centre" footer="In a call, tap the flag to report someone. A person on our team reviews every report.">
+    <MeSection title="Help & safety centre" parent="/me/settings/help" footer="In a call, tap the flag to report someone. A person on our team reviews every report.">
       <GroupCard className="border-trust/22">
         <GroupRow icon="shield" {...TRUST} title="Staying safe on Vibe" subtitle="Blur, blocking, reporting and age rules" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => openSitePage("child-safety")} />
         <GroupRow icon="groups" {...TRUST} title="Community guidelines" subtitle="What's OK and what gets you banned" trailing={<Icon name="open_in_new" size={18} className="text-muted" />} onClick={() => openSitePage("guidelines")} />

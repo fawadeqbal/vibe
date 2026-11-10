@@ -1,4 +1,4 @@
-/** The groups of Settings and activity (a plain module: the route reads it on the server). */
+/** The settings groups on Me (a plain module: the route reads it on the server). */
 export const SETTINGS_GROUPS = {
   account: "Account",
   activity: "Your activity",

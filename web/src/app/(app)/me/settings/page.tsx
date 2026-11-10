@@ -1,7 +1,6 @@
-import { SettingsMenuPage } from "@/features/profile/me-settings";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Settings and activity" };
-
+/** Old link: the settings groups now sit on Me. */
 export default function Page() {
-  return <SettingsMenuPage />;
+  redirect("/me");
 }

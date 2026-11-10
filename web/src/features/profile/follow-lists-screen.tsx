@@ -41,7 +41,7 @@ export function FollowListsScreen({ initialTab }: { initialTab: FollowList }) {
   const [query, setQuery] = useState("");
   return (
     <Screen
-      header={<AppBar title="Followers" onBack={() => (history.length > 1 ? router.back() : router.push("/me/settings"))} />}
+      header={<AppBar title="Followers" onBack={() => (history.length > 1 ? router.back() : router.push("/me/settings/activity"))} />}
       pinned={
         <>
           <PillTabs

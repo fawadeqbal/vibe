@@ -139,17 +139,16 @@ Future<MeHarness> pumpMe(WidgetTester t, {PartnerStatus partnerStatus = PartnerS
   return h;
 }
 
-/// Me, then ☰ → Settings and activity.
+/// Me, where the settings groups sit under your matches.
 Future<MeHarness> pumpSettings(WidgetTester t, {PartnerStatus partnerStatus = PartnerStatus.active, bool history = false}) async {
   final h = await pumpMe(t, partnerStatus: partnerStatus, history: history);
-  await t.tap(find.byTooltip('Settings and activity'));
-  await t.pumpAndSettle();
-  expect(find.byType(SettingsMenuScreen), findsOneWidget);
+  expect(find.byType(SettingsButtons), findsOneWidget);
   return h;
 }
 
-/// Settings and activity → one of its five group buttons.
+/// Me → one of the five settings group buttons.
 Future<void> openGroup(WidgetTester t, String group) async {
+  await scrollToRow(t, group);
   await t.tap(find.text(group).last);
   await t.pumpAndSettle();
   expect(find.descendant(of: find.byType(AppBar), matching: find.text(group)), findsOneWidget, reason: group);
@@ -161,7 +160,7 @@ Future<void> scrollToRow(WidgetTester t, String title) async {
 }
 
 /// Taps the row [title], checks the pushed screen, and Back lands on [backTo] again.
-Future<void> opens(WidgetTester t, String title, Type screen, {String? appBar, Type backTo = SettingsMenuScreen}) async {
+Future<void> opens(WidgetTester t, String title, Type screen, {String? appBar, Type backTo = SettingsGroupScreen}) async {
   await scrollToRow(t, title);
   await t.tap(find.text(title).last);
   await t.pumpAndSettle();
@@ -174,22 +173,23 @@ Future<void> opens(WidgetTester t, String title, Type screen, {String? appBar, T
 }
 
 void main() {
-  testWidgets('Me: header, numbers, actions and three shortcuts', (t) async {
+  testWidgets('Me: header, numbers, actions, settings groups and Log out', (t) async {
     await pumpMe(t);
     expect(find.text('Me'), findsOneWidget);
     expect(find.text('Sana Malik, 23'), findsOneWidget);
     for (final label in ['Friends', 'Followers', 'Likes', 'Edit profile', 'Share profile', 'Not verified']) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
-    expect(find.byTooltip('Settings and activity'), findsOneWidget);
+    expect(find.byTooltip('Settings and activity'), findsNothing);
     // No photo yet: the first card asks for one, verification comes after.
     expect(find.text('Add a photo'), findsOneWidget);
-    for (final title in ['Wallet', 'Get VIP', 'Invite friends']) {
+    for (final title in ['Account', 'Your activity', 'Privacy & safety', 'Wallet & invites', 'Help & about', 'Log out and reset the demo']) {
       await scrollToRow(t, title);
       expect(find.text(title), findsOneWidget, reason: title);
     }
-    // The settings rows moved behind ☰.
+    // The rows themselves are one level down; the old shortcuts are gone.
     expect(find.text('Account & sign-in'), findsNothing);
+    expect(find.text('Get VIP'), findsNothing);
   });
 
   testWidgets('the eye shows the card others see', (t) async {
@@ -200,13 +200,14 @@ void main() {
     expect(find.text('How others see you'), findsOneWidget);
   });
 
-  testWidgets('shortcuts on Me push their screens and come back to Me', (t) async {
+  testWidgets('each group opens its page from Me and comes back to Me', (t) async {
     await pumpMe(t);
-    await opens(t, 'Wallet', WalletScreen, appBar: 'Wallet', backTo: ProfileScreen);
-    await opens(t, 'Invite friends', InviteScreen, appBar: 'Invite friends', backTo: ProfileScreen);
+    for (final g in ['Account', 'Your activity', 'Privacy & safety', 'Wallet & invites', 'Help & about']) {
+      await opens(t, g, SettingsGroupScreen, appBar: g, backTo: ProfileScreen);
+    }
   });
 
-  testWidgets('Settings and activity: five group buttons, every row inside them', (t) async {
+  testWidgets('settings groups: every row inside them', (t) async {
     await pumpSettings(t);
     const groups = <String, List<String>>{
       'Account': ['Account & sign-in', 'Devices', 'Notifications', 'Time & wellbeing', 'Data saver'],
@@ -215,11 +216,6 @@ void main() {
       'Wallet & invites': ['Wallet', 'Get VIP', 'Cash out gems', 'Invite friends', 'Creator partner program'],
       'Help & about': ['Help & safety centre', 'Terms & policies'],
     };
-    for (final g in groups.keys) {
-      expect(find.text(g), findsOneWidget, reason: g);
-    }
-    // The rows themselves live one level down.
-    expect(find.text('Account & sign-in'), findsNothing);
     for (final MapEntry(key: g, value: rows) in groups.entries) {
       await openGroup(t, g);
       for (final title in rows) {
@@ -229,24 +225,8 @@ void main() {
       if (g == 'Wallet & invites') expect(find.text('Your stats, links and payouts'), findsOneWidget);
       await t.pageBack();
       await t.pumpAndSettle();
+      expect(find.byType(ProfileScreen), findsOneWidget);
     }
-    await t.pageBack();
-    await t.pumpAndSettle();
-    expect(find.byType(ProfileScreen), findsOneWidget);
-  });
-
-  testWidgets('search narrows the menu', (t) async {
-    await pumpSettings(t);
-    await t.enterText(find.byType(TextField), 'blur');
-    await t.pumpAndSettle();
-    expect(find.text('Blur the first 3 seconds'), findsOneWidget);
-    expect(find.text('Account & sign-in'), findsNothing);
-    await t.enterText(find.byType(TextField), 'password');
-    await t.pumpAndSettle();
-    expect(find.text('Account & sign-in'), findsOneWidget);
-    await t.enterText(find.byType(TextField), 'zzzz');
-    await t.pumpAndSettle();
-    expect(find.textContaining('Nothing matches'), findsOneWidget);
   });
 
   testWidgets('"Show my numbers" is the opposite of hide stats', (t) async {
@@ -319,8 +299,6 @@ void main() {
     expect(find.byType(RecentMatchesScreen), findsOneWidget);
     expect(find.byType(VAvatar), findsNWidgets(5));
     await t.pageBack();
-    await t.pumpAndSettle();
-    await t.tap(find.byTooltip('Settings and activity'));
     await t.pumpAndSettle();
     await openGroup(t, 'Your activity');
     expect(find.text('5 recent calls'), findsOneWidget);
