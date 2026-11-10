@@ -126,6 +126,7 @@ export function friend(m: Json): Friend {
     state: m.state === "friends" ? "friends" : m.state === "requested" ? "requested" : "incoming",
     since: date(m.since) ?? new Date(),
     lastMessage: optStr(m.lastMessage),
+    lastMessageAt: date(m.lastMessageAt),
     unread: int(m.unread),
     online: bool(m.online),
     lastSeenAt: date(m.lastSeenAt),

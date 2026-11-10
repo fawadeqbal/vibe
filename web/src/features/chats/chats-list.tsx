@@ -15,7 +15,7 @@ import { cn } from "@/lib/cn";
 import { agoShort, plural } from "@/lib/format";
 import type { Friend, Profile } from "@/lib/models";
 import { useActivity } from "@/stores/activity";
-import { friendsOf, incomingOf, useSocial } from "@/stores/social";
+import { friendsOf, incomingOf, lastActivity, useSocial } from "@/stores/social";
 import { isVip, useWallet } from "@/stores/wallet";
 
 import { MomentsBar } from "./moments-bar";
@@ -192,8 +192,7 @@ function UnreadBadge({ n }: { n: number }) {
 }
 
 function FriendRow({ f, last, active, onRestore }: { f: Friend; last: boolean; active: boolean; onRestore: () => void }) {
-  const msgs = useSocial((s) => s.chats[f.profile.id]);
-  const at = msgs?.length ? msgs[msgs.length - 1].at : f.since;
+  const at = useSocial((s) => lastActivity(s.chats, f));
   const unread = f.unread > 0;
   const typing = useSocial((s) => !!s.typing[f.profile.id]);
   const restorable = f.streak.restorable && f.streak.lostCount > 0;

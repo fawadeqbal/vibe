@@ -63,4 +63,38 @@ void main() {
     await social.loadOlder('u1');
     expect(asked.length, before, reason: 'no more pages to ask for');
   });
+
+  test('the Chats list: whoever texted last first, even for chats not opened yet', () async {
+    final now = DateTime.utc(2026, 11, 10, 7);
+    Map<String, dynamic> f(String id, DateTime since, DateTime? last) => {
+          'profile': {'id': id, 'name': id, 'age': 24},
+          'state': 'friends',
+          'since': since.toIso8601String(),
+          'lastMessage': last == null ? null : 'hi',
+          'lastMessageAt': last?.toIso8601String(),
+        };
+    final friends = [
+      f('newFriendOldText', now.subtract(const Duration(days: 1)), now.subtract(const Duration(hours: 20))),
+      f('quiet', now.subtract(const Duration(hours: 2)), null),
+      f('oldFriendNewText', DateTime.utc(2025), now.subtract(const Duration(minutes: 5))),
+    ];
+    final api = ApiClient(
+      baseUrl: 'https://api.test/v1',
+      tokens: MemoryTokenStore(),
+      httpClient: MockClient((req) async => http.Response(
+            jsonEncode(switch (req.url.path) {
+              '/v1/friends' => friends,
+              '/v1/blocks' => [],
+              _ => {'items': [], 'count': 0, 'people': [], 'previews': []},
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          )),
+    );
+    await api.setTokens({'accessToken': 'a1', 'refreshToken': 'r1'});
+    final social = RemoteSocialProvider(api, RealtimeClient(api));
+    await social.load();
+    expect(social.friends.map((x) => x.profile.id), ['oldFriendNewText', 'quiet', 'newFriendOldText']);
+    expect(social.lastActivity(social.friends.first).toUtc(), now.subtract(const Duration(minutes: 5)));
+  });
 }

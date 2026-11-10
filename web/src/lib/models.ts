@@ -166,6 +166,8 @@ export interface Friend {
   state: FriendState;
   since: Date;
   lastMessage: string | null;
+  /** When the last message in the chat was sent (either way); null = no messages yet. */
+  lastMessageAt: Date | null;
   unread: number;
   online: boolean;
   /** When they were last in the app (friends only; null = unknown). */
