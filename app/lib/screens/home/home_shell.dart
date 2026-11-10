@@ -11,7 +11,6 @@ import '../../core/theme/vibe_dock.dart';
 import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../core/theme/web_glyphs.dart';
-import '../../models/calls.dart';
 import '../../models/follows.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/calls_provider.dart';
@@ -25,7 +24,6 @@ import '../../providers/social_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../services/app_services.dart';
 import '../../services/invite/invite_capture.dart';
-import '../../services/push/call_ringer.dart';
 import '../../services/push/push_route.dart';
 import '../../services/wellbeing/break_reminder.dart';
 import '../discover/discover_screen.dart';
@@ -173,13 +171,21 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
       nav.push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => IncomingCallScreen(call: inc))).then((_) => _incomingShown = null);
     }
     final out = _calls.outgoing;
-    if (out != null && !_outgoingShown && out.status == OutgoingStatus.ringing) {
+    if (out != null && !_outgoingShown) {
       _outgoingShown = true;
       nav
           .push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => OutgoingCallScreen(onMessage: _openChat)))
           .then((_) => _outgoingShown = false);
     }
+    // Why the ring stopped (hung up, answered elsewhere, too late, couldn't connect).
+    final n = _calls.notice;
+    if (n != null && _noticeShown != '${n.callId}:${n.kind.name}') {
+      _noticeShown = '${n.callId}:${n.kind.name}';
+      nav.push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => CallNoticeScreen(notice: n))).then((_) => _noticeShown = null);
+    }
   }
+
+  String? _noticeShown;
 
   void _openChat(String friendId) {
     if (!mounted) return;
@@ -304,10 +310,6 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     _links = DeepLinks.stream.listen(_open);
     final launch = push.takeLaunchRoute();
     if (launch != null) WidgetsBinding.instance.addPostFrameCallback((_) => _open(launch));
-    // A call notification (Vibe was in the background or closed): show the call, or pick it up.
-    CallRinger.opened.addListener(_callOpened);
-    CallRinger.tapped.addListener(_missedTapped);
-    unawaited(CallRinger.launchAction());
     _followNotices = context.read<FollowsProvider>().notices.listen((n) {
       if (mounted) toast(context, n.text);
     });
@@ -333,26 +335,8 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
     ]);
   }
 
-  Future<void> _callOpened() async {
-    final o = CallRinger.opened.value;
-    if (o == null) return;
-    CallRinger.opened.value = null;
-    await _calls.checkIncoming();
-    if (o.answer && mounted && _calls.incoming?.callId == o.callId) await _calls.accept();
-  }
-
-  void _missedTapped() {
-    final data = CallRinger.tapped.value;
-    if (data == null) return;
-    CallRinger.tapped.value = null;
-    final r = PushRoute.fromData(data);
-    if (r != null && mounted) _open(r);
-  }
-
   @override
   void dispose() {
-    CallRinger.opened.removeListener(_callOpened);
-    CallRinger.tapped.removeListener(_missedTapped);
     _taps?.cancel();
     _links?.cancel();
     _followNotices?.cancel();
@@ -416,8 +400,8 @@ class _HomeShellState extends State<HomeShell> with RouteAware {
       case PushTarget.discover:
         tab(Tabs.discover);
       case PushTarget.call:
-        // The ring itself comes over the socket; make sure we have it.
-        unawaited(_calls.checkIncoming());
+        // A missed call (nothing rings outside the app): where it stands now.
+        unawaited(_calls.reconcile());
       case PushTarget.match:
         // Vibe Hour started: the lobby, with the banner.
         tab(Tabs.match);

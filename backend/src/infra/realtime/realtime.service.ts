@@ -158,6 +158,21 @@ export class RealtimeService {
     return Object.fromEntries(userIds.map((id, i) => [id, !!scores[i] && now - Number(scores[i]) < STALE_MS]));
   }
 
+  /**
+   * In the app right now: a socket of theirs (any instance) is open and in
+   * the foreground (the app in front, a tab in use). Unlike [isActive] it
+   * asks the sockets themselves, so it's exact. Calls ring only then.
+   */
+  async isInApp(userId: string): Promise<boolean> {
+    if (!this.server) return false;
+    try {
+      return (await this.server.in(userRoom(userId)).fetchSockets()).some((s) => socketActive(s.data));
+    } catch (e) {
+      this.logger.warn(`in-app check for ${userId} failed: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
   /** After a socket came, went or changed foreground/background: is any of this person's sockets (on any instance) still in use? */
   async refreshActive(userId: string): Promise<boolean> {
     let active = false;

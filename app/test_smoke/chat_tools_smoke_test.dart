@@ -38,7 +38,7 @@ Future<Side> side(String json) async {
   final social = RemoteSocialProvider(api, rt);
   final wallet = RemoteWalletProvider(api, rt);
   final match = RemoteMatchProvider(api, rt, wallet, social, RemoteSessionProvider(api), cameraEnabled: false);
-  final calls = RemoteCallsProvider(api, rt, social, match);
+  final calls = RemoteCallsProvider(api, rt, social, match, RemoteSessionProvider(api));
   await social.load();
   return Side(j['id'] as String, api, rt, social, calls);
 }

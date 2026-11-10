@@ -10,7 +10,7 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
 import { clock } from "@/lib/format";
 import type { Profile } from "@/lib/models";
-import { type IncomingCall, type OutgoingCall, useCalls } from "@/stores/calls";
+import { type CallNotice, type IncomingCall, type OutgoingCall, useCalls } from "@/stores/calls";
 import { useMatch } from "@/stores/match";
 
 import { BlurredPhoto, CallCtl, CallEndCard, EndCallButton, PulseAvatar, RemoteAudio, SelfPreview } from "./call-ui";
@@ -29,6 +29,7 @@ export function CallHost() {
   const path = usePathname();
   const incoming = useCalls((s) => s.incoming);
   const outgoing = useCalls((s) => s.outgoing);
+  const notice = useCalls((s) => s.notice);
   const inFriendCall = useMatch((s) => s.status === "connected" && s.friendCall);
   const minimized = useMatch((s) => s.minimized);
   const ended = useMatch((s) => s.friendCallEnded);
@@ -50,19 +51,16 @@ export function CallHost() {
     router.push(`/chats/${ended.friendId}`);
   }, [ended, inFriendCall, router]);
 
-  // A call ringing before the app opened (from a push): straight to full screen.
-  const [openedRinging, setOpenedRinging] = useState<string | null>(null);
+  // Where your call is, when the app opens (the server keeps it; nothing rings outside the app).
   useEffect(() => {
-    void useCalls
-      .getState()
-      .checkIncoming()
-      .then(() => setOpenedRinging(useCalls.getState().incoming?.callId ?? null));
+    void useCalls.getState().reconcile();
   }, []);
 
   return (
     <>
       {outgoing ? <Outgoing key={`${outgoing.to.id}-${outgoing.callId ?? "new"}-${outgoing.status}`} c={outgoing} /> : null}
-      {incoming ? <Incoming key={incoming.callId} c={incoming} startFull={openedRinging === incoming.callId} /> : null}
+      {incoming ? <Incoming key={incoming.callId} c={incoming} startFull={false} /> : null}
+      {notice && !incoming ? <Notice key={`${notice.callId}-${notice.kind}`} n={notice} /> : null}
       {inFriendCall && minimized ? <MiniCall /> : null}
     </>
   );
@@ -214,12 +212,16 @@ function Incoming({ c, startFull }: { c: IncomingCall; startFull: boolean }) {
 
 // ── outgoing ─────────────────────────────────────────────────────────────
 
-const OUTCOME: Record<Exclude<OutgoingCall["status"], "ringing">, { title: string; body: (name: string, c: OutgoingCall) => string }> = {
-  declined: { title: "Not available right now", body: (n, c) => (c.reply ? `${n}: "${c.reply}"` : `${n} can't talk now. Send a message instead.`) },
-  no_answer: { title: "No answer", body: (n) => `${n} didn't pick up. We'll show them a missed call.` },
-  busy: { title: "In another call", body: (n) => `${n} is busy right now. Try again in a little while.` },
-  paused: { title: "Can't call right now", body: () => "They declined a few calls in a row. Try a message instead." },
-  error: { title: "Couldn't call", body: (_n, c) => c.message ?? "Something went wrong. Try again." },
+/** How your call ended (the server's reason), and what you can do next. */
+const OUTCOME: Record<Exclude<OutgoingCall["status"], "ringing">, { title: (name: string) => string; body: (name: string, c: OutgoingCall) => string; retry: boolean }> = {
+  unavailable: { title: () => "Not in Vibe right now", body: (n) => `${n} isn't using the app, so it can't ring. ${n} will see a missed call.`, retry: false },
+  declined: { title: (n) => `${n} can't talk right now`, body: (n, c) => (c.reply ? `"${c.reply}"` : `Send ${n} a message instead.`), retry: false },
+  no_answer: { title: () => "No answer", body: (n) => `${n} didn't pick up. We'll show a missed call.`, retry: true },
+  busy: { title: (n) => `${n} is on another call`, body: () => "Try again in a few minutes, or leave a message.", retry: true },
+  failed: { title: () => "Couldn't connect", body: () => "The call didn't start. Check your internet and try again.", retry: true },
+  turned_off: { title: () => "Calls were turned off", body: () => "Calls are off in this chat now.", retry: false },
+  paused: { title: () => "Can't call right now", body: () => "They declined a few calls in a row. Try a message instead.", retry: false },
+  error: { title: () => "Couldn't call", body: (_n, c) => c.message ?? "Something went wrong. Try again.", retry: true },
 };
 
 /** Your call ringing on their side: their photo, "Calling…", your camera and the controls; then how it ended. */
@@ -241,10 +243,10 @@ function Outgoing({ c }: { c: OutgoingCall }) {
     const done = OUTCOME[c.status];
     const close = () => useCalls.getState().dismissOutgoing();
     return (
-      <div role="dialog" aria-modal="true" aria-label={done.title} className="fixed inset-0 z-[78]">
-        <CallEndCard url={c.to.avatarUrl} name={c.to.name} title={done.title} sub={done.body(first, c)}>
+      <div role="dialog" aria-modal="true" aria-label={done.title(first)} className="fixed inset-0 z-[78]">
+        <CallEndCard url={c.to.avatarUrl} name={c.to.name} title={done.title(first)} sub={done.body(first, c)}>
           <GradientButton
-            label="Send a message"
+            label={c.status === "declined" ? "Reply" : "Send a message"}
             icon="chat_bubble"
             height={54}
             onClick={() => {
@@ -252,10 +254,10 @@ function Outgoing({ c }: { c: OutgoingCall }) {
               router.push(`/chats/${c.to.id}`);
             }}
           />
-          {c.status === "paused" ? (
-            <GhostButton label="Close" height={48} expand onClick={close} />
-          ) : (
+          {done.retry ? (
             <GhostButton label="Try again" icon="replay" height={48} expand onClick={() => void useCalls.getState().ring(c.to, c.media)} />
+          ) : (
+            <GhostButton label="Close" height={48} expand onClick={close} />
           )}
         </CallEndCard>
       </div>
@@ -274,15 +276,11 @@ function Outgoing({ c }: { c: OutgoingCall }) {
           </h2>
           <p role="status" className={cn("mt-1.5 flex items-center justify-center gap-1.5 text-[14.5px] font-semibold", c.reached ? "text-pink-soft" : "text-white/80")}>
             <Icon name={video ? "videocam" : "call"} size={17} />
-            {!c.callId ? "Calling…" : c.reached ? "Ringing…" : "Connecting…"}
+            {c.reached ? "Ringing…" : "Calling…"}
           </p>
-          {c.callId ? (
-            <p className="mx-auto mt-2 max-w-[300px] text-[13px] leading-[1.5] text-white/60">
-              {c.reached
-                ? `${c.to.name.split(" ")[0]}'s phone is ringing, even if Vibe is closed.`
-                : `${c.to.name.split(" ")[0]}'s phone is offline or has no internet. It rings as soon as it's back, while you're still calling.`}
-            </p>
-          ) : null}
+          <p className="mx-auto mt-2 max-w-[300px] text-[13px] leading-[1.5] text-white/60">
+            {c.reached ? `${first}'s screen is showing your call` : `Reaching ${first}'s app`}
+          </p>
         </div>
         <div className="flex-1" />
         <div className="flex items-start justify-evenly">
@@ -292,6 +290,47 @@ function Outgoing({ c }: { c: OutgoingCall }) {
           <EndCallButton label="Cancel" ariaLabel="Cancel call" onClick={() => void useCalls.getState().cancel()} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── after the ring, for the person called ───────────────────────────────
+
+const NOTICE: Record<CallNotice["kind"], { title: (n: string) => string; body: (n: string) => string; auto: boolean }> = {
+  hung_up: { title: (n) => `${n} hung up`, body: () => "Missed call. It's in your chat.", auto: true },
+  elsewhere: { title: () => "Answered on your other device", body: () => "The call goes on there.", auto: true },
+  over: { title: () => "That call has ended", body: (n) => `${n} hung up just before you answered.`, auto: false },
+  failed: { title: () => "Couldn't connect", body: () => "The call didn't start. Check your internet.", auto: false },
+};
+
+/** Why the ring stopped: a moment (hung up, answered elsewhere), or with Call back (too late, couldn't connect). */
+function Notice({ n }: { n: CallNotice }) {
+  const d = NOTICE[n.kind];
+  const first = firstName(n.from);
+  useEffect(() => {
+    if (!d.auto) return;
+    const t = setTimeout(() => useCalls.getState().dismissNotice(), 1800);
+    return () => clearTimeout(t);
+  }, [d.auto]);
+  const close = () => useCalls.getState().dismissNotice();
+  return (
+    <div role="dialog" aria-modal="true" aria-label={d.title(first)} className="fixed inset-0 z-[78]">
+      <CallEndCard url={n.from.avatarUrl} name={n.from.name} title={d.title(first)} sub={d.body(first)}>
+        {d.auto ? null : (
+          <>
+            <GradientButton
+              label={`Call ${first} back`}
+              icon={n.media === "voice" ? "call" : "videocam"}
+              height={54}
+              onClick={() => {
+                close();
+                void useCalls.getState().ring(n.from, n.media);
+              }}
+            />
+            <GhostButton label="Close" height={48} expand onClick={close} />
+          </>
+        )}
+      </CallEndCard>
     </div>
   );
 }

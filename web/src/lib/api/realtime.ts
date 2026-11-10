@@ -48,14 +48,8 @@ export const Ev = {
   discoverLiked: "discover:liked",
   /** Video calls in a chat changed: `{ friendId, mine, theirs, asked?, from? }`. */
   callConsent: "call:consent",
-  /** A friend is calling you: `{ callId, from, expiresAt }`. */
-  callIncoming: "call:incoming",
-  /** Your call is ringing on their side: `{ callId, to, expiresAt }`. */
-  callRinging: "call:ringing",
-  /** A ringing call stopped: `{ callId, reason, reply?, from? }`. */
-  callEnded: "call:ended",
-  /** Your call is ringing on their phone (the app, or a push with Vibe closed): `{ callId }`. Until then: "Connecting". */
-  callReached: "call:reached",
+  /** A call between friends changed: the whole snapshot (state ringing | connecting | live | ended, reason, version…), to every device of both people. */
+  callState: "call:state",
   /** Voice → video in a friend call: `{ matchId, state: "asked" | "on" | "declined", from? }`. */
   callVideo: "call:video",
   /** Your friend is typing: `{ friendId }`. */

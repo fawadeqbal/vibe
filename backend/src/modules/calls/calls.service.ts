@@ -1,17 +1,14 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Interval } from '@nestjs/schedule';
-import { createHmac, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { FriendshipStatus, MessageKind } from '@prisma/client';
 
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { Clock, MS } from '../../common/utils/clock';
-import { safeEqual } from '../../common/utils/crypto';
-import { AppConfig } from '../../config/app-config.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { ServerEvent } from '../../infra/realtime/realtime.events';
-import { SOCKET_CONNECTED, type SocketLifecycleEvent } from '../../infra/realtime/realtime.gateway';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { EconomyService } from '../catalog/economy.service';
@@ -21,22 +18,68 @@ import { callsView, type CallsView, FriendsService } from '../social/friends.ser
 import { MessagesService } from '../social/messages.service';
 import { PROFILE_INCLUDE, type PublicProfile, toPublicProfile } from '../users/user.mapper';
 
-/** A call that is ringing. */
-export interface RingingCall {
+export type CallMedia = 'voice' | 'video';
+
+/** Where a call is. It ends exactly once, with a reason. (The design: "Calls: one state machine on the server".) */
+export type CallStatus = 'ringing' | 'connecting' | 'live' | 'ended';
+
+/**
+ * Why it ended. unavailable: they weren't in the app · busy: on another
+ * call · cancelled: the caller hung up while it rang · declined · no_answer:
+ * rang out · gone: they left the app while it rang · failed: picked up but
+ * the media never started · hung_up / dropped: a call that ended ·
+ * turned_off: calls were turned off (or a block) while it rang.
+ */
+export type CallEndReason = 'unavailable' | 'busy' | 'cancelled' | 'declined' | 'no_answer' | 'gone' | 'failed' | 'hung_up' | 'dropped' | 'turned_off';
+
+/** One call, as the server keeps it (Redis, JSON). Only [CallsService.move] changes it. */
+export interface CallRecord {
   id: string;
   from: string;
   to: string;
   friendshipId: string;
-  expiresAt: number;
-  /** A video call (else voice only). */
   video: boolean;
-  /** When it started ringing on their phone (in the app, or woken by a push); unset = "Connecting". */
-  reachedAt?: number;
+  state: CallStatus;
+  reason: CallEndReason | null;
+  /** Goes up with every change: devices keep the highest they've seen. */
+  version: number;
+  /** Their device is showing it ("Ringing…" rather than "Calling…"). */
+  reached: boolean;
+  /** The device that picked up; the others close. */
+  answeredBy: string | null;
+  matchId: string | null;
+  /** Their quick reply when they declined. */
+  reply: string | null;
+  createdAt: number;
+  /** When it stops ringing. */
+  expiresAt: number;
+  connectingAt: number | null;
+  liveAt: number | null;
+  endedAt: number | null;
+  /** Each side's media is flowing (both → live). */
+  upFrom: boolean;
+  upTo: boolean;
+  /** The person called left the app while it rang (gone after a grace). */
+  awayAt: number | null;
 }
 
-export type CallMedia = 'voice' | 'video';
-
-export type CallEndReason = 'declined' | 'no_answer' | 'cancelled' | 'accepted' | 'turned_off';
+/** What every device of both people gets (`call:state`) and draws from. */
+export interface CallSnapshot {
+  callId: string;
+  state: CallStatus;
+  reason: CallEndReason | null;
+  version: number;
+  media: CallMedia;
+  from: PublicProfile;
+  to: PublicProfile;
+  reached: boolean;
+  answeredBy: string | null;
+  matchId: string | null;
+  reply: string | null;
+  expiresAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
 
 export interface CallState extends CallsView {
   friendId: string;
@@ -52,9 +95,38 @@ export interface CallState extends CallsView {
 }
 
 const CALL = (id: string) => `call:${id}`;
+/** Each person's call that isn't over yet (one at a time). */
 const USER = (id: string) => `call:user:${id}`;
-const RINGING = 'calls:ringing';
+/** Calls that aren't over: what the sweep looks at. */
+const ACTIVE = 'calls:active';
 const LIVE = 'calls:live';
+/** A call record is kept a day, so a late question about it still has an answer. */
+const CALL_TTL = 86_400;
+/** Connecting this long without both media up: failed. */
+const CONNECT_MS = 15_000;
+/** Out of the app this long while it rings: gone. */
+const AWAY_GRACE_MS = 5_000;
+/** These endings leave a missed call (a chat line, and the call.missed push). */
+const MISSED = new Set<CallEndReason>(['unavailable', 'busy', 'cancelled', 'no_answer', 'gone']);
+
+/**
+ * The compare-and-set every move goes through: changes the call only when
+ * it's in one of the expected states (comma-separated), bumps its version,
+ * keeps its TTL. Returns {1, json} or {0, json-or-empty}.
+ */
+const MOVE_LUA = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return {0, ''} end
+local c = cjson.decode(raw)
+local ok = false
+for s in string.gmatch(ARGV[1], '[^,]+') do if c.state == s then ok = true end end
+if not ok then return {0, raw} end
+for k, v in pairs(cjson.decode(ARGV[2])) do c[k] = v end
+c.version = (c.version or 0) + 1
+local out = cjson.encode(c)
+redis.call('SET', KEYS[1], out, 'KEEPTTL')
+return {1, out}
+`;
 const ASKS = (userId: string, day: number) => `callask:${userId}:${day}`;
 const WAIT = (friendshipId: string, userId: string) => `callask:wait:${friendshipId}:${userId}`;
 const DECLINES = (caller: string, callee: string) => `call:declines:${caller}:${callee}`;
@@ -100,25 +172,7 @@ export class CallsService {
     private readonly messages: MessagesService,
     private readonly blocks: BlocksService,
     private readonly matching: MatchingService,
-    private readonly config: AppConfig,
   ) {}
-
-  /**
-   * Signs one call for the person being called, so their phone can say
-   * "ringing" or "decline" straight from the push with Vibe closed (no
-   * session there to use). Only good for that call and that person.
-   */
-  pushToken(callId: string, userId: string): string {
-    return createHmac('sha256', `call-push:${this.config.get('JWT_ACCESS_SECRET')}`).update(`${callId}:${userId}`).digest('base64url').slice(0, 32);
-  }
-
-  /** "Ringing" or "Decline" from the call push (Vibe closed): checked against [pushToken]. */
-  async fromPush(callId: string, userId: string, token: string, action: 'ringing' | 'decline', reply?: string): Promise<{ ok: true }> {
-    if (!safeEqual(this.pushToken(callId, userId), token)) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
-    if (action === 'decline') await this.decline(userId, callId, reply);
-    else await this.reached(userId, callId);
-    return { ok: true };
-  }
 
   private get rules() {
     return this.economy.rules;
@@ -272,27 +326,90 @@ export class CallsService {
       await this.redis.client.set(WAIT(f.id, friendId), '1', 'EX', Math.max(1, this.rules.callAskCooldownHours * 3600));
       await this.messages.system(f.id, me, friendId, 'Not now for calls', { event: 'calls_declined' });
     }
-    await this.stopRingingBetween(me, friendId, 'turned_off');
+    await this.stopRingingBetween(me, friendId);
     await this.tellConsent(me, friendId);
     return this.state(me, friendId);
   }
 
-  // ── ringing ───────────────────────────────────────────────────────────
+  // ── the call: one record, one state machine ─────────────────────────
 
-  private async ringing(id: string): Promise<RingingCall | null> {
-    return this.redis.getJson<RingingCall>(CALL(id));
+  private async load(id: string): Promise<CallRecord | null> {
+    return this.redis.getJson<CallRecord>(CALL(id));
   }
 
-  /** The call ringing for you right now, if any (an app opening from a push). */
-  async incoming(me: string): Promise<{ callId: string; from: PublicProfile; expiresAt: string; media: CallMedia } | null> {
+  /**
+   * Moves a call from one of `from` to its next state, atomically (a Lua
+   * compare-and-set): of two moves at the same moment only the first wins.
+   * Returns the new record, or null when it wasn't in one of `from`.
+   */
+  private async move(id: string, from: CallStatus[], patch: Partial<CallRecord>): Promise<CallRecord | null> {
+    const r = (await this.redis.client.eval(MOVE_LUA, 1, CALL(id), from.join(','), JSON.stringify(patch))) as [number, string];
+    if (!r || r[0] !== 1) return null;
+    const c = JSON.parse(r[1]) as CallRecord;
+    if (c.state === 'ended') await this.cleanup(c);
+    await this.emit(c);
+    return c;
+  }
+
+  /** The snapshot both people's devices draw from. */
+  private async snapshot(c: CallRecord): Promise<CallSnapshot> {
+    const [from, to] = await Promise.all([this.profile(c.from), this.profile(c.to)]);
+    const iso = (t: number | null) => (t ? new Date(t).toISOString() : null);
+    return {
+      callId: c.id,
+      state: c.state,
+      reason: c.reason,
+      version: c.version,
+      media: c.video ? 'video' : 'voice',
+      from,
+      to,
+      reached: c.reached,
+      answeredBy: c.answeredBy,
+      matchId: c.matchId,
+      reply: c.reply,
+      expiresAt: new Date(c.expiresAt).toISOString(),
+      startedAt: iso(c.liveAt),
+      endedAt: iso(c.endedAt),
+    };
+  }
+
+  /** Every move goes to every device of both people: `call:state` with the full snapshot. */
+  private async emit(c: CallRecord): Promise<void> {
+    this.realtime.toUsers([c.from, c.to], ServerEvent.CallState, await this.snapshot(c));
+  }
+
+  private async cleanup(c: CallRecord): Promise<void> {
+    const m = this.redis.client.multi().srem(ACTIVE, c.id);
+    for (const uid of [c.from, c.to]) m.eval("if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end", 1, USER(uid), c.id);
+    await m.exec();
+    // Missed calls: one line in the chat (Call back). The push for it is call.missed (notifications).
+    if (c.reason && MISSED.has(c.reason)) {
+      await this.messages
+        .system(c.friendshipId, c.from, c.to, `Missed ${c.video ? 'video' : 'voice'} call`, { event: 'call_missed', video: c.video })
+        .catch(() => undefined);
+    }
+  }
+
+  /** A participant's view of a call (404 for anyone else). */
+  async get(me: string, callId: string): Promise<CallSnapshot> {
+    const c = await this.load(callId);
+    if (!c || (c.from !== me && c.to !== me)) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
+    return this.snapshot(c);
+  }
+
+  /** Your call right now, if any: what a device redraws from on connect, on returning to the app, and while a call screen is open. */
+  async current(me: string): Promise<CallSnapshot | null> {
     const id = await this.redis.client.get(USER(me));
-    const c = id ? await this.ringing(id) : null;
-    if (!c || c.to !== me || c.expiresAt < Date.now()) return null;
-    return { callId: c.id, from: await this.profile(c.from), expiresAt: new Date(c.expiresAt).toISOString(), media: c.video ? 'video' : 'voice' };
+    const c = id ? await this.load(id) : null;
+    return c && c.state !== 'ended' ? this.snapshot(c) : null;
   }
 
-  /** Ring a friend, voice or video. Both must have allowed it; neither may be busy. */
-  async ring(me: string, friendId: string, media: CallMedia = 'video'): Promise<{ callId: string; to: PublicProfile; expiresAt: string; media: CallMedia; reached: boolean }> {
+  /**
+   * Call a friend, voice or video. Both must have allowed it. It rings only
+   * if they're in the app right now and free; otherwise it ends at once
+   * (`unavailable` / `busy`) and they get a missed call.
+   */
+  async ring(me: string, friendId: string, media: CallMedia = 'video'): Promise<CallSnapshot> {
     this.assertOn();
     const f = await this.friends.requireFriends(me, friendId);
     if (await this.blocks.eitherBlocked(me, friendId))
@@ -311,102 +428,86 @@ export class CallsService {
         HttpStatus.TOO_MANY_REQUESTS,
         { after: new Date(Date.now() + pauseTtl).toISOString() },
       );
-    if (
-      (await this.redis.client.get(USER(me))) ||
-      (await this.redis.client.get(USER(friendId))) ||
-      (await this.matching.isInCall(friendId))
-    ) {
-      throw new AppError(ErrorCode.CALL_BUSY, 'In another call right now', HttpStatus.CONFLICT);
-    }
-    const ringMs = this.rules.callRingSeconds * 1000;
-    // In the app right now: it rings there at once. Otherwise "Connecting" until their phone says it's ringing.
-    const reached = await this.realtime.isActive(friendId);
-    const call: RingingCall = {
+    if ((await this.redis.client.get(USER(me))) || (await this.matching.isInCall(me)))
+      throw new AppError(ErrorCode.CALL_BUSY, "You're already in a call", HttpStatus.CONFLICT);
+
+    const now = Date.now();
+    const c: CallRecord = {
       id: randomUUID(),
       from: me,
       to: friendId,
       friendshipId: f.id,
-      expiresAt: Date.now() + ringMs,
       video,
-      ...(reached ? { reachedAt: Date.now() } : {}),
+      state: 'ringing',
+      reason: null,
+      version: 1,
+      reached: false,
+      answeredBy: null,
+      matchId: null,
+      reply: null,
+      createdAt: now,
+      expiresAt: now + this.rules.callRingSeconds * 1000,
+      connectingAt: null,
+      liveAt: null,
+      endedAt: null,
+      upFrom: false,
+      upTo: false,
+      awayAt: null,
     };
-    const ttl = Math.ceil(ringMs / 1000) + 30;
+    const busy = !!(await this.redis.client.get(USER(friendId))) || !!(await this.matching.isInCall(friendId));
+    const away = !busy && !(await this.realtime.isInApp(friendId));
     // Claim both people (NX) so two calls can't ring the same person.
-    const claimed = await this.redis.client.set(USER(friendId), call.id, 'EX', ttl, 'NX');
-    if (claimed !== 'OK') throw new AppError(ErrorCode.CALL_BUSY, 'In another call right now', HttpStatus.CONFLICT);
-    await this.redis.client
-      .multi()
-      .set(USER(me), call.id, 'EX', ttl)
-      .set(CALL(call.id), JSON.stringify(call), 'EX', ttl)
-      .zadd(RINGING, call.expiresAt, call.id)
-      .exec();
-    const [from, to] = await Promise.all([this.profile(me), this.profile(friendId)]);
-    const expiresAt = new Date(call.expiresAt).toISOString();
-    this.realtime.toUser(friendId, ServerEvent.CallIncoming, { callId: call.id, from, expiresAt, media, ack: this.pushToken(call.id, friendId) });
-    this.realtime.toUser(me, ServerEvent.CallRinging, { callId: call.id, to, expiresAt, media, reached });
-    return { callId: call.id, to, expiresAt, media, reached };
+    const claimed = busy || away ? null : await this.redis.client.set(USER(friendId), c.id, 'EX', CALL_TTL, 'NX');
+    if (claimed !== 'OK') {
+      // Ends before it starts: they're on another call, or not in Vibe right now.
+      const ended: CallRecord = { ...c, state: 'ended', reason: busy || !away ? 'busy' : 'unavailable', endedAt: now, version: 2 };
+      await this.redis.client.set(CALL(c.id), JSON.stringify(ended), 'EX', CALL_TTL);
+      await this.cleanup(ended);
+      await this.emit(ended);
+      return this.snapshot(ended);
+    }
+    await this.redis.client.multi().set(USER(me), c.id, 'EX', CALL_TTL).set(CALL(c.id), JSON.stringify(c), 'EX', CALL_TTL).sadd(ACTIVE, c.id).exec();
+    await this.emit(c);
+    return this.snapshot(c);
+  }
+
+  /** Their device is showing the call: the caller's "Calling…" becomes "Ringing…". */
+  async reached(me: string, callId: string): Promise<CallSnapshot> {
+    const c = await this.load(callId);
+    if (!c || c.to !== me) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
+    if (c.reached || c.state !== 'ringing') return this.snapshot(c);
+    return this.snapshot((await this.move(callId, ['ringing'], { reached: true })) ?? (await this.load(callId)) ?? c);
   }
 
   /**
-   * Their phone is ringing: the app got `call:incoming`, or woke from the
-   * call push with Vibe closed. The caller's "Connecting" turns into
-   * "Ringing" (`call:reached`). Once per call.
+   * Pick up (the first device wins): `connecting`, and the call starts
+   * (`match:found` to both). `voiceOnly` picks up a video call as voice.
+   * Too late (it ended, or another device answered): 409 with the snapshot.
    */
-  async reached(me: string, callId: string): Promise<{ ok: true }> {
-    const c = await this.mine(callId, me, 'to');
-    if (c.reachedAt) return { ok: true };
-    const ttl = await this.redis.client.ttl(CALL(c.id));
-    if (ttl <= 0) return { ok: true };
-    await this.redis.client.set(CALL(c.id), JSON.stringify({ ...c, reachedAt: Date.now() }), 'EX', ttl);
-    this.realtime.toUser(c.from, ServerEvent.CallReached, { callId: c.id });
-    return { ok: true };
-  }
-
-  /** Their phone came back online while you're still calling: it rings in the app now (no second push). */
-  @OnEvent(SOCKET_CONNECTED, { async: true, suppressErrors: true })
-  async onConnect(e: SocketLifecycleEvent): Promise<void> {
-    const call = await this.incoming(e.userId);
-    if (call) this.realtime.toUsers([e.userId], ServerEvent.CallIncoming, call);
-  }
-
-  /** Stops a ringing call exactly once; returns it (null if already over). */
-  private async finish(id: string): Promise<RingingCall | null> {
-    const removed = await this.redis.client.zrem(RINGING, id);
-    const c = await this.ringing(id);
-    if (!removed || !c) return null;
-    await this.redis.client.del(CALL(id));
-    for (const uid of [c.from, c.to]) {
-      if ((await this.redis.client.get(USER(uid))) === id) await this.redis.client.del(USER(uid));
-    }
-    return c;
-  }
-
-  private async mine(id: string, me: string, side: 'from' | 'to'): Promise<RingingCall> {
-    const c = await this.ringing(id);
-    if (!c || c[side] !== me) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
-    return c;
-  }
-
-  /** Pick up: the call starts (`match:found` to both, marked as a friend call). `voiceOnly` picks up a video call as voice. */
-  async accept(me: string, callId: string, voiceOnly = false): Promise<{ matchId: string | null }> {
-    await this.mine(callId, me, 'to');
-    const c = await this.finish(callId);
-    if (!c) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
+  async accept(me: string, callId: string, opts: { voiceOnly?: boolean; deviceId?: string } = {}): Promise<CallSnapshot> {
+    const c0 = await this.load(callId);
+    if (!c0 || c0.to !== me) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
+    const video = c0.video && !opts.voiceOnly;
+    const c = await this.move(callId, ['ringing'], { state: 'connecting', video, answeredBy: opts.deviceId?.slice(0, 64) || 'device', connectingAt: Date.now() });
+    if (!c) throw this.over(await this.load(callId));
     await this.redis.client.del(DECLINES(c.from, c.to));
-    this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId, reason: 'accepted' });
-    const video = c.video && !voiceOnly;
     const matchId = await this.matching.startFriendCall(c.from, c.to, { voice: !video });
-    if (matchId) await this.redis.client.hset(LIVE, matchId, JSON.stringify({ a: c.from, b: c.to, startedAt: Date.now(), video }));
-    return { matchId };
+    if (!matchId) {
+      await this.move(callId, ['connecting'], { state: 'ended', reason: 'failed', endedAt: Date.now() });
+      throw this.over(await this.load(callId));
+    }
+    await this.redis.client.hset(LIVE, matchId, JSON.stringify({ a: c.from, b: c.to, startedAt: Date.now(), video, callId }));
+    return this.snapshot((await this.move(callId, ['connecting'], { matchId })) ?? c);
   }
 
-  /** Not now — optionally with a quick reply sent as a chat message. */
-  async decline(me: string, callId: string, reply?: string): Promise<void> {
-    await this.mine(callId, me, 'to');
-    const c = await this.finish(callId);
-    if (!c) return;
-    this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId, reason: 'declined', reply: reply ?? null });
-    if (reply?.trim()) await this.messages.send(me, c.from, reply.trim().slice(0, 200)).catch(() => undefined);
+  /** Not now — optionally with a quick reply (also sent as a chat message). */
+  async decline(me: string, callId: string, reply?: string): Promise<CallSnapshot> {
+    const c0 = await this.load(callId);
+    if (!c0 || c0.to !== me) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
+    const text = reply?.trim().slice(0, 200) || null;
+    const c = await this.move(callId, ['ringing'], { state: 'ended', reason: 'declined', reply: text, endedAt: Date.now() });
+    if (!c) return this.snapshot((await this.load(callId)) ?? c0);
+    if (text) await this.messages.send(me, c.from, text).catch(() => undefined);
     await this.messages
       .system(c.friendshipId, me, c.from, `${kindText(c.video)} call declined`, { event: 'call_declined', video: c.video })
       .catch(() => undefined);
@@ -414,48 +515,81 @@ export class CallsService {
     if (this.rules.callDeclinePause > 0 && n >= this.rules.callDeclinePause) {
       await this.redis.client.multi().set(PAUSE(c.from, c.to), '1', 'EX', 86_400).del(DECLINES(c.from, c.to)).exec();
     }
+    return this.snapshot(c);
   }
 
-  /** The caller hangs up before an answer: a missed call for them. */
-  async cancel(me: string, callId: string): Promise<void> {
-    await this.mine(callId, me, 'from');
-    const c = await this.finish(callId);
-    if (c) await this.missed(c, 'cancelled');
+  /** The caller hangs up: before an answer it's `cancelled` (a missed call for them); while connecting, `hung_up`. */
+  async cancel(me: string, callId: string): Promise<CallSnapshot> {
+    const c0 = await this.load(callId);
+    if (!c0 || c0.from !== me) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
+    const c =
+      (await this.move(callId, ['ringing'], { state: 'ended', reason: 'cancelled', endedAt: Date.now() })) ??
+      (await this.move(callId, ['connecting'], { state: 'ended', reason: 'hung_up', endedAt: Date.now() }));
+    if (c?.matchId) await this.matching.endByStaff(c.matchId).catch(() => false);
+    return this.snapshot(c ?? (await this.load(callId)) ?? c0);
   }
 
-  private async missed(c: RingingCall, reason: 'cancelled' | 'no_answer'): Promise<void> {
-    const from = await this.profile(c.from);
-    this.realtime.toUser(c.to, ServerEvent.CallEnded, { callId: c.id, reason, from });
-    this.realtime.toUser(c.from, ServerEvent.CallEnded, { callId: c.id, reason });
-    await this.messages
-      .system(c.friendshipId, c.from, c.to, `Missed ${c.video ? 'video' : 'voice'} call`, { event: 'call_missed', video: c.video })
-      .catch(() => undefined);
+  /** My video or voice is flowing in this call; once both are, it's `live`. */
+  async up(me: string, callId: string): Promise<CallSnapshot> {
+    const c0 = await this.load(callId);
+    if (!c0 || (c0.from !== me && c0.to !== me)) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
+    const side = c0.from === me ? 'upFrom' : 'upTo';
+    if (c0.state !== 'connecting' || c0[side]) return this.snapshot(c0);
+    const c = await this.move(callId, ['connecting'], { [side]: true });
+    if (c && c.upFrom && c.upTo) return this.snapshot((await this.move(callId, ['connecting'], { state: 'live', liveAt: Date.now() })) ?? c);
+    return this.snapshot(c ?? (await this.load(callId)) ?? c0);
   }
 
-  private async stopRingingBetween(a: string, b: string, reason: CallEndReason): Promise<void> {
+  private over(c: CallRecord | null): AppError {
+    return new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.CONFLICT, c ? { callId: c.id, state: c.state, reason: c.reason } : undefined);
+  }
+
+  private async stopRingingBetween(a: string, b: string): Promise<void> {
     const id = await this.redis.client.get(USER(a));
-    const c = id ? await this.ringing(id) : null;
+    const c = id ? await this.load(id) : null;
     if (!c || ![c.from, c.to].includes(b)) return;
-    if (await this.finish(c.id))
-      for (const uid of [c.from, c.to]) this.realtime.toUser(uid, ServerEvent.CallEnded, { callId: c.id, reason });
+    await this.move(c.id, ['ringing'], { state: 'ended', reason: 'turned_off', endedAt: Date.now() });
   }
 
-  /** Unanswered calls ring out; friend calls past the longest allowed length end. */
+  /**
+   * The server's clocks, every second: ringing past its time → `no_answer`;
+   * the person called left the app while it rang (5 s grace) → `gone`;
+   * connecting for 15 s without both media up → `failed`; friend calls past
+   * the longest allowed length end.
+   */
   @Interval(1000)
   async sweep(): Promise<void> {
     await this.redis.withLock('calls-sweep', 5000, async () => {
-      for (const id of await this.redis.client.zrangebyscore(RINGING, 0, Date.now(), 'LIMIT', 0, 50)) {
-        const c = await this.finish(id);
-        if (c)
-          await this.missed(c, 'no_answer').catch((e) =>
-            this.logger.warn(`missed call ${id}: ${(e as Error).message}`),
-          );
+      const now = Date.now();
+      for (const id of await this.redis.client.smembers(ACTIVE)) {
+        try {
+          const c = await this.load(id);
+          if (!c || c.state === 'ended') {
+            await this.redis.client.srem(ACTIVE, id);
+            continue;
+          }
+          if (c.state === 'ringing') {
+            if (now >= c.expiresAt) {
+              await this.move(id, ['ringing'], { state: 'ended', reason: 'no_answer', endedAt: now });
+            } else if (!(await this.realtime.isInApp(c.to))) {
+              if (!c.awayAt) await this.redis.client.eval(MOVE_LUA, 1, CALL(id), 'ringing', JSON.stringify({ awayAt: now }));
+              else if (now - c.awayAt >= AWAY_GRACE_MS) await this.move(id, ['ringing'], { state: 'ended', reason: 'gone', endedAt: now });
+            } else if (c.awayAt) {
+              await this.redis.client.eval(MOVE_LUA, 1, CALL(id), 'ringing', JSON.stringify({ awayAt: null }));
+            }
+          } else if (c.state === 'connecting' && c.connectingAt && now - c.connectingAt >= CONNECT_MS) {
+            const ended = await this.move(id, ['connecting'], { state: 'ended', reason: 'failed', endedAt: now });
+            if (ended?.matchId) await this.matching.endByStaff(ended.matchId).catch(() => false);
+          }
+        } catch (e) {
+          this.logger.warn(`call ${id}: ${(e as Error).message}`);
+        }
       }
       const max = this.rules.callMaxMinutes * MS.minute;
       if (max <= 0) return;
       for (const [matchId, raw] of Object.entries(await this.redis.client.hgetall(LIVE))) {
         const live = JSON.parse(raw) as { a: string; b: string; startedAt: number };
-        if (Date.now() - live.startedAt < max) continue;
+        if (now - live.startedAt < max) continue;
         await this.redis.client.hdel(LIVE, matchId);
         await this.matching.endByStaff(matchId).catch(() => false);
       }
@@ -492,6 +626,9 @@ export class CallsService {
     try {
       const raw = await this.redis.client.hget(LIVE, e.matchId);
       await this.redis.client.multi().hdel(LIVE, e.matchId).del(VIDEO_ASK(e.matchId)).exec();
+      // The call record ends too: hung up, or dropped when a connection was lost.
+      const callId = raw ? (JSON.parse(raw) as { callId?: string }).callId : undefined;
+      if (callId) await this.move(callId, ['connecting', 'live'], { state: 'ended', reason: e.reason === 'disconnected' ? 'dropped' : 'hung_up', endedAt: Date.now() });
       const video = raw ? (JSON.parse(raw) as { video?: boolean }).video !== false : !e.voiceCall;
       const f = await this.prisma.friendship.findUnique({ where: this.friends.pairWhere(e.a, e.b) });
       if (!f) return;
@@ -514,7 +651,7 @@ export class CallsService {
         data: { callsLowAllowed: false, callsHighAllowed: false, callsLowVideo: false, callsHighVideo: false },
       })
       .catch(() => undefined);
-    await this.stopRingingBetween(e.blockerId, e.blockedId, 'turned_off').catch(() => undefined);
+    await this.stopRingingBetween(e.blockerId, e.blockedId).catch(() => undefined);
   }
 
   // ── voice → video during a call ───────────────────────────────────────

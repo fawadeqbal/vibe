@@ -131,6 +131,26 @@ describe('calls in chat', () => {
     ]);
   });
 
+  type Snap = { callId: string; state: string; reason: string | null; version: number; reached: boolean; answeredBy: string | null; reply: string | null; from: { id: string }; to: { id: string }; media: string };
+  /** The next call:state on this socket that matches. */
+  const stateOn = (s: Socket, ok: (c: Snap) => boolean, timeoutMs = 5000) =>
+    new Promise<Snap>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timed out waiting for call:state')), timeoutMs);
+      const on = (c: Snap) => {
+        if (!ok(c)) return;
+        clearTimeout(timer);
+        s.off('call:state', on);
+        resolve(c);
+      };
+      s.on('call:state', on);
+    });
+  /** Moves a call's clock (the record is JSON in Redis). */
+  const patchCall = async (id: string, patch: Record<string, unknown>) => {
+    const raw = await t.redis.client.get(`call:${id}`);
+    await t.redis.client.set(`call:${id}`, JSON.stringify({ ...JSON.parse(raw!), ...patch }), 'KEEPTTL');
+  };
+  const sweep = () => t.app.get(CallsService).sweep();
+
   const callsOn = async () => {
     const { a, b } = await friends();
     await say(a, b, 'hey');
@@ -144,14 +164,12 @@ describe('calls in chat', () => {
     const { a, b } = await callsOn();
     const sa = await online(a);
     const sb = await online(b);
-    const incoming = next(sb, 'call:incoming');
+    const incoming = stateOn(sb, (c) => c.state === 'ringing');
     const r = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(200)).body;
-    expect(r).toMatchObject({ callId: expect.any(String), to: { id: b.id } });
+    expect(r).toMatchObject({ callId: expect.any(String), state: 'ringing', to: { id: b.id }, from: { id: a.id }, reached: false, version: 1 });
     expect(await incoming).toMatchObject({ callId: r.callId, from: { id: a.id } });
-    expect((await t.http.get('/v1/calls/incoming').set(b.auth).expect(200)).body.call).toMatchObject({
-      callId: r.callId,
-    });
-    // Ringing someone who is already ringing: busy.
+    expect((await t.http.get('/v1/calls/current').set(b.auth).expect(200)).body.call).toMatchObject({ callId: r.callId, state: 'ringing' });
+    // Ringing someone who is already ringing: it ends at once as busy (a missed-call line, no ring).
     const c = await signUp(t, { name: 'Cara' });
     await t.prisma.friendship.create({
       data: {
@@ -165,18 +183,36 @@ describe('calls in chat', () => {
         callsHighVideo: true,
       },
     });
-    expect((await t.http.post(`/v1/friends/${b.id}/call`).set(c.auth).expect(409)).body.error.code).toBe('CALL_BUSY');
+    expect((await t.http.post(`/v1/friends/${b.id}/call`).set(c.auth).expect(200)).body).toMatchObject({ state: 'ended', reason: 'busy' });
+    // And Asad can't start a second call himself.
+    expect((await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(409)).body.error.code).toBe('CALL_BUSY');
 
     const foundA = next(sa, 'match:found');
     const foundB = next(sb, 'match:found');
-    await t.http.post(`/v1/calls/${r.callId}/accept`).set(b.auth).expect(200);
+    const connecting = stateOn(sa, (c) => c.state === 'connecting');
+    const answered = (await t.http.post(`/v1/calls/${r.callId}/accept`).set(b.auth).send({ deviceId: 'phone-1' }).expect(200)).body;
+    expect(answered).toMatchObject({ state: 'connecting', answeredBy: 'phone-1' });
+    expect(await connecting).toMatchObject({ answeredBy: 'phone-1' });
     expect(await foundA).toMatchObject({ partner: { id: b.id }, friendCall: true, role: 'caller' });
     expect(await foundB).toMatchObject({ partner: { id: a.id }, friendCall: true, role: 'callee' });
     expect((await t.prisma.match.findFirstOrThrow()).kind).toBe('FRIEND');
+    // Too late on another device: 409.
+    expect((await t.http.post(`/v1/calls/${r.callId}/accept`).set(b.auth).send({ deviceId: 'laptop' }).expect(409)).body.error.code).toBe('CALL_NOT_FOUND');
 
+    // Both media up: live.
+    expect((await t.http.post(`/v1/calls/${r.callId}/up`).set(a.auth).expect(200)).body).toMatchObject({ state: 'connecting' });
+    const live = stateOn(sb, (c) => c.state === 'live');
+    expect((await t.http.post(`/v1/calls/${r.callId}/up`).set(b.auth).expect(200)).body).toMatchObject({ state: 'live' });
+    expect(await live).toMatchObject({ callId: r.callId });
+
+    const hungUp = stateOn(sb, (c) => c.state === 'ended');
     const ended = next(sb, 'match:ended');
     await emit(sa, 'match:end');
     await ended;
+    expect(await hungUp).toMatchObject({ reason: 'hung_up' });
+    expect((await t.http.get('/v1/calls/current').set(a.auth).expect(200)).body.call).toBeNull();
+    expect((await t.http.get(`/v1/calls/${r.callId}`).set(b.auth).expect(200)).body).toMatchObject({ state: 'ended', reason: 'hung_up' });
+    await t.http.get(`/v1/calls/${r.callId}`).set(c.auth).expect(404);
     await sleep(200);
     expect(await lines(a, b)).toEqual(['matched', 'calls_asked', 'calls_on', 'call_ended']);
 
@@ -188,28 +224,49 @@ describe('calls in chat', () => {
     expect(r2.recentCalls[0]).toMatchObject({ a: { name: 'Asad' }, b: { name: 'Bina' } });
   });
 
-  it('connecting until their phone rings: in the app it rings at once; offline it waits, rings when they come back or when the push wakes the phone', async () => {
+  it('rings only in the app: not there → unavailable at once; there → Calling… then Ringing… once their app shows it; leaving the app → gone', async () => {
     const { a, b } = await callsOn();
     const sa = await online(a);
-    // Bina is offline: "Connecting".
+    // Bina isn't in the app: it ends at once, she gets a missed call.
+    const r0 = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(200)).body;
+    expect(r0).toMatchObject({ state: 'ended', reason: 'unavailable' });
+    expect((await lines(b, a)).at(-1)).toBe('call_missed');
+
+    // In the app: it rings; her app shows it → reached ("Ringing…"), once.
+    const sb = await online(b);
     const r = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(200)).body;
-    expect(r.reached).toBe(false);
-    // Her phone comes online while it's still ringing: the call shows up in her app…
-    const incoming = new Promise<Record<string, unknown>>((resolve) => {
-      void connect(t, b).then((s) => {
-        sockets.push(s);
-        s.once('call:incoming', resolve);
-      });
-    });
-    expect(await incoming).toMatchObject({ callId: r.callId, from: { id: a.id } });
-    // …and her app says it's ringing: "Ringing" for Asad, once.
-    const reached = next(sa, 'call:reached');
+    expect(r).toMatchObject({ state: 'ringing', reached: false });
+    const reached = stateOn(sa, (c) => c.reached);
     await t.http.post(`/v1/calls/${r.callId}/ringing`).set(b.auth).expect(200);
-    expect(await reached).toEqual({ callId: r.callId });
-    await t.http.post(`/v1/calls/${r.callId}/ringing`).set(b.auth).expect(200);
+    expect(await reached).toMatchObject({ callId: r.callId, state: 'ringing', version: 2 });
+    expect((await t.http.post(`/v1/calls/${r.callId}/ringing`).set(b.auth).expect(200)).body.version).toBe(2);
     // Only the person being called can say so.
     await t.http.post(`/v1/calls/${r.callId}/ringing`).set(a.auth).expect(404);
-    await t.http.post(`/v1/calls/${r.callId}/decline`).set(b.auth).expect(200);
+
+    // She leaves the app while it rings: after a short grace, gone.
+    await emit(sb, 'presence:active', { active: false });
+    await sweep();
+    await patchCall(r.callId, { awayAt: Date.now() - 6000 });
+    const gone = stateOn(sa, (c) => c.state === 'ended');
+    await sweep();
+    expect(await gone).toMatchObject({ reason: 'gone' });
+    expect((await lines(b, a)).at(-1)).toBe('call_missed');
+  });
+
+  it('connecting never hangs: no media for 15 s → failed, and the call is ended for both', async () => {
+    const { a, b } = await callsOn();
+    const sa = await online(a);
+    await online(b);
+    const r = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(200)).body;
+    const found = next(sa, 'match:found');
+    await t.http.post(`/v1/calls/${r.callId}/accept`).set(b.auth).expect(200);
+    await found;
+    await patchCall(r.callId, { connectingAt: Date.now() - 16_000 });
+    const failed = stateOn(sa, (c) => c.state === 'ended');
+    const ended = next(sa, 'match:ended');
+    await sweep();
+    expect(await failed).toMatchObject({ reason: 'failed' });
+    await ended;
   });
 
   it('voice or video: the lower level wins; voice calls start audio-only and can turn on video when both say yes', async () => {
@@ -225,7 +282,7 @@ describe('calls in chat', () => {
     // A voice call starts audio-only; video can't be turned on while B only allows voice.
     const sa = await online(a);
     const sb = await online(b);
-    const incoming = next(sb, 'call:incoming');
+    const incoming = stateOn(sb, (c) => c.state === 'ringing');
     const r = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).send({ media: 'voice' }).expect(200)).body;
     expect(await incoming).toMatchObject({ media: 'voice' });
     const foundA = next(sa, 'match:found');
@@ -294,16 +351,21 @@ describe('calls in chat', () => {
     await setRules({ callDeclinePause: 2 });
     const { a, b } = await callsOn();
     const sa = await online(a);
+    const sb = await online(b);
     const ring = async () =>
       (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(200)).body.callId as string;
 
     let id = await ring();
-    const declined = next(sa, 'call:ended');
-    await t.http.post(`/v1/calls/${id}/decline`).set(b.auth).send({ reply: "Can't talk now" }).expect(200);
+    const declined = stateOn(sa, (c) => c.state === 'ended');
+    expect((await t.http.post(`/v1/calls/${id}/decline`).set(b.auth).send({ reply: "Can't talk now" }).expect(200)).body).toMatchObject({ state: 'ended', reason: 'declined' });
     expect(await declined).toMatchObject({ callId: id, reason: 'declined', reply: "Can't talk now" });
+    // Too late to pick up: 409.
+    await t.http.post(`/v1/calls/${id}/accept`).set(b.auth).expect(409);
 
     id = await ring();
-    await t.http.post(`/v1/calls/${id}/cancel`).set(a.auth).expect(200);
+    const hungUp = stateOn(sb, (c) => c.state === 'ended');
+    expect((await t.http.post(`/v1/calls/${id}/cancel`).set(a.auth).expect(200)).body).toMatchObject({ reason: 'cancelled' });
+    expect(await hungUp).toMatchObject({ reason: 'cancelled' });
     id = await ring();
     await t.http.post(`/v1/calls/${id}/decline`).set(b.auth).send({}).expect(200);
     expect((await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(429)).body.error.code).toBe('CALL_PAUSED');
@@ -329,11 +391,11 @@ describe('calls in chat', () => {
     const sb = await online(b);
     const r = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(200)).body;
     // Pretend the ring time is over.
-    await t.redis.client.zadd('calls:ringing', Date.now() - 1, r.callId);
-    const missed = next(sb, 'call:ended');
-    await t.app.get(CallsService).sweep();
+    await patchCall(r.callId, { expiresAt: Date.now() - 1 });
+    const missed = stateOn(sb, (c) => c.state === 'ended');
+    await sweep();
     expect(await missed).toMatchObject({ callId: r.callId, reason: 'no_answer', from: { id: a.id } });
-    expect((await t.http.post(`/v1/calls/${r.callId}/accept`).set(b.auth).expect(404)).body.error.code).toBe(
+    expect((await t.http.post(`/v1/calls/${r.callId}/accept`).set(b.auth).expect(409)).body.error.code).toBe(
       'CALL_NOT_FOUND',
     );
     expect((await lines(b, a)).at(-1)).toBe('call_missed');

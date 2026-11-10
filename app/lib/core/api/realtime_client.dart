@@ -84,14 +84,10 @@ class Ev {
   /// Video calls in a chat changed: `{ friendId, mine, theirs, asked?, from? }`.
   static const callConsent = 'call:consent';
 
-  /// A friend is calling you: `{ callId, from, expiresAt }`.
-  static const callIncoming = 'call:incoming';
-
-  /// Your call is ringing on their side: `{ callId, to, expiresAt }`.
-  static const callRinging = 'call:ringing';
-
-  /// A ringing call stopped: `{ callId, reason, reply?, from? }`.
-  static const callEnded = 'call:ended';
+  /// A call between friends changed: the whole snapshot (state ringing |
+  /// connecting | live | ended, reason, version…), to every device of both
+  /// people. Every call screen is drawn from it (models/call_machine.dart).
+  static const callState = 'call:state';
 
   /// Voice call → video: `{ matchId, state: asked|on|declined, from? }`.
   static const callVideo = 'call:video';
@@ -104,9 +100,6 @@ class Ev {
 
   /// They read your messages: `{ friendId, at }`.
   static const messagesRead = 'message:read';
-
-  /// Your call is ringing on their phone: `{ callId }`. Until then the caller sees "Connecting".
-  static const callReached = 'call:reached';
 
   /// Your messages reached your friend's phone or an open tab: `{ friendId, at }` (two grey ticks).
   static const messagesDelivered = 'message:delivered';

@@ -3,9 +3,7 @@ package com.pingcrood.vibe_app
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
-import android.content.Intent
 import android.os.Bundle
-import android.view.WindowManager
 import com.android.installreferrer.api.InstallReferrerClient
 import com.android.installreferrer.api.InstallReferrerStateListener
 import io.flutter.embedding.android.FlutterActivity
@@ -16,39 +14,6 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createNotificationChannels()
-        showOverLockScreenForCall(intent)
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        showOverLockScreenForCall(intent)
-    }
-
-    /** Back to normal once Vibe leaves the screen: the lock screen shows again next time. */
-    override fun onStop() {
-        super.onStop()
-        setLockScreenFlags(false)
-    }
-
-    /**
-     * Opened by an incoming-call notification (its full-screen intent or
-     * Answer, from call_ringer.dart): show the call over the lock screen and
-     * wake the screen, like a phone call. Only for that; [onStop] undoes it.
-     */
-    private fun showOverLockScreenForCall(intent: Intent?) {
-        val payload = intent?.getStringExtra("payload") ?: return
-        if (payload.contains("\"open\":\"call\"")) setLockScreenFlags(true)
-    }
-
-    private fun setLockScreenFlags(on: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(on)
-            setTurnScreenOn(on)
-        } else {
-            @Suppress("DEPRECATION")
-            val flags = WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-            if (on) window.addFlags(flags) else window.clearFlags(flags)
-        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

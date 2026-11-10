@@ -29,7 +29,8 @@ class IncomingCall {
   final CallMedia media;
 }
 
-enum OutgoingStatus { ringing, declined, noAnswer, busy, paused, error }
+/// Your call: ringing, or how it ended (the server's reason; paused / error: the request itself failed).
+enum OutgoingStatus { ringing, declined, noAnswer, busy, unavailable, failed, turnedOff, paused, error }
 
 /// Your call, ringing on their side — or how it ended.
 class OutgoingCall {
@@ -41,7 +42,7 @@ class OutgoingCall {
   final String? reply;
   final String? message;
 
-  /// Ringing on their phone (in the app, or woken by the push with Vibe closed). Until then: "Connecting".
+  /// Their app is showing it: "Ringing…" (until then "Calling…").
   final bool reached;
 
   OutgoingCall copyWith({String? callId, OutgoingStatus? status, String? reply, String? message, bool? reached}) =>

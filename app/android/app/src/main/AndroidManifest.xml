@@ -11,10 +11,6 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <!-- Android 13+: asked after sign-in by firebase_messaging (push). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- Incoming calls ring full screen over the lock screen with Vibe closed (call_ringer.dart). -->
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
-    <uses-permission android:name="android.permission.VIBRATE"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <!-- Google Play Billing (in_app_purchase adds it too; explicit for clarity). -->
     <uses-permission android:name="com.android.vending.BILLING"/>
     <application
@@ -126,8 +122,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- Decline / Answer on the incoming-call notification (flutter_local_notifications). -->
-        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
     </application>
     <!-- Package visibility (Android 11+). -->
     <queries>

@@ -163,6 +163,8 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       widget.realtime?.setActive(true);
       widget.realtime?.checkAlive();
+      // Back in the app: where your call is now (it may have ended while you were away).
+      if (_sessionLive) unawaited(context.read<CallsProvider>().reconcile());
     }
     if (state == AppLifecycleState.resumed) {
       final away = _pausedAt == null ? Duration.zero : DateTime.now().difference(_pausedAt!);
@@ -228,7 +230,7 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
     if (!mounted) return;
     await context.read<FiltersProvider>().load();
     if (!mounted) return;
-    await context.read<CallsProvider>().checkIncoming();
+    await context.read<CallsProvider>().reconcile();
     if (!mounted) return;
     // The Me row shows where you are in the creator partner program.
     await context.read<PartnerProvider?>()?.load();

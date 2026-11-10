@@ -1,7 +1,7 @@
 name: vibe_app
 description: "Vibe — meet someone new on video. Random 1:1 video chat with coins, gifts and VIP."
 publish_to: "none"
-version: 0.2.0+2
+version: 0.3.1+4
 
 environment:
   sdk: ^3.11.0
@@ -46,7 +46,6 @@ dependencies:
   audioplayers: ^6.8.1
   cached_network_image: ^4.0.6
   path_provider: ^2.1.6
-  flutter_local_notifications: ^22.3.3
 
 dev_dependencies:
   flutter_test:

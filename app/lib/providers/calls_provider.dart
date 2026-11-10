@@ -6,22 +6,25 @@ import '../core/api/api_client.dart';
 import '../core/api/api_exception.dart';
 import '../core/api/mappers.dart';
 import '../core/api/realtime_client.dart';
+import '../models/call_machine.dart';
 import '../models/calls.dart';
 import '../models/models.dart';
 import 'match_provider.dart';
+import 'session_provider.dart';
 import 'social_provider.dart';
 
 part 'calls_provider_local.dart';
 part 'calls_provider_remote.dart';
 
-/// Video calls between friends, from a chat. Calls are off until both
-/// allow them ([allow] asks, or says yes to their ask); either can turn
-/// them off for both ([turnOff]). Then [ring] → they get [incoming] →
-/// accepting starts a normal call (a friend call in MatchProvider), and
-/// decline / no answer / cancel end it.
+/// Calls between friends, from a chat. Calls are off until both allow them
+/// ([allow] asks, or says yes to their ask); either can turn them off for
+/// both ([turnOff]). A call itself is the server's: every move arrives as
+/// `call:state` with the whole snapshot, and [incoming] / [outgoing] /
+/// [notice] are worked out from the newest one (models/call_machine.dart).
+/// Calls ring only while the app is open.
 ///
 /// [LocalCallsProvider] simulates the friend; [RemoteCallsProvider] talks
-/// to `/friends/:id/calls`, `/calls/*` and the `call:*` socket events.
+/// to `/friends/:id/calls`, `/calls/*` and `call:state`.
 abstract class CallsProvider extends ChangeNotifier {
   CallsProvider.base(this._social, this._match);
 
@@ -32,6 +35,15 @@ abstract class CallsProvider extends ChangeNotifier {
 
   IncomingCall? _incoming;
   OutgoingCall? _outgoing;
+  CallNotice? _notice;
+
+  /// For the person called: why the ring stopped (hung up, answered elsewhere, too late, couldn't connect).
+  CallNotice? get notice => _notice;
+
+  void dismissNotice() {
+    _notice = null;
+    notifyListeners();
+  }
   final Map<String, CallState> _states = {};
 
   IncomingCall? get incoming => _incoming;
@@ -81,8 +93,8 @@ abstract class CallsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// A call that was already ringing when the app opened.
-  Future<void> checkIncoming() async {}
+  /// Asks the server where your call is (at launch, on reconnect, back in the app, and while a call screen is open).
+  Future<void> reconcile() async {}
 
   /// A new ring: banner first. Implementations call this when [incoming] changes.
   @protected
@@ -94,6 +106,7 @@ abstract class CallsProvider extends ChangeNotifier {
   void clear() {
     setIncoming(null);
     _outgoing = null;
+    _notice = null;
     _states.clear();
     notifyListeners();
   }

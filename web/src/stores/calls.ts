@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { type CallMedia, type CallNotice, type CallSnap, type IncomingCall, isNewer, missedFor, type OutgoingCall, parseSnap, viewOf } from "@/features/calls/call-machine";
 import { ApiError } from "@/lib/api/errors";
 import { asMap, callsOf, profile as mapProfile } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
@@ -7,30 +8,11 @@ import { notifyInBackground } from "@/lib/browser-notify";
 import type { Profile } from "@/lib/models";
 
 import { api, realtime } from "./services";
+import { useMatch } from "./match";
+import { useSession } from "./session";
 import { useSocial } from "./social";
 
-/** Someone calling you. */
-export type CallMedia = "voice" | "video";
-
-export interface IncomingCall {
-  callId: string;
-  from: Profile;
-  expiresAt: Date;
-  media: CallMedia;
-}
-
-/** Your call, ringing on their side — or how it ended. */
-export interface OutgoingCall {
-  callId: string | null;
-  to: Profile;
-  media: CallMedia;
-  status: "ringing" | "declined" | "no_answer" | "busy" | "paused" | "error";
-  reply: string | null;
-  message: string | null;
-  /** Ringing on their phone (else "Connecting": offline or no internet). */
-  reached?: boolean;
-}
-
+export type { CallMedia, CallNotice, IncomingCall, OutgoingCall } from "@/features/calls/call-machine";
 /** What the server says about calls in one chat. */
 export interface CallState {
   mine: boolean;
@@ -61,15 +43,33 @@ function setFriendCalls(friendId: string, calls: { mine: boolean; theirs: boolea
   useSocial.setState((s) => ({ all: s.all.map((f) => (f.profile.id === friendId ? { ...f, calls } : f)) }));
 }
 
+/** This device, for "Answered on your other device" (kept for the tab's life). */
+function deviceId(): string {
+  try {
+    const k = "vibe.device";
+    const v = sessionStorage.getItem(k) ?? `web-${Math.random().toString(36).slice(2, 12)}`;
+    sessionStorage.setItem(k, v);
+    return v;
+  } catch {
+    return "web";
+  }
+}
+
 /**
- * Video calls between friends, from a chat. Calls are off until both allow
- * them (`allow` asks, or says yes to their ask); either can turn them off
- * for both. Then `ring` → they get `incoming` → accept starts a normal call
- * (`match:found` with friendCall), decline / no answer / cancel end it.
+ * Calls between friends, from a chat. Calls are off until both allow them
+ * (`allow` asks, or says yes to their ask); either can turn them off for
+ * both. A call itself is the server's: every move arrives as `call:state`
+ * with the whole snapshot, and `incoming` / `outgoing` / `notice` are worked
+ * out from the newest one (call-machine.ts). Nothing here decides a call
+ * ended on its own, except a request that never reached the server.
  */
 interface CallsState {
+  /** The newest snapshot of your call (any state). */
+  call: CallSnap | null;
   incoming: IncomingCall | null;
   outgoing: OutgoingCall | null;
+  /** For the person called: why the ring stopped (hung up, answered elsewhere, too late, couldn't connect). */
+  notice: CallNotice | null;
   /** Per chat, the last state read from the server (canAsk, askAfter). */
   states: Record<string, CallState>;
 
@@ -87,10 +87,19 @@ interface CallsState {
   decline: (reply?: string) => Promise<void>;
   cancel: () => Promise<void>;
   dismissOutgoing: () => void;
-  /** A call that was already ringing when the app opened. */
-  checkIncoming: () => Promise<void>;
+  dismissNotice: () => void;
+  /** Asks the server where your call is (on connect, back in the tab, and while a call screen is open). */
+  reconcile: () => Promise<void>;
+  /** A snapshot from the server (an event or a reply). */
+  apply: (raw: unknown) => void;
   reset: () => void;
 }
+
+let acceptTried: string | null = null;
+let cancelWanted = false;
+let dismissed: string | null = null;
+const acked = new Set<string>();
+const upSent = new Set<string>();
 
 export const useCalls = create<CallsState>()((set, get) => {
   const apply = (friendId: string, st: CallState) => {
@@ -99,9 +108,34 @@ export const useCalls = create<CallsState>()((set, get) => {
     return st;
   };
 
+  /** Redraws from the newest snapshot. */
+  const draw = (c: CallSnap) => {
+    const me = useSession.getState().me?.id ?? "";
+    const v = viewOf(c, me, deviceId(), acceptTried === c.callId);
+    const notice = v.notice && dismissed !== `${c.callId}:${v.notice.kind}` ? v.notice : null;
+    const outgoing = v.outgoing && dismissed !== `${c.callId}:out` ? v.outgoing : null;
+    set({ call: c, incoming: v.incoming, outgoing, notice });
+    // Their screen is showing it: the caller's "Calling…" becomes "Ringing…".
+    if (v.incoming && !c.reached && !acked.has(c.callId)) {
+      acked.add(c.callId);
+      api.post(`/calls/${c.callId}/ringing`).catch(() => {});
+      notifyInBackground(`${c.from.name.split(" ")[0]} is calling ${c.media === "voice" ? "📞" : "📹"}`, `${c.media === "voice" ? "Voice" : "Video"} call on Vibe — click to answer.`, { tag: `call:${c.callId}` });
+    }
+    if (c.state === "ended" && c.to.id === me && missedFor(c.reason) && c.reason !== "unavailable")
+      notifyInBackground("Missed call", `From ${c.from.name.split(" ")[0]}.`, { tag: `call:${c.callId}` });
+  };
+
+  const take = (raw: unknown) => {
+    const c = raw && typeof raw === "object" ? parseSnap(raw as Record<string, unknown>, (m) => mapProfile(m)) : null;
+    if (!c || !isNewer(get().call, c)) return;
+    draw(c);
+  };
+
   return {
+    call: null,
     incoming: null,
     outgoing: null,
+    notice: null,
     states: {},
 
     async loadState(friendId) {
@@ -121,14 +155,19 @@ export const useCalls = create<CallsState>()((set, get) => {
     },
 
     async ring(friend, media = "video") {
+      // "Calling…" at once; the server's snapshot takes over when it answers.
+      cancelWanted = false;
+      dismissed = null;
       set({ outgoing: { callId: null, to: friend, media, status: "ringing", reply: null, message: null } });
       try {
-        const r = asMap(await api.post(`/friends/${friend.id}/call`, { media }));
-        set((s) => (s.outgoing?.to.id === friend.id ? { outgoing: { ...s.outgoing, callId: String(r.callId), reached: s.outgoing.reached || r.reached === true } } : {}));
+        const r = await api.post(`/friends/${friend.id}/call`, { media });
+        take(r);
+        const c = get().call;
+        if (cancelWanted && c && c.state === "ringing") take(await api.post(`/calls/${c.callId}/cancel`));
       } catch (e) {
         const code = e instanceof ApiError ? e.code : "";
-        const status: OutgoingCall["status"] = code === "CALL_BUSY" ? "busy" : code === "CALL_PAUSED" ? "paused" : "error";
-        set({ outgoing: { callId: null, to: friend, media, status, reply: null, message: e instanceof Error ? e.message : null } });
+        const status: OutgoingCall["status"] = code === "CALL_PAUSED" ? "paused" : "error";
+        set({ outgoing: cancelWanted ? null : { callId: null, to: friend, media, status, reply: null, message: e instanceof Error ? e.message : null } });
         if (code === "CALLS_NOT_ALLOWED") void get().loadState(friend.id);
       }
     },
@@ -136,11 +175,13 @@ export const useCalls = create<CallsState>()((set, get) => {
     async accept(media) {
       const c = get().incoming;
       if (!c) return;
+      acceptTried = c.callId;
       set({ incoming: null });
       try {
-        await api.post(`/calls/${c.callId}/accept`, media === "voice" ? { media: "voice" } : {});
+        take(await api.post(`/calls/${c.callId}/accept`, { deviceId: deviceId(), ...(media === "voice" ? { media: "voice" } : {}) }));
       } catch {
-        // Already over (they hung up): the chat shows the missed call.
+        // Too late (they hung up, or another device answered): ask where it is.
+        await api.get(`/calls/${c.callId}`).then(take, () => {});
       }
     },
 
@@ -148,33 +189,48 @@ export const useCalls = create<CallsState>()((set, get) => {
       const c = get().incoming;
       if (!c) return;
       set({ incoming: null });
-      await api.post(`/calls/${c.callId}/decline`, reply ? { reply } : {}).catch(() => {});
+      await api.post(`/calls/${c.callId}/decline`, reply ? { reply } : {}).then(take, () => {});
     },
 
     async cancel() {
       const c = get().outgoing;
       set({ outgoing: null });
-      if (c?.callId) await api.post(`/calls/${c.callId}/cancel`).catch(() => {});
+      if (!c?.callId) {
+        cancelWanted = true; // the call is still being placed: cancel it once it is
+        return;
+      }
+      await api.post(`/calls/${c.callId}/cancel`).then(take, () => {});
     },
 
     dismissOutgoing() {
+      const c = get().call;
+      if (c) dismissed = `${c.callId}:out`;
       set({ outgoing: null });
     },
 
-    async checkIncoming() {
+    dismissNotice() {
+      const n = get().notice;
+      if (n) dismissed = `${n.callId}:${n.kind}`;
+      set({ notice: null });
+    },
+
+    async reconcile() {
       if (!api.hasSession) return;
       try {
-        const c = asMap(await api.get("/calls/incoming")).call;
-        if (c && typeof c === "object") {
-          const m = asMap(c);
-          set({ incoming: { callId: String(m.callId), from: mapProfile(asMap(m.from)), expiresAt: new Date(String(m.expiresAt)), media: m.media === "voice" ? "voice" : "video" } });
-          ackRinging(String(m.callId));
-        }
+        const cur = asMap(await api.get("/calls/current")).call;
+        if (cur && typeof cur === "object") return take(cur);
+        // Nothing going on: if we still think a call is, ask about that one.
+        const c = get().call;
+        if (c && c.state !== "ended") take(await api.get(`/calls/${c.callId}`));
       } catch {}
     },
 
+    apply: take,
+
     reset() {
-      set({ incoming: null, outgoing: null, states: {} });
+      acceptTried = null;
+      dismissed = null;
+      set({ call: null, incoming: null, outgoing: null, notice: null, states: {} });
     },
   };
 });
@@ -191,41 +247,31 @@ realtime.on(Ev.callConsent, (e) => {
   }
 });
 
-realtime.on(Ev.callIncoming, (e) => {
-  const from = mapProfile(asMap(e.from));
-  const media: CallMedia = e.media === "voice" ? "voice" : "video";
-  useCalls.setState({ incoming: { callId: String(e.callId), from, expiresAt: new Date(String(e.expiresAt)), media } });
-  ackRinging(String(e.callId));
-  notifyInBackground(`${from.name.split(" ")[0]} is calling ${media === "voice" ? "📞" : "📹"}`, `${media === "voice" ? "Voice" : "Video"} call on Vibe — click to answer.`, { tag: `call:${String(e.callId)}` });
-});
+realtime.on(Ev.callState, (e) => useCalls.getState().apply(e));
 
-realtime.on(Ev.callRinging, (e) => {
-  useCalls.setState((s) => (s.outgoing && !s.outgoing.callId ? { outgoing: { ...s.outgoing, callId: String(e.callId), reached: s.outgoing.reached || e.reached === true } } : {}));
+// Back online or back in the tab: ask where the call is (a missed event can't leave a screen stuck).
+realtime.onConnectionChange((on) => {
+  if (on) void useCalls.getState().reconcile();
 });
-
-// Their phone is ringing now: "Connecting" → "Ringing".
-realtime.on(Ev.callReached, (e) => {
-  useCalls.setState((s) => (s.outgoing && (s.outgoing.callId === String(e.callId) || !s.outgoing.callId) ? { outgoing: { ...s.outgoing, reached: true } } : {}));
-});
-
-/** Tell the caller it's ringing here (their "Connecting" turns into "Ringing"). Best effort. */
-function ackRinging(callId: string) {
-  api.post(`/calls/${callId}/ringing`).catch(() => {});
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void useCalls.getState().reconcile();
+  });
 }
 
-realtime.on(Ev.callEnded, (e) => {
-  const id = String(e.callId);
-  const reason = typeof e.reason === "string" ? e.reason : "";
-  const s = useCalls.getState();
-  if (s.incoming?.callId === id) useCalls.setState({ incoming: null });
-  if (s.outgoing && (s.outgoing.callId === id || !s.outgoing.callId)) {
-    if (reason === "accepted") useCalls.setState({ outgoing: null });
-    else if (reason === "declined" || reason === "no_answer")
-      useCalls.setState({ outgoing: { ...s.outgoing, callId: id, status: reason, reply: typeof e.reply === "string" ? e.reply : null } });
-    else useCalls.setState({ outgoing: null });
-  }
-  if ((reason === "no_answer" || reason === "cancelled") && e.from) {
-    const from = mapProfile(asMap(e.from));
-    notifyInBackground("Missed call", `From ${from.name.split(" ")[0]}.`, { tag: `call:${id}` });
-  }
+/** While a call is ringing or connecting, check every 10 s (in the browser only). */
+if (typeof window !== "undefined") {
+  setInterval(() => {
+    const c = useCalls.getState().call;
+    if (c && (c.state === "ringing" || c.state === "connecting")) void useCalls.getState().reconcile();
+  }, 10_000);
+}
+
+// Your media is flowing in a friend call: tell the server (both up → live).
+useMatch.subscribe((m) => {
+  const c = useCalls.getState().call;
+  if (!c || c.state !== "connecting" || !m.friendCall || !m.remoteStream || upSent.has(c.callId)) return;
+  if (c.matchId && m.current?.id && m.current.id !== c.matchId) return;
+  upSent.add(c.callId);
+  api.post(`/calls/${c.callId}/up`).then((r) => useCalls.getState().apply(r), () => upSent.delete(c.callId));
 });
