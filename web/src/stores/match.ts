@@ -4,7 +4,7 @@ import { newIdempotencyKey } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { applyGameAnswer, asList, asMap, callGame, date as mapDate, type Json, matchRecord, profile as mapProfile } from "@/lib/api/mappers";
 import { Ev } from "@/lib/api/realtime";
-import { AUDIO_MAX_BITRATE, browserWantsDataSaver, CAPTURE, type CallLevel, PROFILES, QualityGovernor, sampleFrom, tuneOpus } from "@/lib/call-quality";
+import { AUDIO_MAX_BITRATE, browserWantsDataSaver, CAPTURE, tuneOpus, videoCeiling } from "@/lib/call-quality";
 import { config } from "@/lib/config";
 import type { CallGame, ChatMessage, GameId, Gift, MatchRecord, Profile, ReportReason } from "@/lib/models";
 import { matchLengthSeconds } from "@/lib/models";
@@ -99,10 +99,6 @@ interface MatchState {
   partnerMicOn: boolean;
   /** Their video stopped arriving or the connection is wobbly ("video may freeze"). */
   weakSignal: boolean;
-  /** How much video we send right now (call-quality.ts): `audio` = video paused to keep the call going. */
-  callLevel: CallLevel;
-  /** Their video is paused because their connection is weak (they told us). */
-  partnerWeak: boolean;
   /** A connection dropped and the call is waiting: ours (`me`) or theirs (`partner`). */
   reconnecting: "none" | "me" | "partner";
   /** Use less data on calls: smaller, slower video (remembered on this device). */
@@ -210,10 +206,6 @@ function readDataSaver(): boolean {
   } catch {}
   return browserWantsDataSaver();
 }
-/** Picks how much video to send from the call's own stats (see watchSignal). */
-let governor = new QualityGovernor();
-/** The level the video sender is set to (null = not set yet this call). */
-let sentLevel: CallLevel | null = null;
 /** We made the offer in this call: ICE restarts start on our side. */
 let isCaller = false;
 let lastRestartAt = 0;
@@ -338,8 +330,6 @@ export const useMatch = create<MatchState>()((set, get) => {
     partnerCamOn: true,
     partnerMicOn: true,
     weakSignal: false,
-    callLevel: "good",
-    partnerWeak: false,
     reconnecting: "none",
     dataSaver: readDataSaver(),
     rematchSoon: null,
@@ -353,8 +343,7 @@ export const useMatch = create<MatchState>()((set, get) => {
       try {
         window.localStorage.setItem(DATA_SAVER_KEY, on ? "1" : "0");
       } catch {}
-      governor.setDataSaver(on);
-      void applyLevel(governor.level);
+      if (pc) void capVideo(pc);
     },
 
     async load() {
@@ -854,14 +843,10 @@ realtime.on(Ev.matchFound, (e) => {
     partnerCamOn: true,
     partnerMicOn: true,
     weakSignal: false,
-    partnerWeak: false,
     reconnecting: "none",
     rematchSoon: null,
   });
-  governor = new QualityGovernor(get().dataSaver);
-  sentLevel = null;
   lastRestartAt = 0;
-  set({ callLevel: governor.level });
   toldMedia = "on:on:";
   tellMedia();
   watchSignal();
@@ -977,7 +962,7 @@ realtime.on(Ev.matchEnded, (e) => {
   clearInterval(ticker);
   clearInterval(statsTimer);
   clearTimeout(restartTimer);
-  set({ weakSignal: false, reconnecting: "none", partnerWeak: false, callLevel: "good" });
+  set({ weakSignal: false, reconnecting: "none" });
   clearTimeout(blurTimer);
   peerStarting = null;
   pendingIce = [];
@@ -1056,7 +1041,7 @@ realtime.onConnectionChange((up) => {
 
 realtime.on(Ev.matchMedia, (e) => {
   if (e.matchId !== matchId) return;
-  set({ partnerCamOn: e.camOn !== false, partnerMicOn: e.micOn !== false, partnerBlur: e.blur === true, partnerWeak: e.weak === true });
+  set({ partnerCamOn: e.camOn !== false, partnerMicOn: e.micOn !== false, partnerBlur: e.blur === true });
 });
 
 realtime.on(Ev.matchRematchSoon, (e) => {
@@ -1069,13 +1054,11 @@ realtime.on(Ev.matchRematchSoon, (e) => {
 function tellMedia() {
   const s = useMatch.getState();
   if (s.status !== "connected" || !matchId) return;
-  // Video paused for a weak line counts as camera off, and the partner hears why.
-  const weak = s.camOn && !pageHidden && !s.voiceCall && s.callLevel === "audio";
-  const camOn = s.camOn && !pageHidden && !s.voiceCall && !weak;
-  const key = `${camOn ? "on" : "off"}:${s.micOn ? "on" : "off"}:${s.blurMe ? "blur" : ""}:${weak ? "weak" : ""}`;
+  const camOn = s.camOn && !pageHidden && !s.voiceCall;
+  const key = `${camOn ? "on" : "off"}:${s.micOn ? "on" : "off"}:${s.blurMe ? "blur" : ""}`;
   if (key === toldMedia) return;
   toldMedia = key;
-  realtime.request("match:media", { camOn, micOn: s.micOn, ...(s.blurMe ? { blur: true } : {}), ...(weak ? { weak: true } : {}) }).catch(() => {});
+  realtime.request("match:media", { camOn, micOn: s.micOn, ...(s.blurMe ? { blur: true } : {}) }).catch(() => {});
 }
 
 /** Their video should keep moving: no new frames for ~4 s (while their camera is on) means a weak connection. */
@@ -1091,24 +1074,18 @@ function watchSignal() {
     // Lost the path (network switch, long stall): find a new one without ending the call.
     if (peer.connectionState === "failed" || peer.connectionState === "disconnected") restartConnection();
     let frames = -1;
-    const records: Record<string, unknown>[] = [];
     try {
-      (await peer.getStats()).forEach((r: Record<string, unknown>) => {
-        records.push(r);
+      (await peer.getStats()).forEach((r: { type?: string; kind?: string; framesDecoded?: number }) => {
         if (r.type === "inbound-rtp" && r.kind === "video" && typeof r.framesDecoded === "number") frames = r.framesDecoded;
       });
     } catch {
       return;
     }
-    // How much video this line can carry right now (voice always goes first).
-    if (peer.connectionState === "connected" && !s.voiceCall) {
-      const level = governor.push(sampleFrom(records));
-      if (level !== sentLevel) void applyLevel(level);
-    }
     const stuck = !!s.remoteStream && frames >= 0 && frames === lastFrames && s.partnerCamOn && !s.voiceCall;
     lastFrames = frames;
     stalls = stuck ? stalls + 1 : 0;
-    const weak = stalls >= 2 || peer.connectionState === "disconnected";
+    // Only a real stall (about 6 s with no new frame) gets a note; short blips pass quietly.
+    const weak = stalls >= 3 || peer.connectionState === "disconnected";
     if (weak !== s.weakSignal) set({ weakSignal: weak });
   }, 2000);
 }
@@ -1167,7 +1144,7 @@ async function startPeer(caller: boolean) {
     if (st === "connected") {
       // (Re)connected: voice first, and video at what the line can carry.
       void tuneVoice(peer);
-      void applyLevel(governor.level);
+      void capVideo(peer);
       if (get().weakSignal) set({ weakSignal: false });
     } else if (st === "failed") restartConnection();
     // "disconnected" is usually a short blip that recovers on its own; if not, restart.
@@ -1317,30 +1294,24 @@ async function tuneVoice(peer: RTCPeerConnection) {
   }
 }
 
-/** Sends video at `level` (call-quality.ts): smaller and slower on a weak line, paused when only voice fits. */
-async function applyLevel(level: CallLevel) {
-  const peer = pc;
-  if (!peer) return;
-  const profile = PROFILES[level];
+/**
+ * Video keeps flowing, like WhatsApp: only a ceiling (lower with Data
+ * saver). Below it, WebRTC's own congestion control lowers resolution and
+ * frame rate on a weak line and raises them again when it recovers.
+ */
+async function capVideo(peer: RTCPeerConnection) {
   const sender = peer.getTransceivers().find((t) => t.receiver.track.kind === "video")?.sender;
-  if (sender) {
-    try {
-      const p = sender.getParameters();
-      const e = p.encodings?.[0];
-      if (e) {
-        e.active = profile.video;
-        if (profile.video) {
-          e.maxBitrate = profile.maxBitrate;
-          e.maxFramerate = profile.maxFramerate;
-          e.scaleResolutionDownBy = profile.scaleResolutionDownBy;
-        }
-        await sender.setParameters(p);
-      }
-    } catch {}
-  }
-  sentLevel = level;
-  if (get().callLevel !== level) set({ callLevel: level });
-  tellMedia();
+  if (!sender) return;
+  try {
+    const p = sender.getParameters();
+    const e = p.encodings?.[0];
+    if (!e) return;
+    e.active = true;
+    e.maxBitrate = videoCeiling(get().dataSaver);
+    delete e.maxFramerate;
+    e.scaleResolutionDownBy = 1;
+    await sender.setParameters(p);
+  } catch {}
 }
 
 async function flushIce() {

@@ -75,7 +75,6 @@ class RemoteMatchProvider extends MatchProvider {
         _partnerCamOn = e['camOn'] != false;
         _partnerMicOn = e['micOn'] != false;
         _partnerBlur = e['blur'] == true;
-        _partnerWeak = e['weak'] == true;
         notifyListeners();
       }),
       // Their connection dropped: the call waits for them (the server gives them a grace period).
@@ -120,11 +119,6 @@ class RemoteMatchProvider extends MatchProvider {
   final ApiClient _api;
   StreamSubscription<bool>? _connectionSub;
 
-  /// Picks how much video to send from the call's own stats (see [_watchSignal]).
-  QualityGovernor _governor = QualityGovernor();
-
-  /// The level the video sender is set to (null = not set yet this call).
-  CallLevel? _sentLevel;
 
   /// We made the offer in this call: ICE restarts start on our side.
   bool _isCaller = false;
@@ -151,13 +145,11 @@ class RemoteMatchProvider extends MatchProvider {
   @override
   void tellMedia() {
     if (_state != MatchState.connected || _matchId == null) return;
-    // Video paused for a weak line counts as camera off, and the partner hears why.
-    final weak = camOn && !inBackground && !voiceCall && _callLevel == CallLevel.audio;
-    final cam = camOn && !inBackground && !voiceCall && !weak;
-    final key = '${cam ? 'on' : 'off'}:${micOn ? 'on' : 'off'}:${blurMe ? 'blur' : ''}:${weak ? 'weak' : ''}';
+    final cam = camOn && !inBackground && !voiceCall;
+    final key = '${cam ? 'on' : 'off'}:${micOn ? 'on' : 'off'}:${blurMe ? 'blur' : ''}';
     if (key == _toldMedia) return;
     _toldMedia = key;
-    _rt.request('match:media', {'camOn': cam, 'micOn': micOn, if (blurMe) 'blur': true, if (weak) 'weak': true}).catchError((_) => null);
+    _rt.request('match:media', {'camOn': cam, 'micOn': micOn, if (blurMe) 'blur': true}).catchError((_) => null);
   }
 
   /// Their video should keep moving: no new frames for ~4 s (camera on) means a weak line.
@@ -176,10 +168,8 @@ class RemoteMatchProvider extends MatchProvider {
       final st = pc.connectionState;
       if (st == RTCPeerConnectionState.RTCPeerConnectionStateFailed || st == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) _restartConnection();
       var frames = -1;
-      final records = <({String type, Map<dynamic, dynamic> values})>[];
       try {
         for (final r in await pc.getStats()) {
-          records.add((type: r.type, values: r.values));
           if (r.type == 'inbound-rtp' && (r.values['kind'] ?? r.values['mediaType']) == 'video') {
             final f = r.values['framesDecoded'];
             if (f is num) frames = f.toInt();
@@ -188,15 +178,11 @@ class RemoteMatchProvider extends MatchProvider {
       } catch (_) {
         return;
       }
-      // How much video this line can carry right now (voice always goes first).
-      if (st == RTCPeerConnectionState.RTCPeerConnectionStateConnected && !voiceCall) {
-        final level = _governor.push(sampleFrom(records));
-        if (level != _sentLevel) unawaited(_applyLevel(level));
-      }
       final stuck = _hasRemoteVideo && frames >= 0 && frames == lastFrames && _partnerCamOn && !voiceCall;
       lastFrames = frames;
       stalls = stuck ? stalls + 1 : 0;
-      final weak = stalls >= 2 || pc.connectionState == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected;
+      // Only a real stall (about 6 s with no new frame) gets a note; short blips pass quietly.
+      final weak = stalls >= 3 || pc.connectionState == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected;
       if (weak != _weakSignal) {
         _weakSignal = weak;
         notifyListeners();
@@ -554,9 +540,6 @@ class RemoteMatchProvider extends MatchProvider {
     // ICE from the partner can arrive while the peer is still being set up;
     // it waits in _pendingIce, so only clear it when a new match begins.
     _pendingIce.clear();
-    _governor = QualityGovernor(dataSaver: dataSaver);
-    _sentLevel = null;
-    _callLevel = _governor.level;
     _lastRestart = DateTime.fromMillisecondsSinceEpoch(0);
     _toldMedia = 'on:on';
     tellMedia();
@@ -607,8 +590,6 @@ class RemoteMatchProvider extends MatchProvider {
     _restartTimer?.cancel();
     _weakSignal = false;
     _reconnecting = CallReconnecting.none;
-    _partnerWeak = false;
-    _callLevel = CallLevel.good;
     _ticker = null;
     _peerStarting = null;
     _pendingIce.clear();
@@ -800,7 +781,7 @@ class RemoteMatchProvider extends MatchProvider {
         case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
           // (Re)connected: voice first, and video at what the line can carry.
           unawaited(_tuneVoice(pc));
-          unawaited(_applyLevel(_governor.level));
+          unawaited(_capVideo(pc));
         case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
           _restartConnection();
         case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
@@ -1034,39 +1015,30 @@ class RemoteMatchProvider extends MatchProvider {
     } catch (_) {}
   }
 
-  /// Sends video at [level]: smaller and slower on a weak line, paused when only voice fits.
-  Future<void> _applyLevel(CallLevel level) async {
-    final pc = _pc;
-    if (pc == null) return;
-    final profile = profiles[level]!;
+  /// Video keeps flowing, like WhatsApp: only a ceiling (lower with Data
+  /// saver). Below it, WebRTC's own congestion control lowers resolution and
+  /// frame rate on a weak line and raises them again when it recovers.
+  Future<void> _capVideo(RTCPeerConnection pc) async {
     try {
       for (final t in await pc.getTransceivers()) {
         if (t.receiver.track?.kind != 'video') continue;
         final p = t.sender.parameters;
         final e = p.encodings;
-        if (e == null || e.isEmpty) continue;
-        e[0].active = profile.video;
-        if (profile.video) {
-          e[0].maxBitrate = profile.maxBitrate;
-          e[0].maxFramerate = profile.maxFramerate;
-          e[0].scaleResolutionDownBy = profile.scaleResolutionDownBy;
-        }
+        if (e == null || e.isEmpty) return;
+        e[0].active = true;
+        e[0].maxBitrate = videoCeiling(dataSaver: dataSaver);
+        e[0].maxFramerate = null;
+        e[0].scaleResolutionDownBy = 1;
         await t.sender.setParameters(p);
-        break;
+        return;
       }
     } catch (_) {}
-    _sentLevel = level;
-    if (_callLevel != level) {
-      _callLevel = level;
-      notifyListeners();
-    }
-    tellMedia();
   }
 
   @override
   void onDataSaverChanged() {
-    _governor.setDataSaver(dataSaver);
-    if (_state == MatchState.connected) unawaited(_applyLevel(_governor.level));
+    final pc = _pc;
+    if (pc != null && _state == MatchState.connected) unawaited(_capVideo(pc));
   }
 
   Future<void> _closePeer() async {

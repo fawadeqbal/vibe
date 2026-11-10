@@ -181,17 +181,9 @@ abstract class MatchProvider extends ChangeNotifier {
   /// Their video stopped arriving or the connection wobbles ("video may freeze").
   bool get weakSignal => _weakSignal;
 
-  // Weak and expensive connections (services/calls/call_quality.dart).
-  CallLevel _callLevel = CallLevel.good;
-  bool _partnerWeak = false;
+  // Reconnecting and Data saver (services/calls/call_quality.dart).
   CallReconnecting _reconnecting = CallReconnecting.none;
   bool _dataSaver = false;
-
-  /// How much video we send right now: [CallLevel.audio] = video paused to keep the call going.
-  CallLevel get callLevel => _callLevel;
-
-  /// Their video is paused because their connection is weak (they told us).
-  bool get partnerWeak => _partnerWeak;
 
   /// A connection dropped and the call is waiting for it.
   CallReconnecting get reconnecting => _reconnecting;
@@ -890,9 +882,7 @@ abstract class MatchProvider extends ChangeNotifier {
     _partnerCamOn = true;
     _partnerMicOn = true;
     _weakSignal = false;
-    _partnerWeak = false;
     _reconnecting = CallReconnecting.none;
-    _callLevel = CallLevel.good;
     _rematchSoon = null;
   }
 

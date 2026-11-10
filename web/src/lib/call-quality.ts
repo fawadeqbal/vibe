@@ -1,23 +1,12 @@
 /**
- * Keeps calls going on weak and expensive connections. Every two seconds the
- * call reads its own stats (how fast we can send, how much is lost, how long
- * a round trip takes), picks a level, and sends video to match it: sharp when
- * the line is good, smaller and slower when it isn't, and none at all when
- * even that won't fit — voice always goes first. Data saver caps the level.
+ * Calls on weak and expensive connections, the simple way (like WhatsApp):
+ * video never pauses. WebRTC's own congestion control already lowers the
+ * resolution and frame rate when the line gets worse and raises them again
+ * when it recovers; we only set a ceiling (lower with Data saver) and let
+ * voice go first. No stats polling, no levels.
  *
- * The same rules are in the app (lib/services/calls/call_quality.dart).
+ * The same numbers are in the app (lib/services/calls/call_quality.dart).
  */
-
-export type CallLevel = "good" | "fair" | "poor" | "audio";
-
-/** What the sender does at a level. `video: false` = video paused, voice only. */
-export interface SendProfile {
-  video: boolean;
-  /** bits per second */
-  maxBitrate: number;
-  maxFramerate: number;
-  scaleResolutionDownBy: number;
-}
 
 /** Camera capture (before the encoder scales it down): 640×480 is plenty for a phone-sized tile. */
 export const CAPTURE = { width: 640, height: 480, frameRate: 24 } as const;
@@ -25,97 +14,13 @@ export const CAPTURE = { width: 640, height: 480, frameRate: 24 } as const;
 /** Voice: Opus at up to 32 kbit/s, with loss recovery (FEC) and near-silence when nobody talks (DTX). */
 export const AUDIO_MAX_BITRATE = 32_000;
 
-export const PROFILES: Record<CallLevel, SendProfile> = {
-  good: { video: true, maxBitrate: 650_000, maxFramerate: 24, scaleResolutionDownBy: 1 },
-  fair: { video: true, maxBitrate: 300_000, maxFramerate: 15, scaleResolutionDownBy: 1.5 },
-  poor: { video: true, maxBitrate: 120_000, maxFramerate: 10, scaleResolutionDownBy: 2 },
-  audio: { video: false, maxBitrate: 0, maxFramerate: 0, scaleResolutionDownBy: 1 },
-};
+/** The most video we send, bits per second. WebRTC goes lower by itself whenever the line needs it. */
+export const VIDEO_MAX_BITRATE = 700_000;
 
-const ORDER: CallLevel[] = ["audio", "poor", "fair", "good"];
-const rank = (l: CallLevel) => ORDER.indexOf(l);
+/** With Data saver on: about a third of the data, still moving video. */
+export const VIDEO_MAX_BITRATE_SAVER = 250_000;
 
-/** One reading of the connection (from getStats). Unknown values are null. */
-export interface LinkSample {
-  /** The browser's estimate of what we can send, bits per second. */
-  availableOutgoingBitrate: number | null;
-  /** seconds */
-  roundTripTime: number | null;
-  /** 0–1, what the other side reports losing of what we send. */
-  fractionLost: number | null;
-}
-
-/** The level this one reading supports (before smoothing). */
-export function levelFor(s: LinkSample): CallLevel {
-  const bw = s.availableOutgoingBitrate;
-  const loss = s.fractionLost ?? 0;
-  const rtt = s.roundTripTime ?? 0;
-  if ((bw != null && bw < 90_000) || loss > 0.2 || rtt > 1.5) return "audio";
-  if ((bw != null && bw < 260_000) || loss > 0.1 || rtt > 0.8) return "poor";
-  if ((bw != null && bw < 650_000) || loss > 0.04 || rtt > 0.4) return "fair";
-  return "good";
-}
-
-/**
- * Smooths the readings: drops a level after 2 bad readings in a row (about
- * 4 s), climbs one level only after 5 good ones (about 10 s), so video
- * doesn't flap on a shaky line. Data saver never goes above `poor`.
- */
-export class QualityGovernor {
-  level: CallLevel = "good";
-  private down = 0;
-  private up = 0;
-
-  constructor(private dataSaver = false) {
-    if (dataSaver) this.level = "poor";
-  }
-
-  setDataSaver(on: boolean) {
-    this.dataSaver = on;
-    if (on && rank(this.level) > rank("poor")) this.level = "poor";
-  }
-
-  private get ceiling(): CallLevel {
-    return this.dataSaver ? "poor" : "good";
-  }
-
-  /** Feed one reading; returns the level to send at now. */
-  push(s: LinkSample): CallLevel {
-    const seen = ORDER[Math.min(rank(levelFor(s)), rank(this.ceiling))];
-    if (rank(seen) < rank(this.level)) {
-      this.up = 0;
-      if (++this.down >= 2) {
-        this.level = seen;
-        this.down = 0;
-      }
-    } else if (rank(seen) > rank(this.level)) {
-      this.down = 0;
-      if (++this.up >= 5) {
-        this.level = ORDER[rank(this.level) + 1];
-        this.up = 0;
-      }
-    } else {
-      this.down = 0;
-      this.up = 0;
-    }
-    return this.level;
-  }
-}
-
-/** Reads a LinkSample out of an RTCStatsReport (or any list of stats records). */
-export function sampleFrom(stats: Iterable<Record<string, unknown>>): LinkSample {
-  let bw: number | null = null;
-  let rtt: number | null = null;
-  let lost: number | null = null;
-  for (const r of stats) {
-    if (r.type === "candidate-pair" && (r.nominated === true || r.selected === true) && r.state === "succeeded") {
-      if (typeof r.availableOutgoingBitrate === "number") bw = r.availableOutgoingBitrate;
-      if (typeof r.currentRoundTripTime === "number") rtt = r.currentRoundTripTime;
-    }
-    if (r.type === "remote-inbound-rtp" && typeof r.fractionLost === "number") lost = Math.max(lost ?? 0, r.fractionLost);
-  }
-  return { availableOutgoingBitrate: bw, roundTripTime: rtt, fractionLost: lost };
-}
+export const videoCeiling = (dataSaver: boolean) => (dataSaver ? VIDEO_MAX_BITRATE_SAVER : VIDEO_MAX_BITRATE);
 
 /**
  * Opus tuned for weak lines: in-band FEC (rebuilds lost packets), DTX
