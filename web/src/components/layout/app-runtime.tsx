@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { useRegion } from "@/stores/region";
 import { startApp } from "@/stores/runtime";
@@ -81,10 +81,20 @@ export function AppRuntime({ children }: { children: ReactNode }) {
   const stage: Stage = booting ? "booting" : !me ? "signedOut" : !profileReady(me) ? "setup" : !onboarded ? "permissions" : "ready";
   // Not offered in this country: no first-run routing, just the region screen.
   const target = bare || regionBlocked ? null : redirectFor(stage, path);
+  /** Signed in at some point in this tab: a later sign-out (Settings → Log out, another device) starts over at Match. */
+  const wasIn = useRef(false);
+  useEffect(() => {
+    if (stage !== "booting" && stage !== "signedOut") wasIn.current = true;
+  }, [stage]);
 
   useEffect(() => {
     if (!target) return;
-    if (stage === "signedOut") remember(path + window.location.search);
+    // Opened a link while signed out: go there after signing in. Signed out from inside the app: don't
+    // (the next sign-in — maybe another account — starts on Match, not on the settings page you left from).
+    if (stage === "signedOut") {
+      if (wasIn.current) takeRemembered();
+      else remember(path + window.location.search);
+    }
     // Done with first-run: go where they were headed, if anywhere.
     const dest = stage === "ready" ? (takeRemembered() ?? target) : target;
     router.replace(dest);
