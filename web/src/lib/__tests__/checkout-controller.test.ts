@@ -20,6 +20,7 @@ const view = (over: Partial<PurchaseView>): PurchaseView => ({
   action: null,
   expiresAt: null,
   failureReason: null,
+  createdAt: null,
   completedAt: null,
   wallet: null,
   ...over,

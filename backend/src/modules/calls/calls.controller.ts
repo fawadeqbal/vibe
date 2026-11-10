@@ -17,6 +17,12 @@ export class CallsController {
     return this.calls.state(me, userId);
   }
 
+  @Get('friends/:userId/calls/history')
+  @ApiOperation({ summary: 'Your calls with this friend, newest first (missed, declined, ended)' })
+  history(@CurrentUser('id') me: string, @Param('userId') userId: string) {
+    return this.calls.history(me, userId);
+  }
+
   @Put('friends/:userId/calls')
   @ApiOperation({
     summary:

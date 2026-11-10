@@ -4,43 +4,69 @@ import { useRouter } from "next/navigation";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { TeamAvatar } from "@/components/shared/team-avatar";
 import { Avatar } from "@/components/ui/avatar";
 import { CircleIconButton, GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { KeyHint } from "@/components/ui/kbd";
 import { EmptyState } from "@/components/ui/misc";
 import { AppBar } from "@/components/ui/page-header";
-import { PillTabs } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
+import { PillTabs } from "@/components/ui/tabs";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import { errorMessage } from "@/lib/api/errors";
-import { cn } from "@/lib/cn";
-import { agoShort } from "@/lib/format";
+import { figure, thousands } from "@/lib/format";
 import type { ActivityItem, Friend } from "@/lib/models";
-import { notificationPath } from "@/lib/notification-path";
+import { type NotificationFilter, notificationStyle } from "@/lib/notification-style";
 import { useActivity } from "@/stores/activity";
-import { useFollows } from "@/stores/follows";
+import { useEngagement } from "@/stores/engagement";
 import { incomingOf, requestedOf, useSocial } from "@/stores/social";
 import { toast } from "@/stores/ui";
 
+import { bucketOf, NotificationRow } from "./notification-row";
+
+const FILTERS: { value: NotificationFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "people", label: "People" },
+  { value: "calls", label: "Calls" },
+  { value: "money", label: "Money" },
+  { value: "account", label: "Account" },
+];
+
+const EMPTY: Record<NotificationFilter, { icon: string; title: string; body: string }> = {
+  all: { icon: "notifications", title: "Nothing yet", body: "Friend requests, new followers, matches, missed calls and news about your coins show up here." },
+  people: { icon: "people_alt", title: "No one yet", body: "Friend requests, follows, waves, likes and matches show up here." },
+  calls: {
+    icon: "videocam",
+    title: "No missed calls",
+    body: "When a friend calls and you miss it, it shows here. Tap it to see your calls with them and call back.",
+  },
+  money: { icon: "account_balance_wallet", title: "No money news", body: "Payments, cash-outs and goals show up here, each with its receipt." },
+  account: { icon: "verified_user", title: "All good", body: "Notes from the Vibe team about your account show up here." },
+};
+
 /**
- * Notifications: friend and follow requests (answer them right here), new
- * followers (follow back), matches and accepted requests (say hi), missed
- * calls, money and account news. Opening the page clears the badge; this
- * visit still shows which lines are new.
+ * Notifications: every line opens the thing it is about — a person, a chat
+ * at the message, your calls with someone, a receipt, a cash-out, Account
+ * status. Filters on top, requests in one strip, then Today / This week /
+ * Earlier. Opening the page clears the badge; this visit still shows which
+ * lines are new.
  */
 export function NotificationsView() {
   const router = useRouter();
+  const desktop = useIsDesktop();
   const all = useActivity((s) => s.items);
   const social = useSocial();
   const incoming = incomingOf(social);
   const sent = requestedOf(social);
-  // Waiting friend requests have their own section on top (Accept / Decline); their history line shows once answered.
+  // Waiting friend requests live in Requests (Accept / Decline); their history line shows once answered.
   const items = all.filter((i) => !(i.type === "friend.request" && i.actor && incoming.some((f) => f.profile.id === i.actor!.id)));
   const loaded = useActivity((s) => s.loaded);
   const hasMore = useActivity((s) => s.cursor != null);
   const end = useRef<HTMLDivElement>(null);
-  /** What was unread when the page opened: stays "New" for this visit, whatever reloads come later. */
+  /** What was unread when the page opened: stays "new" for this visit, whatever reloads come later. */
   const [freshIds, setFreshIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [filter, setFilter] = useState<NotificationFilter>("all");
+  const [showRequests, setShowRequests] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -70,98 +96,215 @@ export function NotificationsView() {
     return () => io.disconnect();
   }, [hasMore]);
 
-  const [tab, setTab] = useState<"all" | "requests" | "calls">("all");
-  const isCall = (i: ActivityItem) => i.type.startsWith("call");
-  const listed = tab === "calls" ? items.filter(isCall) : tab === "requests" ? [] : items;
   const isNew = (i: ActivityItem) => !i.read || freshIds.has(i.id);
-  const fresh = listed.filter(isNew);
-  const earlier = listed.filter((i) => !isNew(i));
+  const markAll = () => {
+    setFreshIds(new Set());
+    void useActivity.getState().markAllRead();
+  };
+
+  // Keyboard on a desktop: J / K move, Enter opens (the focused button), E marks all read.
+  useEffect(() => {
+    if (!desktop) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.metaKey || e.ctrlKey || e.altKey || (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable))) return;
+      const k = e.key.toLowerCase();
+      if (k === "e") {
+        e.preventDefault();
+        markAll();
+        return;
+      }
+      if (k !== "j" && k !== "k") return;
+      const rows = [...document.querySelectorAll<HTMLElement>("[data-notification-row]")];
+      if (!rows.length) return;
+      e.preventDefault();
+      const at = rows.indexOf(document.activeElement as HTMLElement);
+      const next = at < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, at + (k === "j" ? 1 : -1)));
+      rows[next].focus();
+      rows[next].scrollIntoView({ block: "nearest" });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [desktop]);
+
+  const inFilter = (i: ActivityItem, f: NotificationFilter) => f === "all" || notificationStyle(i.type, i.title).filter === f;
+  const listed = items.filter((i) => inFilter(i, filter));
+  const now = new Date();
+  const groups = (["today", "week", "earlier"] as const)
+    .map((b) => ({ b, rows: listed.filter((i) => bucketOf(i.at, now) === b) }))
+    .filter((g) => g.rows.length);
   const requestCount = incoming.length + sent.length;
+  const nothing = loaded && !items.length && !requestCount;
+
+  if (showRequests && !desktop)
+    return (
+      <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
+        <AppBar title="Requests" onBack={() => setShowRequests(false)} />
+        <div className="quiet-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-8">
+          <Requests incoming={incoming} sent={sent} />
+          {!requestCount ? <p className="type-body pt-8 text-center text-[13.5px] text-muted">No requests right now.</p> : null}
+        </div>
+      </div>
+    );
+
+  const list = (
+    <>
+      {groups.map((g, gi) => (
+        <section key={g.b}>
+          <div className="flex items-center px-1 pt-[18px] pb-2 lg:pt-1">
+            <h2 className="type-overline flex-1">{g.b === "today" ? "Today" : g.b === "week" ? "This week" : "Earlier"}</h2>
+            {gi === 0 && listed.some(isNew) ? (
+              <button type="button" onClick={markAll} className="type-label text-[12.5px] text-pink-soft">
+                Mark all read
+              </button>
+            ) : null}
+          </div>
+          <ul className="flex flex-col divide-y divide-line-soft overflow-hidden rounded-[22px] border border-line bg-surface lg:mb-5">
+            {g.rows.map((i) => (
+              <NotificationRow key={i.id} item={i} isNew={isNew(i)} />
+            ))}
+          </ul>
+        </section>
+      ))}
+      {loaded && !listed.length ? (
+        <EmptyState className="py-16" icon={EMPTY[filter].icon} iconVariant="outlined" title={EMPTY[filter].title} body={EMPTY[filter].body} />
+      ) : null}
+      {!hasMore && listed.length ? <p className="type-body pt-5 text-center text-[12px] text-muted">We keep notifications for 90 days.</p> : null}
+      {hasMore ? (
+        <div ref={end} className="flex justify-center p-4">
+          <Spinner size={22} stroke={2} />
+        </div>
+      ) : null}
+    </>
+  );
+
+  const tabs = <PillTabs label="Show" value={filter} onChange={setFilter} tabs={FILTERS} />;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)] lg:h-dvh">
       <AppBar
         title="Notifications"
-        onBack={() => router.back()}
+        onBack={desktop ? undefined : () => router.back()}
+        className="lg:h-[72px] lg:px-7 [&_h1]:lg:text-[26px]"
         actions={<CircleIconButton icon="settings" label="Notification settings" onClick={() => router.push("/me/notifications")} />}
-      />
+      >
+        {desktop ? (
+          <div className="flex min-w-0 items-center gap-6">
+            <h1 className="type-title-lg text-[26px]">Notifications</h1>
+            {tabs}
+          </div>
+        ) : undefined}
+      </AppBar>
       {!loaded ? (
         <div className="flex flex-1 justify-center py-20">
           <Spinner />
         </div>
-      ) : !items.length && !incoming.length && !sent.length ? (
-        <EmptyState
-          className="flex-1"
-          icon="notifications"
-          iconVariant="outlined"
-          title="Nothing "
-          accent="yet"
-          body="Friend requests, new followers, matches and news about your coins show up here."
-        />
+      ) : nothing ? (
+        <EmptyState className="flex-1" icon="notifications" iconVariant="outlined" title="Nothing " accent="yet" body={EMPTY.all.body} />
+      ) : desktop ? (
+        <div className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-7 pt-2 pb-8">
+          <div className="mx-auto flex w-full max-w-[1040px] items-start gap-6">
+            <div className="min-w-0 flex-1">{list}</div>
+            <aside className="sticky top-0 flex w-[360px] shrink-0 flex-col gap-4">
+              {requestCount ? (
+                <div className="overflow-hidden rounded-[22px] border border-line bg-surface">
+                  <div className="flex items-center px-4 pt-4 pb-1">
+                    <span className="type-title flex-1 text-[15px]">Requests</span>
+                    <span className="type-label rounded-full bg-pink/16 px-2 py-0.5 text-[12px] text-pink-soft">{requestCount}</span>
+                  </div>
+                  <ul className="flex flex-col px-2 pb-2">
+                    {incoming.map((f) => (
+                      <RequestRow key={f.profile.id} f={f} incoming />
+                    ))}
+                    {sent.map((f) => (
+                      <RequestRow key={f.profile.id} f={f} incoming={false} />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <WeekCard />
+              <div className="flex flex-col gap-2 px-1">
+                <KeyHint k="J" label="Next" />
+                <KeyHint k="K" label="Previous" />
+                <KeyHint k="Enter" label="Open" />
+                <KeyHint k="E" label="Mark all read" />
+              </div>
+            </aside>
+          </div>
+        </div>
       ) : (
-        <div className="quiet-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-8">
-          <PillTabs
-            label="Show"
-            className="mb-1"
-            value={tab}
-            onChange={setTab}
-            tabs={[
-              { value: "all", label: "All" },
-              { value: "requests", label: requestCount ? `Requests · ${requestCount}` : "Requests" },
-              { value: "calls", label: "Calls" },
-            ]}
-          />
-          {tab !== "calls" && incoming.length ? (
-            <RequestSection title={`Friend requests · ${incoming.length}`}>
-              {incoming.map((f) => (
-                <RequestRow key={f.profile.id} f={f} incoming />
-              ))}
-            </RequestSection>
-          ) : null}
-          {tab !== "calls" && sent.length ? (
-            <RequestSection title={`Sent requests · ${sent.length}`}>
-              {sent.map((f) => (
-                <RequestRow key={f.profile.id} f={f} incoming={false} />
-              ))}
-            </RequestSection>
-          ) : null}
-          {fresh.length ? (
-            <Section
-              title="New"
-              items={fresh}
-              isNew
-              action={{
-                label: "Mark all as read",
-                onClick: () => {
-                  setFreshIds(new Set());
-                  void useActivity.getState().markAllRead();
-                },
-              }}
-            />
-          ) : null}
-          {earlier.length ? <Section title={fresh.length ? "Earlier" : tab === "calls" ? "Calls" : "All"} items={earlier} /> : null}
-          {tab === "requests" && !requestCount ? (
-            <p className="type-body px-1 pt-6 text-center text-[13.5px] text-muted">No friend requests right now.</p>
-          ) : null}
-          {tab === "calls" && !listed.length ? <p className="type-body px-1 pt-6 text-center text-[13.5px] text-muted">No calls yet.</p> : null}
-          {tab !== "requests" && !hasMore && listed.length ? (
-            <p className="type-body pt-4 text-center text-[12px] text-muted">We keep notifications for 90 days.</p>
-          ) : null}
-          {hasMore ? (
-            <div ref={end} className="flex justify-center p-4">
-              <Spinner size={22} stroke={2} />
-            </div>
-          ) : null}
+        <div className="quiet-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pt-1 pb-8">
+          <div className="-mx-4 px-4">{tabs}</div>
+          {requestCount ? <RequestsStrip incoming={incoming} sent={sent} onOpen={() => setShowRequests(true)} /> : null}
+          {list}
         </div>
       )}
     </div>
   );
 }
 
+/** Phone: one line for every request, opening the Requests list. */
+function RequestsStrip({ incoming, sent, onOpen }: { incoming: Friend[]; sent: Friend[]; onOpen: () => void }) {
+  const people = [...incoming, ...sent];
+  const names = incoming.map((f) => f.profile.name.split(" ")[0]);
+  const text = names.length
+    ? names.length <= 2
+      ? `${names.join(" and ")} ${names.length === 1 ? "wants" : "want"} to be friends`
+      : `${names.slice(0, 2).join(", ")} and ${names.length - 2} more want to be friends`
+    : `Waiting for ${sent.length === 1 ? sent[0].profile.name.split(" ")[0] : `${sent.length} people`} to accept`;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="mt-2 flex w-full items-center gap-3 rounded-[22px] border border-line bg-surface px-3.5 py-3 text-left transition-colors hover:bg-white/3"
+      aria-label={`Requests: ${text}`}
+    >
+      <span className="flex shrink-0">
+        {people.slice(0, 2).map((f, i) => (
+          <span key={f.profile.id} className="flex rounded-full border-2 border-surface" style={{ marginLeft: i ? -12 : 0 }}>
+            <Avatar url={f.profile.avatarUrl} name={f.profile.name} size={34} />
+          </span>
+        ))}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="type-title block text-[14.5px]">Requests</span>
+        <span className="type-body block truncate text-[12.5px] text-text2">{text}</span>
+      </span>
+      {incoming.length ? (
+        <span className="type-label flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-pink px-1.5 text-[12px] font-bold text-white">
+          {incoming.length}
+        </span>
+      ) : null}
+      <Icon name="chevron_right" size={20} className="text-muted" />
+    </button>
+  );
+}
+
+function Requests({ incoming, sent }: { incoming: Friend[]; sent: Friend[] }) {
+  return (
+    <>
+      {incoming.length ? (
+        <RequestSection title={`Friend requests · ${incoming.length}`}>
+          {incoming.map((f) => (
+            <RequestRow key={f.profile.id} f={f} incoming />
+          ))}
+        </RequestSection>
+      ) : null}
+      {sent.length ? (
+        <RequestSection title={`Sent requests · ${sent.length}`}>
+          {sent.map((f) => (
+            <RequestRow key={f.profile.id} f={f} incoming={false} />
+          ))}
+        </RequestSection>
+      ) : null}
+    </>
+  );
+}
+
 function RequestSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="type-overline px-1 pt-[22px] pb-2.5">{title}</h2>
+      <h2 className="type-overline px-1 pt-[18px] pb-2">{title}</h2>
       <ul className="flex flex-col divide-y divide-line-soft overflow-hidden rounded-[22px] border border-line bg-surface px-2">{children}</ul>
     </section>
   );
@@ -186,14 +329,14 @@ function RequestRow({ f, incoming }: { f: Friend; incoming: boolean }) {
     }
   };
   return (
-    <li className="flex items-center gap-3 rounded-2xl px-2 py-2">
+    <li className="flex items-center gap-3 rounded-2xl px-2 py-2.5">
       <button type="button" onClick={() => router.push(`/u/${p.id}`)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <Avatar url={p.avatarUrl} name={p.name} size={44} />
+        <Avatar url={p.avatarUrl} name={p.name} size={42} />
         <span className="min-w-0 flex-1">
           <span className="type-title block truncate text-[14px] font-semibold">
             {p.name}, {p.age}
           </span>
-          <span className="type-body block truncate text-[12.5px] text-text2">{incoming ? "Wants to be friends" : `Waiting for ${first} to accept`}</span>
+          <span className="type-body block truncate text-[12.5px] text-text2">{incoming ? "Wants to be friends" : `Waiting for ${first}`}</span>
         </span>
       </button>
       {incoming ? (
@@ -209,7 +352,7 @@ function RequestRow({ f, incoming }: { f: Friend; incoming: boolean }) {
             label="Accept"
             height={34}
             expand={false}
-            className={SMALL}
+            className="px-[13px] [&>span]:text-[13px]"
             busy={busy}
             onClick={() => void act(() => useSocial.getState().accept(p.id), `You and ${first} are friends now`)}
           />
@@ -227,130 +370,29 @@ function RequestRow({ f, incoming }: { f: Friend; incoming: boolean }) {
   );
 }
 
-function Section({
-  title,
-  items,
-  isNew = false,
-  action,
-}: {
-  title: string;
-  items: ActivityItem[];
-  isNew?: boolean;
-  action?: { label: string; onClick: () => void };
-}) {
-  return (
-    <section>
-      <div className="flex items-center px-1 pt-[22px] pb-2.5">
-        <h2 className="type-overline flex-1">{title}</h2>
-        {action ? (
-          <button type="button" onClick={action.onClick} className="type-label text-[12.5px] text-pink-soft">
-            {action.label}
-          </button>
-        ) : null}
-      </div>
-      <ul className="flex flex-col divide-y divide-line-soft overflow-hidden rounded-[22px] border border-line bg-surface px-2">
-        {items.map((i) => (
-          <Row key={i.id} item={i} isNew={isNew} />
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function Row({ item, isNew }: { item: ActivityItem; isNew: boolean }) {
+/** Desktop: last week at a glance, opening the recap. */
+function WeekCard() {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const a = item.actor;
-
-  const act = async (fn: () => Promise<unknown>, done?: string) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await fn();
-      if (done) toast(done);
-      await useActivity.getState().refresh();
-    } catch (e) {
-      toast(errorMessage(e), { error: true });
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  const recap = useEngagement((s) => s.recap);
+  useEffect(() => {
+    void useEngagement.getState().loadRecap();
+  }, []);
+  if (!recap) return null;
   return (
-    <li className="flex items-center gap-3 px-2 py-3">
-      <button type="button" onClick={() => router.push(notificationPath(item.data))} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <span className="relative shrink-0">
-          {a ? <Avatar url={a.avatarUrl} name={a.name} size={48} /> : <TeamAvatar size={48} />}
-          <span className="absolute -right-0.5 -bottom-0.5 grid size-[22px] place-items-center rounded-full border-2 border-bg bg-surface2">
-            <Icon name={iconFor(item.type)} size={13} className="text-text" />
-          </span>
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="type-body line-clamp-2 block text-[13.5px] leading-snug">
-            <span className="font-semibold text-text">{item.title}</span>
-            {item.count > 1 ? <span className="font-semibold text-pink-soft"> · {item.count} new</span> : null}
-            {item.body ? <span className="text-text2"> {item.body}</span> : null}
-          </span>
-          <span className="type-label mt-0.5 block text-[11.5px] text-muted">{agoShort(item.at)}</span>
-        </span>
-        {isNew ? <span className="size-2 shrink-0 rounded-full bg-pink" aria-label="New" /> : null}
-      </button>
-      {a && item.rel ? <Actions item={item} busy={busy} act={act} /> : null}
-    </li>
+    <button
+      type="button"
+      onClick={() => router.push("/me/recap")}
+      className="rounded-[22px] border border-white/10 p-[18px] text-left transition-[filter] hover:brightness-110"
+      style={{ backgroundImage: "linear-gradient(135deg, rgb(255 61 143 / .18), rgb(139 92 246 / .18))" }}
+    >
+      <span className="type-label block text-[12.5px] text-text2">Your week</span>
+      <span className="type-number mt-1 block text-[30px] leading-none font-extrabold tracking-[-1px]">
+        {figure(recap.likesReceived)} <span className="text-[15px] font-semibold tracking-normal">likes</span>
+      </span>
+      <span className="type-body mt-1.5 block text-[13px] text-text2">
+        {thousands(recap.giftsReceived)} gifts · +{figure(recap.gemsEarned)} gems · {thousands(recap.newFollowers)} followers
+      </span>
+      <span className="type-label mt-2.5 block text-[13px] text-pink-soft">See your recap →</span>
+    </button>
   );
-}
-
-/** Compact action buttons: label-sized, smaller text than the full-width default. */
-const SMALL = "px-4 [&>span]:text-[13px]";
-
-/** The one or two buttons that fit where you stand with them now. */
-function Actions({ item, busy, act }: { item: ActivityItem; busy: boolean; act: (fn: () => Promise<unknown>, done?: string) => Promise<void> }) {
-  const router = useRouter();
-  const a = item.actor!;
-  const rel = item.rel!;
-  const first = a.name.split(" ")[0];
-  const pair = (yes: () => Promise<unknown>, no: () => Promise<unknown>, done: string) => (
-    <span className="flex shrink-0 gap-1.5">
-      <GhostButton label="Decline" height={34} className="px-3 text-text2 [&>span]:text-[13px]" disabled={busy} onClick={() => void act(no)} />
-      <GradientButton label="Accept" height={34} expand={false} className={SMALL} busy={busy} onClick={() => void act(yes, done)} />
-    </span>
-  );
-
-  if (item.type === "friend.request" && rel.friend === "incoming")
-    return pair(
-      () => useSocial.getState().accept(a.id),
-      () => useSocial.getState().decline(a.id),
-      `You and ${first} are friends now`,
-    );
-  if (item.type === "follow.request" && rel.followRequest)
-    return pair(
-      () => useFollows.getState().accept(a.id),
-      () => useFollows.getState().decline(a.id),
-      `${first} can see your profile now`,
-    );
-  if (item.type === "follow.new" && rel.follow === "none")
-    return (
-      <GradientButton
-        label={rel.followsYou ? "Follow back" : "Follow"}
-        height={34}
-        expand={false}
-        className={cn(SMALL, "shrink-0")}
-        busy={busy}
-        onClick={() => void act(() => useFollows.getState().follow(a.id))}
-      />
-    );
-  if ((item.type === "friend.accepted" || item.type === "discover.match" || item.type === "friend.request") && rel.friend === "friends")
-    return <GhostButton label="Message" height={34} className="shrink-0 px-3.5 [&>span]:text-[13px]" onClick={() => router.push(`/chats/${a.id}`)} />;
-  return null;
-}
-
-function iconFor(type: string): string {
-  if (type.startsWith("friend.")) return "person_add";
-  if (type.startsWith("follow.")) return "group_add";
-  if (type.startsWith("discover.")) return "favorite";
-  if (type.startsWith("wave.")) return "waving_hand";
-  if (type.startsWith("call.")) return "call_missed";
-  if (type.startsWith("referral.")) return "card_giftcard";
-  if (type.startsWith("account.")) return "shield";
-  return "account_balance_wallet";
 }

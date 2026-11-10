@@ -158,7 +158,7 @@ describe('engagement', () => {
       await t.prisma.friendship.updateMany({ data: { streakCount: 12, streakBest: 12, streakDay: today - 1, streakLowDay: today, streakHighDay: today - 1 } });
       const notifier = t.app.get(EngagementNotifier);
       expect(await notifier.streakRisk()).toBe(1);
-      expect(pushesTo(high === a ? ta : tb)).toEqual([expect.objectContaining({ body: `Your 12-day streak with ${low.id === a.id ? 'Ayesha' : 'Bilal'} ends at midnight`, category: 'engagement', data: { route: 'chat', friendId: low.id } })]);
+      expect(pushesTo(high === a ? ta : tb)).toEqual([expect.objectContaining({ body: `Your 12-day streak with ${low.id === a.id ? 'Ayesha' : 'Bilal'} ends at midnight`, category: 'engagement', data: { route: 'chat', open: 'chat', friendId: low.id } })]);
       expect(pushesTo(low === a ? ta : tb)).toEqual([]); // already active today
       expect(await notifier.streakRisk()).toBe(0); // once per pair per day
     });
@@ -465,7 +465,7 @@ describe('engagement', () => {
       await sleep(150);
       await t.http.post(`/v1/friends/${b.id}/gifts`).set(a.auth).send({ giftId: 'crown' }).expect(201);
       await sleep(150);
-      expect(pushesTo(token)).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Goal reached 🎯', data: { route: 'wallet' } })]));
+      expect(pushesTo(token)).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Goal reached 🎯', data: { route: 'wallet', open: 'goals' } })]));
       expect((await t.http.patch('/v1/me').set(b.auth).send({ gemGoal: null }).expect(200)).body.gemGoal).toBeNull();
     });
   });

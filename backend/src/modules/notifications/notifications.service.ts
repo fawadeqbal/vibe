@@ -139,7 +139,8 @@ export class NotificationsService implements OnModuleInit {
 
   private async toInbox(userId: string, c: Content): Promise<boolean> {
     const path = webPath(c.data);
-    const button = c.data.route && c.data.route !== 'inbox' ? { label: c.button ?? 'Open', url: this.webUrl(path) } : { label: '', url: '' };
+    const target = c.data.open ?? c.data.route;
+    const button = target && target !== 'inbox' ? { label: c.button ?? 'Open', url: this.webUrl(path) } : { label: '', url: '' };
     const msg = await this.prisma.userMessage.create({ data: { userId, title: c.title.slice(0, 200), body: (c.detail ?? c.body).slice(0, 5000), buttonLabel: button.label, buttonUrl: button.url } });
     // fromCenter: the inbox push type ignores it (the push channel already ran).
     this.realtime.toUser(userId, ServerEvent.InboxMessage, { id: msg.id, campaignId: null, title: msg.title, body: msg.body, buttonLabel: msg.buttonLabel || null, buttonUrl: msg.buttonUrl || null, fromCenter: true });

@@ -8,6 +8,7 @@ import '../core/api/mappers.dart';
 import '../core/api/realtime_client.dart';
 import '../models/activity.dart';
 import '../models/models.dart';
+import '../models/payments.dart';
 
 part 'activity_provider_local.dart';
 part 'activity_provider_remote.dart';
@@ -47,4 +48,12 @@ abstract class ActivityProvider extends ChangeNotifier {
   /// After acting on a line (accept, follow back…): re-read who's who,
   /// keeping this visit's "new" highlight.
   Future<void> refresh() => load();
+
+  // ── the pages a notification opens ────────────────────────────────────
+  // Null = it's gone (removed, or not yours): the page says so.
+
+  Future<Cashout?> cashout(String id);
+  Future<AccountStatus> accountStatus();
+  Future<TeamMessage?> teamMessage(String id);
+  Future<CallHistory?> callHistory(String userId);
 }

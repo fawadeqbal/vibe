@@ -54,6 +54,14 @@ export class InboxController {
     return { count: await this.prisma.userMessage.count({ where: { userId, readAt: null } }) };
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'One message, by its id or the campaign it came from' })
+  async one(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    const m = await this.prisma.userMessage.findFirst({ where: { userId, OR: [{ id }, { campaignId: id }] }, orderBy: { createdAt: 'desc' } });
+    if (!m) throw AppError.notFound('Message');
+    return view(m);
+  }
+
   @Post(':id/read')
   @HttpCode(200)
   async read(@CurrentUser('id') userId: string, @Param('id') id: string) {

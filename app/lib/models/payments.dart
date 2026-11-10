@@ -396,7 +396,7 @@ extension CashoutStatusLabel on CashoutStatus {
 }
 
 class Cashout {
-  const Cashout({required this.id, required this.gems, required this.usd, required this.method, required this.accountMasked, required this.status, this.amountPkr, this.failureReason, this.createdAt});
+  const Cashout({required this.id, required this.gems, required this.usd, required this.method, required this.accountMasked, required this.status, this.amountPkr, this.failureReason, this.createdAt, this.processedAt});
   final String id;
   final int gems;
   final double usd;
@@ -406,6 +406,9 @@ class Cashout {
   final CashoutStatus status;
   final String? failureReason;
   final DateTime? createdAt;
+
+  /// When it was sent (paid) or returned.
+  final DateTime? processedAt;
 
   factory Cashout.fromJson(Map<String, dynamic> m) => Cashout(
         id: '${m['id']}',
@@ -417,10 +420,11 @@ class Cashout {
         status: cashoutStatusFromApi(m['status']),
         failureReason: m['failureReason'] as String?,
         createdAt: _date(m['createdAt']),
+        processedAt: _date(m['processedAt']),
       );
 
   Cashout copyWith({CashoutStatus? status, String? failureReason}) =>
-      Cashout(id: id, gems: gems, usd: usd, amountPkr: amountPkr, method: method, accountMasked: accountMasked, status: status ?? this.status, failureReason: failureReason ?? this.failureReason, createdAt: createdAt);
+      Cashout(id: id, gems: gems, usd: usd, amountPkr: amountPkr, method: method, accountMasked: accountMasked, status: status ?? this.status, failureReason: failureReason ?? this.failureReason, createdAt: createdAt, processedAt: processedAt);
 }
 
 // ── sign-in identities ───────────────────────────────────────────────────

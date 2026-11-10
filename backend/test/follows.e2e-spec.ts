@@ -206,6 +206,6 @@ describe('follows and profiles', () => {
     await t.http.delete(`/v1/follows/${b.id}`).set(a.auth).expect(200);
     await t.http.post(`/v1/follows/${b.id}`).set(a.auth).expect(200);
     await sleep(250);
-    expect(sent()).toEqual([expect.objectContaining({ title: 'New follower', body: 'Priya started following you', category: 'social', data: { route: 'profile', userId: a.id } })]);
+    expect(sent()).toEqual([expect.objectContaining({ title: 'New follower', body: 'Priya started following you', category: 'social', data: { route: 'profile', open: 'profile', userId: a.id } })]);
   });
 });

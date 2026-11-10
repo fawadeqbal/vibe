@@ -28,8 +28,11 @@ import 'streaks.dart';
 /// Text chat with a friend. Gifts here earn them gems too — that is what
 /// keeps friends on the app between matches.
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.friendId});
+  const ChatScreen({super.key, required this.friendId, this.focusMessageId});
   final String friendId;
+
+  /// A message to scroll to and flash once (a notification about a reaction or a gift).
+  final String? focusMessageId;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -52,6 +55,11 @@ class _ChatScreenState extends State<ChatScreen> {
   int _recSeconds = 0;
   Timer? _recTimer;
   int _lastCount = -1;
+
+  /// The message we opened at, while it's flashing; and the count when we got there.
+  late String? _focusId = widget.focusMessageId;
+  int? _focusedAt;
+  final _focusKey = GlobalKey();
 
   @override
   void initState() {
@@ -241,6 +249,19 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  /// Opened at a message: jump near it (the list is lazy), then centre it, then stop flashing.
+  void _toMessage(int index, int total) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !_scroll.hasClients) return;
+      _scroll.jumpTo(_scroll.position.maxScrollExtent * (total <= 1 ? 1 : index / (total - 1)));
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      final ctx = _focusKey.currentContext;
+      if (ctx != null && ctx.mounted) await Scrollable.ensureVisible(ctx, alignment: 0.5, duration: const Duration(milliseconds: 200));
+      await Future<void>.delayed(const Duration(milliseconds: 2400));
+      if (mounted) setState(() => _focusId = null);
+    });
+  }
+
   void _toBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
@@ -288,7 +309,13 @@ class _ChatScreenState extends State<ChatScreen> {
     final count = msgs.length + (typing ? 1 : 0);
     if (count != _lastCount) {
       _lastCount = count;
-      _toBottom();
+      final at = _focusId == null ? -1 : msgs.indexWhere((x) => x.id == _focusId);
+      if (at >= 0 && _focusedAt == null) {
+        _focusedAt = msgs.length;
+        _toMessage(at, msgs.length);
+      } else if (widget.focusMessageId == null || (_focusedAt != null && msgs.length > _focusedAt!)) {
+        _toBottom();
+      }
     }
     // "Seen" under your last message once they've read it.
     final lastMine = msgs.lastIndexWhere((m) => m.fromMe && !m.isSystem);
@@ -405,7 +432,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         return SystemLine(m: m, onCallBack: f.calls.on ? (video) => context.read<CallsProvider>().ring(f.profile, video && f.calls.video ? CallMedia.video : CallMedia.voice) : null);
                       }
                       final next = i + 1 < msgs.length ? msgs[i + 1] : null;
-                      return _Bubble(
+                      final bubble = _Bubble(
                         m: m,
                         friend: f.profile,
                         tail: next == null || next.isSystem || next.fromMe != m.fromMe,
@@ -413,6 +440,15 @@ class _ChatScreenState extends State<ChatScreen> {
                         seen: seen && i == lastMine,
                         onLongPress: () => _longPress(m, f),
                         onReactionTap: m.reactionMine != null ? () => _social.react(widget.friendId, m.id, null) : null,
+                      );
+                      if (m.id != widget.focusMessageId) return bubble;
+                      final on = _focusId == m.id;
+                      return AnimatedContainer(
+                        key: _focusKey,
+                        duration: const Duration(milliseconds: 500),
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), border: Border.all(color: on ? V.pinkSoft : Colors.transparent, width: 2)),
+                        child: bubble,
                       );
                     },
                   ),

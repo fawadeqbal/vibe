@@ -99,6 +99,11 @@ export class WalletController {
     return this.cashouts.list(userId);
   }
 
+  @Get('cashouts/:id')
+  getCashout(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.cashouts.get(userId, id);
+  }
+
   @Get('payout-accounts')
   @ApiOperation({ summary: 'Saved cash-out destinations (masked) and which rails are available' })
   async payoutAccountsList(@CurrentUser('id') userId: string) {
