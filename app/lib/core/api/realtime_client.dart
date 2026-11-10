@@ -208,6 +208,32 @@ class RealtimeClient {
     if (s != null && s.connected) s.emit('presence:active', {'active': active});
   }
 
+  DateTime _lastCheck = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Back in the app: the phone may have frozen it and the connection died
+  /// without anyone noticing (up to 40 s, then a back-off). Check at once
+  /// with a ping and reconnect now if it doesn't answer, so you're "Active
+  /// now" again straight away and nothing is missed.
+  void checkAlive() {
+    final s = _socket;
+    if (s == null) return;
+    final now = DateTime.now();
+    if (now.difference(_lastCheck) < const Duration(seconds: 3)) return;
+    _lastCheck = now;
+    if (!s.connected) {
+      s.connect(); // skip the back-off wait
+      return;
+    }
+    var answered = false;
+    s.emitWithAck('presence:ping', <String, dynamic>{}, ack: (_) => answered = true);
+    Timer(const Duration(seconds: 4), () {
+      if (answered || !identical(_socket, s)) return;
+      // No answer: the line is dead even though it looks open. Start a fresh one.
+      s.disconnect();
+      s.connect();
+    });
+  }
+
   void _setConnected(bool v) {
     _isConnected = v;
     _connected.add(v);

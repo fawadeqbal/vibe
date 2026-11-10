@@ -1,8 +1,11 @@
+"use client";
+
 import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
 import { SOLAR } from "./solar-glyphs";
+import { useSolarSprite } from "./solar-sprite";
 
 /**
  * An icon by its Material name — the same names as Flutter's `Icons.*`.
@@ -42,16 +45,19 @@ export function Icon({
   gradient?: boolean;
 }) {
   const a11y = { role: label ? "img" : undefined, "aria-label": label, "aria-hidden": label ? undefined : true } as const;
+  const sheet = useSolarSprite();
   if (Object.hasOwn(SOLAR, name)) {
     const pinned = SOLAR[name];
-    const src = `/icons/solar/${name}-${pinned ?? (variant === "outlined" ? "o" : "b")}.svg`;
+    const glyph = `${name}-${pinned ?? (variant === "outlined" ? "o" : "b")}`;
+    const src = `/icons/solar/${glyph}.svg`;
     if (gradient) {
       const mask = `url(${src}) center / contain no-repeat`;
       return <span className={cn("inline-block shrink-0 bg-brand", className)} style={{ width: size, height: size, mask, WebkitMask: mask, ...style }} {...a11y} />;
     }
     return (
       <svg viewBox="0 0 24 24" width={size} height={size} focusable="false" className={cn("inline-block shrink-0", className)} style={style} {...a11y}>
-        <use href={`${src}#i`} />
+        {/* From the icon sheet in the page (instant), or its own file until the sheet is in. */}
+        <use href={sheet ? `#s-${glyph}` : `${src}#i`} />
       </svg>
     );
   }

@@ -21,8 +21,10 @@ import 'user_profile_test.dart' show FakeFollows;
 void main() {
   group('presence', () {
     test('Online wins; otherwise last seen from when they left; nothing when unknown', () {
-      expect(Fmt.presence(true, DateTime.now().subtract(const Duration(hours: 3))), 'Online');
-      expect(Fmt.presence(false, DateTime.now().subtract(const Duration(minutes: 5))), 'Last seen 5m ago');
+      expect(Fmt.presence(true, DateTime.now().subtract(const Duration(hours: 3))), 'Active now');
+      expect(Fmt.presence(false, DateTime.now().subtract(const Duration(minutes: 5))), 'Active 5 min ago');
+      expect(Fmt.presence(false, DateTime.now().subtract(const Duration(hours: 1, minutes: 2))), 'Active 1 hour ago');
+      expect(Fmt.presence(false, DateTime.now().subtract(const Duration(days: 3))), 'Active 3 days ago');
       expect(Fmt.presence(false, null), isNull);
       expect(Fmt.presence(null, null), isNull);
     });

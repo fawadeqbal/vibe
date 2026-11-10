@@ -7,6 +7,7 @@ import { useRegion } from "@/stores/region";
 import { startApp } from "@/stores/runtime";
 import { profileReady, useSession } from "@/stores/session";
 import { useKeyboardViewport } from "@/hooks/use-keyboard-viewport";
+import { loadSolarSprite } from "@/components/ui/solar-sprite";
 import { markSplashSeen, splashSkipped } from "@/lib/splash-once";
 import { closeAllOverlays } from "@/stores/ui";
 
@@ -74,6 +75,8 @@ export function AppRuntime({ children }: { children: ReactNode }) {
 
   useKeyboardViewport();
   useEffect(() => {
+    // The icon sheet first: every icon in the app draws from it.
+    loadSolarSprite();
     startApp();
     // The animation plays once per tab (lib/splash-once.ts); a reload goes straight in.
     const t = setTimeout(() => setMinDone(true), splashSkipped() ? 0 : SPLASH_MIN_MS);

@@ -404,7 +404,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                       ],
                     ),
-                    // "Last seen 5 min ago" keeps counting while the chat is open.
+                    // "Active 5 min ago" keeps counting while the chat is open.
                     EveryMinute(builder: (_) => Text(
                       typing ? 'typing…' : (Fmt.presence(f.online, f.lastSeenAt) ?? ''),
                       style: VT.label(

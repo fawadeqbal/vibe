@@ -22,8 +22,11 @@ const int = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.
  * `inQueue` removes you from the searching count; a new `refreshKey` asks
  * again right away (e.g. when "someone's looking" arrives).
  */
+/** The last answer, kept across screens: coming back to Match shows it at once, then refreshes (no blank, no jump). */
+let lastCounts: { online: number; searching: number } | null = null;
+
 export function useAvailability({ inQueue = false, everyMs = 20_000, refreshKey }: { inQueue?: boolean; everyMs?: number; refreshKey?: unknown } = {}): Availability | null {
-  const [counts, setCounts] = useState<{ online: number; searching: number } | null>(null);
+  const [counts, setCounts] = useState<{ online: number; searching: number } | null>(lastCounts);
 
   useEffect(() => {
     let alive = true;
@@ -31,7 +34,8 @@ export function useAvailability({ inQueue = false, everyMs = 20_000, refreshKey 
       if (typeof document !== "undefined" && document.hidden) return;
       try {
         const m = asMap(await api.get("/match/online"));
-        if (alive) setCounts({ online: int(m.online), searching: int(m.searching) });
+        lastCounts = { online: int(m.online), searching: int(m.searching) };
+        if (alive) setCounts(lastCounts);
       } catch {
         // Keep the last answer; a blip shouldn't blank the line.
       }

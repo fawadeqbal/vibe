@@ -4,7 +4,8 @@
  * the same icons the Flutter app uses through `solar_icons`.
  *
  * Each glyph is a file in public/icons/solar/<name>-<b|o>.svg (b = Bold,
- * o = Outline), fetched only when used and cached by the browser. The value
+ * o = Outline); scripts/solar-sprite.mjs puts them all in one sheet that the
+ * app loads once (solar-sprite.ts). Re-run it after adding a glyph. The value
  * pins one style regardless of the Icon's variant: line-like glyphs
  * (arrows, chevrons, "…_outline" names) are always Outline, dot menus
  * always Bold; null follows the variant. Generated from @iconify-json/solar.

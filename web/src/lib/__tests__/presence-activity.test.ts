@@ -9,12 +9,15 @@ const NOW = new Date("2026-11-09T12:00:00Z").getTime();
 
 describe("presenceLabel", () => {
   it("online wins", () => {
-    expect(presenceLabel(true, new Date(NOW - 3_600_000), NOW)).toBe("Online");
+    expect(presenceLabel(true, new Date(NOW - 3_600_000), NOW)).toBe("Active now");
   });
   it("last seen from when they left", () => {
-    expect(presenceLabel(false, new Date(NOW - 20_000), NOW)).toBe("Last seen just now");
-    expect(presenceLabel(false, new Date(NOW - 5 * 60_000), NOW)).toBe("Last seen 5m ago");
-    expect(presenceLabel(false, new Date(NOW - 3 * 3_600_000), NOW)).toBe("Last seen 3h ago");
+    expect(presenceLabel(false, new Date(NOW - 20_000), NOW)).toBe("Active just now");
+    expect(presenceLabel(false, new Date(NOW - 5 * 60_000), NOW)).toBe("Active 5 min ago");
+    expect(presenceLabel(false, new Date(NOW - 3_600_000), NOW)).toBe("Active 1 hour ago");
+    expect(presenceLabel(false, new Date(NOW - 3 * 3_600_000), NOW)).toBe("Active 3 hours ago");
+    expect(presenceLabel(false, new Date(NOW - 2 * 86_400_000), NOW)).toBe("Active 2 days ago");
+    expect(presenceLabel(false, new Date(NOW - 20 * 86_400_000), NOW)).toMatch(/^Active on \d{1,2} [A-Z][a-z]{2}$/);
   });
   it("says nothing rather than guess", () => {
     expect(presenceLabel(false, null, NOW)).toBeNull();
