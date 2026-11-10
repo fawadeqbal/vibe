@@ -19,7 +19,9 @@ import { useEffect } from "react";
  *  - `--app-top` = where the visible area starts on the page: when a browser
  *    slides the page to show the field (iOS does, while the keyboard comes
  *    up), the shell moves with it instead of being scrolled back, so the
- *    header never jumps or flickers.
+ *    header never jumps or flickers. Only with a keyboard up: any other movement
+ *    of the page is iOS bouncing it at the end of a list (globals.css stops
+ *    that), and following the bounce made the whole screen shake.
  */
 export function useKeyboardViewport() {
   useEffect(() => {
@@ -34,19 +36,20 @@ export function useKeyboardViewport() {
         orientation = landscape;
         full = 0;
       }
-      const h = vv ? vv.height : window.innerHeight;
-      full = Math.max(full, h, vv ? 0 : window.innerHeight);
-      // A text field has focus and the page lost a keyboard's worth of height.
-      const typing = isTextField(document.activeElement);
-      const open = typing && full - h > 120;
+      const v = viewportState({
+        height: vv ? vv.height : window.innerHeight,
+        full: Math.max(full, vv ? 0 : window.innerHeight),
+        pageTop: vv ? vv.pageTop : window.scrollY,
+        typing: isTextField(document.activeElement),
+      });
+      full = v.full;
       // Set right away (no frame later): the shell follows the keyboard as it slides.
-      root.style.setProperty("--app-h", `${Math.round(h)}px`);
-      const top = Math.max(0, Math.round(vv ? vv.pageTop : window.scrollY));
-      root.style.setProperty("--app-top", `${top}px`);
+      root.style.setProperty("--app-h", `${v.height}px`);
+      root.style.setProperty("--app-top", `${v.top}px`);
       // Only while slid: the shell moves then (and only then changes how things inside it stack).
-      if (top > 0) root.dataset.shift = "1";
+      if (v.top > 0) root.dataset.shift = "1";
       else delete root.dataset.shift;
-      if (open) root.dataset.keyboard = "open";
+      if (v.open) root.dataset.keyboard = "open";
       else delete root.dataset.keyboard;
     };
     update();
@@ -70,6 +73,22 @@ export function useKeyboardViewport() {
       delete root.dataset.keyboard;
     };
   }, []);
+}
+
+/**
+ * What the shell should do for one measurement: its height, how far to move
+ * with a page the browser slid, and whether the keyboard is open. `full` is
+ * the tallest height seen in this orientation (returned updated).
+ */
+export function viewportState(m: { height: number; full: number; pageTop: number; typing: boolean }) {
+  const full = Math.max(m.full, m.height);
+  // A text field has focus and the page lost a keyboard's worth of height.
+  const open = m.typing && full - m.height > 120;
+  // Follow the slide only while a keyboard is (or is still closing) on screen:
+  // any other movement is iOS bouncing the page, and following it shook the screen.
+  const keyboardUp = m.typing || full - m.height > 120;
+  const top = keyboardUp ? Math.max(0, Math.round(m.pageTop)) : 0;
+  return { height: Math.round(m.height), full, open, top };
 }
 
 function isTextField(el: Element | null): boolean {
