@@ -15,7 +15,18 @@ import { IdentityService } from './identity/identity.service';
 import { clientKind } from '../platforms/client-kind';
 import { ClientInfo } from './token.service';
 
-const client = (req: Request): ClientInfo => ({ userAgent: req.headers['user-agent'], ip: req.ip, client: clientKind(req.headers) });
+const header = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
+/** X-Device is URL-encoded by the app (headers are Latin-1; "·" and model names aren't). */
+const deviceHeader = (v: string | string[] | undefined) => {
+  const raw = header(v);
+  if (!raw) return undefined;
+  try {
+    return decodeURIComponent(raw).slice(0, 80);
+  } catch {
+    return raw.slice(0, 80);
+  }
+};
+const client = (req: Request): ClientInfo => ({ userAgent: req.headers['user-agent'], ip: req.ip, client: clientKind(req.headers), device: deviceHeader(req.headers['x-device']) });
 const toProvider = (p: SocialProviderName): AuthProvider => p.toUpperCase() as AuthProvider;
 const invite = (dto: InviteFields) => ({ inviteCode: dto.inviteCode, inviteSource: dto.inviteSource, inviteVia: dto.inviteVia, deviceId: dto.deviceId });
 const credential = (dto: SocialSignInDto | LinkIdentityDto) => ({ idToken: dto.idToken, accessToken: dto.accessToken, authorizationCode: dto.authorizationCode, nonce: dto.nonce, name: dto.name });

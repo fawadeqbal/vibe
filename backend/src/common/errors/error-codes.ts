@@ -29,6 +29,8 @@ export enum ErrorCode {
   // auth
   UNAUTHENTICATED = 'UNAUTHENTICATED',
   TOKEN_EXPIRED = 'TOKEN_EXPIRED',
+  /** This device was signed out (Settings → Devices on another device, or by the Vibe team): sign in again. */
+  SESSION_ENDED = 'SESSION_ENDED',
   OTP_INVALID = 'OTP_INVALID',
   OTP_EXPIRED = 'OTP_EXPIRED',
   OTP_TOO_MANY_ATTEMPTS = 'OTP_TOO_MANY_ATTEMPTS',

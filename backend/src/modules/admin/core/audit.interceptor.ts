@@ -1,7 +1,7 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { Observable, tap } from 'rxjs';
+import { mergeMap, Observable } from 'rxjs';
 
 import { AuditService } from './audit.service';
 import type { StaffPrincipal } from './staff.types';
@@ -34,21 +34,28 @@ export class AuditInterceptor implements NestInterceptor {
     const opts = this.reflector.get<AuditOptions | undefined>('audit', ctx.getHandler());
     if (!opts) return next.handle();
     const req = ctx.switchToHttp().getRequest<Request & { staff?: StaffPrincipal }>();
+    // The history line is written before the answer goes back, so the History tab (and anything
+    // that reads it right after) already has it.
     return next.handle().pipe(
-      tap((result) => {
+      mergeMap(async (result) => {
         const staff = req.staff;
-        if (!staff) return;
+        if (!staff) return result;
         const params = (req.params ?? {}) as Record<string, string>;
         const body = (req.body ?? {}) as Record<string, unknown>;
-        void this.audit.record({
-          actor: staff,
-          action: opts.action,
-          targetType: opts.target,
-          targetId: params[opts.param ?? 'id'],
-          summary: opts.summary?.({ body, params, result }),
-          data: opts.omitBody ? undefined : Object.keys(body).length ? body : undefined,
-          req,
-        });
+        try {
+          await this.audit.record({
+            actor: staff,
+            action: opts.action,
+            targetType: opts.target,
+            targetId: params[opts.param ?? 'id'],
+            summary: opts.summary?.({ body, params, result }),
+            data: opts.omitBody ? undefined : Object.keys(body).length ? body : undefined,
+            req,
+          });
+        } catch {
+          // Never fail the action because its history line couldn't be written (AuditService logs it).
+        }
+        return result;
       }),
     );
   }

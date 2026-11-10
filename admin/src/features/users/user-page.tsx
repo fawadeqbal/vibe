@@ -25,6 +25,7 @@ import { P } from "@/lib/permissions";
 
 import { useUser, userKeys } from "./api";
 import { BanDialog, EditProfileDialog, VipDialog, WalletDialog } from "./user-dialogs";
+import { DevicesTab } from "./user-devices";
 import { AuditTab, CashoutsTab, HiddenMessagesTab, LedgerTab, MatchesTab, NotesTab, PurchasesTab, ReportsTab } from "./user-tabs";
 
 export function UserPage({ id }: { id: string }) {
@@ -45,6 +46,7 @@ function UserView({ user }: { user: UserDetail }) {
     { id: "photos", label: "Photo flags", count: user.counts.photoFlags || undefined, show: can(P.ModerationView) },
     { id: "purchases", label: "Purchases", count: user.counts.purchases, show: can(P.FinanceView) },
     { id: "cashouts", label: "Cash-outs", show: can(P.FinanceView) },
+    { id: "devices", label: "Devices", show: !deleted },
     { id: "referrals", label: "Referrals", count: user.counts.invitees || undefined, show: true },
     { id: "notes", label: "Notes", show: can(P.UsersNotes) },
     { id: "audit", label: "History", show: can(P.AuditView) },
@@ -138,6 +140,9 @@ function UserView({ user }: { user: UserDetail }) {
               </TabsContent>
               <TabsContent value="referrals">
                 <UserReferralsTab userId={user.id} />
+              </TabsContent>
+              <TabsContent value="devices">
+                <DevicesTab userId={user.id} canManage={can(P.UsersBan)} />
               </TabsContent>
               <TabsContent value="notes">
                 <NotesTab userId={user.id} />

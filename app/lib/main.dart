@@ -62,8 +62,10 @@ Future<void> main() async {
   // With --dart-define=VIBE_API=… the app talks to the Vibe server;
   // without it, everything runs offline on the mock.
   // X-Client tells the server this is the app (admin → App vs web): "android/0.1.5".
+  // X-Device names the phone in Settings → Devices.
+  final device = ApiConfig.enabled ? await deviceHeader() : null;
   final ApiClient? api = ApiConfig.enabled
-      ? ApiClient(cache: ApiCache.disk(), defaultHeaders: {'X-Client': await clientHeader(), if (config.appStoreHeader != null) 'X-App-Store': config.appStoreHeader!})
+      ? ApiClient(cache: ApiCache.disk(), defaultHeaders: {'X-Client': await clientHeader(), 'X-Device': ?device, if (config.appStoreHeader != null) 'X-App-Store': config.appStoreHeader!})
       : null;
   final RealtimeClient? realtime = api == null ? null : RealtimeClient(api);
 

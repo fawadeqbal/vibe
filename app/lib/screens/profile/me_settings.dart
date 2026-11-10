@@ -25,6 +25,7 @@ import '../store/cashout_screen.dart';
 import '../store/vip_screen.dart';
 import '../store/wallet_screen.dart';
 import 'blocked_people_screen.dart';
+import 'devices_screen.dart';
 import 'follow_lists_screen.dart';
 import 'leaderboard_screen.dart';
 import 'me_lists.dart';
@@ -105,6 +106,7 @@ class _SettingsMenuScreenState extends State<SettingsMenuScreen> {
         'Your account',
         [
           _Item(icon: SolarIconsBold.userId, title: 'Account & sign-in', subtitle: 'Sign-in methods, e-mail, delete account', words: 'email password google apple facebook login delete', open: (_) => const AccountSectionScreen()),
+          _Item(icon: SolarIconsBold.devices, title: 'Devices', subtitle: "Where you're signed in; sign one out", words: 'sessions logged in phone browser computer sign out logout security', open: (_) => const DevicesScreen()),
           _Item(icon: SolarIconsOutline.bell, title: 'Notifications', subtitle: 'Phone, inbox and e-mail, for each kind', words: 'push alerts sounds email', open: (_) => const NotificationsSectionScreen()),
           _Item(icon: SolarIconsBold.moonSleep, title: 'Time & wellbeing', subtitle: 'Quiet hours and break reminders', words: 'quiet hours break reminder sleep', open: (_) => const WellbeingSectionScreen()),
           _Item(

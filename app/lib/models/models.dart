@@ -211,6 +211,32 @@ class Transaction {
   final String? receipt;
 }
 
+/// One phone or browser you're signed in on (Settings → Devices).
+class DeviceSession {
+  const DeviceSession({required this.id, required this.client, required this.device, required this.signedInAt, required this.lastActiveAt, required this.current});
+  final String id;
+
+  /// 'android', 'ios' or 'web'.
+  final String client;
+  final String device;
+  final DateTime signedInAt;
+  final DateTime lastActiveAt;
+
+  /// This phone.
+  final bool current;
+
+  bool get isWeb => client == 'web';
+
+  factory DeviceSession.fromJson(Map<String, dynamic> m) => DeviceSession(
+    id: m['id'] as String? ?? '',
+    client: m['client'] as String? ?? 'web',
+    device: m['device'] as String? ?? 'Unknown device',
+    signedInAt: DateTime.tryParse(m['signedInAt'] as String? ?? '') ?? DateTime.now(),
+    lastActiveAt: DateTime.tryParse(m['lastActiveAt'] as String? ?? '') ?? DateTime.now(),
+    current: m['current'] == true,
+  );
+}
+
 /// One history line's page (`/wallet/transactions/:id`): the entry, your
 /// balances after it, and for a gift what it was and who it was with.
 class TransactionDetail {

@@ -13,6 +13,9 @@ class Ev {
   static const paymentUpdated = 'payment:updated';
   static const cashoutUpdated = 'cashout:updated';
   static const accountBanned = 'account:banned';
+
+  /// This device was signed out from another device's Settings → Devices (or by the team).
+  static const sessionEnded = 'session:ended';
   static const accountWarning = 'account:warning';
   static const announcement = 'system:announcement';
   static const matchSearching = 'match:searching';

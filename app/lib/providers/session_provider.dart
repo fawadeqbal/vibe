@@ -164,6 +164,15 @@ abstract class SessionProvider extends ChangeNotifier {
 
   Future<void> signOut();
 
+  /// Settings → Devices: every phone and browser you're signed in on, this one first.
+  Future<List<DeviceSession>> devices() async => [DeviceSession(id: 'this', client: 'android', device: 'This phone', signedInAt: DateTime.now(), lastActiveAt: DateTime.now(), current: true)];
+
+  /// Signs one device out (it goes back to sign-in at once).
+  Future<void> endDevice(String id) async {}
+
+  /// Signs out every device but this one; how many went.
+  Future<int> endOtherDevices() async => 0;
+
   /// Deletes the account for good (`DELETE /me`), then signs out here.
   Future<void> deleteAccount();
 

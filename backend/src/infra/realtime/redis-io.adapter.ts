@@ -4,7 +4,7 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import type { Server, ServerOptions } from 'socket.io';
 
-import { extractBearer, verifyAccessToken } from '../../common/guards/jwt-auth.guard';
+import { extractBearer, sessionEnded, verifyAccessToken } from '../../common/guards/jwt-auth.guard';
 import { AppConfig } from '../../config/app-config.service';
 import { RegionService } from '../../modules/region/region.service';
 import { RedisService } from '../redis/redis.service';
@@ -39,6 +39,7 @@ export class RedisIoAdapter extends IoAdapter {
     if (this.adapterConstructor) server.adapter(this.adapterConstructor);
 
     const jwt = this.app.get(JwtService);
+    const redis = this.app.get(RedisService);
     const region = this.app.get(RegionService, { strict: false });
     // Blocked countries can't open a socket (no matching, calls or chat).
     server.use((socket, next) => {
@@ -51,7 +52,8 @@ export class RedisIoAdapter extends IoAdapter {
       const token = (socket.handshake.auth?.token as string | undefined) ?? extractBearer(socket.handshake.headers.authorization);
       if (!token) return next(new Error('UNAUTHENTICATED'));
       verifyAccessToken(jwt, token)
-        .then((user) => {
+        .then(async (user) => {
+          if (await sessionEnded(redis.client, user)) return next(new Error('SESSION_ENDED'));
           socket.data.user = user;
           next();
         })

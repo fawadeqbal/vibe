@@ -59,6 +59,13 @@ class ApiClient {
     await tokens.write(Tokens(_access!, _refresh!));
   }
 
+  /// This device was signed out elsewhere (Settings → Devices on another device, or the team): back to sign-in.
+  Future<void> endedElsewhere() async {
+    if (!hasSession) return;
+    await clearSession();
+    onSessionExpired?.call();
+  }
+
   Future<void> clearSession() async {
     _access = null;
     _refresh = null;
@@ -144,7 +151,8 @@ class ApiClient {
       try {
         final r = _refresh;
         if (r == null) return false;
-        final res = await _http.post(Uri.parse('$_base/auth/refresh'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'refreshToken': r}));
+        // The app's own headers too (X-Client, X-Device): the server keeps the device's name with the sign-in.
+        final res = await _http.post(Uri.parse('$_base/auth/refresh'), headers: {..._defaultHeaders, 'Content-Type': 'application/json'}, body: jsonEncode({'refreshToken': r}));
         if (res.statusCode != 200) {
           await clearSession();
           onSessionExpired?.call();
