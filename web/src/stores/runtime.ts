@@ -112,6 +112,12 @@ export async function catchUp() {
 
 let hiddenAt = 0;
 function watchResync() {
+  // On a live call the tab counts as in use even without mouse or keys.
+  let inCall = false;
+  useMatch.subscribe((m) => {
+    const now = m.partner != null;
+    if (now !== inCall) realtime.setBusy((inCall = now));
+  });
   let wasConnected = false;
   realtime.onConnectionChange((up) => {
     // A reconnect (not the first connect): events may have been missed.

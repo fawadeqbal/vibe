@@ -94,7 +94,7 @@ describe('notifications', () => {
     expect(pushes()[0]).toMatchObject({ token, msg: { body: 'Ali Khan wants to be friends', category: 'social' } });
 
     pushes().splice(0);
-    jest.spyOn(t.app.get(RealtimeService), 'isOnline').mockResolvedValueOnce(true);
+    jest.spyOn(t.app.get(RealtimeService), 'isActive').mockResolvedValueOnce(true);
     t.app.get(RealtimeService).toUser(b.id, ServerEvent.FollowAccepted, { by: { id: a.id, name: 'Ali' } });
     await center().settled();
     expect(pushes()).toHaveLength(0);

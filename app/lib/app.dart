@@ -57,6 +57,12 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
 
   /// Live notifications while the app is open (server mode).
   final _banners = LiveBanners();
+  SocialProvider? _social;
+
+  void _clearOpenChatBanners() {
+    final open = _social?.openChat;
+    if (open != null) _banners.dismissWhere((b) => b.data['friendId'] == open && (b.data['open'] ?? b.data['route']) == 'chat');
+  }
   StreamSubscription<bool>? _connection;
   DateTime? _pausedAt;
   DateTime _lastCatchUp = DateTime.fromMillisecondsSinceEpoch(0);
@@ -71,6 +77,9 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
       // Skip a banner about the chat you have open.
       final social = context.read<SocialProvider>();
       _banners.start(rt, skip: (data) => data['friendId'] != null && data['friendId'] == social.openChat && (data['open'] ?? data['route']) == 'chat');
+      // Opened a chat: its message banners are read.
+      _social = social;
+      social.addListener(_clearOpenChatBanners);
       // A reconnect (not the first connect): live events may have been missed.
       var wasConnected = false;
       _connection = rt.connection.listen((up) {
@@ -108,6 +117,7 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
     _session.removeListener(_onSessionChanged);
     _catalog.removeListener(_redrawPrices);
     _notices?.stop();
+    _social?.removeListener(_clearOpenChatBanners);
     _banners.dispose();
     _connection?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -139,6 +149,9 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) _pausedAt ??= DateTime.now();
+    // Left the app: pushes go to the phone again (the socket may stay connected for minutes).
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) widget.realtime?.setActive(false);
+    if (state == AppLifecycleState.resumed) widget.realtime?.setActive(true);
     if (state == AppLifecycleState.resumed) {
       final away = _pausedAt == null ? Duration.zero : DateTime.now().difference(_pausedAt!);
       _pausedAt = null;

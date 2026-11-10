@@ -18,23 +18,39 @@ void main() {
     expect(LiveBanner.from(show(key: 'chat.message', data: {'open': 'chat', 'friendId': 'u2'}), skip: skip), isNotNull);
   });
 
-  testWidgets('one at a time, newer about the same chat replaces the waiting one, hides by itself', (t) async {
-    final b = LiveBanners(showFor: const Duration(seconds: 2));
-    LiveBanner chat(String friendId) => LiveBanner.from(show(key: 'chat.message', title: 'Sara', data: {'open': 'chat', 'friendId': friendId}))!;
+  testWidgets('they stack newest first and stay until tapped, closed or cleared', (t) async {
+    final b = LiveBanners();
+    LiveBanner chat(String friendId) => LiveBanner.from(show(key: 'chat.message', title: 'Sara $friendId', data: {'open': 'chat', 'friendId': friendId}))!;
     await t.pumpWidget(MaterialApp(theme: V.theme(), home: LiveBannerOverlay(banners: b, child: const Scaffold())));
     b.push(LiveBanner.from(show())!);
     b.push(chat('u2'));
     b.push(chat('u2'));
-    expect(b.waiting, 1);
     await t.pumpAndSettle();
+    expect(b.items.map((x) => x.title), ['Sara u2', 'Sara u2', 'Payment received']);
+    expect(find.text('Sara u2'), findsNWidgets(2));
     expect(find.text('Payment received'), findsOneWidget);
-    expect(find.text('500 coins added'), findsOneWidget);
-    await t.pump(const Duration(seconds: 2));
+    // Time passing doesn't hide anything.
+    await t.pump(const Duration(minutes: 1));
+    expect(b.items, hasLength(3));
+
+    b.push(chat('u3'));
     await t.pumpAndSettle();
-    expect(find.text('Sara'), findsOneWidget);
-    await t.tap(find.byTooltip('Close'));
+    expect(find.text('+1 more'), findsOneWidget);
+    await t.tap(find.byTooltip('Close').first);
     await t.pumpAndSettle();
-    expect(b.current, isNull);
+    expect(b.items.map((x) => x.title), ['Sara u2', 'Sara u2', 'Payment received']);
+
+    b.dismissWhere((x) => x.data['friendId'] == 'u2');
+    await t.pumpAndSettle();
+    expect(b.items.map((x) => x.title), ['Payment received']);
+    expect(find.text('Clear all'), findsNothing);
+
+    b.push(chat('u4'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Clear all'));
+    await t.pumpAndSettle();
+    expect(b.items, isEmpty);
+    expect(find.text('Payment received'), findsNothing);
     b.dispose();
   });
 

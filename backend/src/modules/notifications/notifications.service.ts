@@ -38,12 +38,23 @@ const NO_BANNER = new Set(['call.incoming', 'match.someoneLooking', 'goal.reache
 const NOTHING: NotifyResult = { push: 0, inApp: false, email: false };
 
 /**
+ * Pushes that replace the previous one with the same key: a newer state of
+ * the same thing (this call, this payment, this invite, today's Vibe Hour,
+ * a count that went up). Messages, likes, waves and matches stack instead,
+ * each one stays until it's opened or cleared.
+ */
+const REPLACING = /^(call|pay|ref|streak):|^(vibe-hour|discover:new-people|match:someone-looking|likes-waiting|recap|winback)$/;
+export const replaceKeyFor = (collapseKey: string | undefined): string | undefined => (collapseKey && REPLACING.test(collapseKey) ? collapseKey : undefined);
+
+/**
  * The one place notifications go out. `notify(userId, type, data)` looks the
  * type up in the catalog, checks what staff turned on, what the person
  * turned off, and whether they are in the app right now, then delivers:
  *
- *  - push: phone (FCM) — skipped while the app is open, unless the type says
- *    otherwise; quiet hours and the daily reminder cap apply (PushService)
+ *  - push: phone (FCM) — skipped only while you're looking at Vibe (app in
+ *    the foreground or a tab in use; a live banner shows there instead),
+ *    unless the type says otherwise; connected in the background still gets
+ *    the push. Quiet hours and the daily reminder cap apply (PushService)
  *  - in-app: a message in the person's inbox (Chats → Messages from Vibe)
  *  - e-mail: money and account e-mails always; everything else only to
  *    people we can't reach any other way (no app, not online), with e-mail
@@ -76,7 +87,8 @@ export class NotificationsService implements OnModuleInit {
   }
 
   /** Sends one notification. Never throws (notifications are best effort). */
-  async notify(userId: string, key: string, data: Record<string, unknown> = {}, opts: { online?: boolean } = {}): Promise<NotifyResult> {
+  /** `opts.active`: whether they're in the app right now, when the caller already knows (saves a lookup). */
+  async notify(userId: string, key: string, data: Record<string, unknown> = {}, opts: { active?: boolean } = {}): Promise<NotifyResult> {
     const type = CATALOG_BY_KEY.get(key);
     if (!type) {
       this.logger.warn(`unknown notification type "${key}"`);
@@ -96,7 +108,7 @@ export class NotificationsService implements OnModuleInit {
     while (this.inFlight.size) await Promise.all([...this.inFlight]);
   }
 
-  private async deliver(userId: string, type: NotificationType, data: Record<string, unknown>, opts: { online?: boolean }): Promise<NotifyResult> {
+  private async deliver(userId: string, type: NotificationType, data: Record<string, unknown>, opts: { active?: boolean }): Promise<NotifyResult> {
     const on = await this.channelsFor(type);
     if (!on.push && !on.inApp && !on.email && type.feed !== 'person' && type.feed !== 'system') return NOTHING;
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { status: true, isBot: true, name: true, email: true, marketingEmails: true, notifyPrefs: true } });
@@ -104,13 +116,14 @@ export class NotificationsService implements OnModuleInit {
     const prefs = userChannels(user.notifyPrefs, type.group);
     const want = { push: on.push && prefs.push, inApp: on.inApp && prefs.inApp, email: on.email && prefs.email && !!user.email };
 
-    // Only ask "online?" when it matters (it's what the app's own UI covers).
-    const needsOnline = (want.push && !type.pushWhenOnline) || (want.email && !TRANSACTIONAL.has(type.group));
-    const online = needsOnline ? (opts.online ?? (await this.realtime.isOnline(userId))) : false;
+    // Only ask "in the app?" when it matters (it's what the app's own UI covers).
+    // Connected is not enough: a phone keeps its socket after you leave the app.
+    const needsActive = (want.push && !type.pushWhenOnline) || (want.email && !TRANSACTIONAL.has(type.group));
+    const active = needsActive ? (opts.active ?? (await this.realtime.isActive(userId))) : false;
     // In the app right now: a live banner there instead of a push (same opt-outs as the push).
-    const banner = online && want.push && !type.pushWhenOnline && !NO_BANNER.has(type.key);
-    if (online && !type.pushWhenOnline) want.push = false;
-    if (want.email && !TRANSACTIONAL.has(type.group) && (online || !user.marketingEmails)) want.email = false;
+    const banner = active && want.push && !type.pushWhenOnline && !NO_BANNER.has(type.key);
+    if (active && !type.pushWhenOnline) want.push = false;
+    if (want.email && !TRANSACTIONAL.has(type.group) && (active || !user.marketingEmails)) want.email = false;
     // The Notifications page keeps `feed` types even when no channel goes out (e.g. no push while you're in the app).
     const always = type.feed === 'person' || type.feed === 'system';
     if (!want.push && !want.inApp && !want.email && !always && !banner) return NOTHING;
@@ -126,7 +139,7 @@ export class NotificationsService implements OnModuleInit {
     const result: NotifyResult = { push: 0, inApp: false, email: false };
     if (want.push) {
       const g = GROUP_PUSH[type.group];
-      result.push = await this.push.sendToUser(userId, { title: content.title, body: content.body, data: content.data, category: g.category, collapseKey: content.collapseKey, urgent: g.urgent });
+      result.push = await this.push.sendToUser(userId, { title: content.title, body: content.body, data: content.data, category: g.category, collapseKey: content.collapseKey, replaceKey: replaceKeyFor(content.collapseKey), urgent: g.urgent });
       // Every other push lands on the Notifications page too (chat lines collapse per chat).
       if (result.push > 0 && !type.feed) await this.feed.record(userId, type, content);
     }
