@@ -159,7 +159,56 @@ export class RealtimeClient {
     });
     this.socket = s;
     this.trackActivity();
+    this.watchWake();
     s.connect();
+  }
+
+  private stopWake: (() => void) | null = null;
+  private lastCheck = 0;
+
+  /**
+   * Back from a locked phone, a hidden tab or no network: the browser may have
+   * paused the page and its connection died without anyone noticing (it would
+   * take up to 40 s, then a back-off). Check at once with a ping and, if it
+   * doesn't answer within a few seconds, reconnect now — so you show as
+   * "Active now" again straight away and nothing is missed.
+   */
+  private watchWake() {
+    if (this.stopWake || typeof window === "undefined") return;
+    const wake = () => {
+      if (document.visibilityState === "visible") this.checkAlive();
+    };
+    const online = () => this.checkAlive(true);
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("pageshow", wake);
+    window.addEventListener("focus", wake);
+    window.addEventListener("online", online);
+    this.stopWake = () => {
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("pageshow", wake);
+      window.removeEventListener("focus", wake);
+      window.removeEventListener("online", online);
+      this.stopWake = null;
+    };
+  }
+
+  /** Reconnects now if the connection is down or doesn't answer a ping. */
+  checkAlive(force = false) {
+    const s = this.socket;
+    if (!s) return;
+    const now = Date.now();
+    if (!force && now - this.lastCheck < 3000) return;
+    this.lastCheck = now;
+    if (!s.connected) {
+      s.connect(); // skip the back-off wait
+      return;
+    }
+    s.timeout(4000).emit("presence:ping", {}, (err: Error | null) => {
+      if (!err || this.socket !== s) return;
+      // No answer: the line is dead even though it looks open. Start a fresh one.
+      s.disconnect();
+      s.connect();
+    });
   }
 
   /** On a live call: in use even without mouse or keys. */
@@ -217,6 +266,7 @@ export class RealtimeClient {
 
   disconnect() {
     this.stopTracking?.();
+    this.stopWake?.();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
     this.socket = null;

@@ -84,12 +84,28 @@ class Fmt {
     return '${t.day}/${t.month}/${t.year}';
   }
 
-  /// A friend's status line: "Online", "Last seen 5m ago", or null when we don't know
-  /// (never from the friendship date).
+  /// A friend's status line: "Active now" while their app or tab is connected, then
+  /// "Active 5 min ago" from the moment it disconnected (the server records it then),
+  /// or null when we don't know (never from the friendship date).
   static String? presence(bool? online, DateTime? lastSeenAt) {
-    if (online == true) return 'Online';
+    if (online == true) return 'Active now';
     if (lastSeenAt == null) return null;
-    return 'Last seen ${ago(lastSeenAt)}';
+    return activeAgo(lastSeenAt);
+  }
+
+  /// "Active just now", "Active 5 min ago", "Active 3 hours ago", "Active 2 days ago", "Active on 31 Oct".
+  static String activeAgo(DateTime t) {
+    final diff = DateTime.now().difference(t);
+    final m = diff.inMinutes < 0 ? 0 : diff.inMinutes;
+    if (m < 1) return 'Active just now';
+    if (m < 60) return 'Active $m min ago';
+    final h = m ~/ 60;
+    if (h < 24) return 'Active $h ${h == 1 ? 'hour' : 'hours'} ago';
+    final d = h ~/ 24;
+    if (d < 7) return 'Active $d ${d == 1 ? 'day' : 'days'} ago';
+    const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final l = t.toLocal();
+    return 'Active on ${l.day} ${mo[l.month - 1]}';
   }
 
   /// Compact list timestamp: "now", "5m", "1h", "3d", "12/9".

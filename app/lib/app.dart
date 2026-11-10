@@ -160,7 +160,10 @@ class _VibeAppState extends State<VibeApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) _pausedAt ??= DateTime.now();
     // Left the app: pushes go to the phone again (the socket may stay connected for minutes).
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.detached) widget.realtime?.setActive(false);
-    if (state == AppLifecycleState.resumed) widget.realtime?.setActive(true);
+    if (state == AppLifecycleState.resumed) {
+      widget.realtime?.setActive(true);
+      widget.realtime?.checkAlive();
+    }
     if (state == AppLifecycleState.resumed) {
       final away = _pausedAt == null ? Duration.zero : DateTime.now().difference(_pausedAt!);
       _pausedAt = null;

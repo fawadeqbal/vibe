@@ -16,7 +16,11 @@ const nextConfig: NextConfig = {
   // Avatars come from the API's storage / CDN on any host: plain <img>.
   images: { unoptimized: true },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Icons never change under the same name (the icon sheet's name carries a hash): keep them.
+      { source: "/icons/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
+    ];
   },
 };
 

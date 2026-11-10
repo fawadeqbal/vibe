@@ -70,7 +70,7 @@ class FriendsListScreen extends StatelessWidget {
               itemCount: friends.length,
               itemBuilder: (_, i) {
                 final f = friends[i];
-                // "Last seen 5 min ago" keeps counting.
+                // "Active 5 min ago" keeps counting.
                 return EveryMinute(builder: (_) => PersonRow(
                   person: f.profile,
                   online: f.online,

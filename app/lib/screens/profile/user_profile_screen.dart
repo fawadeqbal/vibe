@@ -262,7 +262,7 @@ class _UserProfileBodyState extends State<UserProfileBody> {
         // "Active 5 min ago" keeps counting.
         EveryMinute(builder: (_) {
           final status = v.tier == ProfileTier.friends ? Fmt.presence(live.$1 ?? v.online, live.$2 ?? v.lastSeenAt) : null;
-          return Text([('${p.country.flag} ${p.country.name}'), p.gender.label, if (status != null) (status == 'Online' ? 'Active now' : status)].join(' · '), style: VT.body(13, color: V.text2));
+          return Text([('${p.country.flag} ${p.country.name}'), p.gender.label, if (status != null) status].join(' · '), style: VT.body(13, color: V.text2));
         }),
         if (p.bio.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(p.bio, style: VT.body(14, color: V.text))),
         if (v.stats == null && !self)

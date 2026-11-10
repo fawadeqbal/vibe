@@ -104,11 +104,27 @@ export function ago(t: Date, now = Date.now()): string {
   return `${t.getDate()}/${t.getMonth() + 1}/${t.getFullYear()}`;
 }
 
-/** A friend's status line: "Online", "Last seen 5m ago", or null when we don't know (never "last seen" from the friendship date). */
+/**
+ * A friend's status line: "Active now" while their app or tab is connected,
+ * then "Active 5 min ago" from the moment it disconnected (the server records
+ * it then), or null when we don't know (never from the friendship date).
+ */
 export function presenceLabel(online: boolean | null | undefined, lastSeenAt: Date | null | undefined, now = Date.now()): string | null {
-  if (online) return "Online";
+  if (online) return "Active now";
   if (!lastSeenAt) return null;
-  return `Last seen ${ago(lastSeenAt, now)}`;
+  return activeAgo(lastSeenAt, now);
+}
+
+/** "Active just now", "Active 5 min ago", "Active 3 hours ago", "Active 2 days ago", "Active on 31 Oct". */
+export function activeAgo(t: Date, now = Date.now()): string {
+  const m = minutesSince(t, now);
+  if (m < 1) return "Active just now";
+  if (m < 60) return `Active ${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `Active ${h} ${plural(h, "hour")} ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `Active ${d} ${plural(d, "day")} ago`;
+  return `Active on ${t.getDate()} ${MONTHS[t.getMonth()]}`;
 }
 
 /** Compact list timestamp: "now", "5m", "1h", "3d", "12/9". */
