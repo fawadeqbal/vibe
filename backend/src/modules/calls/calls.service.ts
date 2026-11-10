@@ -1,14 +1,17 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Interval } from '@nestjs/schedule';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { FriendshipStatus, MessageKind } from '@prisma/client';
 
 import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { Clock, MS } from '../../common/utils/clock';
+import { safeEqual } from '../../common/utils/crypto';
+import { AppConfig } from '../../config/app-config.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { ServerEvent } from '../../infra/realtime/realtime.events';
+import { SOCKET_CONNECTED, type SocketLifecycleEvent } from '../../infra/realtime/realtime.gateway';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { EconomyService } from '../catalog/economy.service';
@@ -27,6 +30,8 @@ export interface RingingCall {
   expiresAt: number;
   /** A video call (else voice only). */
   video: boolean;
+  /** When it started ringing on their phone (in the app, or woken by a push); unset = "Connecting". */
+  reachedAt?: number;
 }
 
 export type CallMedia = 'voice' | 'video';
@@ -95,7 +100,25 @@ export class CallsService {
     private readonly messages: MessagesService,
     private readonly blocks: BlocksService,
     private readonly matching: MatchingService,
+    private readonly config: AppConfig,
   ) {}
+
+  /**
+   * Signs one call for the person being called, so their phone can say
+   * "ringing" or "decline" straight from the push with Vibe closed (no
+   * session there to use). Only good for that call and that person.
+   */
+  pushToken(callId: string, userId: string): string {
+    return createHmac('sha256', `call-push:${this.config.get('JWT_ACCESS_SECRET')}`).update(`${callId}:${userId}`).digest('base64url').slice(0, 32);
+  }
+
+  /** "Ringing" or "Decline" from the call push (Vibe closed): checked against [pushToken]. */
+  async fromPush(callId: string, userId: string, token: string, action: 'ringing' | 'decline', reply?: string): Promise<{ ok: true }> {
+    if (!safeEqual(this.pushToken(callId, userId), token)) throw new AppError(ErrorCode.CALL_NOT_FOUND, 'That call is over', HttpStatus.NOT_FOUND);
+    if (action === 'decline') await this.decline(userId, callId, reply);
+    else await this.reached(userId, callId);
+    return { ok: true };
+  }
 
   private get rules() {
     return this.economy.rules;
@@ -269,7 +292,7 @@ export class CallsService {
   }
 
   /** Ring a friend, voice or video. Both must have allowed it; neither may be busy. */
-  async ring(me: string, friendId: string, media: CallMedia = 'video'): Promise<{ callId: string; to: PublicProfile; expiresAt: string; media: CallMedia }> {
+  async ring(me: string, friendId: string, media: CallMedia = 'video'): Promise<{ callId: string; to: PublicProfile; expiresAt: string; media: CallMedia; reached: boolean }> {
     this.assertOn();
     const f = await this.friends.requireFriends(me, friendId);
     if (await this.blocks.eitherBlocked(me, friendId))
@@ -296,6 +319,8 @@ export class CallsService {
       throw new AppError(ErrorCode.CALL_BUSY, 'In another call right now', HttpStatus.CONFLICT);
     }
     const ringMs = this.rules.callRingSeconds * 1000;
+    // In the app right now: it rings there at once. Otherwise "Connecting" until their phone says it's ringing.
+    const reached = await this.realtime.isActive(friendId);
     const call: RingingCall = {
       id: randomUUID(),
       from: me,
@@ -303,6 +328,7 @@ export class CallsService {
       friendshipId: f.id,
       expiresAt: Date.now() + ringMs,
       video,
+      ...(reached ? { reachedAt: Date.now() } : {}),
     };
     const ttl = Math.ceil(ringMs / 1000) + 30;
     // Claim both people (NX) so two calls can't ring the same person.
@@ -316,9 +342,31 @@ export class CallsService {
       .exec();
     const [from, to] = await Promise.all([this.profile(me), this.profile(friendId)]);
     const expiresAt = new Date(call.expiresAt).toISOString();
-    this.realtime.toUser(friendId, ServerEvent.CallIncoming, { callId: call.id, from, expiresAt, media });
-    this.realtime.toUser(me, ServerEvent.CallRinging, { callId: call.id, to, expiresAt, media });
-    return { callId: call.id, to, expiresAt, media };
+    this.realtime.toUser(friendId, ServerEvent.CallIncoming, { callId: call.id, from, expiresAt, media, ack: this.pushToken(call.id, friendId) });
+    this.realtime.toUser(me, ServerEvent.CallRinging, { callId: call.id, to, expiresAt, media, reached });
+    return { callId: call.id, to, expiresAt, media, reached };
+  }
+
+  /**
+   * Their phone is ringing: the app got `call:incoming`, or woke from the
+   * call push with Vibe closed. The caller's "Connecting" turns into
+   * "Ringing" (`call:reached`). Once per call.
+   */
+  async reached(me: string, callId: string): Promise<{ ok: true }> {
+    const c = await this.mine(callId, me, 'to');
+    if (c.reachedAt) return { ok: true };
+    const ttl = await this.redis.client.ttl(CALL(c.id));
+    if (ttl <= 0) return { ok: true };
+    await this.redis.client.set(CALL(c.id), JSON.stringify({ ...c, reachedAt: Date.now() }), 'EX', ttl);
+    this.realtime.toUser(c.from, ServerEvent.CallReached, { callId: c.id });
+    return { ok: true };
+  }
+
+  /** Their phone came back online while you're still calling: it rings in the app now (no second push). */
+  @OnEvent(SOCKET_CONNECTED, { async: true, suppressErrors: true })
+  async onConnect(e: SocketLifecycleEvent): Promise<void> {
+    const call = await this.incoming(e.userId);
+    if (call) this.realtime.toUsers([e.userId], ServerEvent.CallIncoming, call);
   }
 
   /** Stops a ringing call exactly once; returns it (null if already over). */

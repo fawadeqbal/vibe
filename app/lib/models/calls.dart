@@ -33,7 +33,7 @@ enum OutgoingStatus { ringing, declined, noAnswer, busy, paused, error }
 
 /// Your call, ringing on their side — or how it ended.
 class OutgoingCall {
-  const OutgoingCall({required this.to, this.callId, this.status = OutgoingStatus.ringing, this.reply, this.message, this.media = CallMedia.video});
+  const OutgoingCall({required this.to, this.callId, this.status = OutgoingStatus.ringing, this.reply, this.message, this.media = CallMedia.video, this.reached = false});
   final Profile to;
   final CallMedia media;
   final String? callId;
@@ -41,6 +41,9 @@ class OutgoingCall {
   final String? reply;
   final String? message;
 
-  OutgoingCall copyWith({String? callId, OutgoingStatus? status, String? reply, String? message}) =>
-      OutgoingCall(to: to, callId: callId ?? this.callId, status: status ?? this.status, reply: reply ?? this.reply, message: message ?? this.message, media: media);
+  /// Ringing on their phone (in the app, or woken by the push with Vibe closed). Until then: "Connecting".
+  final bool reached;
+
+  OutgoingCall copyWith({String? callId, OutgoingStatus? status, String? reply, String? message, bool? reached}) =>
+      OutgoingCall(to: to, callId: callId ?? this.callId, status: status ?? this.status, reply: reply ?? this.reply, message: message ?? this.message, media: media, reached: reached ?? this.reached);
 }

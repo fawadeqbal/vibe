@@ -7,6 +7,7 @@ import { VideoView } from "@/components/shared/video-view";
 import { Avatar } from "@/components/ui/avatar";
 import { GhostButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/cn";
 import { clock } from "@/lib/format";
 import type { Profile } from "@/lib/models";
 import { type IncomingCall, type OutgoingCall, useCalls } from "@/stores/calls";
@@ -271,10 +272,17 @@ function Outgoing({ c }: { c: OutgoingCall }) {
           <h2 id="calling-title" className="text-[28px] font-bold tracking-[-0.035em]">
             {c.to.name}
           </h2>
-          <p role="status" className="mt-1.5 flex items-center justify-center gap-1.5 text-[14.5px] text-white/80">
+          <p role="status" className={cn("mt-1.5 flex items-center justify-center gap-1.5 text-[14.5px] font-semibold", c.reached ? "text-pink-soft" : "text-white/80")}>
             <Icon name={video ? "videocam" : "call"} size={17} />
-            Calling…
+            {!c.callId ? "Calling…" : c.reached ? "Ringing…" : "Connecting…"}
           </p>
+          {c.callId ? (
+            <p className="mx-auto mt-2 max-w-[300px] text-[13px] leading-[1.5] text-white/60">
+              {c.reached
+                ? `${c.to.name.split(" ")[0]}'s phone is ringing, even if Vibe is closed.`
+                : `${c.to.name.split(" ")[0]}'s phone is offline or has no internet. It rings as soon as it's back, while you're still calling.`}
+            </p>
+          ) : null}
         </div>
         <div className="flex-1" />
         <div className="flex items-start justify-evenly">

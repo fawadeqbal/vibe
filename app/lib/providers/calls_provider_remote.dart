@@ -18,12 +18,21 @@ class RemoteCallsProvider extends CallsProvider {
           expiresAt: ApiMap.date(e['expiresAt']) ?? DateTime.now().add(Duration(seconds: Economy.callRingSeconds)),
           media: e['media'] == 'voice' ? CallMedia.voice : CallMedia.video,
         ));
+        _ackRinging('${e['callId']}');
         notifyListeners();
       }),
       _rt.on(Ev.callRinging).listen((e) {
         final o = _outgoing;
         if (o != null && o.callId == null) {
-          _outgoing = o.copyWith(callId: '${e['callId']}');
+          _outgoing = o.copyWith(callId: '${e['callId']}', reached: o.reached || e['reached'] == true);
+          notifyListeners();
+        }
+      }),
+      // Their phone is ringing now: "Connecting" → "Ringing".
+      _rt.on(Ev.callReached).listen((e) {
+        final o = _outgoing;
+        if (o != null && (o.callId == '${e['callId']}' || o.callId == null)) {
+          _outgoing = o.copyWith(reached: true);
           notifyListeners();
         }
       }),
@@ -36,6 +45,9 @@ class RemoteCallsProvider extends CallsProvider {
   late final List<StreamSubscription<dynamic>> _subs;
 
   Map<String, dynamic> _map(Object? r) => Map<String, dynamic>.from(r as Map);
+
+  /// Tell the caller it's ringing here (their "Connecting" turns into "Ringing"). Best effort.
+  void _ackRinging(String callId) => unawaited(_api.post('/calls/$callId/ringing').then((_) {}, onError: (_) {}));
 
   void _onEnded(Map<String, dynamic> e) {
     final id = '${e['callId']}';
@@ -73,7 +85,7 @@ class RemoteCallsProvider extends CallsProvider {
     notifyListeners();
     try {
       final r = _map(await _api.post('/friends/${friend.id}/call', {'media': media.name}));
-      if (_outgoing?.to.id == friend.id) _outgoing = _outgoing!.copyWith(callId: '${r['callId']}');
+      if (_outgoing?.to.id == friend.id) _outgoing = _outgoing!.copyWith(callId: '${r['callId']}', reached: _outgoing!.reached || r['reached'] == true);
     } on ApiException catch (e) {
       final status = switch (e.code) { 'CALL_BUSY' => OutgoingStatus.busy, 'CALL_PAUSED' => OutgoingStatus.paused, _ => OutgoingStatus.error };
       _outgoing = OutgoingCall(to: friend, status: status, message: e.message, media: media);
@@ -126,6 +138,7 @@ class RemoteCallsProvider extends CallsProvider {
         final m = Map<String, dynamic>.from(c);
         // Ringing when the app opened (from a push): full screen straight away.
         setIncoming(IncomingCall(callId: '${m['callId']}', from: ApiMap.profile(_map(m['from'])), expiresAt: ApiMap.date(m['expiresAt']) ?? DateTime.now(), media: m['media'] == 'voice' ? CallMedia.voice : CallMedia.video), full: true);
+        _ackRinging('${m['callId']}');
         notifyListeners();
       }
     } on ApiException catch (_) {}

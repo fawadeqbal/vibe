@@ -188,6 +188,30 @@ describe('calls in chat', () => {
     expect(r2.recentCalls[0]).toMatchObject({ a: { name: 'Asad' }, b: { name: 'Bina' } });
   });
 
+  it('connecting until their phone rings: in the app it rings at once; offline it waits, rings when they come back or when the push wakes the phone', async () => {
+    const { a, b } = await callsOn();
+    const sa = await online(a);
+    // Bina is offline: "Connecting".
+    const r = (await t.http.post(`/v1/friends/${b.id}/call`).set(a.auth).expect(200)).body;
+    expect(r.reached).toBe(false);
+    // Her phone comes online while it's still ringing: the call shows up in her app…
+    const incoming = new Promise<Record<string, unknown>>((resolve) => {
+      void connect(t, b).then((s) => {
+        sockets.push(s);
+        s.once('call:incoming', resolve);
+      });
+    });
+    expect(await incoming).toMatchObject({ callId: r.callId, from: { id: a.id } });
+    // …and her app says it's ringing: "Ringing" for Asad, once.
+    const reached = next(sa, 'call:reached');
+    await t.http.post(`/v1/calls/${r.callId}/ringing`).set(b.auth).expect(200);
+    expect(await reached).toEqual({ callId: r.callId });
+    await t.http.post(`/v1/calls/${r.callId}/ringing`).set(b.auth).expect(200);
+    // Only the person being called can say so.
+    await t.http.post(`/v1/calls/${r.callId}/ringing`).set(a.auth).expect(404);
+    await t.http.post(`/v1/calls/${r.callId}/decline`).set(b.auth).expect(200);
+  });
+
   it('voice or video: the lower level wins; voice calls start audio-only and can turn on video when both say yes', async () => {
     const { a, b } = await friends();
     await say(a, b, 'hey');

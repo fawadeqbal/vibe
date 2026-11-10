@@ -27,6 +27,8 @@ export interface OutgoingCall {
   status: "ringing" | "declined" | "no_answer" | "busy" | "paused" | "error";
   reply: string | null;
   message: string | null;
+  /** Ringing on their phone (else "Connecting": offline or no internet). */
+  reached?: boolean;
 }
 
 /** What the server says about calls in one chat. */
@@ -122,7 +124,7 @@ export const useCalls = create<CallsState>()((set, get) => {
       set({ outgoing: { callId: null, to: friend, media, status: "ringing", reply: null, message: null } });
       try {
         const r = asMap(await api.post(`/friends/${friend.id}/call`, { media }));
-        set((s) => (s.outgoing?.to.id === friend.id ? { outgoing: { ...s.outgoing, callId: String(r.callId) } } : {}));
+        set((s) => (s.outgoing?.to.id === friend.id ? { outgoing: { ...s.outgoing, callId: String(r.callId), reached: s.outgoing.reached || r.reached === true } } : {}));
       } catch (e) {
         const code = e instanceof ApiError ? e.code : "";
         const status: OutgoingCall["status"] = code === "CALL_BUSY" ? "busy" : code === "CALL_PAUSED" ? "paused" : "error";
@@ -166,6 +168,7 @@ export const useCalls = create<CallsState>()((set, get) => {
         if (c && typeof c === "object") {
           const m = asMap(c);
           set({ incoming: { callId: String(m.callId), from: mapProfile(asMap(m.from)), expiresAt: new Date(String(m.expiresAt)), media: m.media === "voice" ? "voice" : "video" } });
+          ackRinging(String(m.callId));
         }
       } catch {}
     },
@@ -192,12 +195,23 @@ realtime.on(Ev.callIncoming, (e) => {
   const from = mapProfile(asMap(e.from));
   const media: CallMedia = e.media === "voice" ? "voice" : "video";
   useCalls.setState({ incoming: { callId: String(e.callId), from, expiresAt: new Date(String(e.expiresAt)), media } });
+  ackRinging(String(e.callId));
   notifyInBackground(`${from.name.split(" ")[0]} is calling ${media === "voice" ? "📞" : "📹"}`, `${media === "voice" ? "Voice" : "Video"} call on Vibe — click to answer.`, { tag: `call:${String(e.callId)}` });
 });
 
 realtime.on(Ev.callRinging, (e) => {
-  useCalls.setState((s) => (s.outgoing && !s.outgoing.callId ? { outgoing: { ...s.outgoing, callId: String(e.callId) } } : {}));
+  useCalls.setState((s) => (s.outgoing && !s.outgoing.callId ? { outgoing: { ...s.outgoing, callId: String(e.callId), reached: s.outgoing.reached || e.reached === true } } : {}));
 });
+
+// Their phone is ringing now: "Connecting" → "Ringing".
+realtime.on(Ev.callReached, (e) => {
+  useCalls.setState((s) => (s.outgoing && (s.outgoing.callId === String(e.callId) || !s.outgoing.callId) ? { outgoing: { ...s.outgoing, reached: true } } : {}));
+});
+
+/** Tell the caller it's ringing here (their "Connecting" turns into "Ringing"). Best effort. */
+function ackRinging(callId: string) {
+  api.post(`/calls/${callId}/ringing`).catch(() => {});
+}
 
 realtime.on(Ev.callEnded, (e) => {
   const id = String(e.callId);

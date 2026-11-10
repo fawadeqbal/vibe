@@ -41,3 +41,25 @@ export class DeclineCallDto {
   @Length(1, 200)
   reply?: string;
 }
+
+export class CallPushActionDto {
+  @ApiProperty({ description: 'Who was called (from the push)' })
+  @IsString()
+  @Length(1, 64)
+  userId!: string;
+
+  @ApiProperty({ description: 'The token the call push carried' })
+  @IsString()
+  @Length(10, 64)
+  t!: string;
+
+  @ApiProperty({ enum: ['ringing', 'decline'] })
+  @IsIn(['ringing', 'decline'])
+  action!: 'ringing' | 'decline';
+
+  @ApiPropertyOptional({ example: 'Call me in 10 min' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  reply?: string;
+}

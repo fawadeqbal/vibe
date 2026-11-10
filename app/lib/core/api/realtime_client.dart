@@ -105,6 +105,9 @@ class Ev {
   /// They read your messages: `{ friendId, at }`.
   static const messagesRead = 'message:read';
 
+  /// Your call is ringing on their phone: `{ callId }`. Until then the caller sees "Connecting".
+  static const callReached = 'call:reached';
+
   /// Your messages reached your friend's phone or an open tab: `{ friendId, at }` (two grey ticks).
   static const messagesDelivered = 'message:delivered';
 }

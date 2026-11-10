@@ -52,6 +52,10 @@ export interface Content {
   button?: string;
   /** Longer text for the inbox and e-mail (default: body). */
   detail?: string;
+  /** An incoming call: the push wakes the phone to ring full screen, for this long. */
+  ringSeconds?: number;
+  /** Sent data-only (the app draws it), e.g. the missed call that stops the ringing. */
+  dataOnly?: boolean;
 }
 
 export interface BuildCtx {
@@ -98,7 +102,7 @@ export interface NotificationType {
 }
 
 const first = (name: unknown, fallback: string) => String(name ?? '').trim().split(/\s+/)[0] || fallback;
-const who = (v: unknown) => (v ?? {}) as { id?: string; name?: string };
+const who = (v: unknown) => (v ?? {}) as { id?: string; name?: string; avatarUrl?: string };
 const PUSH = { push: true, inApp: false, email: false };
 const PUSH_INBOX = { push: true, inApp: true, email: false };
 const ALL = { push: true, inApp: true, email: true };
@@ -153,9 +157,19 @@ export const CATALOG: NotificationType[] = [
     label: 'A friend is calling',
     event: ServerEvent.CallIncoming,
     channels: PUSH,
-    build: (p) => {
+    build: (p, ctx) => {
       const from = who(p.from);
-      return { title: `${first(from.name, 'A friend')} is calling 📹`, body: 'Video call on Vibe — open to answer.', data: link('call', { callId: p.callId, friendId: from.id }), collapseKey: `call:${p.callId}` };
+      const video = p.media !== 'voice';
+      const ends = typeof p.expiresAt === 'string' ? Date.parse(p.expiresAt) : NaN;
+      return {
+        title: `${first(from.name, 'A friend')} is calling${video ? ' 📹' : ''}`,
+        body: video ? 'Video call on Vibe' : 'Voice call on Vibe',
+        // What the phone needs to ring full screen with Vibe closed.
+        // `to` + `ack`: the phone says "ringing" (or Decline) with Vibe closed, without a session.
+        data: link('call', { callId: p.callId, friendId: from.id, callerName: from.name ?? '', callerAvatar: from.avatarUrl ?? '', media: video ? 'video' : 'voice', expiresAt: typeof p.expiresAt === 'string' ? p.expiresAt : '', to: ctx.userId, ack: p.ack }),
+        collapseKey: `call:${p.callId}`,
+        ringSeconds: Number.isFinite(ends) ? Math.max(1, Math.round((ends - Date.now()) / 1000)) : 30,
+      };
     },
   },
   {
@@ -169,7 +183,8 @@ export const CATALOG: NotificationType[] = [
       if (p.reason !== 'no_answer' && p.reason !== 'cancelled') return null;
       const from = p.from ? who(p.from) : null;
       if (!from) return null;
-      return { title: 'Missed video call', body: `From ${first(from.name, 'a friend')}. Tap to call back.`, data: link('calls', { userId: from.id, friendId: from.id }, 'chat'), collapseKey: `call:${p.callId}` };
+      // Data-only like the ring itself, so the phone stops ringing and shows this instead.
+      return { title: 'Missed video call', body: `From ${first(from.name, 'a friend')}. Tap to call back.`, data: link('calls', { userId: from.id, friendId: from.id, callId: p.callId }, 'chat'), collapseKey: `call:${p.callId}`, dataOnly: true };
     },
   },
   {

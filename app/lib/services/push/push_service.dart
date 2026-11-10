@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/config/integrations_config.dart';
+import 'call_ringer.dart';
 import 'push_route.dart';
 
 /// Push notifications. [FirebasePush] when the Firebase options are set,
@@ -58,6 +59,7 @@ class FirebasePush implements PushService {
   PushRoute? _launch;
   StreamSubscription<String>? _refresh;
   StreamSubscription<RemoteMessage>? _opened;
+  StreamSubscription<RemoteMessage>? _message;
   final _taps = StreamController<PushRoute>.broadcast();
 
   @override
@@ -91,6 +93,10 @@ class FirebasePush implements PushService {
     try {
       if (Firebase.apps.isEmpty) await Firebase.initializeApp(options: _options);
       final m = FirebaseMessaging.instance;
+      // Calls ring full screen even with Vibe closed (Android): data-only pushes, drawn by CallRinger.
+      await CallRinger.init();
+      FirebaseMessaging.onBackgroundMessage(vibeBackgroundPush);
+      _message = FirebaseMessaging.onMessage.listen((msg) => CallRinger.handle(msg.data, foreground: true));
       _opened = FirebaseMessaging.onMessageOpenedApp.listen((msg) {
         final r = PushRoute.fromData(msg.data);
         if (r != null) _taps.add(r);
@@ -164,6 +170,7 @@ class FirebasePush implements PushService {
 
   void dispose() {
     _opened?.cancel();
+    _message?.cancel();
     _refresh?.cancel();
     _taps.close();
   }

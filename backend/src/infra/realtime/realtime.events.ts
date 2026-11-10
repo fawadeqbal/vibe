@@ -73,6 +73,8 @@ export const ServerEvent = {
   CallRinging: 'call:ringing',
   /** A ringing call stopped: `{ callId, reason: 'declined' | 'no_answer' | 'cancelled' | 'accepted' | 'turned_off', reply? }`. Accepted calls continue as `match:found`. */
   CallEnded: 'call:ended',
+  /** Your call reached their phone and is ringing there (the app, or a push with Vibe closed): `{ callId }`. Until then: "Connecting". */
+  CallReached: 'call:reached',
   /** Voice → video during a friend call: `{ matchId, state: 'asked' | 'on' | 'declined', from? }`. */
   CallVideo: 'call:video',
   /** Your friend is typing to you: `{ friendId }` (lasts ~5 s). */

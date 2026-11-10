@@ -1,6 +1,7 @@
 import { GoogleAuth } from '../../integrations/google/google-auth';
 import { replaceKeyFor } from '../notifications/notifications.service';
 import { FcmPushSender } from './push-sender';
+import { canRing } from './push.service';
 
 describe('FCM sender', () => {
   const auth = { accessToken: async () => 'access' } as unknown as GoogleAuth;
@@ -29,9 +30,25 @@ describe('FCM sender', () => {
     for (const k of ['chat:1', 'wave:2', 'discover-liked', 'discover-super:3', 'discover-match:4', 'call-ask:5', 'wave-looking:6', undefined]) expect(replaceKeyFor(k)).toBeUndefined();
   });
 
+  it('an incoming call wakes Android with a data-only, high-priority message that expires with the call; iOS gets an alert', async () => {
+    const seen: { body?: { message: Record<string, unknown> } } = {};
+    await sender(200, {}, seen as never).send('tok', { ...msg, title: 'Sana is calling', body: 'Video call on Vibe', data: { open: 'call', callId: 'c1' }, ring: { ttlSeconds: 28 } });
+    const m = seen.body!.message;
+    expect(m).not.toHaveProperty('notification');
+    expect(m).toMatchObject({ data: { open: 'call', callId: 'c1', title: 'Sana is calling', body: 'Video call on Vibe' }, android: { priority: 'HIGH', ttl: '28s' }, apns: { payload: { aps: { alert: { title: 'Sana is calling' } } } } });
+    expect(m.android).not.toHaveProperty('notification');
+  });
+
   it('dead tokens are reported as invalid, server trouble as retry', async () => {
     expect(await sender(404, { error: { status: 'NOT_FOUND', details: [{ errorCode: 'UNREGISTERED' }] } }).send('tok', msg)).toBe('invalid');
     expect(await sender(400, { error: { status: 'INVALID_ARGUMENT' } }).send('tok', msg)).toBe('invalid');
     expect(await sender(503, { error: { status: 'UNAVAILABLE' } }).send('tok', msg)).toBe('retry');
+  });
+});
+
+describe('canRing', () => {
+  it('Android builds from 0.2.0 ring full screen; older ones get the plain notification', () => {
+    for (const v of ['0.2.0', '0.2.1', '0.10.0', '1.0.0', '0.2.0+5']) expect(canRing(v)).toBe(true);
+    for (const v of ['0.1.0', '0.1.9', '', null, undefined]) expect(canRing(v)).toBe(false);
   });
 });
