@@ -489,7 +489,7 @@ function QuickSettings() {
         <span className="type-label flex-1 text-[14px] font-semibold">Notifications</span>
         <Icon name="chevron_right" size={20} className="text-muted" />
       </Link>
-      <Link href="/me/privacy" className={row}>
+      <Link href="/me/settings/privacy" className={row}>
         <Icon name="shield" size={20} className="text-text2" />
         <span className="type-label flex-1 text-[14px] font-semibold">Privacy and safety</span>
         <Icon name="chevron_right" size={20} className="text-muted" />

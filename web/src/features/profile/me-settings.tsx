@@ -26,6 +26,7 @@ import { isVip, useWallet } from "@/stores/wallet";
 import { InviteCodeField } from "@/features/referrals/invite-code-field";
 
 import { openBlockedPeople } from "./blocked-people";
+import { SETTINGS_GROUPS, type SettingsGroupKey } from "./settings-groups";
 import { deleteAccountFlow, MeSection, signOutFlow } from "./me-sections";
 
 /** One row of the menu: what it shows, plus words people might search for. */
@@ -44,18 +45,24 @@ interface Item {
   hidden?: boolean;
 }
 
+
 interface Group {
+  key: SettingsGroupKey;
   title: string;
+  icon: string;
+  tone?: Tone;
+  /** What's inside, on the group's button. */
+  summary: string;
   items: Item[];
 }
 
 /**
- * Settings and activity (Me → ☰): everything that isn't your profile, in
- * five groups people know from other apps, with a search on top. Rows open
- * their own page (Back returns here), and the simple on/off ones switch
- * right in the row.
+ * Settings and activity (Me → ☰): five buttons, one per group (account,
+ * activity, privacy & safety, wallet, help), with a search on top that finds
+ * any row inside them. A group opens its own page (`/me/settings/<group>`)
+ * with its rows; rows open their own page and on/off ones switch in place.
  */
-export function SettingsMenuPage() {
+export function SettingsMenuPage({ group }: { group?: SettingsGroupKey }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const session = useSession();
@@ -88,7 +95,10 @@ export function SettingsMenuPage() {
     const v = verification({ me, verificationState: session.verificationState });
     return [
       {
-        title: "Your account",
+        key: "account",
+        title: SETTINGS_GROUPS.account,
+        icon: "manage_accounts",
+        summary: "Sign-in, devices, notifications, quiet hours, data saver",
         items: [
           { key: "account", icon: "manage_accounts", title: "Account & sign-in", subtitle: "Sign-in methods, e-mail, delete account", words: "email password google apple facebook login delete", href: "/me/account" },
           { key: "devices", icon: "devices", title: "Devices", subtitle: "Where you're signed in; sign one out", words: "sessions logged in phone browser computer sign out logout security", href: "/me/devices" },
@@ -105,7 +115,10 @@ export function SettingsMenuPage() {
         ],
       },
       {
-        title: "Your activity",
+        key: "activity",
+        title: SETTINGS_GROUPS.activity,
+        icon: "history",
+        summary: level ? `Level ${level.level} · matches, friends, badges, leaderboard` : "Matches, friends, badges, leaderboard",
         items: [
           { key: "matches", icon: "history", title: "Recent matches", subtitle: history.length ? `${history.length} recent ${history.length === 1 ? "call" : "calls"}` : "Your last calls show up here", words: "history calls", href: "/me/matches" },
           {
@@ -121,7 +134,11 @@ export function SettingsMenuPage() {
         ],
       },
       {
-        title: "Privacy & safety",
+        key: "privacy",
+        title: SETTINGS_GROUPS.privacy,
+        icon: "shield",
+        tone: "trust",
+        summary: `${me.verified ? "Verified" : "Get verified"} · private account, blur, Discover, blocked`,
         items: [
           {
             key: "verify",
@@ -179,7 +196,11 @@ export function SettingsMenuPage() {
         ],
       },
       {
-        title: "Wallet & invites",
+        key: "wallet",
+        title: SETTINGS_GROUPS.wallet,
+        icon: "account_balance_wallet",
+        tone: "gold",
+        summary: `${compact(wallet.coins)} coins · ${compact(wallet.gems)} gems · VIP, cash out, invites`,
         items: [
           { key: "wallet", icon: "account_balance_wallet", tone: "gold", title: "Wallet", subtitle: `${compact(wallet.coins)} coins · ${compact(wallet.gems)} gems`, words: "coins gems buy money", href: "/wallet" },
           { key: "vip", icon: "workspace_premium", tone: "gold", title: vip ? "You are VIP" : "Get VIP", subtitle: vip ? until(wallet.vipUntil!) : "Free filters, no ads, see who liked you", words: "premium subscription", href: "/vip" },
@@ -189,7 +210,10 @@ export function SettingsMenuPage() {
         ],
       },
       {
-        title: "Help & about",
+        key: "help",
+        title: SETTINGS_GROUPS.help,
+        icon: "support_agent",
+        summary: "Help & safety centre, the Android app, terms",
         items: [
           { key: "help", icon: "support_agent", tone: "trust", title: "Help & safety centre", subtitle: "Staying safe, the rules, write to us", words: "support report contact", href: "/me/help" },
           {
@@ -212,9 +236,40 @@ export function SettingsMenuPage() {
   }, [me, wallet, session.verificationState, session.busy, economy, level, follows, autoBlur, dataSaver, showInDiscover, history.length, blocked.length, friends, partner, androidApp]);
 
   if (!me) return null;
+  const iconBg = (tone?: Tone) => (tone ? alpha(tone === "lavender" ? "violet" : tone, tone === "lavender" ? 0.14 : 0.12) : undefined);
+  const rows = (items: Item[]) =>
+    items.map((i) => (
+      <GroupRow
+        key={i.key}
+        icon={i.icon}
+        iconColor={i.tone ?? "text2"}
+        iconBg={iconBg(i.tone)}
+        title={i.title}
+        subtitle={i.subtitle}
+        trailing={i.trailing ?? (i.href || i.onClick ? <Icon name="chevron_right" className="text-muted" /> : undefined)}
+        onClick={i.href ? () => router.push(i.href!) : i.onClick}
+      />
+    ));
+
+  // One group: its rows on their own page.
+  const open = group ? groups.find((g) => g.key === group) : undefined;
+  if (open) {
+    return (
+      <MeSection title={open.title} parent="/me/settings">
+        <GroupCard className="mt-2.5">{rows(open.items.filter((i) => !i.hidden))}</GroupCard>
+        {open.key === "wallet" ? <InviteCodeField className="mt-2.5" /> : null}
+        {open.key === "account" ? (
+          <GroupCard className="mt-6" dividerInset={52}>
+            <GroupRow bare icon="delete" iconVariant="outlined" iconColor="bad" title="Delete account" titleColor="bad" onClick={() => void deleteAccountFlow()} />
+          </GroupCard>
+        ) : null}
+      </MeSection>
+    );
+  }
+
   const needle = q.trim().toLowerCase();
   const matches = (i: Item) => !needle || `${i.title} ${i.subtitle ?? ""} ${i.words ?? ""}`.toLowerCase().includes(needle);
-  const shown = groups.map((g) => ({ ...g, items: g.items.filter((i) => !i.hidden && matches(i)) })).filter((g) => g.items.length);
+  const shown = needle ? groups.map((g) => ({ ...g, items: g.items.filter((i) => !i.hidden && matches(i)) })).filter((g) => g.items.length) : [];
 
   return (
     <MeSection
@@ -227,33 +282,37 @@ export function SettingsMenuPage() {
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search"
+            placeholder="Search settings"
             aria-label="Search settings"
             className="type-body h-11 w-full rounded-[14px] border border-line bg-surface2 pr-4 pl-11 text-[15px] text-text outline-none placeholder:text-muted focus:border-violet"
           />
         </label>
       }
     >
-      {shown.map((g, gi) => (
-        <section key={g.title} aria-label={g.title}>
-          <SectionTitle text={g.title} top={gi === 0 ? 10 : 24} bottom={10} />
-          <GroupCard>
-            {g.items.map((i) => (
-              <GroupRow
-                key={i.key}
-                icon={i.icon}
-                iconColor={i.tone ?? "text2"}
-                iconBg={i.tone ? alpha(i.tone === "lavender" ? "violet" : i.tone, i.tone === "lavender" ? 0.14 : 0.12) : undefined}
-                title={i.title}
-                subtitle={i.subtitle}
-                trailing={i.trailing ?? (i.href || i.onClick ? <Icon name="chevron_right" className="text-muted" /> : undefined)}
-                onClick={i.href ? () => router.push(i.href!) : i.onClick}
-              />
-            ))}
-          </GroupCard>
-          {g.title === "Wallet & invites" && !needle ? <InviteCodeField className="mt-2.5" /> : null}
-        </section>
-      ))}
+      {needle ? (
+        // Searching: the matching rows, under the group they live in.
+        shown.map((g, gi) => (
+          <section key={g.key} aria-label={g.title}>
+            <SectionTitle text={g.title} top={gi === 0 ? 10 : 24} bottom={10} />
+            <GroupCard>{rows(g.items)}</GroupCard>
+          </section>
+        ))
+      ) : (
+        <GroupCard className="mt-2.5">
+          {groups.map((g) => (
+            <GroupRow
+              key={g.key}
+              icon={g.icon}
+              iconColor={g.tone ?? "text2"}
+              iconBg={iconBg(g.tone)}
+              title={g.title}
+              subtitle={g.summary}
+              trailing={<Icon name="chevron_right" className="text-muted" />}
+              onClick={() => router.push(`/me/settings/${g.key}`)}
+            />
+          ))}
+        </GroupCard>
+      )}
 
       {needle && !shown.length ? <p className="type-body mt-10 text-center text-[14px] text-text2">Nothing matches “{q.trim()}”.</p> : null}
 
@@ -261,7 +320,6 @@ export function SettingsMenuPage() {
         <>
           <GroupCard className="mt-6" dividerInset={52}>
             <GroupRow bare icon="logout" iconColor="bad" title="Log out" titleColor="bad" onClick={() => void signOutFlow()} />
-            <GroupRow bare icon="delete" iconVariant="outlined" iconColor="bad" title="Delete account" titleColor="bad" onClick={() => void deleteAccountFlow()} />
           </GroupCard>
           <p className="type-body mt-4 text-center text-[11px] text-muted">Vibe web 0.1</p>
         </>
