@@ -10,7 +10,8 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useAction } from "@/hooks/use-action";
 import { api } from "@/lib/api/client";
 import type { UserDetail } from "@/lib/api/types";
-import { countryOptions } from "@/lib/countries";
+import { allCountryOptions } from "@/lib/countries";
+import { SearchSelect } from "@/components/ui/search-select";
 import { format } from "@/lib/format";
 import { newKey } from "@/lib/utils";
 
@@ -130,13 +131,7 @@ export function EditProfileDialog({ user, open, onOpenChange }: DialogProps) {
             </NativeSelect>
           </Field>
           <Field label="Country">
-            <NativeSelect value={form.countryCode} onChange={(e) => set({ countryCode: e.target.value })}>
-              {countryOptions(countries.data, { include: [form.countryCode], fallback: true }).map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </NativeSelect>
+            <SearchSelect label="Country" value={form.countryCode} onChange={(countryCode) => set({ countryCode })} options={allCountryOptions(countries.data)} />
           </Field>
           <Field label="Bio" className="sm:col-span-2">
             <Textarea value={form.bio} onChange={(e) => set({ bio: e.target.value })} maxLength={160} rows={2} />

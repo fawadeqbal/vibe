@@ -4,6 +4,7 @@ import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/mock/mock_data.dart';
 import '../../core/theme/vibe_theme.dart';
+import '../../core/theme/vibe_dropdown.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/filters.dart';
 import '../../providers/filters_provider.dart';
@@ -28,7 +29,6 @@ class _FiltersSheet extends StatefulWidget {
 
 class _FiltersSheetState extends State<_FiltersSheet> {
   late SharedFilters _f = context.read<FiltersProvider>().filters;
-  bool _picking = false;
 
   Future<void> _done() async {
     final p = context.read<FiltersProvider>();
@@ -87,29 +87,21 @@ class _FiltersSheetState extends State<_FiltersSheet> {
               divider(),
               _RadioRow(icon: SolarIconsBold.flag, title: mine.name, sub: 'Your country', on: _f.countryCode == myCode, onTap: () => setState(() => _f = _f.copyWith(countryCode: myCode))),
               divider(),
-              if (_picking)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _f.countryCode,
-                    isExpanded: true,
-                    dropdownColor: V.surface2,
-                    decoration: const InputDecoration(hintText: 'Choose a country…', isDense: true),
-                    items: [for (final c in MockData.countries) DropdownMenuItem(value: c.code, child: Text('${c.flag}  ${c.name}', style: VT.body(15)))],
-                    onChanged: (v) => setState(() {
-                      _f = v == null ? _f.copyWith(clearCountry: true) : _f.copyWith(countryCode: v);
-                      _picking = false;
-                    }),
-                  ),
-                )
-              else
-                _RadioRow(
+              // Another country: every country, searchable, in the shared dropdown sheet.
+              VibeDropdown(
+                label: 'Choose a country',
+                value: _f.countryCode,
+                options: countryOptions(),
+                searchPlaceholder: 'Search countries',
+                onChanged: (v) => setState(() => _f = _f.copyWith(countryCode: v)),
+                trigger: (context, _, open) => _RadioRow(
                   icon: SolarIconsOutline.transferHorizontal,
-                  title: other != null ? '${other.flag} ${other.name}' : 'Choose a country',
+                  title: other != null ? '${other.flag} ${other.name}' : 'Another country',
                   on: other != null,
                   chevron: other == null,
-                  onTap: () => setState(() => _picking = true),
+                  onTap: open,
                 ),
+              ),
             ],
           ),
           const SizedBox(height: 12),

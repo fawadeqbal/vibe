@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { GradientButton, TextButton } from "@/components/ui/button";
+import { Dropdown } from "@/components/ui/dropdown";
 import { Icon } from "@/components/ui/icon";
 import { Switch } from "@/components/ui/switch";
-import { COUNTRIES } from "@/lib/catalog";
+import { countryOptions, findCountry } from "@/lib/countries";
 import { cn } from "@/lib/cn";
 import { ageLabel, DEFAULT_FILTERS, type SharedFilters, useFilters, usesExtraFilters, type WantedGender } from "@/stores/filters";
 import { useSession } from "@/stores/session";
@@ -31,10 +32,9 @@ function FiltersSheet({ onDone }: { onDone: () => void }) {
   const access = useFilters((s) => s.access);
   const myCountry = useSession((s) => s.me?.country.code ?? "PK");
   const [f, setF] = useState<SharedFilters>(saved);
-  const [picking, setPicking] = useState(false);
   const set = (p: Partial<SharedFilters>) => setF((x) => ({ ...x, ...p }));
-  const mine = COUNTRIES.find((c) => c.code === myCountry);
-  const other = f.countryCode && f.countryCode !== myCountry ? COUNTRIES.find((c) => c.code === f.countryCode) : null;
+  const mine = findCountry(myCountry);
+  const other = f.countryCode && f.countryCode !== myCountry ? findCountry(f.countryCode) : null;
 
   const done = async () => {
     if (!(await useFilters.getState().save(f))) {
@@ -82,36 +82,23 @@ function FiltersSheet({ onDone }: { onDone: () => void }) {
         <Divider />
         <RadioRow icon="flag" title={mine?.name ?? myCountry} sub="Your country" on={f.countryCode === myCountry} onClick={() => set({ countryCode: myCountry })} />
         <Divider />
-        {picking ? (
-          <label className="flex items-center gap-3 px-3.5 py-2.5">
-            <Icon name="swap_horiz" size={20} className="text-text2" />
-            <select
-              autoFocus
-              aria-label="Choose a country"
-              value={f.countryCode ?? ""}
-              onChange={(e) => {
-                set({ countryCode: e.target.value || null });
-                setPicking(false);
-              }}
-              className="type-body h-10 min-w-0 flex-1 rounded-[12px] border border-line bg-surface2 px-3 text-[15px] text-text outline-none focus:border-violet"
-            >
-              <option value="">Choose a country…</option>
-              {COUNTRIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.flag} {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <button type="button" onClick={() => setPicking(true)} className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-white/3">
-            <Icon name="swap_horiz" size={20} className="text-text2" />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="type-title text-[15px] font-semibold">{other ? `${other.flag} ${other.name}` : "Choose a country"}</span>
-            </span>
-            {other ? <Dot /> : <Icon name="chevron_right" size={18} className="text-muted" />}
-          </button>
-        )}
+        <Dropdown
+          label="Choose a country"
+          value={f.countryCode}
+          onChange={(v) => set({ countryCode: v })}
+          options={countryOptions()}
+          searchPlaceholder="Search countries"
+          triggerClassName="flex items-center gap-3 px-3.5 py-3 hover:bg-white/3"
+          trigger={() => (
+            <>
+              <Icon name="swap_horiz" size={20} className="text-text2" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="type-title text-[15px] font-semibold">{other ? `${other.flag} ${other.name}` : "Another country"}</span>
+              </span>
+              {other ? <Dot /> : <Icon name="chevron_right" size={18} className="text-muted" />}
+            </>
+          )}
+        />
       </div>
 
       <div className="mt-3 flex items-center gap-3 rounded-[18px] border border-line bg-surface px-3.5 py-3">

@@ -65,7 +65,7 @@ export function FilterTags({ glass = false, className }: { glass?: boolean; clas
         >
           <button type="button" onClick={openFiltersSheet} className="flex h-full items-center gap-1 pl-[11px]">
             {t.locked ? <Icon name="lock" size={14} label="Needs the filter pass" /> : null}
-            {t.label}
+            <span className="max-w-[170px] truncate">{t.label}</span>
           </button>
           <button type="button" onClick={() => save(t.drop)} aria-label={`Remove ${t.label}`} className="flex h-full items-center pr-2 pl-1 hover:text-white">
             <Icon name="close" size={14} />

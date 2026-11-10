@@ -4,6 +4,7 @@ import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } fro
 
 import { cn } from "@/lib/cn";
 
+import { Dropdown, type DropdownOption } from "./dropdown";
 import { Icon } from "./icon";
 
 /** The app's input look: surface2 fill, 18px radius, hairline, violet focus ring. */
@@ -46,37 +47,23 @@ export const TextArea = forwardRef<HTMLTextAreaElement, AreaProps>(function Text
   );
 });
 
-/** A native select in the dropdown look (country pickers). */
+/** A form dropdown (the design system's Dropdown in its field size). */
 export function Select({
   value,
   onChange,
   options,
   label,
   className,
-  icon = "arrow_drop_down",
+  suggested,
+  icon,
 }: {
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  options: DropdownOption[];
   label: string;
   className?: string;
+  suggested?: string[];
   icon?: string;
 }) {
-  return (
-    <div className={cn("relative rounded-[18px] border border-line bg-surface2", className)}>
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="type-body h-12 w-full cursor-pointer appearance-none rounded-[18px] bg-transparent pr-10 pl-3.5 text-[15px] text-text outline-none focus-visible:outline-2 focus-visible:outline-lavender"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value} className="bg-surface2 text-text">
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <Icon name={icon} size={24} className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-text2" />
-    </div>
-  );
+  return <Dropdown value={value} onChange={onChange} options={options} label={label} className={className} suggested={suggested} icon={icon} />;
 }

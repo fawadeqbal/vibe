@@ -299,7 +299,8 @@ class DeckEmpty extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(a.label, style: VT.label(13, weight: FontWeight.w600)),
+                            // A long label (a country like "United Arab Emirates") shortens with "…" instead of overflowing.
+                            Flexible(child: Text(a.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(13, weight: FontWeight.w600))),
                             const SizedBox(width: 6),
                             const Icon(Icons.close_rounded, size: 16, color: V.text2),
                           ],

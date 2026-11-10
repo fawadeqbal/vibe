@@ -140,7 +140,7 @@ class _Tag extends StatelessWidget {
                 padding: const EdgeInsets.only(left: 11),
                 child: Row(children: [
                   if (locked) ...[const Icon(SolarIconsBold.lockKeyhole, size: 14, color: V.pinkSoft), const SizedBox(width: 4)],
-                  Text(label, style: VT.label(13, color: V.pinkSoft, weight: FontWeight.w600)),
+                  ConstrainedBox(constraints: const BoxConstraints(maxWidth: 170), child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(13, color: V.pinkSoft, weight: FontWeight.w600))),
                 ]),
               ),
             ),

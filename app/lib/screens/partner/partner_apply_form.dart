@@ -8,6 +8,7 @@ import 'package:solar_icons/solar_icons.dart';
 import '../../core/api/api_config.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/theme/vibe_theme.dart';
+import '../../core/theme/vibe_dropdown.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/partner.dart';
 import '../../providers/partner_provider.dart';
@@ -258,21 +259,11 @@ class _PartnerApplyFormState extends State<PartnerApplyForm> {
           Row(
             children: [
               Expanded(
-                child: Panel(
-                  padding: EdgeInsets.zero,
-                  color: V.surface2,
-                  radius: 16,
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: c.platform,
-                      isExpanded: true,
-                      dropdownColor: V.surface2,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      borderRadius: BorderRadius.circular(14),
-                      items: [for (final p in partnerPlatforms) DropdownMenuItem(value: p, child: Text(partnerSourceLabel(p), style: VT.body(15)))],
-                      onChanged: (v) => setState(() => c.platform = v ?? c.platform),
-                    ),
-                  ),
+                child: VibeDropdown(
+                  label: 'Platform',
+                  value: c.platform,
+                  options: [for (final p in partnerPlatforms) DropdownOption(p, partnerSourceLabel(p))],
+                  onChanged: (v) => setState(() => c.platform = v),
                 ),
               ),
               if (_channels.length > 1) ...[

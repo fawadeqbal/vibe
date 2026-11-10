@@ -6,6 +6,8 @@ import '../../core/api/api_exception.dart';
 import '../../core/mock/mock_data.dart';
 import '../../core/theme/intent_icons.dart';
 import '../../core/theme/vibe_theme.dart';
+import '../../core/data/countries.dart' show defaultCountryCode;
+import '../../core/theme/vibe_dropdown.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/models.dart';
 import '../../providers/session_provider.dart';
@@ -195,21 +197,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ),
             const SizedBox(height: 18),
             _label('Country'),
-            Panel(
-              padding: EdgeInsets.zero,
-              color: V.surface2,
-              radius: 18,
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _country.code,
-                  isExpanded: true,
-                  dropdownColor: V.surface2,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  borderRadius: BorderRadius.circular(14),
-                  items: [for (final c in MockData.countries) DropdownMenuItem(value: c.code, child: Text('${c.flag}  ${c.name}', style: VT.body(15)))],
-                  onChanged: (v) => setState(() => _country = MockData.country(v ?? 'PK')),
-                ),
-              ),
+            VibeDropdown(
+              label: 'Country',
+              value: _country.code,
+              options: countryOptions(),
+              suggested: const [defaultCountryCode],
+              searchPlaceholder: 'Search countries',
+              onChanged: (v) => setState(() => _country = MockData.country(v)),
             ),
             const SizedBox(height: 18),
             _label('About you'),

@@ -626,9 +626,8 @@ export const DEFAULT_ECONOMY: EconomySnapshot = { rules: DEFAULT_RULES, packs: D
 
 // ── fixed lists (not editable) ───────────────────────────────────────────────
 
-export const COUNTRY_CODES = [
-  'PK', 'IN', 'US', 'GB', 'TR', 'BR', 'DE', 'FR', 'AE', 'SA', 'ID', 'PH', 'KR', 'JP', 'MX', 'NG', 'EG', 'CA', 'AU', 'ES',
-] as const;
+// Every country (ISO 3166-1 + Kosovo); the list lives in countries.ts.
+export { COUNTRY_CODES } from './countries';
 
 export const INTERESTS = [
   'Music', 'Gaming', 'Travel', 'Movies', 'Cricket', 'Football', 'Anime', 'Cooking', 'Fitness', 'Art',

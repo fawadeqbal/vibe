@@ -34,3 +34,15 @@ describe("countries", () => {
     expect(countryOptions(undefined).length).toBeGreaterThan(10);
   });
 });
+
+describe("every country", () => {
+  it("lists all 250 (ISO 3166-1 plus Kosovo) once, with names", async () => {
+    const { ALL_COUNTRIES, allCountryOptions } = await import("./countries");
+    expect(ALL_COUNTRIES).toHaveLength(250);
+    expect(new Set(ALL_COUNTRIES).size).toBe(250);
+    const o = allCountryOptions([{ code: "PK", count: 7 }]);
+    expect(o).toHaveLength(250);
+    expect(o.find((x) => x.value === "PK")).toMatchObject({ textValue: "Pakistan", count: 7 });
+    expect(o.find((x) => x.value === "AE")?.textValue).toBe("United Arab Emirates");
+  });
+});

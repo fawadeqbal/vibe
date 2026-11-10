@@ -6,6 +6,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Menu, MenuCheckboxItem, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
+import { SEARCH_FROM, SearchPicker } from "@/components/ui/search-select";
 import { useDebounced } from "@/hooks/use-url-state";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +71,16 @@ const chip = (active: boolean) =>
 /** Single-choice filter as a chip with a menu ("Status: Open ▾"). */
 export function FilterSelect({ label, value, options, onChange, allLabel = "All" }: { label: string; value: string; options: Option[]; onChange: (v: string) => void; allLabel?: string }) {
   const current = options.find((o) => o.value === value);
+  const button = (
+    <Button size="sm" className={chip(!!current)}>
+      {label}
+      {current && <span className="font-semibold">: {current.label}</span>}
+      <ChevronDown className="size-3.5 opacity-60" />
+    </Button>
+  );
+  // A long list (countries): searchable, scrolling inside.
+  if (options.length > SEARCH_FROM)
+    return <SearchPicker label={label} trigger={button} options={options} selected={value ? [value] : []} onPick={onChange} head={[{ label: allLabel, onSelect: () => onChange("") }]} />;
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -95,6 +106,24 @@ export function FilterSelect({ label, value, options, onChange, allLabel = "All"
 /** Multi-choice filter chip ("Reason: Spam, Scam ▾"). */
 export function FilterMulti({ label, value, options, onChange }: { label: string; value: string[]; options: Option[]; onChange: (v: string[]) => void }) {
   const picked = options.filter((o) => value.includes(o.value));
+  if (options.length > SEARCH_FROM)
+    return (
+      <SearchPicker
+        multi
+        label={label}
+        options={options}
+        selected={value}
+        onPick={(v) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v])}
+        foot={value.length > 0 ? [{ label: "Clear", onSelect: () => onChange([]) }] : undefined}
+        trigger={
+          <Button size="sm" className={chip(picked.length > 0)}>
+            {label}
+            {picked.length > 0 && <span className="font-semibold">: {picked.length > 2 ? `${picked.length} selected` : picked.map((p) => p.label).join(", ")}</span>}
+            <ChevronDown className="size-3.5 opacity-60" />
+          </Button>
+        }
+      />
+    );
   return (
     <Menu>
       <MenuTrigger asChild>
