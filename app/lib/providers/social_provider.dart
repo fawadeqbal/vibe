@@ -37,6 +37,7 @@ abstract class SocialProvider extends ChangeNotifier {
   bool _loaded = false;
   final Map<String, DateTime> _typing = {};
   final Map<String, DateTime> _seenAt = {};
+  final Map<String, DateTime> _deliveredAt = {};
   final Map<String, Timer> _typingTimers = {};
 
   List<Friend> get friends =>
@@ -162,6 +163,9 @@ abstract class SocialProvider extends ChangeNotifier {
   /// When they last read the chat (live `message:read`).
   DateTime? seenAt(String friendId) => _seenAt[friendId];
 
+  /// When your messages last reached their phone or an open tab (live `message:delivered`).
+  DateTime? deliveredAt(String friendId) => _deliveredAt[friendId];
+
   /// Whether your [m] can still be unsent.
   static bool canUnsend(ChatMessage m) =>
       m.fromMe && !m.unsent && !m.isSystem && m.kind != MessageKind.gift && DateTime.now().difference(m.at).inMinutes < Economy.chatUnsendMinutes;
@@ -185,6 +189,12 @@ abstract class SocialProvider extends ChangeNotifier {
   @protected
   void noteSeen(String friendId, DateTime at) {
     _seenAt[friendId] = at;
+    notifyListeners();
+  }
+
+  @protected
+  void noteDelivered(String friendId, DateTime at) {
+    _deliveredAt[friendId] = at;
     notifyListeners();
   }
 

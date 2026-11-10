@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { type Message, MessageKind, Prisma } from '@prisma/client';
 
 import { cursorArgs, CursorQueryDto, toPage } from '../../common/dto/pagination.dto';
@@ -8,6 +8,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import { Clock } from '../../common/utils/clock';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { ServerEvent } from '../../infra/realtime/realtime.events';
+import { SOCKET_CONNECTED, SocketLifecycleEvent } from '../../infra/realtime/realtime.gateway';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { StorageProvider } from '../../infra/storage/storage.provider';
@@ -49,6 +50,9 @@ export interface MessageView {
   text: string;
   giftId: string | null;
   at: string;
+  /** Reached their phone or an open tab (two grey ticks); null = sent only (one tick). */
+  deliveredAt: string | null;
+  /** They read it (two coloured ticks). */
   readAt: string | null;
   /** The message this one replies to (null when none, or it's gone). */
   replyTo: ReplyView | null;
@@ -116,6 +120,7 @@ export class MessagesService {
       text: m.unsentAt ? '' : m.text,
       giftId: m.giftId,
       at: m.createdAt.toISOString(),
+      deliveredAt: (m.deliveredAt ?? m.readAt)?.toISOString() ?? null,
       readAt: m.readAt?.toISOString() ?? null,
       replyTo: reply
         ? { id: reply.id, fromMe: reply.senderId === me, kind: reply.kind.toLowerCase() as MessageKindView, text: reply.unsentAt ? '' : reply.text.slice(0, 140), unsent: !!reply.unsentAt }
@@ -306,7 +311,7 @@ export class MessagesService {
    */
   async system(friendshipId: string, by: string, otherId: string, text: string, meta: Record<string, unknown>): Promise<MessageView> {
     const m = await this.prisma.$transaction(async (tx) => {
-      const msg = await tx.message.create({ data: { friendshipId, senderId: by, kind: MessageKind.SYSTEM, text, meta: meta as Prisma.InputJsonObject, readAt: this.clock.now() } });
+      const msg = await tx.message.create({ data: { friendshipId, senderId: by, kind: MessageKind.SYSTEM, text, meta: meta as Prisma.InputJsonObject, deliveredAt: this.clock.now(), readAt: this.clock.now() } });
       await tx.friendship.update({ where: { id: friendshipId }, data: { lastMessageAt: msg.createdAt } });
       return msg;
     });
@@ -326,7 +331,35 @@ export class MessagesService {
     return r.count;
   }
 
+  /**
+   * Their messages reached you (you connected, opened the app or a chat):
+   * delivered now, and each sender's ticks turn into two grey ones live.
+   */
+  async markDelivered(me: string): Promise<number> {
+    const pending = await this.prisma.message.findMany({
+      where: { deliveredAt: null, senderId: { not: me }, friendship: { OR: [{ userLowId: me }, { userHighId: me }] } },
+      select: { id: true, senderId: true },
+      take: 5000,
+    });
+    if (!pending.length) return 0;
+    const at = this.clock.now();
+    await this.prisma.message.updateMany({ where: { id: { in: pending.map((m) => m.id) }, deliveredAt: null }, data: { deliveredAt: at } });
+    for (const sender of new Set(pending.map((m) => m.senderId))) this.realtime.toUser(sender, ServerEvent.MessagesDelivered, { friendId: me, at: at.toISOString() });
+    return pending.length;
+  }
+
+  @OnEvent(SOCKET_CONNECTED, { async: true, suppressErrors: true })
+  async onConnect(e: SocketLifecycleEvent): Promise<void> {
+    await this.markDelivered(e.userId);
+  }
+
   private async push(m: Message, me: string, friendId: string): Promise<void> {
+    // They're connected (phone or tab): it reached them now, so it goes out with two grey ticks.
+    if (await this.realtime.isOnline(friendId)) {
+      const at = this.clock.now();
+      await this.prisma.message.update({ where: { id: m.id }, data: { deliveredAt: at } });
+      m.deliveredAt = at;
+    }
     const replies = await this.repliesFor([m]);
     this.realtime.toUser(friendId, ServerEvent.Message, this.toView(m, friendId, me, replies));
     this.realtime.toUser(me, ServerEvent.Message, this.toView(m, me, friendId, replies));

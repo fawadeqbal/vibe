@@ -104,6 +104,9 @@ class Ev {
 
   /// They read your messages: `{ friendId, at }`.
   static const messagesRead = 'message:read';
+
+  /// Your messages reached your friend's phone or an open tab: `{ friendId, at }` (two grey ticks).
+  static const messagesDelivered = 'message:delivered';
 }
 
 class RealtimeEvent {

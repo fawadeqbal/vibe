@@ -25,6 +25,8 @@ interface SocialState {
   typing: Record<string, number>;
   /** When each friend last read your messages ("Seen"). */
   seenAt: Record<string, Date>;
+  /** When each friend's phone or tab last received your messages (live, `message:delivered`). */
+  deliveredAt: Record<string, Date>;
   blocked: string[];
   /** Free users only get blurred faces (placeholders); `likedYouCount` is the real number. */
   likedYou: Profile[];
@@ -131,6 +133,7 @@ export const useSocial = create<SocialState>()((set, get) => {
     loadingOlder: {},
     typing: {},
     seenAt: {},
+    deliveredAt: {},
     blocked: [],
     likedYou: [],
     likedYouCount: 0,
@@ -358,7 +361,7 @@ export const useSocial = create<SocialState>()((set, get) => {
     reset() {
       loadedChats.clear();
       openChat = null;
-      set({ all: [], chats: {}, olderCursor: {}, loadingOlder: {}, typing: {}, seenAt: {}, blocked: [], likedYou: [], likedYouCount: 0, loaded: false });
+      set({ all: [], chats: {}, olderCursor: {}, loadingOlder: {}, typing: {}, seenAt: {}, deliveredAt: {}, blocked: [], likedYou: [], likedYouCount: 0, loaded: false });
     },
   };
 });
@@ -451,6 +454,7 @@ function onMessage(m: Json) {
     const last: LastMessage = {
       fromMe: msg.fromMe,
       kind: msg.kind ?? "text",
+      delivered: !!msg.deliveredAt,
       read: false,
       unsent: false,
       event: typeof msg.meta?.event === "string" ? msg.meta.event : null,
@@ -510,6 +514,12 @@ realtime.on(Ev.messagesRead, (d) => {
   const id = d.friendId;
   const at = typeof d.at === "string" ? new Date(d.at) : new Date();
   useSocial.setState((s) => ({ seenAt: { ...s.seenAt, [id]: at } }));
+});
+realtime.on(Ev.messagesDelivered, (d) => {
+  if (typeof d.friendId !== "string") return;
+  const id = d.friendId;
+  const at = typeof d.at === "string" ? new Date(d.at) : new Date();
+  useSocial.setState((s) => ({ deliveredAt: { ...s.deliveredAt, [id]: at } }));
 });
 const reload = () => void useSocial.getState().load();
 realtime.on(Ev.friendRequest, reload);

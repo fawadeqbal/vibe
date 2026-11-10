@@ -19,6 +19,7 @@ import 'package:vibe_app/screens/calls/friend_call.dart';
 import 'package:vibe_app/screens/social/chat_calls.dart';
 import 'package:vibe_app/screens/social/chat_screen.dart';
 import 'package:vibe_app/screens/social/chat_tools.dart';
+import 'package:vibe_app/screens/social/message_status.dart';
 import 'package:vibe_app/services/app_services.dart';
 
 const _sana = Profile(id: 'u2', name: 'Sana Iqbal', age: 24, gender: Gender.female, country: Country('PK', 'Pakistan', '🇵🇰'), avatarUrl: '');
@@ -142,7 +143,7 @@ void main() {
   });
 
   group('screens', () {
-    testWidgets('chat: bubbles, reactions, replies, blurred photos, voice notes and Seen', (tester) async {
+    testWidgets('chat: bubbles, reactions, replies, blurred photos, voice notes and ticks', (tester) async {
       SharedPreferences.setMockInitialValues({});
       final backend = MockBackend();
       final wallet = WalletProvider(backend);
@@ -172,6 +173,9 @@ void main() {
       expect(find.text('You'), findsOneWidget); // the quote's author
       expect(find.text('❤️'), findsOneWidget); // reaction chip
       expect(find.text('0:09'), findsOneWidget); // voice note length
+      // Every message has its time; yours carry ticks (the mock reads them, so seen ones are teal).
+      expect(find.byType(Ticks), findsWidgets);
+      expect(find.text('Today'), findsOneWidget); // the day line
       // Voice only (no video yet): a phone, no camera.
       expect(find.bySemanticsLabel('Voice call Sana Iqbal'), findsOneWidget);
       expect(find.bySemanticsLabel('Video call Sana Iqbal'), findsNothing);
@@ -187,6 +191,7 @@ void main() {
       expect(find.text('Reply'), findsOneWidget);
       expect(find.text('Copy'), findsOneWidget);
       expect(find.text('Unsend'), findsOneWidget);
+      expect(find.text('Info'), findsOneWidget); // yours: when it was sent, delivered, seen
       expect(find.text('Report'), findsNothing); // yours
       await tester.tap(find.text('Reply'));
       await tester.pumpAndSettle();

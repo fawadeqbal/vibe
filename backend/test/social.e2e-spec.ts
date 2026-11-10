@@ -50,7 +50,7 @@ describe('friends, chat, blocks, likes', () => {
     await t.http.post(`/v1/friends/${b.id}/messages`).set(a.auth).send({ text: 'send me your playlist later' }).expect(201);
     const list = await t.http.get('/v1/friends').set(b.auth).expect(200);
     expect(list.body[0]).toMatchObject({ state: 'friends', lastMessage: 'send me your playlist later', unread: 1 });
-    expect(list.body[0].last).toEqual({ fromMe: false, kind: 'text', read: false, unsent: false, event: null, seconds: null });
+    expect(list.body[0].last).toEqual({ fromMe: false, kind: 'text', delivered: false, read: false, unsent: false, event: null, seconds: null });
     const mine = await t.http.get('/v1/friends').set(a.auth).expect(200);
     expect(mine.body[0].last).toMatchObject({ fromMe: true, read: false });
     await t.http.post(`/v1/friends/${a.id}/read`).set(b.auth).expect(200);

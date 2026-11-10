@@ -81,6 +81,8 @@ export const ServerEvent = {
   MessageUpdated: 'message:updated',
   /** Your friend read your messages: `{ friendId, at }`. */
   MessagesRead: 'message:read',
+  /** Your messages reached your friend's phone or an open tab: `{ friendId, at }` (two grey ticks). */
+  MessagesDelivered: 'message:delivered',
 
   RtcSignal: 'rtc:signal',
 

@@ -4,8 +4,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
+import { date, sameDay, time } from "@/lib/format";
 import type { ChatMessage } from "@/lib/models";
 import { openSheet } from "@/stores/ui";
+
+import { Ticks } from "./ticks";
 
 // ── emoji ───────────────────────────────────────────────────────────────────
 
@@ -78,10 +81,10 @@ export function EmojiPanel({ onPick }: { onPick: (e: string) => void }) {
 
 // ── hold a message ──────────────────────────────────────────────────────────
 
-export type MessageAction = { kind: "react"; emoji: string } | { kind: "reply" } | { kind: "copy" } | { kind: "edit" } | { kind: "unsend" } | { kind: "report" };
+export type MessageAction = { kind: "react"; emoji: string } | { kind: "reply" } | { kind: "copy" } | { kind: "edit" } | { kind: "info" } | { kind: "unsend" } | { kind: "report" };
 
 /** What you may do with your own message right now (both inside the unsend window). */
-export type MessageRights = { unsend: boolean; edit: boolean };
+export type MessageRights = { unsend: boolean; edit: boolean; info?: boolean };
 
 /** Hold (or right-click) a message: react, reply, copy, edit or unsend yours, report theirs. */
 export const openMessageMenu = (m: ChatMessage, rights: MessageRights, sentAt?: string) =>
@@ -128,8 +131,50 @@ function MessageMenu({ m, rights, sentAt, onDone }: { m: ChatMessage; rights: Me
         {row("reply", "Reply", { kind: "reply" })}
         {isText(m) ? row("content_copy", "Copy", { kind: "copy" }) : null}
         {rights.edit && isText(m) ? row("edit", "Edit", { kind: "edit" }) : null}
+        {rights.info ? row("info_outline", "Info", { kind: "info" }) : null}
         {rights.unsend ? row("undo", "Unsend", { kind: "unsend" }, true) : null}
         {!m.fromMe ? row("flag", "Report", { kind: "report" }, true) : null}
+      </ul>
+    </div>
+  );
+}
+
+/** Hold › Info on your message: when it was sent, reached their phone or tab, and was read. */
+export const openMessageInfo = (m: ChatMessage, name: string, times: { sent: Date; delivered: Date | null; seen: Date | null }) =>
+  openSheet<void>((close) => <MessageInfo m={m} name={name} times={times} onDone={() => close()} />);
+
+const when = (t: Date) => `${sameDay(t, new Date()) ? "Today" : sameDay(t, new Date(Date.now() - 86_400_000)) ? "Yesterday" : date(t)}, ${time(t)}`;
+
+function MessageInfo({ m, name, times, onDone }: { m: ChatMessage; name: string; times: { sent: Date; delivered: Date | null; seen: Date | null }; onDone: () => void }) {
+  const first = name.split(" ")[0];
+  const preview = m.kind === "photo" ? "📷 Photo" : m.kind === "voice" ? "🎤 Voice message" : m.gift ? `${m.gift.emoji} ${m.gift.name}` : m.text;
+  const rows: { label: string; sub: string; at: Date | null; status: "seen" | "delivered" | "sent" }[] = [
+    { label: "Seen", sub: times.seen ? `${first} opened the chat` : `${first} hasn't read it yet`, at: times.seen, status: "seen" },
+    { label: "Delivered", sub: times.delivered ? `Reached ${first}'s phone or an open tab` : `Waiting for ${first} to come online`, at: times.delivered, status: "delivered" },
+    { label: "Sent", sub: "Saved on Vibe", at: times.sent, status: "sent" },
+  ];
+  return (
+    <div className="flex flex-col px-4 pt-2 pb-5">
+      <div className="mb-3 flex items-center">
+        <h2 className="type-title-lg flex-1 text-[20px]">Message info</h2>
+        <button type="button" aria-label="Close" onClick={onDone} className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-white/8 hover:text-text">
+          <Icon name="close" size={20} />
+        </button>
+      </div>
+      <p className="type-body ml-auto max-w-[80%] rounded-[20px] rounded-br-[6px] bg-gradient-to-br from-violet to-[#7c3aed] px-[13px] py-[9px] text-[14.5px] break-words text-white">{preview}</p>
+      <ul className="mt-4 overflow-hidden rounded-[20px] bg-surface2">
+        {rows.map((r) => (
+          <li key={r.label} className={cn("flex items-center gap-3.5 px-4 py-3", !r.at && "opacity-55")}>
+            <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-full", r.status === "seen" && r.at ? "bg-trust/12" : "bg-white/6")}>
+              <Ticks status={r.status} />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="type-title text-[15px] font-bold">{r.label}</span>
+              <span className="type-body truncate text-[12.5px] text-text2">{r.sub}</span>
+            </span>
+            <span className="type-label shrink-0 text-[13px] text-text2 tabular-nums">{r.at ? when(r.at) : "—"}</span>
+          </li>
+        ))}
       </ul>
     </div>
   );

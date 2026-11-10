@@ -157,7 +157,7 @@ export function lastMessage(v: unknown): LastMessage | null {
   if (!v || typeof v !== "object") return null;
   const m = asMap(v);
   const kind = (KINDS as readonly string[]).includes(String(m.kind)) ? (m.kind as LastMessage["kind"]) : "text";
-  return { fromMe: bool(m.fromMe), kind, read: bool(m.read), unsent: bool(m.unsent), event: optStr(m.event), seconds: typeof m.seconds === "number" ? m.seconds : null };
+  return { fromMe: bool(m.fromMe), kind, delivered: bool(m.delivered) || bool(m.read), read: bool(m.read), unsent: bool(m.unsent), event: optStr(m.event), seconds: typeof m.seconds === "number" ? m.seconds : null };
 }
 
 export const streak = (m: Json): StreakView => ({
@@ -208,6 +208,7 @@ export function message(m: Json, giftById: (id: unknown) => Gift | null): ChatMe
     reactions: { mine: typeof re.mine === "string" ? re.mine : null, theirs: typeof re.theirs === "string" ? re.theirs : null },
     unsent: bool(m.unsent),
     edited: bool(m.edited),
+    deliveredAt: date(m.deliveredAt),
     readAt: date(m.readAt),
     hidden: meta?.hidden === true,
   };

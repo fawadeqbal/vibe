@@ -2,7 +2,7 @@ import '../../models/models.dart';
 
 enum PreviewIcon { photo, mic, gift, call, callMissed }
 
-enum PreviewTicks { sent, seen }
+enum PreviewTicks { sent, delivered, seen }
 
 /// The second line of a chat in the list: what the last message was.
 /// Same rules as the web (`chat-preview.ts`).
@@ -15,16 +15,18 @@ class ChatPreview {
   /// A missed call from them reads in red.
   final bool missed;
 
-  /// [seenAt]: when they last read the chat (live read receipts), for the ticks.
-  factory ChatPreview.of(Friend f, {DateTime? seenAt}) {
+  /// [seenAt] / [deliveredAt]: live receipts for the chat (when they last read it, when it last reached them), for the ticks.
+  factory ChatPreview.of(Friend f, {DateTime? seenAt, DateTime? deliveredAt}) {
     final l = f.last;
     final text = f.lastMessage ?? '';
     if (l == null) return ChatPreview(text.isEmpty ? 'Say hi 👋' : text);
     if (l.unsent) return ChatPreview(l.fromMe ? 'You unsent a message' : 'Message unsent');
     final you = l.fromMe ? 'You: ' : '';
     final at = f.lastMessageAt;
-    final seen = l.read || (seenAt != null && at != null && !seenAt.isBefore(at));
-    final ticks = l.fromMe && l.kind != MessageKind.system ? (seen ? PreviewTicks.seen : PreviewTicks.sent) : null;
+    bool after(DateTime? t) => t != null && at != null && !t.isBefore(at);
+    final ticks = l.fromMe && l.kind != MessageKind.system
+        ? (l.read || after(seenAt) ? PreviewTicks.seen : (l.delivered || after(deliveredAt) ? PreviewTicks.delivered : PreviewTicks.sent))
+        : null;
     switch (l.kind) {
       case MessageKind.photo:
         return ChatPreview('${you}Photo', icon: PreviewIcon.photo, ticks: ticks);

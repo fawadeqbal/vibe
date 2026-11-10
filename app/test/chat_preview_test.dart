@@ -17,6 +17,8 @@ void main() {
     expect(ChatPreview.of(f(const LastMessage(fromMe: false))).text, 'hey');
     final mine = ChatPreview.of(f(const LastMessage(fromMe: true)));
     expect((mine.text, mine.ticks), ('You: hey', PreviewTicks.sent));
+    expect(ChatPreview.of(f(const LastMessage(fromMe: true, delivered: true))).ticks, PreviewTicks.delivered);
+    expect(ChatPreview.of(f(const LastMessage(fromMe: true)), deliveredAt: at).ticks, PreviewTicks.delivered);
     expect(ChatPreview.of(f(const LastMessage(fromMe: true, read: true))).ticks, PreviewTicks.seen);
     expect(ChatPreview.of(f(const LastMessage(fromMe: true)), seenAt: at.add(const Duration(seconds: 5))).ticks, PreviewTicks.seen);
   });

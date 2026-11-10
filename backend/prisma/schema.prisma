@@ -769,6 +769,8 @@ model Message {
   giftId       String?
   meta         Json?
   createdAt    DateTime    @default(now())
+  /// Reached the other person's phone or an open tab (two grey ticks); null = sent only (one tick).
+  deliveredAt  DateTime?
   readAt       DateTime?
   /// The message this one replies to (shown as a quote).
   replyToId    String?

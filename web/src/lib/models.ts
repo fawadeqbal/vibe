@@ -194,6 +194,8 @@ export interface Friend {
 export interface LastMessage {
   fromMe: boolean;
   kind: "text" | "gift" | "system" | "photo" | "voice";
+  /** Yours, and it reached their phone or an open tab (two grey ticks). */
+  delivered: boolean;
   /** Yours, and they've read it. */
   read: boolean;
   unsent: boolean;
@@ -241,6 +243,8 @@ export interface ChatMessage {
   unsent?: boolean;
   /** Its sender changed the text: "edited" next to it. */
   edited?: boolean;
+  /** Reached their phone or an open tab (your messages: two grey ticks). */
+  deliveredAt?: Date | null;
   /** When they read it (your messages). */
   readAt?: Date | null;
   /** Still sending (text) or uploading (photo/voice note), shown faded. */

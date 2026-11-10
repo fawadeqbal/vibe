@@ -140,5 +140,17 @@ class Fmt {
     return '${t.day} ${months[t.month - 1]} ${t.year}';
   }
 
+  /// A chat's day line: Today, Yesterday, a weekday this past week, else 12 Oct (and the year if not this one).
+  static String dayLine(DateTime t, {DateTime? now}) {
+    final n = now ?? DateTime.now();
+    final days = DateTime(n.year, n.month, n.day).difference(DateTime(t.year, t.month, t.day)).inDays;
+    if (days <= 0) return 'Today';
+    if (days == 1) return 'Yesterday';
+    const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    if (days < 7) return weekdays[t.weekday - 1];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return t.year == n.year ? '${t.day} ${months[t.month - 1]}' : date(t);
+  }
+
   static bool sameDay(DateTime? a, DateTime? b) => a != null && b != null && a.year == b.year && a.month == b.month && a.day == b.day;
 }

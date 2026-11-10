@@ -212,7 +212,10 @@ class LocalSocialProvider extends SocialProvider {
 
   void _scheduleReply(String friendId, {bool thanks = false}) {
     final wait = 2 + friendId.hashCode.abs() % 5;
-    // They read it, then type for a moment, then answer.
+    // It reaches their phone, they read it, then type for a moment, then answer.
+    _timers.add(Timer(const Duration(milliseconds: 300), () {
+      if (friend(friendId) != null) noteDelivered(friendId, DateTime.now());
+    }));
     _timers.add(Timer(const Duration(milliseconds: 900), () {
       if (friend(friendId) == null) return;
       noteSeen(friendId, DateTime.now());

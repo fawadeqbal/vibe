@@ -9,9 +9,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:solar_icons/solar_icons.dart';
 
 import '../../core/theme/vibe_theme.dart';
+import '../../core/util/format.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/models.dart';
 import '../../providers/social_provider.dart';
+import 'message_status.dart';
 
 /// Colour emoji first wherever the platform has them.
 const emojiFonts = ['Apple Color Emoji', 'Noto Color Emoji', 'NotoColorEmoji', 'Segoe UI Emoji'];
@@ -168,7 +170,7 @@ class ReactAction extends MessageAction {
   final String emoji;
 }
 
-enum SimpleAction { reply, copy, edit, unsend, report }
+enum SimpleAction { reply, copy, edit, info, unsend, report }
 
 class PlainAction extends MessageAction {
   const PlainAction(this.action);
@@ -226,6 +228,7 @@ Future<MessageAction?> showMessageMenu(BuildContext context, ChatMessage m) {
                 if (!m.unsent) row(Icons.reply_rounded, 'Reply', SimpleAction.reply),
                 if (copyable) row(SolarIconsOutline.copy, 'Copy', SimpleAction.copy),
                 if (copyable && SocialProvider.canUnsend(m)) row(SolarIconsOutline.pen, 'Edit', SimpleAction.edit),
+                if (m.fromMe && !m.isSystem && !m.unsent && !m.pending && !m.failed) row(SolarIconsOutline.infoCircle, 'Info', SimpleAction.info),
                 if (SocialProvider.canUnsend(m)) row(SolarIconsOutline.undoLeftRound, 'Unsend', SimpleAction.unsend, bad: true),
                 if (!m.fromMe) row(SolarIconsOutline.flag, 'Report', SimpleAction.report, bad: true),
               ],
@@ -233,6 +236,83 @@ Future<MessageAction?> showMessageMenu(BuildContext context, ChatMessage m) {
           ),
         );
       },
+    ),
+  );
+}
+
+/// Hold › Info on your message: when it was sent, reached their phone or tab, and was read.
+Future<void> showMessageInfo(BuildContext context, ChatMessage m, {required String name, required DateTime sent, DateTime? delivered, DateTime? seen}) {
+  final first = name.split(' ').first;
+  String when(DateTime t) {
+    final now = DateTime.now();
+    final day = Fmt.sameDay(t, now) ? 'Today' : Fmt.sameDay(t, now.subtract(const Duration(days: 1))) ? 'Yesterday' : Fmt.date(t);
+    return '$day, ${Fmt.time(t)}';
+  }
+
+  final preview = m.kind == MessageKind.photo ? '📷 Photo' : m.kind == MessageKind.voice ? '🎤 Voice message' : m.gift != null ? '${m.gift!.emoji} ${m.gift!.name}' : m.text;
+  Widget row(String label, String sub, DateTime? at, MessageStatus status) => Opacity(
+        opacity: at == null ? 0.55 : 1,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: status == MessageStatus.seen && at != null ? V.trust.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.06)),
+                child: Ticks(status),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: VT.title(15, weight: FontWeight.w700)),
+                    Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.body(12.5, color: V.text2)),
+                  ],
+                ),
+              ),
+              Text(at == null ? '—' : when(at), style: VT.number(13, color: V.text2)),
+            ],
+          ),
+        ),
+      );
+  return showVibeSheet<void>(
+    context,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Message info', style: VT.title(20, weight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 280),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [V.violet, Color(0xFF7C3AED)]),
+                borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20), bottomLeft: Radius.circular(20), bottomRight: Radius.circular(6)),
+              ),
+              child: Text(preview, style: VT.body(14.5, color: Colors.white, height: 1.4)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(color: V.surface2, borderRadius: BorderRadius.circular(20)),
+            child: Column(
+              children: [
+                row('Seen', seen != null ? '$first opened the chat' : "$first hasn't read it yet", seen, MessageStatus.seen),
+                row('Delivered', delivered != null ? "Reached $first's phone or an open tab" : 'Waiting for $first to come online', delivered, MessageStatus.delivered),
+                row('Sent', 'Saved on Vibe', sent, MessageStatus.sent),
+              ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
