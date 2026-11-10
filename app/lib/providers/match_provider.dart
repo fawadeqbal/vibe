@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api/api_client.dart';
 import '../core/api/api_config.dart';
@@ -12,6 +13,7 @@ import '../core/api/realtime_client.dart';
 import '../core/mock/mock_backend.dart';
 import '../core/mock/mock_data.dart';
 import '../models/models.dart';
+import '../services/calls/call_quality.dart';
 import 'session_provider.dart';
 import 'social_provider.dart';
 import 'wallet_provider.dart';
@@ -26,6 +28,9 @@ enum EndReason { skipped, partnerLeft, stopped, reported }
 
 /// Turning a voice call into video: nobody asked, you asked, they asked.
 enum VideoAsk { none, mine, theirs }
+
+/// Whose connection dropped while the call waits for it.
+enum CallReconnecting { none, me, partner }
 
 /// A friend call that just ended: the "Call ended" screen.
 class FriendCallEnded {
@@ -175,6 +180,50 @@ abstract class MatchProvider extends ChangeNotifier {
 
   /// Their video stopped arriving or the connection wobbles ("video may freeze").
   bool get weakSignal => _weakSignal;
+
+  // Weak and expensive connections (services/calls/call_quality.dart).
+  CallLevel _callLevel = CallLevel.good;
+  bool _partnerWeak = false;
+  CallReconnecting _reconnecting = CallReconnecting.none;
+  bool _dataSaver = false;
+
+  /// How much video we send right now: [CallLevel.audio] = video paused to keep the call going.
+  CallLevel get callLevel => _callLevel;
+
+  /// Their video is paused because their connection is weak (they told us).
+  bool get partnerWeak => _partnerWeak;
+
+  /// A connection dropped and the call is waiting for it.
+  CallReconnecting get reconnecting => _reconnecting;
+
+  /// Use less data on calls: smaller, slower video (remembered on this phone).
+  bool get dataSaver => _dataSaver;
+
+  static const _dataSaverKey = 'vibe.dataSaver';
+
+  Future<void> loadDataSaver() async {
+    try {
+      final on = (await SharedPreferences.getInstance()).getBool(_dataSaverKey);
+      if (on != null && on != _dataSaver) {
+        _dataSaver = on;
+        onDataSaverChanged();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> setDataSaver(bool on) async {
+    _dataSaver = on;
+    onDataSaverChanged();
+    notifyListeners();
+    try {
+      await (await SharedPreferences.getInstance()).setBool(_dataSaverKey, on);
+    } catch (_) {}
+  }
+
+  /// A live call follows a data saver change at once (remote mode).
+  @protected
+  void onDataSaverChanged() {}
   RematchSoon? get rematchSoon => _rematchSoon;
 
   /// Matching is paused after reports until then.
@@ -656,7 +705,8 @@ abstract class MatchProvider extends ChangeNotifier {
       }
       final stream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
-        'video': _voiceCall ? false : {'facingMode': _frontCamera ? 'user' : 'environment', 'width': 720, 'height': 1280, 'frameRate': 24},
+        // 480×640 at 24 fps is plenty for a phone screen; the encoder sends less on a weak line.
+        'video': _voiceCall ? false : {'facingMode': _frontCamera ? 'user' : 'environment', 'width': captureWidth, 'height': captureHeight, 'frameRate': captureFrameRate},
       });
       if (gen != _cameraGen) {
         // Released while it was opening (tab switched, app backgrounded…).
@@ -840,6 +890,9 @@ abstract class MatchProvider extends ChangeNotifier {
     _partnerCamOn = true;
     _partnerMicOn = true;
     _weakSignal = false;
+    _partnerWeak = false;
+    _reconnecting = CallReconnecting.none;
+    _callLevel = CallLevel.good;
     _rematchSoon = null;
   }
 

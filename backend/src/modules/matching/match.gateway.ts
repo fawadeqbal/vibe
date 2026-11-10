@@ -6,7 +6,7 @@ import { AppError } from '../../common/errors/app-error';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { WsExceptionFilter } from '../../common/filters/ws-exception.filter';
 import type { AuthUser } from '../../common/types/auth-user';
-import { ChatDto, GameDto, GiftDto, JoinDto, MatchReportDto, MediaDto, NextDto, SignalDto } from './dto/match.dto';
+import { ChatDto, GameDto, GiftDto, JoinDto, MatchReportDto, MediaDto, NextDto, ResumeDto, SignalDto } from './dto/match.dto';
 import { GameAction, MatchGamesService } from './match-games.service';
 import { MatchingService } from './matching.service';
 
@@ -70,7 +70,7 @@ export class MatchGateway {
   /** `{ camOn, micOn }` — the partner gets `match:media`. */
   @SubscribeMessage('match:media')
   async media(@ConnectedSocket() s: Socket, @MessageBody() dto: MediaDto) {
-    await this.matching.media(uid(s), dto.camOn, dto.micOn, dto.blur === true);
+    await this.matching.media(uid(s), dto.camOn, dto.micOn, dto.blur === true, dto.weak === true);
     return ok(null);
   }
 
@@ -92,6 +92,12 @@ export class MatchGateway {
   @SubscribeMessage('match:reconnect')
   async reconnect(@ConnectedSocket() s: Socket) {
     return ok(await this.matching.reconnect(uid(s)));
+  }
+
+  /** After match:resumed: "I'm still in this call" (otherwise it ends in 10 s). */
+  @SubscribeMessage('match:resume')
+  async resume(@ConnectedSocket() s: Socket, @MessageBody() dto: ResumeDto) {
+    return ok(await this.matching.confirmResume(uid(s), dto.matchId));
   }
 
   @SubscribeMessage('rtc:signal')

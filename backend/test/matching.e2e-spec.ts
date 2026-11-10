@@ -200,7 +200,11 @@ describe('matching over sockets', () => {
     const { sa, sb, fa } = await pair();
     const media = next(sb, 'match:media');
     await emit(sa, 'match:media', { camOn: false, micOn: true });
-    expect(await media).toEqual({ matchId: fa.matchId, camOn: false, micOn: true, blur: false });
+    expect(await media).toEqual({ matchId: fa.matchId, camOn: false, micOn: true, blur: false, weak: false });
+    // Video paused for a weak connection: the partner hears why.
+    const weak = next(sb, 'match:media');
+    await emit(sa, 'match:media', { camOn: false, micOn: true, weak: true });
+    expect(await weak).toMatchObject({ camOn: false, weak: true });
     await expect(emit(sa, 'match:media', { camOn: 'no' })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 

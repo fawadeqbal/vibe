@@ -229,8 +229,63 @@ class RemoteSocialProvider extends SocialProvider {
 
   @override
   Future<void> sendMessage(String friendId, String text, {String? replyToId}) async {
-    if (text.trim().isEmpty) return;
-    _onMessage(Map<String, dynamic>.from(await _api.post('/friends/$friendId/messages', {'text': text.trim(), 'replyToId': ?replyToId}) as Map));
+    final body = text.trim();
+    if (body.isEmpty) return;
+    final tempId = 'tx${DateTime.now().microsecondsSinceEpoch}';
+    _chats.putIfAbsent(friendId, () => []).add(ChatMessage(id: tempId, fromMe: true, text: body, at: DateTime.now(), pending: true));
+    _unsent[tempId] = (text: body, replyToId: replyToId, key: ApiClient.newIdempotencyKey());
+    notifyListeners();
+    await _deliver(friendId, tempId);
+  }
+
+  @override
+  Future<void> retryMessage(String friendId, String messageId) async {
+    final list = _chats[friendId];
+    final i = list?.indexWhere((m) => m.id == messageId) ?? -1;
+    if (list == null || i < 0 || !_unsent.containsKey(messageId)) return;
+    list[i] = list[i].copyWith(pending: true, failed: false);
+    notifyListeners();
+    await _deliver(friendId, messageId);
+  }
+
+  /// Text messages still going out (or that failed), by their temporary id.
+  final Map<String, ({String text, String? replyToId, String key})> _unsent = {};
+
+  /// Sends one queued message, retrying network failures with backoff (1, 2, 4, 8, 16 s).
+  Future<void> _deliver(String friendId, String tempId) async {
+    final job = _unsent[tempId];
+    if (job == null) return;
+    void drop() {
+      _chats[friendId]?.removeWhere((m) => m.id == tempId);
+      notifyListeners();
+    }
+
+    for (var attempt = 0;; attempt++) {
+      try {
+        final r = await _api.post('/friends/$friendId/messages', {'text': job.text, 'replyToId': ?job.replyToId}, {'Idempotency-Key': job.key});
+        _unsent.remove(tempId);
+        _chats[friendId]?.removeWhere((m) => m.id == tempId);
+        _onMessage(Map<String, dynamic>.from(r as Map));
+        notifyListeners();
+        return;
+      } on ApiException catch (e) {
+        // A retry while the first try is still being handled answers 409: wait for it like a network blip.
+        final transient = e.isNetwork || (e.code == 'CONFLICT' && e.status == 409);
+        if (!transient) {
+          _unsent.remove(tempId);
+          drop();
+          rethrow;
+        }
+        if (attempt >= 5) {
+          final list = _chats[friendId];
+          final i = list?.indexWhere((m) => m.id == tempId) ?? -1;
+          if (list != null && i >= 0) list[i] = list[i].copyWith(pending: false, failed: true);
+          notifyListeners();
+          return;
+        }
+        await Future<void>.delayed(Duration(seconds: 1 << attempt));
+      }
+    }
   }
 
   @override

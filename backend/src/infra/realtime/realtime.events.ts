@@ -42,6 +42,10 @@ export const ServerEvent = {
   MatchRematchSoon: 'match:rematch-soon',
   /** Your partner turned their camera or mic on/off: `{ matchId, camOn, micOn }`. */
   MatchMedia: 'match:media',
+  /** Your partner's connection dropped (`lost`) or came back (`back`); the call waits for them: `{ matchId, state, graceSeconds? }`. */
+  MatchPartnerConnection: 'match:partner-connection',
+  /** You're back after your connection dropped and the call is still on: `{ matchId }`. */
+  MatchResumed: 'match:resumed',
   /** New people joined Discover since you asked (POST /discover/notify-new): `{ count }`. At most once a day. */
   DiscoverNewPeople: 'discover:new-people',
   /** Someone waved at you: `{ from: PublicProfile, mutual }` (mutual = you had waved at them). */

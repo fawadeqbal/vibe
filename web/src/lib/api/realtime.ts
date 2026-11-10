@@ -30,6 +30,8 @@ export const Ev = {
   matchRematchSoon: "match:rematch-soon",
   /** Your partner's camera / mic: `{ matchId, camOn, micOn }`. */
   matchMedia: "match:media",
+  matchPartnerConnection: "match:partner-connection",
+  matchResumed: "match:resumed",
   /** A moderator answered your appeal: `{ status, note }`. */
   accountAppeal: "account:appeal",
   /** New people joined Discover (you asked): `{ count }`. */
@@ -94,7 +96,14 @@ export class RealtimeClient {
   private socket: Socket | null = null;
   private handlers = new Map<string, Set<Handler>>();
   private connectionWaiters = new Set<() => void>();
+  private connectionListeners = new Set<(connected: boolean) => void>();
   connected = false;
+
+  /** Called whenever the socket goes up or down (a call shows "Reconnecting…"). Returns the unsubscribe function. */
+  onConnectionChange(fn: (connected: boolean) => void): () => void {
+    this.connectionListeners.add(fn);
+    return () => this.connectionListeners.delete(fn);
+  }
 
   constructor(
     private readonly api: ApiClient,
@@ -180,7 +189,9 @@ export class RealtimeClient {
   }
 
   private setConnected(v: boolean) {
+    const changed = this.connected !== v;
     this.connected = v;
     if (v) [...this.connectionWaiters].forEach((w) => w());
+    if (changed) this.connectionListeners.forEach((l) => l(v));
   }
 }

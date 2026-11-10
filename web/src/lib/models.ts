@@ -215,8 +215,10 @@ export interface ChatMessage {
   unsent?: boolean;
   /** When they read it (your messages). */
   readAt?: Date | null;
-  /** Still uploading (photo/voice note), shown faded. */
+  /** Still sending (text) or uploading (photo/voice note), shown faded. */
   pending?: boolean;
+  /** Couldn't be sent after retrying on a weak connection: "Not sent · Tap to retry". */
+  failed?: boolean;
   /** Contact details were hidden ("****"): your own messages say so underneath. */
   hidden?: boolean;
 }

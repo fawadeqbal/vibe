@@ -8,6 +8,7 @@ import '../../core/theme/vibe_theme.dart';
 import '../../core/theme/vibe_widgets.dart';
 import '../../models/models.dart';
 import '../../providers/match_provider.dart';
+import '../../services/calls/call_quality.dart';
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
@@ -32,8 +33,11 @@ String pausedFor(int seconds) {
 /// The partner turned their camera off: their photo, dimmed, and a plain line.
 /// Sits over the video (their voice keeps playing).
 class CameraOffCover extends StatelessWidget {
-  const CameraOffCover({super.key, required this.partner});
+  const CameraOffCover({super.key, required this.partner, this.weak = false});
   final Profile partner;
+
+  /// Their video is paused because their connection is weak, not switched off.
+  final bool weak;
 
   @override
   Widget build(BuildContext context) {
@@ -68,13 +72,13 @@ class CameraOffCover extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              '${partner.name} turned their camera off',
+              weak ? "${partner.name}'s connection is weak" : '${partner.name} turned their camera off',
               textAlign: TextAlign.center,
               style: VT.title(19, weight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
             Text(
-              'You can still talk and chat. It comes back when they turn it on.',
+              weak ? 'Their video is paused so the call keeps going. You can still talk; it comes back by itself.' : 'You can still talk and chat. It comes back when they turn it on.',
               textAlign: TextAlign.center,
               style: VT.body(13.5, color: V.text2),
             ),
@@ -97,7 +101,26 @@ class PartnerMediaPills extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (m.weakSignal) ...[
+        if (m.reconnecting != CallReconnecting.none) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            liveRegion: true,
+            child: GlassPill(
+              label: m.reconnecting == CallReconnecting.me ? 'Reconnecting… hold on' : "$name's connection dropped — waiting for them",
+              icon: Icons.wifi_off_rounded,
+              iconColor: V.gold,
+              height: 30,
+              fontSize: 12,
+            ),
+          ),
+        ] else if (m.callLevel == CallLevel.audio && m.camOn && !m.voiceCall) ...[
+          // Our video is paused because the line can only carry voice.
+          const SizedBox(height: 8),
+          Semantics(
+            liveRegion: true,
+            child: GlassPill(label: 'Weak connection — your video is paused, voice stays on', icon: Icons.signal_cellular_alt_1_bar_rounded, iconColor: V.gold, height: 30, fontSize: 12),
+          ),
+        ] else if (m.weakSignal) ...[
           const SizedBox(height: 8),
           Semantics(
             liveRegion: true,

@@ -2394,7 +2394,7 @@ class _PartnerStage extends StatelessWidget {
             ),
           ),
         // Over the video, not instead of it: their voice keeps playing.
-        if (!m.partnerCamOn && !m.voiceCall) CameraOffCover(partner: partner),
+        if (!m.partnerCamOn && !m.voiceCall) CameraOffCover(partner: partner, weak: m.partnerWeak),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 600),
           child: blurred

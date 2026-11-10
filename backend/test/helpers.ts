@@ -62,6 +62,8 @@ export async function resetState(t: TestApp): Promise<void> {
   // Vibe Hour depends on the wall clock (free filters, double XP); keep it off
   // so results don't change with the time of day. Tests that need it turn it on.
   await t.prisma.appSetting.create({ data: { key: 'economy.rules', value: { vibeHourMinutes: 0 } } });
+  // Calls end as soon as someone's socket drops (call-reconnect.e2e-spec turns the wait on).
+  await t.prisma.appSetting.create({ data: { key: 'matching.reconnectGraceSeconds', value: 0 } });
   await t.app.get(EconomyService).reload();
 }
 

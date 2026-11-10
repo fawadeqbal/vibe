@@ -183,9 +183,26 @@ export async function playGame() {
 export function PartnerMediaPills({ name }: { name: string }) {
   const micOff = useMatch((s) => !s.partnerMicOn);
   const weak = useMatch((s) => s.weakSignal);
+  const reconnecting = useMatch((s) => s.reconnecting);
+  // Our video is paused because the line can only carry voice.
+  const paused = useMatch((s) => s.callLevel === "audio" && s.camOn && !s.voiceCall);
   return (
     <>
-      {weak ? (
+      {reconnecting !== "none" ? (
+        <span role="status">
+          <GlassPill
+            label={reconnecting === "me" ? "Reconnecting… hold on" : `${name}'s connection dropped — waiting for them`}
+            icon="wifi_off"
+            iconColor="gold"
+            height={30}
+            fontSize={12}
+          />
+        </span>
+      ) : paused ? (
+        <span role="status">
+          <GlassPill label="Weak connection — your video is paused, voice stays on" icon="signal_cellular_alt_1_bar" iconColor="gold" height={30} fontSize={12} />
+        </span>
+      ) : weak ? (
         <span role="status">
           <GlassPill label="Weak connection — video may freeze" icon="signal_cellular_alt_1_bar" iconColor="gold" height={30} fontSize={12} />
         </span>
@@ -199,8 +216,9 @@ export function PartnerMediaPills({ name }: { name: string }) {
   );
 }
 
-/** The partner turned their camera off: their photo, dimmed, and a plain line saying so. */
+/** The partner turned their camera off (or it's paused on their weak line): their photo, dimmed, and a plain line saying so. */
 function CameraOffCover({ partner }: { partner: Profile }) {
+  const weak = useMatch((s) => s.partnerWeak);
   return (
     <div role="status" className="absolute inset-0 flex flex-col items-center justify-center bg-bg/80 px-6 text-center backdrop-blur-xl">
       <span className="relative">
@@ -209,8 +227,10 @@ function CameraOffCover({ partner }: { partner: Profile }) {
           <Icon name="videocam_off" size={20} />
         </span>
       </span>
-      <span className="type-title mt-4 text-[19px] font-bold">{partner.name} turned their camera off</span>
-      <span className="type-body mt-1 max-w-[280px] text-[13.5px] text-text2">You can still talk and chat. It comes back when they turn it on.</span>
+      <span className="type-title mt-4 text-[19px] font-bold">{weak ? `${partner.name}'s connection is weak` : `${partner.name} turned their camera off`}</span>
+      <span className="type-body mt-1 max-w-[280px] text-[13.5px] text-text2">
+        {weak ? "Their video is paused so the call keeps going. You can still talk; it comes back by itself." : "You can still talk and chat. It comes back when they turn it on."}
+      </span>
     </div>
   );
 }

@@ -65,6 +65,7 @@ export function SettingsMenuPage() {
   const level = useEngagement((s) => s.level);
   const follows = useFollows((s) => s.settings);
   const autoBlur = useMatch((s) => s.autoBlur);
+  const dataSaver = useMatch((s) => s.dataSaver);
   const showInDiscover = useDiscover((s) => s.status?.showInDiscover ?? true);
   const history = useMatch((s) => s.history);
   const blocked = useSocial((s) => s.blocked);
@@ -92,6 +93,14 @@ export function SettingsMenuPage() {
           { key: "account", icon: "manage_accounts", title: "Account & sign-in", subtitle: "Sign-in methods, e-mail, delete account", words: "email password google apple facebook login delete", href: "/me/account" },
           { key: "notifications", icon: "notifications_none", title: "Notifications", subtitle: "Phone, inbox and e-mail, for each kind", words: "push alerts sounds email", href: "/me/notifications" },
           { key: "wellbeing", icon: "bedtime", title: "Time & wellbeing", subtitle: "Quiet hours and break reminders", words: "quiet hours break reminder vibe hour sleep", href: "/me/wellbeing" },
+          {
+            key: "data",
+            icon: "signal_cellular_alt",
+            title: "Data saver",
+            subtitle: "Calls use less data: smaller, slower video. Voice stays clear.",
+            words: "mobile data low internet slow network bandwidth calls quality",
+            trailing: <Switch checked={dataSaver} label="Data saver" onChange={(on) => useMatch.getState().setDataSaver(on)} />,
+          },
         ],
       },
       {
@@ -199,7 +208,7 @@ export function SettingsMenuPage() {
         ],
       },
     ];
-  }, [me, wallet, session.verificationState, session.busy, economy, level, follows, autoBlur, showInDiscover, history.length, blocked.length, friends, partner, androidApp]);
+  }, [me, wallet, session.verificationState, session.busy, economy, level, follows, autoBlur, dataSaver, showInDiscover, history.length, blocked.length, friends, partner, androidApp]);
 
   if (!me) return null;
   const needle = q.trim().toLowerCase();

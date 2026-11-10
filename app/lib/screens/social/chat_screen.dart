@@ -338,7 +338,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // "Seen" under your last message once they've read it.
     final lastMine = msgs.lastIndexWhere((m) => m.fromMe && !m.isSystem);
     final seenAt = social.seenAt(widget.friendId);
-    final seen = lastMine >= 0 && (msgs[lastMine].readAt != null || (seenAt != null && !seenAt.isBefore(msgs[lastMine].at))) && !msgs[lastMine].pending;
+    final seen = lastMine >= 0 && (msgs[lastMine].readAt != null || (seenAt != null && !seenAt.isBefore(msgs[lastMine].at))) && !msgs[lastMine].pending && !msgs[lastMine].failed;
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 64,
@@ -673,6 +673,22 @@ class _Bubble extends StatelessWidget {
             Padding(
               padding: EdgeInsets.fromLTRB(photo ? 6 : 0, 2, photo ? 6 : 0, 0),
               child: Text('Sending…', style: VT.label(10, color: plainMine ? Colors.white70 : V.muted, weight: FontWeight.w500)),
+            )
+          else if (m.failed)
+            Semantics(
+              button: true,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => context.read<SocialProvider>().retryMessage(friend.id, m.id).catchError((_) {}),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.error_outline_rounded, size: 13, color: plainMine ? Colors.white : V.bad),
+                    const SizedBox(width: 4),
+                    Text('Not sent · Tap to retry', style: VT.label(10.5, color: plainMine ? Colors.white : V.bad, weight: FontWeight.w700)),
+                  ]),
+                ),
+              ),
             ),
         ],
       ),
@@ -683,7 +699,7 @@ class _Bubble extends StatelessWidget {
         crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onLongPress: m.pending ? null : onLongPress,
+            onLongPress: m.pending || m.failed ? null : onLongPress,
             child: Stack(
               clipBehavior: Clip.none,
               children: [

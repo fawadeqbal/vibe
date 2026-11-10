@@ -9,7 +9,7 @@ import { Clock } from '../../common/utils/clock';
 import { AppConfig } from '../../config/app-config.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
-import { SOCKET_DISCONNECTED, SocketLifecycleEvent } from '../../infra/realtime/realtime.gateway';
+import { SOCKET_CONNECTED, SOCKET_DISCONNECTED, SocketLifecycleEvent } from '../../infra/realtime/realtime.gateway';
 import { ServerEvent } from '../../infra/realtime/realtime.events';
 import { RealtimeService } from '../../infra/realtime/realtime.service';
 import { EconomyService } from '../catalog/economy.service';
@@ -408,10 +408,10 @@ export class MatchingService {
   }
 
   /** Camera / mic on or off, and "Blur me": told to the partner ("Sara turned their camera off"). */
-  async media(userId: string, camOn: boolean, micOn: boolean, blur = false): Promise<void> {
+  async media(userId: string, camOn: boolean, micOn: boolean, blur = false, weak = false): Promise<void> {
     const { m, partnerId } = await this.requireMatch(userId);
     if ((await this.redis.incrWithTtl(`mmedia:${userId}`, 10)) > 20) return;
-    this.realtime.toUser(partnerId, ServerEvent.MatchMedia, { matchId: m.id, camOn, micOn, blur });
+    this.realtime.toUser(partnerId, ServerEvent.MatchMedia, { matchId: m.id, camOn, micOn, blur, weak });
   }
 
   /**
@@ -554,7 +554,7 @@ export class MatchingService {
       const mine = uid === byUserId;
       // The other person only ever hears that their partner left.
       const theirReason: EndedReason = mine ? reason : 'partner_left';
-      this.realtime.toUser(uid, ServerEvent.MatchEnded, {
+      const payload = {
         matchId: m.id,
         reason: theirReason,
         byMe: mine,
@@ -566,8 +566,12 @@ export class MatchingService {
         giftsSent: ended.gifts.filter((g) => g.fromId === uid).length,
         reconnectCost: this.economy.rules.reconnectCost,
         freeReconnectUntil: freeUntil?.toISOString() ?? null,
-      } satisfies MatchEndedPayload);
+      } satisfies MatchEndedPayload;
+      this.realtime.toUser(uid, ServerEvent.MatchEnded, payload);
+      // Offline right now (connection dropped): hand it over when they're back.
+      if ((await this.realtime.socketCount(uid)) === 0) await this.redis.client.set(missedEndKey(uid), JSON.stringify(payload), 'EX', 300).catch(() => undefined);
     }
+    await this.redis.client.zrem(AWAY_KEY, `${m.a}|${m.id}`, `${m.b}|${m.id}`, `${m.a}|${m.id}|confirm`, `${m.b}|${m.id}|confirm`).catch(() => undefined);
     await this.games.clear(m.id).catch(() => undefined);
     await this.afterCall({ matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike }, ended.startedAt, ended.likes);
     this.events.emit(MATCH_ENDED, { matchId: m.id, a: m.a, b: m.b, durationSeconds, reason, byUserId, mutualLike, friendCall: !!m.friend, voiceCall: !!m.voice } satisfies MatchEndedEvent);
@@ -603,15 +607,77 @@ export class MatchingService {
     }
   }
 
+  /**
+   * Last socket gone. Searching stops at once; a live call waits
+   * matching.reconnectGraceSeconds (admin → Settings) for them to come back (weak mobile data,
+   * switching networks) and the partner is told meanwhile. The media
+   * usually keeps flowing peer-to-peer, so the call often never notices.
+   */
   @OnEvent(SOCKET_DISCONNECTED, { async: true })
   async onDisconnect(e: SocketLifecycleEvent): Promise<void> {
     if (!e.lastSocket) return;
     try {
       if (await this.queue.remove(e.userId)) await this.searches.close(e.userId, 'gave_up');
       const m = await this.sessions.forUser(e.userId);
-      if (m) await this.endMatch(m, e.userId, 'disconnected');
+      if (!m) return;
+      const grace = await this.settings.get('matching.reconnectGraceSeconds');
+      if (grace <= 0) return void (await this.endMatch(m, e.userId, 'disconnected'));
+      await this.redis.client.zadd(AWAY_KEY, Date.now() + grace * 1000, `${e.userId}|${m.id}`);
+      this.realtime.toUser(m.a === e.userId ? m.b : m.a, ServerEvent.MatchPartnerConnection, { matchId: m.id, state: 'lost', graceSeconds: grace });
     } catch (err) {
       this.logger.warn(`cleanup after disconnect failed for ${e.userId}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Back within the grace period. The app must say it's still in the call
+   * (`match:resume`) within RESUME_CONFIRM_MS — an app that restarted, or an
+   * old version, doesn't, and the call ends. A call that ended meanwhile is
+   * reported now (they missed match:ended).
+   */
+  @OnEvent(SOCKET_CONNECTED, { async: true })
+  async onReconnect(e: SocketLifecycleEvent): Promise<void> {
+    if (!e.firstSocket) return;
+    try {
+      const missed = await this.redis.client.get(missedEndKey(e.userId));
+      if (missed) {
+        await this.redis.client.del(missedEndKey(e.userId));
+        this.realtime.toUser(e.userId, ServerEvent.MatchEnded, JSON.parse(missed) as MatchEndedPayload);
+      }
+      const m = await this.sessions.forUser(e.userId);
+      if (!m) return;
+      if (!(await this.redis.client.zrem(AWAY_KEY, `${e.userId}|${m.id}`))) return;
+      await this.redis.client.zadd(AWAY_KEY, Date.now() + RESUME_CONFIRM_MS, `${e.userId}|${m.id}|confirm`);
+      this.realtime.toUser(e.userId, ServerEvent.MatchResumed, { matchId: m.id });
+    } catch (err) {
+      this.logger.warn(`resume after reconnect failed for ${e.userId}: ${(err as Error).message}`);
+    }
+  }
+
+  /** The app confirms it's still in the call after reconnecting: the partner hears they're back. */
+  async confirmResume(userId: string, matchId: string): Promise<{ resumed: boolean }> {
+    const m = await this.sessions.forUser(userId);
+    if (!m || m.id !== matchId) return { resumed: false };
+    await this.redis.client.zrem(AWAY_KEY, `${userId}|${m.id}`);
+    await this.redis.client.zrem(AWAY_KEY, `${userId}|${m.id}|confirm`);
+    this.realtime.toUser(m.a === userId ? m.b : m.a, ServerEvent.MatchPartnerConnection, { matchId: m.id, state: 'back' });
+    return { resumed: true };
+  }
+
+  /** Ends calls whose dropped person didn't come back (or didn't confirm) in time. Any instance; Redis decides who does it. */
+  @Interval(2000)
+  async sweepAway(): Promise<void> {
+    try {
+      const due = await this.redis.client.zrangebyscore(AWAY_KEY, 0, Date.now(), 'LIMIT', 0, 50);
+      for (const member of due) {
+        if (!(await this.redis.client.zrem(AWAY_KEY, member))) continue; // another instance took it
+        const [userId, matchId, confirm] = member.split('|');
+        if (!confirm && (await this.realtime.socketCount(userId)) > 0) continue;
+        const m = await this.sessions.forUser(userId);
+        if (m?.id === matchId) await this.endMatch(m, userId, 'disconnected');
+      }
+    } catch (err) {
+      this.logger.warn(`sweeping dropped calls failed: ${(err as Error).message}`);
     }
   }
 
@@ -628,6 +694,12 @@ export class MatchingService {
     if (m && (m.a === e.blockedId || m.b === e.blockedId)) await this.endMatch(m, e.blockerId, 'blocked');
   }
 }
+
+/** People whose connection dropped mid-call: member `userId|matchId`, score = when the call gives up on them. */
+const AWAY_KEY = 'match:away';
+/** How long a reconnected app has to say it's still in the call (`match:resume`). */
+const RESUME_CONFIRM_MS = 10_000;
+const missedEndKey = (userId: string) => `match:missed-end:${userId}`;
 
 function filterLabel(p: MatchPrefs): string {
   return [p.gender === 'WOMEN' ? 'women' : p.gender === 'MEN' ? 'men' : null, p.countryCode].filter(Boolean).join(' · ') || 'filters';

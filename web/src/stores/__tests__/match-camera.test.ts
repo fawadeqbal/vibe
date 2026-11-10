@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // The match store talks to the API and the socket: stub both.
 vi.mock("@/stores/services", () => ({
   api: { hasSession: false, get: vi.fn(async () => ({})), post: vi.fn(async () => ({})) },
-  realtime: { on: vi.fn(), request: vi.fn(async () => ({})) },
+  realtime: { on: vi.fn(), onConnectionChange: vi.fn(), request: vi.fn(async () => ({})) },
 }));
 
 type FakeTrack = { kind: string; enabled: boolean; stopped: boolean; stop: () => void };
