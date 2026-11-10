@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 
-import { createTestApp, resetState, signUp, sleep, staffLogin, TestApp, TestUser } from './helpers';
+import { createTestApp, eventually, resetState, signUp, sleep, staffLogin, TestApp, TestUser } from './helpers';
 
 /**
  * "Who is on the app and who is on the website": each live connection says
@@ -77,15 +77,16 @@ describe('app vs website', () => {
 
   it('the last Vibe used is remembered (and switches when they switch)', async () => {
     const u = await signUp(t, { name: 'Esha' });
+    // Noted in the background after the socket connects: wait for it rather than a fixed pause (slow CI).
+    const last = async () => (await t.prisma.user.findUniqueOrThrow({ where: { id: u.id } })).lastClient;
     const s = await open(u, 'android/0.2.0');
-    expect((await t.prisma.user.findUniqueOrThrow({ where: { id: u.id } })).lastClient).toBe('android');
+    expect(await eventually(last, 'android')).toBe('android');
     s.disconnect();
     await open(u, 'web');
-    expect((await t.prisma.user.findUniqueOrThrow({ where: { id: u.id } })).lastClient).toBe('web');
+    expect(await eventually(last, 'web')).toBe('web');
     // An app request over HTTP counts too (X-Client header).
     await t.http.get('/v1/me').set(u.auth).set('X-Client', 'ios/1.0.0').expect(200);
-    await sleep(100);
-    expect((await t.prisma.user.findUniqueOrThrow({ where: { id: u.id } })).lastClient).toBe('ios');
+    expect(await eventually(last, 'ios')).toBe('ios');
   });
 
   it('older app builds without `client` are still recognised as the app', async () => {

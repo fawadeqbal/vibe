@@ -157,6 +157,20 @@ export function next<T = any>(s: Socket, event: string, timeoutMs = 5000): Promi
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * Re-reads [read] until it equals [want] (or [timeoutMs] passes) and returns the last value.
+ * For effects that happen in the background after a request or a socket connecting.
+ */
+export async function eventually<T>(read: () => Promise<T>, want: T, timeoutMs = 3000): Promise<T> {
+  const until = Date.now() + timeoutMs;
+  let v = await read();
+  while (v !== want && Date.now() < until) {
+    await sleep(50);
+    v = await read();
+  }
+  return v;
+}
+
+/**
  * Buys with the dev card gateway like a person would: start the purchase,
  * open the hosted page, press Pay (or Decline), then read the purchase.
  */
