@@ -9,22 +9,29 @@ import { CircleIconButton, GradientButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { EmptyState } from "@/components/ui/misc";
 import { PageHeader } from "@/components/ui/page-header";
-import { SectionTitle } from "@/components/ui/typography";
 import { useNow } from "@/hooks/use-now";
+import { errorMessage } from "@/lib/api/errors";
 import { cn } from "@/lib/cn";
 import { agoShort, plural } from "@/lib/format";
 import type { Friend, Profile } from "@/lib/models";
 import { useActivity } from "@/stores/activity";
 import { friendsOf, incomingOf, lastActivity, useSocial } from "@/stores/social";
+import { toast } from "@/stores/ui";
 import { isVip, useWallet } from "@/stores/wallet";
 
+import { chatPreview } from "./chat-preview";
 import { MomentsBar } from "./moments-bar";
 import { useRestoreStreak } from "./streak";
 
+type Filter = "all" | "unread" | "online" | "requests";
+
 /**
- * Your chats: search, moments, friend requests (one row that opens the
- * Notifications page, where you answer them), the "liked you" teaser for
- * free users, then your friends in one rounded group. (Design: Chats.)
+ * Your chats, edge to edge like the messaging apps people know: search,
+ * four filters (All · Unread · Online · Requests), then — under All —
+ * moments and who's online, friend requests and "liked you" as slim rows,
+ * and your chats, newest first. Each line says what the last message was
+ * (seen ticks, photo, voice note, gift, a missed call in red, typing…).
+ * (Design: Chats list, redesigned.)
  */
 export function ChatsList() {
   const router = useRouter();
@@ -35,32 +42,41 @@ export function ChatsList() {
   const restore = useRestoreStreak();
   useNow(60_000);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
   const all = friendsOf(social);
-  const q = query.trim().toLowerCase();
-  const friends = q ? all.filter((f) => f.profile.name.toLowerCase().includes(q)) : all;
   const requests = incomingOf(social);
-  const empty = !all.length;
+  const q = query.trim().toLowerCase();
+  const named = (f: Friend) => !q || f.profile.name.toLowerCase().includes(q);
+  const unreadCount = all.filter((f) => f.unread > 0).length;
+  const onlineCount = all.filter((f) => f.online).length;
+  const shown =
+    filter === "requests"
+      ? requests.filter(named)
+      : all.filter((f) => named(f) && (filter === "unread" ? f.unread > 0 : filter === "online" ? f.online : true));
+  const empty = !all.length && !requests.length;
+
+  const markAllRead = () => {
+    for (const f of all) if (f.unread > 0) useSocial.getState().markRead(f.profile.id);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
       <PageHeader
         title="Chats"
         actions={
-          <span className="flex items-center gap-2">
-            <span className="relative">
-              <CircleIconButton
-                icon="notifications"
-                label={notifications ? `Notifications, ${notifications} new` : "Notifications"}
-                iconSize={21}
-                className="bg-surface2 text-text"
-                onClick={() => router.push("/notifications")}
-              />
-              {notifications ? (
-                <span className="type-label pointer-events-none absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-[9px] border-2 border-bg bg-pink px-1 text-[10px] font-bold text-white">
-                  {notifications > 99 ? "99+" : notifications}
-                </span>
-              ) : null}
-            </span>
+          <span className="relative">
+            <CircleIconButton
+              icon="notifications"
+              label={notifications ? `Notifications, ${notifications} new` : "Notifications"}
+              iconSize={21}
+              className="bg-surface2 text-text"
+              onClick={() => router.push("/notifications")}
+            />
+            {notifications ? (
+              <span className="type-label pointer-events-none absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-[9px] border-2 border-bg bg-pink px-1 text-[10px] font-bold text-white">
+                {notifications > 99 ? "99+" : notifications}
+              </span>
+            ) : null}
           </span>
         }
       />
@@ -80,15 +96,15 @@ export function ChatsList() {
         </>
       ) : (
         <>
-          {/* Search and moments stay put; only the chats under them scroll. */}
-          <div className="shrink-0 overflow-x-hidden px-4 pb-1">
-            <label className="flex h-12 items-center gap-2.5 rounded-full border border-line bg-surface px-4">
-              <Icon name="search" variant="outlined" size={20} className="shrink-0 text-muted" />
+          {/* Search and filters stay put; only the list under them scrolls. */}
+          <div className="flex shrink-0 flex-col gap-3 px-4 pb-2">
+            <label className="flex h-[42px] items-center gap-2.5 rounded-[14px] border border-line bg-surface px-3.5">
+              <Icon name="search" variant="outlined" size={19} className="shrink-0 text-muted" />
               <input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search chats"
+                placeholder="Search"
                 aria-label="Search chats"
                 className="type-body min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-muted"
               />
@@ -98,39 +114,54 @@ export function ChatsList() {
                 </button>
               ) : null}
             </label>
-            {q ? null : (
-              <div className="mt-3.5">
-                <MomentsBar />
-              </div>
-            )}
+            <div role="group" aria-label="Show" className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+              <Chip label="All" on={filter === "all"} onClick={() => setFilter("all")} />
+              <Chip label="Unread" count={unreadCount} on={filter === "unread"} onClick={() => setFilter("unread")} />
+              <Chip label="Online" count={onlineCount} on={filter === "online"} onClick={() => setFilter("online")} />
+              <Chip label="Requests" count={requests.length} on={filter === "requests"} onClick={() => setFilter("requests")} />
+            </div>
           </div>
-          <div className="quiet-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-8">
-            {q ? null : (
+          <div className="quiet-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-8 lg:px-2">
+            {filter === "all" && !q ? (
               <>
-                {requests.length ? <RequestsRow requests={requests} /> : null}
-                {!vip && social.likedYouCount > 0 ? (
-                  <div className="mt-3.5">
-                    <LikedTeaser people={social.likedYou} count={social.likedYouCount} />
-                  </div>
-                ) : null}
+                <div className="px-4 pt-1 lg:px-2">
+                  <MomentsBar />
+                </div>
+                {requests.length ? <RequestsRow requests={requests} onOpen={() => setFilter("requests")} /> : null}
+                {!vip && social.likedYouCount > 0 ? <LikedRow people={social.likedYou} count={social.likedYouCount} /> : null}
               </>
-            )}
-            <SectionTitle text={q ? `${friends.length} ${plural(friends.length, "match", "matches")}` : `Friends · ${all.length}`} top={22} bottom={10} />
-            {friends.length ? (
-              <div className="overflow-hidden rounded-[22px] border border-line bg-surface">
-                {friends.map((f, i) => (
-                  <FriendRow
-                    key={f.profile.id}
-                    f={f}
-                    last={i === friends.length - 1}
-                    active={path === `/chats/${f.profile.id}`}
-                    onRestore={() => void restore(f)}
-                  />
-                ))}
-              </div>
+            ) : null}
+            {filter === "requests" ? (
+              shown.map((f) => <RequestRow key={f.profile.id} f={f} />)
             ) : (
-              <p className="type-body px-1 text-[13.5px] text-muted">No friend called “{query.trim()}”.</p>
+              <ul aria-label="Chats">
+                {shown.map((f) => (
+                  <li key={f.profile.id}>
+                    <ChatRow f={f} active={path === `/chats/${f.profile.id}`} onRestore={() => void restore(f)} />
+                  </li>
+                ))}
+              </ul>
             )}
+            {!shown.length ? (
+              <p className="type-body px-6 pt-8 text-center text-[13.5px] text-muted">
+                {q
+                  ? `Nobody called “${query.trim()}”.`
+                  : filter === "unread"
+                    ? "You're all caught up."
+                    : filter === "online"
+                      ? "None of your friends are online right now."
+                      : filter === "requests"
+                        ? "No friend requests right now."
+                        : "No chats yet."}
+              </p>
+            ) : filter === "unread" ? (
+              <p className="type-body px-6 pt-5 text-center text-[13px] text-muted">
+                That&apos;s everything unread.{" "}
+                <button type="button" onClick={markAllRead} className="font-semibold text-pink-soft hover:text-pink">
+                  Mark all as read
+                </button>
+              </p>
+            ) : null}
           </div>
         </>
       )}
@@ -138,105 +169,124 @@ export function ChatsList() {
   );
 }
 
-function LikedTeaser({ people, count }: { people: Profile[]; count: number }) {
+function Chip({ label, count, on, onClick }: { label: string; count?: number; on: boolean; onClick: () => void }) {
   return (
-    <Link
-      href="/vip"
-      className="flex items-center rounded-card border border-gold/22 px-3.5 py-3 transition-[filter] hover:brightness-125"
-      style={{ backgroundImage: "linear-gradient(90deg, rgb(255 200 87 / .1), rgb(255 200 87 / .02))" }}
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      className={cn(
+        "type-label flex h-[34px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13.5px] font-semibold transition-colors",
+        on ? "border-text bg-text text-bg" : "border-line bg-surface text-text2 hover:text-text",
+      )}
     >
-      <FaceStack urls={people.slice(0, 3).map((p) => p.avatarUrl)} borderColor="#17141F" />
-      <span className="ml-3 flex-1">
-        <span className="type-title block text-[14px] font-semibold">
-          {count} {plural(count, "person", "people")} liked you
-        </span>
-        <span className="type-body block text-[12px] text-gold">See who with VIP</span>
-      </span>
-      <Icon name="chevron_right" className="text-gold" />
-    </Link>
+      {label}
+      {count ? <span className={cn("text-[12px] font-bold tabular-nums", on ? "text-bg" : "text-pink-soft")}>{count > 99 ? "99+" : count}</span> : null}
+    </button>
   );
 }
 
-/** One row for incoming friend requests; you answer them on the Notifications page. */
-function RequestsRow({ requests }: { requests: Friend[] }) {
+/** Slim row above the chats: who's asking to be friends; opens the Requests filter. */
+function RequestsRow({ requests, onOpen }: { requests: Friend[]; onOpen: () => void }) {
   const n = requests.length;
   const first = requests[0].profile.name.split(" ")[0];
   return (
-    <Link
-      href="/notifications"
+    <button
+      type="button"
+      onClick={onOpen}
       aria-label={`Friend requests, ${n} waiting`}
-      className="mt-3.5 flex items-center gap-3.5 rounded-[22px] border border-line bg-surface px-4 py-[11px] transition-colors hover:bg-white/3"
+      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/3 lg:rounded-2xl lg:px-3"
     >
-      <span className="relative size-[52px] shrink-0">
-        <span className="absolute top-0 left-0">
-          <Avatar url={requests[0].profile.avatarUrl} name={requests[0].profile.name} size={40} />
-        </span>
-        {n > 1 ? (
-          <span className="absolute right-0 bottom-0 rounded-full ring-2 ring-surface">
-            <Avatar url={requests[1].profile.avatarUrl} name={requests[1].profile.name} size={40} />
-          </span>
-        ) : null}
+      <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-violet/16 lg:size-[50px]">
+        <Icon name="person_add" size={24} className="text-lavender" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="type-title text-[15.5px] font-semibold">Friend requests</span>
-        <span className="type-body truncate text-[13px] text-text2">
+        <span className="type-title text-[15.5px] font-bold">Friend requests</span>
+        <span className="type-body truncate text-[13.5px] text-text2">
           {n === 1 ? `${first} wants to be friends` : `${first} and ${n - 1} more want to be friends`}
         </span>
       </span>
-      <span className="type-label flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-pink px-[7px] text-[12px] font-bold text-white">
-        {n > 99 ? "99+" : n}
+      <Badge n={n} />
+      <Icon name="chevron_right" size={20} className="text-muted" />
+    </button>
+  );
+}
+
+function LikedRow({ people, count }: { people: Profile[]; count: number }) {
+  return (
+    <Link
+      href="/vip"
+      className="mx-4 my-1.5 flex items-center gap-3 rounded-2xl border border-gold/20 bg-gold/8 px-3.5 py-2.5 transition-[filter] hover:brightness-125 lg:mx-2"
+    >
+      {people.length ? (
+        <FaceStack urls={people.slice(0, 3).map((p) => p.avatarUrl)} borderColor="#17141F" size={28} />
+      ) : (
+        <Icon name="favorite_border" size={20} className="text-gold" />
+      )}
+      <span className="type-title flex-1 text-[13.5px] font-semibold">
+        {count} {plural(count, "person", "people")} liked you
       </span>
+      <span className="type-label text-[13px] font-bold text-gold">See with VIP</span>
+      <Icon name="chevron_right" size={18} className="text-gold" />
     </Link>
   );
 }
 
-function UnreadBadge({ n }: { n: number }) {
+function Badge({ n }: { n: number }) {
   return (
-    <span className="type-label ml-2 flex h-5 min-w-5 items-center justify-center rounded-[10px] bg-pink px-1.5 text-[11px] font-bold text-white">
+    <span className="type-label flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-pink px-1.5 text-[11.5px] font-bold text-white tabular-nums">
       {n > 99 ? "99+" : n}
     </span>
   );
 }
 
-function FriendRow({ f, last, active, onRestore }: { f: Friend; last: boolean; active: boolean; onRestore: () => void }) {
+const PREVIEW_ICON = { photo: "image", mic: "mic", gift: "card_giftcard", call: "call", call_missed: "call_missed" } as const;
+
+function ChatRow({ f, active, onRestore }: { f: Friend; active: boolean; onRestore: () => void }) {
   const at = useSocial((s) => lastActivity(s.chats, f));
-  const unread = f.unread > 0;
   const typing = useSocial((s) => !!s.typing[f.profile.id]);
+  const seenAt = useSocial((s) => s.seenAt[f.profile.id]);
+  const unread = f.unread > 0;
   const restorable = f.streak.restorable && f.streak.lostCount > 0;
+  const p = chatPreview(f, seenAt);
+  const tone = typing ? "font-semibold text-ok" : p.missed ? "text-bad" : unread ? "font-semibold text-text" : "text-text2";
   // The whole row opens the chat (a stretched link), so "Restore" can be its own button.
   return (
-    <div className={cn("relative flex items-center px-4 py-[11px] transition-colors hover:bg-white/3", active && "bg-white/5")}>
-      {last ? null : <span aria-hidden className="absolute right-0 bottom-0 left-[82px] h-px bg-line-soft" />}
+    <div
+      className={cn(
+        "relative flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/3 lg:rounded-2xl lg:px-3",
+        active && "bg-surface2 hover:bg-surface2",
+      )}
+    >
       <Link
         href={`/chats/${f.profile.id}`}
         onClick={() => useSocial.getState().markRead(f.profile.id)}
         aria-current={active ? "page" : undefined}
         aria-label={`Chat with ${f.profile.name}${unread ? `, ${f.unread} unread` : ""}`}
-        className="absolute inset-0 z-0"
+        className="absolute inset-0 z-0 lg:rounded-2xl"
       />
       <span className="pointer-events-none relative shrink-0">
-        <Avatar url={f.profile.avatarUrl} name={f.profile.name} size={52} />
-        {f.online ? <span className="absolute right-0 bottom-0 size-3.5 rounded-full border-[2.5px] border-bg bg-ok" /> : null}
-      </span>
-      <span className="pointer-events-none relative ml-3.5 min-w-0 flex-1">
-        <span className="flex items-center">
-          <span className="flex min-w-0 flex-1 items-center">
-            <span className={cn("type-title truncate text-[15.5px]", unread ? "font-bold" : "font-semibold")}>{f.profile.name}</span>
-            {f.profile.verified ? <Icon name="verified" size={15} className="ml-1 shrink-0 text-trust" label="Verified" /> : null}
-            {f.streak.count > 0 ? (
-              <span
-                className={cn("ml-1.5 inline-flex shrink-0 items-center gap-0.5 text-[12px] font-bold", f.streak.atRisk ? "text-gold" : "text-pink-soft")}
-                aria-label={`${f.streak.count}-day streak${f.streak.atRisk ? ", ends at midnight" : ""}`}
-              >
-                <Icon name="local_fire_department" size={13} />
-                {f.streak.count}
-                {f.streak.atRisk ? " · ends tonight" : ""}
-              </span>
-            ) : null}
-          </span>
-          <span className={cn("type-label ml-2 shrink-0 text-[12px]", unread ? "font-semibold text-pink-soft" : "font-normal text-muted")}>{agoShort(at)}</span>
+        <span className="lg:hidden">
+          <Avatar url={f.profile.avatarUrl} name={f.profile.name} size={56} />
         </span>
-        <span className="mt-0.5 flex items-center">
+        <span className="hidden lg:inline-flex">
+          <Avatar url={f.profile.avatarUrl} name={f.profile.name} size={50} />
+        </span>
+        {f.online ? (
+          <span className={cn("absolute right-0 bottom-0 size-3.5 rounded-full border-[2.5px] bg-ok", active ? "border-surface2" : "border-bg")} />
+        ) : null}
+      </span>
+      <span className="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-[3px]">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className={cn("type-title truncate text-[15.5px] tracking-[-0.01em]", unread ? "font-bold" : "font-semibold")}>{f.profile.name}</span>
+          {f.profile.verified ? <Icon name="verified" size={15} className="shrink-0 text-trust" label="Verified" /> : null}
+          {f.streak.count > 0 ? <StreakPill count={f.streak.count} atRisk={f.streak.atRisk} /> : null}
+          <span className="flex-1" />
+          <span className={cn("type-label shrink-0 text-[12px] tabular-nums", unread ? "font-semibold text-pink-soft" : "font-medium text-muted")}>
+            {agoShort(at)}
+          </span>
+        </span>
+        <span className="flex min-w-0 items-center gap-1.5">
           {restorable ? (
             <span className="flex min-w-0 flex-1 items-center">
               <span className="type-body truncate text-[13.5px] text-muted">Streak lost ·</span>
@@ -251,19 +301,91 @@ function FriendRow({ f, last, active, onRestore }: { f: Friend; last: boolean; a
               </button>
             </span>
           ) : (
-            <span
-              className={cn(
-                "type-body min-w-0 flex-1 truncate text-[13px]",
-                typing ? "font-semibold text-ok" : unread ? "font-semibold text-text" : "text-text2",
-              )}
-            >
-              {typing ? "typing…" : (f.lastMessage ?? "Say hi 👋")}
-            </span>
+            <>
+              {!typing && p.ticks ? (
+                <Icon
+                  name={p.ticks === "seen" ? "done_all" : "done"}
+                  size={16}
+                  className={cn("shrink-0", p.ticks === "seen" ? "text-trust" : "text-muted")}
+                  label={p.ticks === "seen" ? "Seen" : "Sent"}
+                />
+              ) : null}
+              {!typing && p.icon ? (
+                <Icon
+                  name={PREVIEW_ICON[p.icon]}
+                  size={15}
+                  className={cn("shrink-0", p.icon === "gift" ? "text-gold" : p.missed ? "text-bad" : "text-text2")}
+                />
+              ) : null}
+              <span className={cn("type-body min-w-0 flex-1 truncate text-[13.5px]", tone)}>{typing ? "typing…" : p.text}</span>
+            </>
           )}
-          {unread ? <UnreadBadge n={f.unread} /> : null}
+          {unread ? <Badge n={f.unread} /> : null}
         </span>
       </span>
     </div>
   );
 }
 
+function StreakPill({ count, atRisk }: { count: number; atRisk: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full pr-1.5 pl-1 text-[11.5px] font-bold tabular-nums",
+        atRisk ? "bg-gold/12 text-gold" : "bg-pink/12 text-pink-soft",
+      )}
+      aria-label={`${count}-day streak${atRisk ? ", ends at midnight" : ""}`}
+    >
+      <Icon name="local_fire_department" size={13} />
+      {count}
+      {atRisk ? <Icon name="hourglass_bottom" size={12} /> : null}
+    </span>
+  );
+}
+
+/** Requests filter: someone wants to be friends; answer right here. */
+function RequestRow({ f }: { f: Friend }) {
+  const [busy, setBusy] = useState(false);
+  const answer = async (yes: boolean) => {
+    setBusy(true);
+    try {
+      if (yes) await useSocial.getState().accept(f.profile.id);
+      else await useSocial.getState().decline(f.profile.id);
+      toast(yes ? `You and ${f.profile.name.split(" ")[0]} are friends` : "Request declined");
+    } catch (e) {
+      toast(errorMessage(e), { error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 lg:px-3">
+      <Link href={`/u/${f.profile.id}`} aria-label={`${f.profile.name}'s profile`} className="shrink-0">
+        <Avatar url={f.profile.avatarUrl} name={f.profile.name} size={52} />
+      </Link>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="flex items-center gap-1">
+          <span className="type-title truncate text-[15.5px] font-semibold">{f.profile.name}</span>
+          {f.profile.verified ? <Icon name="verified" size={15} className="shrink-0 text-trust" label="Verified" /> : null}
+        </span>
+        <span className="type-body truncate text-[13px] text-text2">Wants to be friends · {agoShort(f.since)}</span>
+      </span>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void answer(false)}
+        className="type-label h-9 shrink-0 rounded-full border border-line px-3.5 text-[13px] font-semibold text-text2 hover:text-text disabled:opacity-50"
+      >
+        Decline
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void answer(true)}
+        className="type-label h-9 shrink-0 rounded-full bg-pink px-3.5 text-[13px] font-bold text-white hover:brightness-110 disabled:opacity-50"
+      >
+        Accept
+      </button>
+    </div>
+  );
+}

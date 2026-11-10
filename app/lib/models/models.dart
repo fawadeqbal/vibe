@@ -395,8 +395,45 @@ class CallsView {
   static const off = CallsView();
 }
 
+/// The last message of a chat, for its line in the chats list.
+class LastMessage {
+  const LastMessage({required this.fromMe, this.kind = MessageKind.text, this.read = false, this.unsent = false, this.event, this.seconds});
+  final bool fromMe;
+  final MessageKind kind;
+
+  /// Yours, and they've read it.
+  final bool read;
+  final bool unsent;
+
+  /// System lines: `call_missed`, `call_ended`…
+  final String? event;
+
+  /// Voice notes: length in seconds.
+  final int? seconds;
+
+  factory LastMessage.of(ChatMessage m) => LastMessage(
+        fromMe: m.fromMe,
+        kind: m.kind,
+        read: m.fromMe && m.readAt != null,
+        unsent: m.unsent,
+        event: m.meta?['event'] as String?,
+        seconds: (m.meta?['seconds'] as num?)?.toInt(),
+      );
+
+  factory LastMessage.fromJson(Map<String, dynamic> j) => LastMessage(
+        fromMe: j['fromMe'] == true,
+        kind: MessageKind.values.firstWhere((k) => k.name == j['kind'], orElse: () => MessageKind.text),
+        read: j['read'] == true,
+        unsent: j['unsent'] == true,
+        event: j['event'] as String?,
+        seconds: (j['seconds'] as num?)?.toInt(),
+      );
+
+  Map<String, dynamic> toJson() => {'fromMe': fromMe, 'kind': kind.name, 'read': read, 'unsent': unsent, 'event': event, 'seconds': seconds};
+}
+
 class Friend {
-  const Friend({required this.profile, required this.state, required this.since, this.lastMessage, this.lastMessageAt, this.unread = 0, this.online = false, this.lastSeenAt, this.streak = StreakView.none, this.calls = CallsView.off});
+  const Friend({required this.profile, required this.state, required this.since, this.lastMessage, this.lastMessageAt, this.last, this.unread = 0, this.online = false, this.lastSeenAt, this.streak = StreakView.none, this.calls = CallsView.off});
   final Profile profile;
   final FriendState state;
 
@@ -406,6 +443,9 @@ class Friend {
 
   /// When the last message in the chat was sent (either way); null = no messages yet.
   final DateTime? lastMessageAt;
+
+  /// What the last message is (for the chats list); null = no messages yet.
+  final LastMessage? last;
   final int unread;
   final bool online;
 
@@ -414,13 +454,14 @@ class Friend {
   final StreakView streak;
   final CallsView calls;
 
-  Friend copyWith({FriendState? state, String? lastMessage, DateTime? lastMessageAt, int? unread, bool? online, DateTime? lastSeenAt, StreakView? streak, CallsView? calls}) {
+  Friend copyWith({FriendState? state, String? lastMessage, DateTime? lastMessageAt, LastMessage? last, int? unread, bool? online, DateTime? lastSeenAt, StreakView? streak, CallsView? calls}) {
     return Friend(
       profile: profile,
       state: state ?? this.state,
       since: since,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      last: last ?? this.last,
       unread: unread ?? this.unread,
       online: online ?? this.online,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,

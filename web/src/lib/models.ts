@@ -179,6 +179,8 @@ export interface Friend {
   lastMessage: string | null;
   /** When the last message in the chat was sent (either way); null = no messages yet. */
   lastMessageAt: Date | null;
+  /** What the last message is (for the chats list); null = no messages yet. */
+  last: LastMessage | null;
   unread: number;
   online: boolean;
   /** When they were last in the app (friends only; null = unknown). */
@@ -186,6 +188,19 @@ export interface Friend {
   streak: StreakView;
   /** Calls in this chat: each side's "allow" and whether it includes video. Both allow = voice calls; both video too = video calls. */
   calls: { mine: boolean; theirs: boolean; mineVideo: boolean; theirsVideo: boolean };
+}
+
+/** The last message of a chat, for its line in the chats list. */
+export interface LastMessage {
+  fromMe: boolean;
+  kind: "text" | "gift" | "system" | "photo" | "voice";
+  /** Yours, and they've read it. */
+  read: boolean;
+  unsent: boolean;
+  /** System lines: `call_missed`, `call_ended`… */
+  event: string | null;
+  /** Voice notes: length in seconds. */
+  seconds: number | null;
 }
 
 /** A friend streak from your side (the server derives it for "today"). */

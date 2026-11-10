@@ -19,8 +19,12 @@ import '../match/report_sheet.dart';
 /// then people with something new (gradient ring) before the ones you've
 /// seen (grey ring).
 class MomentsBar extends StatelessWidget {
-  const MomentsBar({super.key, this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 10)});
+  const MomentsBar({super.key, this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 10), this.online = const [], this.onOpenChat});
   final EdgeInsets padding;
+
+  /// Friends online now: after the moments, with a green dot (those with a moment show there instead).
+  final List<Friend> online;
+  final ValueChanged<Friend>? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +56,16 @@ class MomentsBar extends StatelessWidget {
               ring: people[i].allSeen ? _Ring.seen : _Ring.unseen,
               onTap: () => openMoments(context, people, i),
             ),
+          for (final f in online)
+            if (!people.any((g) => g.author.id == f.profile.id))
+              _Bubble(
+                key: ValueKey('online-${f.profile.id}'),
+                name: f.profile.name,
+                url: f.profile.avatarUrl,
+                ring: _Ring.none,
+                online: true,
+                onTap: () => onOpenChat?.call(f),
+              ),
         ],
       ),
     );
@@ -61,7 +75,7 @@ class MomentsBar extends StatelessWidget {
 enum _Ring { none, seen, unseen }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({super.key, required this.name, required this.url, required this.ring, required this.onTap, this.plus = false, this.onPlus, this.busy = false});
+  const _Bubble({super.key, required this.name, required this.url, required this.ring, required this.onTap, this.plus = false, this.onPlus, this.busy = false, this.online = false});
   final String name;
   final String url;
   final _Ring ring;
@@ -69,6 +83,9 @@ class _Bubble extends StatelessWidget {
   final bool plus;
   final VoidCallback? onPlus;
   final bool busy;
+
+  /// A friend online now (no moment): a green dot; tap opens the chat.
+  final bool online;
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +103,7 @@ class _Bubble extends StatelessWidget {
     };
     return Semantics(
       button: true,
-      label: plus ? 'Your moment' : '$name\'s moment${ring == _Ring.unseen ? ', new' : ''}',
+      label: plus ? 'Your moment' : online ? 'Chat with $name, online' : '$name\'s moment${ring == _Ring.unseen ? ', new' : ''}',
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -99,6 +116,12 @@ class _Bubble extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   Opacity(opacity: ring == _Ring.seen && !plus ? 0.75 : 1, child: face),
+                  if (online)
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: Container(width: 16, height: 16, decoration: BoxDecoration(shape: BoxShape.circle, color: V.ok, border: Border.all(color: V.bg, width: 3))),
+                    ),
                   if (busy) const Positioned.fill(child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4)))),
                   if (plus)
                     Positioned(
@@ -117,7 +140,7 @@ class _Bubble extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 5),
-              Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(11.5, color: ring == _Ring.unseen ? V.text : V.text2, weight: FontWeight.w500)),
+              Text(online ? name.split(' ').first : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: VT.label(11.5, color: ring == _Ring.unseen ? V.text : V.text2, weight: FontWeight.w500)),
             ],
           ),
         ),

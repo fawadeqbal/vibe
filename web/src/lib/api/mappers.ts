@@ -12,6 +12,7 @@ import type {
   Friend,
   FriendState,
   GameId,
+  LastMessage,
   Gender,
   Gift,
   Leaderboard,
@@ -141,12 +142,22 @@ export function friend(m: Json): Friend {
     since: date(m.since) ?? new Date(),
     lastMessage: optStr(m.lastMessage),
     lastMessageAt: date(m.lastMessageAt),
+    last: lastMessage(m.last),
     unread: int(m.unread),
     online: bool(m.online),
     lastSeenAt: date(m.lastSeenAt),
     streak: streak(asMap(m.streak)),
     calls: callsOf(asMap(m.calls)),
   };
+}
+
+const KINDS = ["text", "gift", "system", "photo", "voice"] as const;
+
+export function lastMessage(v: unknown): LastMessage | null {
+  if (!v || typeof v !== "object") return null;
+  const m = asMap(v);
+  const kind = (KINDS as readonly string[]).includes(String(m.kind)) ? (m.kind as LastMessage["kind"]) : "text";
+  return { fromMe: bool(m.fromMe), kind, read: bool(m.read), unsent: bool(m.unsent), event: optStr(m.event), seconds: typeof m.seconds === "number" ? m.seconds : null };
 }
 
 export const streak = (m: Json): StreakView => ({

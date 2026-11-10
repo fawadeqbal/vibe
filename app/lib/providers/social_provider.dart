@@ -198,7 +198,7 @@ abstract class SocialProvider extends ChangeNotifier {
     list[i] = m;
     if (i == list.length - 1) {
       final fi = _friends.indexWhere((x) => x.profile.id == friendId);
-      if (fi >= 0) _friends[fi] = _friends[fi].copyWith(lastMessage: lastLine(m), lastMessageAt: m.at);
+      if (fi >= 0) _friends[fi] = _friends[fi].copyWith(lastMessage: lastLine(m), lastMessageAt: m.at, last: LastMessage.of(m));
     }
     notifyListeners();
   }
@@ -249,7 +249,7 @@ abstract class SocialProvider extends ChangeNotifier {
     if (list.any((x) => x.id == m.id)) return;
     list.add(m);
     final i = _friends.indexWhere((x) => x.profile.id == friendId);
-    if (i >= 0) _friends[i] = _friends[i].copyWith(lastMessage: m.text, lastMessageAt: m.at);
+    if (i >= 0) _friends[i] = _friends[i].copyWith(lastMessage: m.text, lastMessageAt: m.at, last: LastMessage.of(m));
     notifyListeners();
   }
 

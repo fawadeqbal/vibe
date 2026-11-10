@@ -16,7 +16,7 @@ export function ChatsSplit({ children }: { children: ReactNode }) {
   const atList = path === "/chats";
   return (
     <div className="flex min-h-0 flex-1 lg:h-[var(--app-h,100dvh)]">
-      <aside className={cn("min-h-0 w-full flex-col lg:flex lg:w-[360px] lg:shrink-0 lg:border-r lg:border-line-soft", atList ? "flex" : "hidden")}>
+      <aside className={cn("min-h-0 w-full flex-col lg:flex lg:w-[380px] lg:shrink-0 lg:border-r lg:border-line-soft", atList ? "flex" : "hidden")}>
         <ChatsList />
       </aside>
       <section className={cn("min-h-0 min-w-0 flex-1 flex-col", atList ? "hidden lg:flex" : "flex")}>{children}</section>
