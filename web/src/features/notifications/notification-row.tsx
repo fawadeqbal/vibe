@@ -104,6 +104,7 @@ export function NotificationRow({ item, isNew }: { item: ActivityItem; isNew: bo
     setBusy(true);
     try {
       await fn();
+      void useActivity.getState().markRead([item.id]);
       if (done) toast(done);
       await useActivity.getState().refresh();
     } catch (e) {
@@ -113,8 +114,11 @@ export function NotificationRow({ item, isNew }: { item: ActivityItem; isNew: bo
     }
   };
 
-  // The page already cleared the badge when it opened; a tap just goes there.
-  const open = () => router.push(notificationPath(item.data, item.id));
+  // Opening a line reads it (the page already cleared the bell when it opened).
+  const open = () => {
+    void useActivity.getState().markRead([item.id]);
+    router.push(notificationPath(item.data, item.id));
+  };
 
   return (
     <li className={cn("relative flex items-center gap-3 py-3 pr-3.5 pl-[18px] transition-colors", isNew && "bg-pink/5")}>

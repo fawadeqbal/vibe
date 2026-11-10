@@ -13,6 +13,7 @@ import { RedisService } from '../../infra/redis/redis.service';
 import { StorageProvider } from '../../infra/storage/storage.provider';
 import { EconomyService } from '../catalog/economy.service';
 import { ChatSafetyService } from '../chat-safety/chat-safety.service';
+import { ActivityFeedService, CHAT_TYPES } from '../notifications/activity-feed.service';
 import { ImageSafetyService } from '../safety/image-safety.service';
 import { WalletService } from '../wallet/wallet.service';
 import { FriendsService } from './friends.service';
@@ -94,6 +95,7 @@ export class MessagesService {
     private readonly redis: RedisService,
     private readonly safety: ChatSafetyService,
     private readonly images: ImageSafetyService,
+    private readonly feed: ActivityFeedService,
   ) {}
 
   private get rules() {
@@ -290,6 +292,8 @@ export class MessagesService {
     const at = this.clock.now();
     const r = await this.prisma.message.updateMany({ where: { friendshipId: f.id, senderId: friendId, readAt: null }, data: { readAt: at } });
     if (r.count > 0) this.realtime.toUser(friendId, ServerEvent.MessagesRead, { friendId: me, at: at.toISOString() });
+    // Read the chat (from a push, the chat list or the Notifications page): its notification lines are read too.
+    await this.feed.markReadAbout(me, friendId, CHAT_TYPES);
     return r.count;
   }
 

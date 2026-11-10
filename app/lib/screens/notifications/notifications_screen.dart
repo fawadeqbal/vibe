@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:solar_icons/solar_icons.dart';
@@ -35,8 +37,6 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   final _scroll = ScrollController();
 
-  /// What was unread when the page opened: stays "new" for this visit, whatever reloads come later.
-  Set<String> _freshIds = const {};
   NotificationFilter _filter = NotificationFilter.all;
 
   @override
@@ -47,21 +47,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (a.hasMore && _scroll.position.extentAfter < 400) a.loadMore();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final a = context.read<ActivityProvider>();
+      // Opening the page clears the bell; each line stays highlighted until it's opened.
+      final a = context.read<ActivityProvider>()..addListener(_keepSeen);
+      _activity = a;
+      unawaited(a.seen());
       await (a.loaded ? a.refresh() : a.load());
-      if (!mounted) return;
-      setState(
-        () => _freshIds = {
-          for (final i in a.items)
-            if (!i.read) i.id,
-        },
-      );
-      await a.markAllRead();
+      if (mounted) await a.seen();
     });
+  }
+
+  ActivityProvider? _activity;
+
+  /// A new one while you're looking at the page: it's seen (the line still shows as new).
+  void _keepSeen() {
+    final a = _activity;
+    if (a != null && a.loaded && a.unread > 0) unawaited(a.seen());
   }
 
   @override
   void dispose() {
+    _activity?.removeListener(_keepSeen);
     _scroll.dispose();
     super.dispose();
   }
@@ -91,7 +96,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       for (final i in items)
         if (inFilter(i)) i,
     ];
-    bool isNew(ActivityItem i) => !i.read || _freshIds.contains(i.id);
+    bool isNew(ActivityItem i) => !i.read;
     final now = DateTime.now();
     final groups = [
       for (final b in NotificationBucket.values)
@@ -163,10 +168,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             action: n == 0 && listed.any(isNew)
                                 ? (
                                     'Mark all read',
-                                    () {
-                                      setState(() => _freshIds = const {});
-                                      a.markAllRead();
-                                    },
+                                    a.markAllRead,
                                   )
                                 : null,
                           ),
@@ -553,6 +555,7 @@ class _ActivityRowState extends State<ActivityRow> {
     setState(() => _busy = true);
     try {
       await fn();
+      if (mounted) unawaited(context.read<ActivityProvider>().markRead([widget.item.id]));
       if (mounted && done != null) toast(context, done);
       if (mounted) await context.read<ActivityProvider>().refresh();
     } on ApiException catch (e) {
@@ -562,9 +565,9 @@ class _ActivityRowState extends State<ActivityRow> {
     }
   }
 
-  /// Exactly where its push would have taken you (the home shell opens it, see `PushRoute`);
-  /// the line's own id lets Account status highlight it.
-  void _open() => DeepLinks.open({...widget.item.data, 'noteId': widget.item.id});
+  /// Exactly where its push would have taken you (the home shell opens it, see `PushRoute`,
+  /// and reads the line); the line's own id lets Account status highlight it.
+  void _open() => DeepLinks.open({...widget.item.data, 'noteId': widget.item.id, 'activityId': widget.item.id});
 
   @override
   Widget build(BuildContext context) {

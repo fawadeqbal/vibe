@@ -93,6 +93,13 @@ export class PushService implements IntegrationReporter, OnModuleInit {
     if (extra.length) await this.prisma.pushToken.deleteMany({ where: { id: { in: extra.map((e) => e.id) } } });
   }
 
+  /** Has a phone that can get pushes (and push is set up at all). */
+  async hasDevice(userId: string): Promise<boolean> {
+    await this.refresh().catch(() => undefined);
+    if (!this.sender) return false;
+    return (await this.prisma.pushToken.count({ where: { userId } })) > 0;
+  }
+
   async unregister(userId: string, token: string): Promise<void> {
     await this.prisma.pushToken.deleteMany({ where: { userId, token } });
   }

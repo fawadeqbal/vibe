@@ -63,30 +63,27 @@ export function NotificationsView() {
   const loaded = useActivity((s) => s.loaded);
   const hasMore = useActivity((s) => s.cursor != null);
   const end = useRef<HTMLDivElement>(null);
-  /** What was unread when the page opened: stays "new" for this visit, whatever reloads come later. */
-  const [freshIds, setFreshIds] = useState<ReadonlySet<string>>(() => new Set());
   const [filter, setFilter] = useState<NotificationFilter>("all");
   const [showRequests, setShowRequests] = useState(false);
 
   useEffect(() => {
     let alive = true;
     const a = useActivity.getState();
+    // Opening the page clears the bell; each line stays highlighted until it's opened.
+    void useActivity.getState().seen();
     void (a.loaded ? a.refresh() : a.load()).then(() => {
-      if (!alive) return;
-      setFreshIds(
-        new Set(
-          useActivity
-            .getState()
-            .items.filter((i) => !i.read)
-            .map((i) => i.id),
-        ),
-      );
-      void useActivity.getState().markAllRead();
+      if (alive) void useActivity.getState().seen();
     });
     return () => {
       alive = false;
     };
   }, []);
+
+  // A new one while you're looking at the page: it's seen (the line still shows as new).
+  const unread = useActivity((s) => s.unread);
+  useEffect(() => {
+    if (unread > 0 && useActivity.getState().loaded) void useActivity.getState().seen();
+  }, [unread]);
 
   useEffect(() => {
     const el = end.current;
@@ -96,11 +93,8 @@ export function NotificationsView() {
     return () => io.disconnect();
   }, [hasMore]);
 
-  const isNew = (i: ActivityItem) => !i.read || freshIds.has(i.id);
-  const markAll = () => {
-    setFreshIds(new Set());
-    void useActivity.getState().markAllRead();
-  };
+  const isNew = (i: ActivityItem) => !i.read;
+  const markAll = () => void useActivity.getState().markAllRead();
 
   // Keyboard on a desktop: J / K move, Enter opens (the focused button), E marks all read.
   useEffect(() => {

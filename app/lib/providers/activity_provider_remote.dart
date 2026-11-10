@@ -1,7 +1,8 @@
 part of 'activity_provider.dart';
 
 /// Server mode: `/activity` on the Vibe API. `activity:new` adds a line and
-/// bumps the badge; `activity:read` keeps every device's badge in step.
+/// bumps the bell; `activity:read` keeps every device's bell and highlights
+/// in step (read here, on another device, or by opening that chat).
 class RemoteActivityProvider extends ActivityProvider {
   RemoteActivityProvider(this._api, this._rt) : super.base() {
     _subs = [
@@ -13,9 +14,13 @@ class RemoteActivityProvider extends ActivityProvider {
         notifyListeners();
       }),
       _rt.on(Ev.activityRead).listen((e) {
-        if (e['unread'] is! num) return;
-        _unread = (e['unread'] as num).toInt();
-        notifyListeners();
+        if (e['unread'] is num) _unread = (e['unread'] as num).toInt();
+        final ids = [for (final x in (e['ids'] as List? ?? const [])) if (x is String) x];
+        if (e['all'] == true || ids.isNotEmpty) {
+          _setRead(ids, all: e['all'] == true);
+        } else {
+          notifyListeners();
+        }
       }),
     ];
   }
@@ -83,10 +88,32 @@ class RemoteActivityProvider extends ActivityProvider {
   }
 
   @override
-  Future<void> markAllRead() async {
-    if (_unread == 0) return;
+  Future<void> seen() async {
     _unread = 0;
     notifyListeners();
+    try {
+      final r = await _api.post('/activity/seen', const <String, dynamic>{});
+      if (r is Map && r['unread'] is num) _unread = (r['unread'] as num).toInt();
+      notifyListeners();
+    } on ApiException catch (_) {}
+  }
+
+  @override
+  Future<void> markRead(List<String> ids) async {
+    final todo = [for (final id in ids) if (!_items.any((i) => i.id == id && i.read)) id];
+    if (todo.isEmpty) return;
+    _setRead(todo);
+    try {
+      final r = await _api.post('/activity/read', {'ids': todo});
+      if (r is Map && r['unread'] is num) _unread = (r['unread'] as num).toInt();
+      notifyListeners();
+    } on ApiException catch (_) {}
+  }
+
+  @override
+  Future<void> markAllRead() async {
+    _unread = 0;
+    _setRead(const [], all: true);
     try {
       final r = await _api.post('/activity/read', const <String, dynamic>{});
       if (r is Map && r['unread'] is num) _unread = (r['unread'] as num).toInt();
@@ -98,10 +125,12 @@ class RemoteActivityProvider extends ActivityProvider {
   Future<void> refresh() async {
     if (!_api.hasSession) return;
     try {
-      final shown = {for (final i in _items) i.id: i.read};
       final p = _parse(await _api.get('/activity', query: {'limit': '${_items.length < _pageSize ? _pageSize : _items.length}'}));
-      _items = [for (final i in p.items) i.copyWith(read: i.read && (shown[i.id] ?? true))];
+      _items = p.items;
+      _cursor = p.cursor;
+      _hasMore = _cursor != null;
       _unread = p.unread;
+      _loaded = true;
       notifyListeners();
     } on ApiException catch (_) {}
   }

@@ -36,6 +36,9 @@ export interface ActivityView {
   createdAt: string;
 }
 
+/** Chat lines: read when you open that chat, however you got there. */
+export const CHAT_TYPES = ['chat.message', 'chat.gift', 'chat.reaction'];
+
 /**
  * The Notifications page: a history of what happened to you — friend and
  * follow requests, new followers, matches, missed calls, money and account
@@ -55,14 +58,15 @@ export class ActivityFeedService {
   /**
    * Called by NotificationsService. Never throws. Lines with a collapse key
    * (one per chat, one per call…) replace that chat's unread line instead of
-   * adding another: "Sara · 3 new messages" stays one line.
+   * adding another: "Sara · 3 new messages" stays one line. Returns the
+   * line's id (it rides along in the push, so tapping it marks it read).
    */
-  async record(userId: string, type: NotificationType, c: Content): Promise<void> {
-    if (type.feed === 'never') return;
+  async record(userId: string, type: NotificationType, c: Content): Promise<string | null> {
+    if (type.feed === 'never') return null;
     try {
       const who = c.data.userId || c.data.friendId || null;
       const actorId = type.feed === 'system' ? null : who;
-      if (actorId === userId) return;
+      if (actorId === userId) return null;
       const collapseKey = c.collapseKey ? `${type.key}:${c.collapseKey}`.slice(0, 120) : null;
       const fields = { type: type.key, actorId, title: c.title.slice(0, 200), body: (c.detail ?? c.body).slice(0, 500), data: c.data as Prisma.InputJsonObject };
       const open = collapseKey ? await this.prisma.activityItem.findFirst({ where: { userId, collapseKey, readAt: null }, orderBy: { createdAt: 'desc' } }) : null;
@@ -71,8 +75,10 @@ export class ActivityFeedService {
         : await this.prisma.activityItem.create({ data: { userId, collapseKey, ...fields } });
       const [item] = await this.views(userId, [row]);
       this.realtime.toUser(userId, ServerEvent.ActivityNew, { item, unread: await this.unread(userId) });
+      return row.id;
     } catch (e) {
       this.log.warn(`activity for ${userId} not saved: ${(e as Error).message}`);
+      return null;
     }
   }
 
@@ -87,16 +93,45 @@ export class ActivityFeedService {
     return { items: await this.views(userId, page), nextCursor: rows.length > q.limit ? page[page.length - 1].id : null, unread: await this.unread(userId) };
   }
 
-  unread(userId: string): Promise<number> {
-    return this.prisma.activityItem.count({ where: { userId, readAt: null } });
+  /**
+   * The bell's number: unread lines that came (or got a new message) since
+   * you last opened the Notifications page. Opening the page clears the
+   * bell; each line stays unread (highlighted) until you open it.
+   */
+  async unread(userId: string): Promise<number> {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { activitySeenAt: true } });
+    return this.prisma.activityItem.count({ where: { userId, readAt: null, ...(u?.activitySeenAt ? { createdAt: { gt: u.activitySeenAt } } : {}) } });
   }
 
-  /** Marks the given lines (or all) as read; every device's badge updates. */
-  async markRead(userId: string, ids?: string[]): Promise<{ unread: number }> {
-    await this.prisma.activityItem.updateMany({ where: { userId, readAt: null, ...(ids?.length ? { id: { in: ids } } : {}) }, data: { readAt: this.clock.now() } });
+  /** Opened the Notifications page: the bell goes to 0 on every device; the lines stay unread. */
+  async markSeen(userId: string): Promise<{ unread: number }> {
+    await this.prisma.user.update({ where: { id: userId }, data: { activitySeenAt: this.clock.now() } });
     const unread = await this.unread(userId);
-    this.realtime.toUser(userId, ServerEvent.ActivityRead, { unread });
+    this.realtime.toUser(userId, ServerEvent.ActivityRead, { unread, ids: [] });
     return { unread };
+  }
+
+  /**
+   * Marks the given lines (or, without ids, all of them) read; every
+   * device updates its badge and its list. "Mark all read" also clears the bell.
+   */
+  async markRead(userId: string, ids?: string[]): Promise<{ unread: number }> {
+    const all = !ids?.length;
+    if (all) await this.prisma.user.update({ where: { id: userId }, data: { activitySeenAt: this.clock.now() } });
+    await this.prisma.activityItem.updateMany({ where: { userId, readAt: null, ...(all ? {} : { id: { in: ids } }) }, data: { readAt: this.clock.now() } });
+    const unread = await this.unread(userId);
+    this.realtime.toUser(userId, ServerEvent.ActivityRead, all ? { unread, all: true } : { unread, ids });
+    return { unread };
+  }
+
+  /** Opened what some lines are about (a chat): those lines are read. Never throws. */
+  async markReadAbout(userId: string, actorId: string, types: string[]): Promise<void> {
+    try {
+      const rows = await this.prisma.activityItem.findMany({ where: { userId, actorId, type: { in: types }, readAt: null }, select: { id: true } });
+      if (rows.length) await this.markRead(userId, rows.map((r) => r.id));
+    } catch (e) {
+      this.log.warn(`activity read for ${userId} failed: ${(e as Error).message}`);
+    }
   }
 
   /** Lines with the person as they are now, and where you stand with them (for Accept / Follow back / Message). */
