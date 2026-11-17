@@ -17,12 +17,12 @@ export const marketingKeys = {
 const DAYS = [1, 7, 30, 90] as const;
 
 /** The period lives in the URL (?days=30), so "See all" pages and reloads keep it. */
-export function useDays(): [number, (d: number) => void] {
+export function useDays(fallback = 7): [number, (d: number) => void] {
   const params = useSearchParams();
   const router = useRouter();
   const path = usePathname();
   const raw = Number(params.get("days"));
-  const days = (DAYS as readonly number[]).includes(raw) ? raw : 7;
+  const days = (DAYS as readonly number[]).includes(raw) ? raw : fallback;
   const set = (d: number) => {
     const next = new URLSearchParams(params.toString());
     next.set("days", String(d));

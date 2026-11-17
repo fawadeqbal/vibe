@@ -960,3 +960,31 @@ export interface MarketingVisitsPage {
   counts: Record<"all" | "reading" | "clicked" | "signed_up" | "left", number>;
   sources: string[];
 }
+
+/** GET admin/dashboard/marketing/insights — the Marketing insights page. */
+export interface InsightCounts {
+  visitors: number;
+  visits: number;
+  clicked: number;
+  signups: number;
+  firstCalls: number;
+  paid: number;
+  revenueCents: number;
+}
+export interface InsightRow extends InsightCounts {
+  key: string;
+  before: InsightCounts;
+}
+export interface MarketingInsights {
+  days: number;
+  generatedAt: string;
+  tzOffsetMinutes: number;
+  totals: InsightCounts;
+  previous: InsightCounts;
+  daily: ({ day: string } & InsightCounts)[];
+  regions: (InsightRow & { countries: InsightRow[] })[];
+  channels: InsightRow[];
+  devices: InsightRow[];
+  hours: InsightRow[];
+  live: number;
+}

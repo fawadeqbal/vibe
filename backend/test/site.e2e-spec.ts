@@ -132,4 +132,49 @@ describe('site traffic', () => {
     const [calls] = await t.prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM "vw_real_call" WHERE user_id = ${u.id}`;
     expect(Number(calls.n)).toBe(1);
   });
+  it('Marketing insights: by world region and country, channel, device and hour, against the window before', async () => {
+    const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+    await beacon({ k: 'view', v: 'visit_i1111111', u: 'visitor_i1', p: '/', r: 'https://www.google.com/' }, phone, { 'cf-ipcountry': 'PK' });
+    await beacon({ k: 'click', v: 'visit_i1111111', u: 'visitor_i1', p: '/', b: 'hero_start', t: '/match' });
+    await beacon({ k: 'view', v: 'visit_i2222222', u: 'visitor_i2', p: '/', r: 'https://www.tiktok.com/' }, phone, { 'cf-ipcountry': 'IN' });
+    await beacon({ k: 'view', v: 'visit_i3333333', u: 'visitor_i3', p: '/' }, iphone, { 'cf-ipcountry': 'US' });
+    // Ten days ago: the 7 days before.
+    await beacon({ k: 'view', v: 'visit_i4444444', u: 'visitor_i4', p: '/', r: 'https://www.tiktok.com/' }, phone, { 'cf-ipcountry': 'PK' });
+    const old = new Date(Date.now() - 10 * 86_400_000);
+    await t.prisma.siteVisit.update({ where: { id: 'visit_i4444444' }, data: { startedAt: old, lastAt: old } });
+
+    const u = await signUp(t, { name: 'Ali' });
+    await t.http.post('/v1/site/attribution').set(u.auth).send({ visitId: 'visit_i1111111' }).expect(200);
+    const friend = await signUp(t, { name: 'Real' });
+    const at = (sec: number) => new Date(Date.now() + sec * 1000);
+    await t.prisma.match.create({ data: { userAId: friend.id, userBId: u.id, startedAt: at(1), endedAt: at(80) } });
+    await t.prisma.purchase.create({
+      data: { userId: u.id, productType: 'COIN_PACK', productId: 'p1', method: 'JAZZCASH', usdCents: 499, status: 'SUCCEEDED', idempotencyKey: 'k-ins', completedAt: new Date(), events: { create: { provider: 'jazzcash', type: 'charge.started' } } },
+    });
+
+    const staff = await staffLogin(t);
+    const r = (await t.http.get('/v1/admin/dashboard/marketing/insights?days=7').set(staff.auth).expect(200)).body;
+    const counts = { visitors: 3, visits: 3, clicked: 1, signups: 1, firstCalls: 1, paid: 1, revenueCents: 499 };
+    expect(r.totals).toEqual(counts);
+    expect(r.previous).toMatchObject({ visitors: 1, visits: 1, signups: 0 });
+    expect(r.daily.reduce((n: number, d: { visits: number }) => n + d.visits, 0)).toBe(3);
+
+    const southAsia = r.regions.find((x: { key: string }) => x.key === 'South Asia');
+    expect(southAsia).toMatchObject({ visitors: 2, signups: 1, paid: 1, revenueCents: 499, before: { visitors: 1 } });
+    expect(southAsia.countries.map((c: { key: string }) => c.key).sort()).toEqual(['IN', 'PK']);
+    expect(southAsia.countries.find((c: { key: string }) => c.key === 'PK')).toMatchObject({ visitors: 1, firstCalls: 1, before: { visitors: 1 } });
+    expect(r.regions.find((x: { key: string }) => x.key === 'North America')).toMatchObject({ visitors: 1, signups: 0 });
+    expect(r.regions[0].key).toBe('South Asia');
+
+    expect(r.channels.find((c: { key: string }) => c.key === 'tiktok')).toMatchObject({ visitors: 1, before: { visitors: 1 } });
+    expect(r.channels.find((c: { key: string }) => c.key === 'google')).toMatchObject({ signups: 1, revenueCents: 499 });
+    expect(r.devices.find((d: { key: string }) => d.key === 'Android')).toMatchObject({ visitors: 2, signups: 1 });
+    expect(r.devices.find((d: { key: string }) => d.key === 'iPhone')).toMatchObject({ visitors: 1 });
+
+    expect(r.hours).toHaveLength(24);
+    const hour = String(new Date(Date.now() + r.tzOffsetMinutes * 60_000).getUTCHours()).padStart(2, '0');
+    expect(r.hours.find((h: { key: string }) => h.key === hour).visits).toBeGreaterThanOrEqual(2);
+    expect(r.hours.reduce((n: number, h: { visits: number }) => n + h.visits, 0)).toBe(3);
+    expect(r.live).toBe(3);
+  });
 });

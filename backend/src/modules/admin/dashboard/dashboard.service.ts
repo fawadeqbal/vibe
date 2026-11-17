@@ -8,6 +8,7 @@ import { RedisService } from '../../../infra/redis/redis.service';
 import { EconomyService } from '../../catalog/economy.service';
 import { MatchingService } from '../../matching/matching.service';
 import { discoverCallsReport, type DiscoverCallsReport } from './discover-stats';
+import { type MarketingInsights, marketingInsights } from './marketing-insights';
 import { type MarketingReport, marketingReport, marketingVisits, type MarketingVisitsPage, type VisitOutcome } from './marketing-stats';
 import { buildFunnel, CohortCounts, FunnelReport } from './funnel';
 
@@ -50,6 +51,13 @@ export class DashboardService {
   async marketing(days: number): Promise<MarketingReport> {
     return this.redis.remember(`admin:dash:marketing:${days}`, 60, () =>
       marketingReport(this.prisma, days, this.clock.now(), this.config.get('BUSINESS_TZ_OFFSET_MINUTES'), new URL(this.config.get('INVITE_LINK_BASE')).origin),
+    );
+  }
+
+  /** Admin → Marketing insights: regions, channels, devices and hours, with the window before (cached 60 s). */
+  async marketingInsights(days: number): Promise<MarketingInsights> {
+    return this.redis.remember(`admin:dash:marketing:insights:${days}`, 60, () =>
+      marketingInsights(this.prisma, days, this.clock.now(), this.config.get('BUSINESS_TZ_OFFSET_MINUTES')),
     );
   }
 
