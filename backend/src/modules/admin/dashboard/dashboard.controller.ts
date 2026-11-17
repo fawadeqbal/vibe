@@ -107,6 +107,12 @@ export class DashboardController {
     return this.dashboard.marketing(q.days ?? 7);
   }
 
+  @Get('marketing/insights')
+  @ApiOperation({ summary: 'Marketing insights: visitors, sign-ups, first calls, paid and revenue by world region (with countries), channel, device and hour of day, against the window before (cached 60 s)' })
+  marketingInsights(@Query() q: DaysQuery) {
+    return this.dashboard.marketingInsights(q.days ?? 7);
+  }
+
   @Get('marketing/visits')
   @ApiOperation({ summary: 'Marketing site: every visit in the window, newest first, a page at a time (filter by outcome, channel, place or page)' })
   marketingVisits(@Query() q: VisitsQuery) {

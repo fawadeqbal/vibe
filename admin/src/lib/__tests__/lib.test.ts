@@ -63,6 +63,10 @@ describe("navigation", () => {
     expect(isActive("/users/abc", item("/users"))).toBe(true);
     expect(isActive("/", item("/"))).toBe(true);
     expect(isActive("/users", item("/"))).toBe(false);
+    // Insights has its own entry: it lights up instead of "Marketing site".
+    expect(isActive("/marketing/insights", item("/marketing/insights"))).toBe(true);
+    expect(isActive("/marketing/insights", item("/marketing"))).toBe(false);
+    expect(isActive("/marketing/visits", item("/marketing"))).toBe(true);
   });
 
   it("new money and ops screens are in the menu with the right permission", () => {
